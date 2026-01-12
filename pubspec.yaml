@@ -21,7 +21,7 @@ flutter:
 
   # On regroupe TOUS les assets ici, sous le même bloc
   assets:
-    - assets/data/quran_data.json
+    - assets/data/
     - assets/mushaf/hafs/
     - assets/mushaf/warsh/
 
