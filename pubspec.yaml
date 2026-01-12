@@ -19,8 +19,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  # On regroupe TOUS les assets ici, sous le même bloc
   assets:
     - assets/data/quran_data.json
+    - assets/mushaf/hafs/
+    - assets/mushaf/warsh/
 
   fonts:
     - family: UthmanicHafs
@@ -47,8 +50,3 @@ flutter:
     - family: UthmanicQumbul
       fonts:
         - asset: assets/fonts/qumbul.ttf
-
-  flutter:
-    assets:
-      - assets/mushaf/hafs/
-      - assets/mushaf/warsh/

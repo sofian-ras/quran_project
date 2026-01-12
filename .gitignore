@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Exclure les images du Mushaf (trop lourdes pour Git)
+assets/mushaf/**/*.jpg
+assets/mushaf/**/*.png
+
+# Optionnel : si tu veux aussi exclure les fichiers de base de données volumineux
+*.db
