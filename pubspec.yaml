@@ -4,27 +4,36 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.7
+  sdk: ^3.5.0 # Mis à jour pour plus de stabilité avec sqflite
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  # Ajout des outils pour la base de données
+  http: ^1.1.0
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  path_provider: ^2.1.0
+  just_audio: ^0.9.36
+  audio_session: ^0.1.18
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^3.0.0 # Version standard stable
 
 flutter:
   uses-material-design: true
 
-  # On regroupe TOUS les assets ici, sous le même bloc
+  # Gestion des images et fichiers de données
   assets:
     - assets/data/
     - assets/mushaf/hafs/
     - assets/mushaf/warsh/
+    - assets/data/ayahinfo_1120.db # Précise le fichier DB ici par sécurité
 
+  # Configuration des polices de caractères
   fonts:
     - family: UthmanicHafs
       fonts:
