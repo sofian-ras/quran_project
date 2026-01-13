@@ -58,7 +58,21 @@ class _QuranHomePageState extends State<QuranHomePage> {
   int? currentS, currentA;
   bool _isAudioPlaying = false;
   bool autoNext = true;
-  String selectedReciter = "abdurrashid_sufi";
+  String selectedReciter = "Alafasy"; // valeur par défaut
+
+  // 10 récitateurs fiables sur EveryAyah
+  final Map<String, String> reciterFolders = {
+    'Alafasy': 'Alafasy',
+    'Minshawy': 'Minshawy',
+    'Maher_Almuaiqly': 'Maher_AlMuaiqly',
+    'Abdul_Basit_Murattal': 'Abdul_Basit_Murattal',
+    'Husary_Murattal': 'Husary_Murattal',
+    'Alhudhayfi': 'AlHudhayfi',
+    'Shuraim': 'Shuraim',
+    'Soudais': 'Soudais',
+    'Alajmi': 'AlAjmi',
+    'Hudhaify': 'Hudhaify',
+  };
 
   bool _showUI = true;
   Set<String> selectedVerses = {};
@@ -79,7 +93,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
         if (!added.contains(item['surah'])) {
           fullSurahList.add({
             "id": item['surah'],
-            "name": "Sourate ${item['surah']}",
+            "name": item['sura_name'] ?? "Sourate ${item['surah']}",
             "page": item['page'] ?? 1
           });
           added.add(item['surah']);
@@ -124,6 +138,30 @@ class _QuranHomePageState extends State<QuranHomePage> {
         LIMIT 1
       ''', [currentPage, dbX.toInt(), dbY.toInt()]);
 
+      if (res.isEmpty) {
+        setState(() {
+          selectedVerses.clear();
+          _showUI = !_showUI;
+        });
+      }
+    } catch (e) {
+      debugPrint("Erreur lors du clic : $e");
+    }
+  }
+
+  void _handleLongPress(LongPressStartDetails details, AppGeometry geo) async {
+    if (_db == null) return;
+    try {
+      double dbX = (details.localPosition.dx - geo.offsetX) / geo.scale;
+      double dbY = (details.localPosition.dy - geo.offsetY) / geo.scale;
+      List<Map<String, dynamic>> res = await _db!.rawQuery('''
+        SELECT sura_number, ayah_number FROM glyphs
+        WHERE page_number = ?
+        AND ? BETWEEN min_x AND max_x
+        AND ? BETWEEN min_y AND max_y
+        LIMIT 1
+      ''', [currentPage, dbX.toInt(), dbY.toInt()]);
+
       if (res.isNotEmpty) {
         final s = res.first['sura_number'];
         final a = res.first['ayah_number'];
@@ -133,14 +171,9 @@ class _QuranHomePageState extends State<QuranHomePage> {
           });
           _showVerseOptions(s as int, a as int);
         }
-      } else {
-        setState(() {
-          selectedVerses.clear();
-          _showUI = !_showUI;
-        });
       }
     } catch (e) {
-      debugPrint("Erreur lors du clic : $e");
+      debugPrint("Erreur lors du long press : $e");
     }
   }
 
@@ -171,6 +204,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
                 return GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onTapDown: (details) => _handleTap(details, geo),
+                  onLongPressStart: (details) => _handleLongPress(details, geo),
                   child: Center(
                     child: Image.asset(
                       'assets/mushaf/$currentReading/$fileName',
@@ -229,15 +263,14 @@ class _QuranHomePageState extends State<QuranHomePage> {
               height: MediaQuery.of(context).size.height * 0.65,
               decoration: const BoxDecoration(
                   color: Color(0xFF121212),
-                  borderRadius:
-                      BorderRadius.vertical(top: Radius.circular(25))),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
               child: Column(
                 children: [
                   const SizedBox(height: 15),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      Text("Sourate $s | Verset $a",
+                      Text("Sourate ${verse?['sura_name']} | Verset $a",
                           style: const TextStyle(
                               color: Colors.white, fontWeight: FontWeight.bold)),
                       ElevatedButton.icon(
@@ -251,6 +284,29 @@ class _QuranHomePageState extends State<QuranHomePage> {
                     ],
                   ),
                   const Divider(color: Colors.white10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: Row(
+                      children: [
+                        const Text("Réciteur :", style: TextStyle(color: Colors.amber)),
+                        const SizedBox(width: 10),
+                        DropdownButton<String>(
+                          value: selectedReciter,
+                          dropdownColor: Colors.black87,
+                          items: reciterFolders.keys.map((r) => DropdownMenuItem(
+                            value: r,
+                            child: Text(r, style: const TextStyle(color: Colors.white)),
+                          )).toList(),
+                          onChanged: (v) {
+                            if (v != null) setState(() {
+                              selectedReciter = v;
+                              _playAudio(s, a);
+                            });
+                          },
+                        )
+                      ],
+                    ),
+                  ),
                   Expanded(
                       child: ListView(
                     padding: const EdgeInsets.all(20),
@@ -308,18 +364,34 @@ class _QuranHomePageState extends State<QuranHomePage> {
   }
 
   void _playAudio(int s, int a) async {
-    String url =
-        "https://tanzil.net/res/audio/$selectedReciter/${s.toString().padLeft(3, '0')}${a.toString().padLeft(3, '0')}.mp3";
+    if (!reciterFolders.containsKey(selectedReciter)) return;
+
+    String folder = reciterFolders[selectedReciter]!;
+    String surahStr = s.toString().padLeft(3, '0');
+    String ayahStr = a.toString().padLeft(3, '0');
+
+    String url = "https://everyayah.com/data/$folder/$surahStr$ayahStr.mp3";
+
     try {
+      final response = await http.head(Uri.parse(url));
+      if (response.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Audio non disponible pour ce verset")));
+        return;
+      }
+
       setState(() {
         currentS = s;
         currentA = a;
         _isAudioPlaying = true;
       });
+
       await _audioPlayer.setUrl(url);
       _audioPlayer.play();
     } catch (e) {
       debugPrint("Audio Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Erreur lors de la lecture audio")));
     }
   }
 
@@ -387,12 +459,14 @@ class _QuranHomePageState extends State<QuranHomePage> {
 class _TafsirLoader extends StatelessWidget {
   final int surah, ayah;
   const _TafsirLoader({required this.surah, required this.ayah});
+
   Future<String> fetch() async {
     try {
       final r = await http
           .get(Uri.parse('https://api.quran.com/api/v4/tafsirs/16/by_ayah/$surah:$ayah'));
       if (r.statusCode == 200) {
-        return json.decode(r.body)['tafsir']['text'].replaceAll(RegExp(r'<[^>]*>'), '');
+        return json.decode(r.body)['tafsir']['text']
+            .replaceAll(RegExp(r'<[^>]*>'), '');
       }
     } catch (e) {
       return "Erreur de connexion";
@@ -405,7 +479,14 @@ class _TafsirLoader extends StatelessWidget {
     return FutureBuilder<String>(
         future: fetch(),
         builder: (context, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snap.hasData || snap.data!.isEmpty) {
+            return const Text("Tafsir indisponible",
+                textDirection: TextDirection.rtl,
+                style: TextStyle(color: Colors.white70, fontSize: 15));
+          }
           return Text(snap.data!,
               textDirection: TextDirection.rtl,
               style: const TextStyle(color: Colors.white70, fontSize: 15));
