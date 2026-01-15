@@ -7,7 +7,15 @@ import 'package:sqflite/sqflite.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  /* --------------- IMMERSIVE MODE --------------- */
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+
   runApp(const QuranApp());
 }
 
@@ -43,7 +51,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
   List<dynamic> quranData = [];
   List<Map<String, dynamic>> fullSurahList = [];
 
-  bool showBottomBar = true; // Contrôle l'affichage du bas
+  bool showBottomBar = true;
 
   @override
   void initState() {
@@ -94,9 +102,13 @@ class _QuranHomePageState extends State<QuranHomePage> {
     _pageController.jumpToPage(page - 1);
   }
 
+  bool get isLandscape =>
+      MediaQuery.of(context).orientation == Orientation.landscape;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFDF7E7),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: toggleBottomBar,
@@ -114,17 +126,31 @@ class _QuranHomePageState extends State<QuranHomePage> {
               itemBuilder: (_, i) {
                 final page = i + 1;
                 final file = currentReading == "hafs" ? "$page.png" : "$page.jpg";
-                return Center(
-                  child: Image.asset(
-                    'assets/mushaf/$currentReading/$file',
-                    fit: BoxFit.contain,
-                  ),
+
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    const double margin = 16;          // marge extérieure
+                    return Padding(
+                      padding: const EdgeInsets.all(margin),
+                      child: SingleChildScrollView(    // scroll vertical uniquement
+                        physics: const ClampingScrollPhysics(),
+                        child: Center(
+                          child: Image.asset(
+                            'assets/mushaf/$currentReading/$file',
+                            // on force la largeur utile
+                            width: constraints.maxWidth - 2 * margin,
+                            fit: BoxFit.fitWidth,      // largeur max, pas de bandes
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
 
-            // Barre du bas
-            if (showBottomBar)
+            // Barre du bas (cachée en paysage)
+            if (showBottomBar && !isLandscape)
               Positioned(
                 bottom: 16,
                 left: 0,
@@ -132,7 +158,6 @@ class _QuranHomePageState extends State<QuranHomePage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Bas gauche : nom de la sourate cliquable
                     GestureDetector(
                       onTap: () => _showSurahSelection(context),
                       child: Padding(
@@ -146,8 +171,6 @@ class _QuranHomePageState extends State<QuranHomePage> {
                         ),
                       ),
                     ),
-
-                    // Bas centre : numéro de page
                     Text(
                       "$currentPage",
                       style: const TextStyle(
@@ -155,8 +178,6 @@ class _QuranHomePageState extends State<QuranHomePage> {
                         color: Colors.black,
                       ),
                     ),
-
-                    // Bas droite : hafs/warsh
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextButton(
