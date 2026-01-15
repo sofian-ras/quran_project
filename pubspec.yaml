@@ -1,5 +1,5 @@
 name: quran
-description: "Projet Mushaf Al-Muqaran - Comparatif 8 Lectures"
+description: "Coran"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  image: ^4.7.2
   cupertino_icons: ^1.0.8
   # Ajout des outils pour la base de données
   http: ^1.1.0
@@ -19,9 +20,19 @@ dependencies:
   audio_session: ^0.1.18
 
 dev_dependencies:
+  flutter_launcher_icons: 0.14.0
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0 # Version standard stable
+
+# Configuration pour générer l'icône
+flutter_icons:
+  android: true
+  ios: false        # pour l'instant, tu n'as pas besoin d'iOS
+  image_path: "assets/icon/logo_coran.png"  # chemin vers ton logo carré 512x512
+  adaptive_icon_background: "#FFFFFF"  # fond pour adaptive icon Android
+  adaptive_icon_foreground: "assets/icon/logo_coran.png"  # même image pour foreground
+
 
 flutter:
   uses-material-design: true
@@ -31,7 +42,9 @@ flutter:
     - assets/data/
     - assets/mushaf/hafs/
     - assets/mushaf/warsh/
-    - assets/data/ayahinfo_1120.db # Précise le fichier DB ici par sécurité
+    - assets/data/ayahinfo_1120.db
+    - assets/screenshots/
+    - assets/fonts/
 
   # Configuration des polices de caractères
   fonts:

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.quran"
+    namespace = "com.rasmi.quran"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.quran"
+        applicationId = "com.rasmi.quran"
         minSdk = flutter.minSdkVersion // On force 21 pour la compatibilité avec just_audio
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
