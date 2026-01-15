@@ -16,14 +16,6 @@
 
 ---
 
-## Screenshots
-
-![Screenshot 1](assets/screenshots/screen1.jpg)
-![Screenshot 2](assets/screenshots/screen2.jpg)
-![Screenshot 3](assets/screenshots/screen3.png)
-
----
-
 ## Technologies
 
 - Flutter
