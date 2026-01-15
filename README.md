@@ -1,3 +1,5 @@
+بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+
 # Coran
 
 **Coran** is a Flutter mobile app that allows users to read the Quran with high-quality Mushaf images in **Hafs** and **Warsh** recitations. The app includes navigation by pages, surah selection, and displays Juz and Hizb information.
@@ -60,7 +62,7 @@ flutter run
 ## Assets
 
 * Mushaf images are **sourced from Quran.com** – we thank them for their incredible work.
-* Fonts and calligraphy included: Hafs, Warsh, Qaloon, Bazzi, etc.
+* Fonts and calligraphy included: Hafs, Warsh.
 * SQLite database contains ayah information for app navigation.
 
 ---
