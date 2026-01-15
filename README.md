@@ -21,9 +21,6 @@
 ![Screenshot 1](assets/screenshots/screen1.jpg)
 ![Screenshot 2](assets/screenshots/screen2.jpg)
 ![Screenshot 3](assets/screenshots/screen3.jpg)
-![Screenshot 4](assets/screenshots/screen4.jpg)
-![Screenshot 5](assets/screenshots/screen5.jpg)
-![Screenshot 6](assets/screenshots/screen6.jpg)
 
 ---
 
