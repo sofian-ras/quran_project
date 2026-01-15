@@ -192,7 +192,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
                         ? Center(
                             child: Image.asset(
                                 'assets/mushaf/$currentReading/$file',
-                                fit: BoxFit.contain))
+                                fit: BoxFit.contain)) 
                         : SingleChildScrollView(
                             physics: const ClampingScrollPhysics(),
                             child: Image.asset(
