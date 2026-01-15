@@ -184,6 +184,14 @@ class _QuranHomePageState extends State<QuranHomePage> {
                   const double hMargin = 4;
                   const double vMargin = 16;
                   final isPortrait = constraints.maxHeight > constraints.maxWidth;
+
+                  final imageWidget = Image.asset(
+                    'assets/mushaf/$currentReading/$file',
+                    fit: BoxFit.contain,
+                    cacheWidth: isPortrait
+                      ? constraints.maxWidth.toInt()
+                      : constraints.maxWidth.toInt() - 2 * hMargin.toInt(),
+                  );
                   return Padding(
                     padding: isPortrait
                         ? const EdgeInsets.all(vMargin)
@@ -200,6 +208,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
                               width: constraints.maxWidth - 2 * hMargin,
                               fit: BoxFit.fitWidth,
                               alignment: Alignment.topCenter,
+                              cacheWidth: (constraints.maxWidth - 2 * hMargin).toInt(),
                             ),
                           ),
                   );
