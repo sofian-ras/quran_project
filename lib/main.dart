@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'hizb_juzz.dart';
+import 'surah_name.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +48,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
     final nextStart = hizb == 60 ? 605 : hizbMap.firstWhere((e) => e['hizb'] == hizb + 1)['start_page']!;
     final total = nextStart - start;
     final done = page - start + 1;
-    final quart = (done * 4) ~/ total;
+    final quart = ((done * 4) ~/ total).clamp(0, 3);
     final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
     return '$frac hizb n°$hizb';
   }
@@ -59,7 +60,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
     final nextStart = juzz == 30 ? 605 : juzzMap.firstWhere((e) => e['juz'] == juzz + 1)['start_page']!;
     final total = nextStart - start;
     final done = page - start + 1;
-    final quart = (done * 4) ~/ total;
+    final quart = ((done * 4) ~/ total).clamp(0, 3);
     final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
     return '$frac juzz n°$juzz';
   }
@@ -90,18 +91,22 @@ class _QuranHomePageState extends State<QuranHomePage> {
     _initApp();
   }
 
+  /* 1. importer les noms français (à placer tout en haut de main.dart) */
+
   Future<void> _initApp() async {
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     quranData = json.decode(jsonStr);
     final added = <int>{};
     for (final v in quranData) {
-      if (!added.contains(v['surah'])) {
+      final id = v['surah'];
+      if (!added.contains(id)) {
         fullSurahList.add({
-          'id': v['surah'],
-          'name': v['sura_name'] ?? 'Sourate ${v['surah']}',
+          'id': id,
+          'nameAr': v['sura_name'] ?? 'Sourate $id',
+          'nameFr': surahFr[id] ?? 'Sourate $id',   // nom français
           'page': v['page'] ?? 1,
         });
-        added.add(v['surah']);
+        added.add(id);
       }
     }
     final path = p.join(await getDatabasesPath(), "ayahinfo_1120.db");
@@ -129,130 +134,164 @@ class _QuranHomePageState extends State<QuranHomePage> {
   bool get isLandscape =>
       MediaQuery.of(context).orientation == Orientation.landscape;
 
+  /* ---------- Dialogue saisie page ---------- */
+  void _jumpToPageDialog(BuildContext context) {
+    final ctrl = TextEditingController(text: currentPage.toString());
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Aller à la page'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(hintText: '1 - 604'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+          ElevatedButton(
+            onPressed: () {
+              final p = int.tryParse(ctrl.text);
+              if (p != null && p >= 1 && p <= 604) {
+                _pageController.jumpToPage(p - 1);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFEFCF9),
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: toggleBottomBar,
-        child: Stack(
-          children: [
-            PageView.builder(
-              controller: _pageController,
-              reverse: true,
-              itemCount: 604,
-              onPageChanged: (p) => setState(() => currentPage = p + 1),
-              itemBuilder: (_, i) {
-                final page = i + 1;
-                final file =
-                    currentReading == "hafs" ? "$page.png" : "$page.jpg";
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    const double hMargin = 4;
-                    const double vMargin = 16;
-                    final isPortrait =
-                        constraints.maxHeight > constraints.maxWidth;
-                    return Padding(
-                      padding: isPortrait
-                          ? const EdgeInsets.all(vMargin)
-                          : const EdgeInsets.symmetric(horizontal: hMargin),
-                      child: isPortrait
-                          ? Center(
-                              child: Image.asset(
-                                  'assets/mushaf/$currentReading/$file',
-                                  fit: BoxFit.contain))
-                          : SingleChildScrollView(
-                              physics: const ClampingScrollPhysics(),
-                              child: Image.asset(
+  return Scaffold(
+    backgroundColor: const Color(0xFFFEFCF9),
+    body: GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: toggleBottomBar,
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            reverse: true,
+            itemCount: 604,
+            onPageChanged: (p) => setState(() => currentPage = p + 1),
+            itemBuilder: (_, i) {
+              final page = i + 1;
+              final file = currentReading == "hafs" ? "$page.png" : "$page.jpg";
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  const double hMargin = 4;
+                  const double vMargin = 16;
+                  final isPortrait = constraints.maxHeight > constraints.maxWidth;
+                  return Padding(
+                    padding: isPortrait
+                        ? const EdgeInsets.all(vMargin)
+                        : const EdgeInsets.symmetric(horizontal: hMargin),
+                    child: isPortrait
+                        ? Center(
+                            child: Image.asset(
                                 'assets/mushaf/$currentReading/$file',
-                                width: constraints.maxWidth - 2 * hMargin,
-                                fit: BoxFit.fitWidth,
-                                alignment: Alignment.topCenter,
-                              ),
+                                fit: BoxFit.contain))
+                        : SingleChildScrollView(
+                            physics: const ClampingScrollPhysics(),
+                            child: Image.asset(
+                              'assets/mushaf/$currentReading/$file',
+                              width: constraints.maxWidth - 2 * hMargin,
+                              fit: BoxFit.fitWidth,
+                              alignment: Alignment.topCenter,
                             ),
-                    );
-                  },
-                );
-              },
-            ),
+                          ),
+                  );
+                },
+              );
+            },
+          ),
 
-            /* ---------- Info hizb / juzz ---------- */
-            Positioned(
-              top: 8,
-              right: 12,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _hizbText(currentPage),
+          /* ---------- Info hizb / juzz ---------- */
+          Positioned(
+            top: 8,
+            right: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(_hizbText(currentPage),
                     style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w300,
+                        fontSize: 11,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w300)),
+                Text(_juzzText(currentPage),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w300)),
+              ],
+            ),
+          ),
+
+          /* ---------- Barre du bas ---------- */
+          if (showBottomBar && !isLandscape)
+            Positioned(
+              bottom: 16,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  /* ---------- Sourate (français) cliquable ---------- */
+                  GestureDetector(
+                    onTap: () => _showSurahSelection(context),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        fullSurahList
+                            .lastWhere((s) => s['page']! <= currentPage,
+                                orElse: () => {'nameFr': ''})['nameFr'],
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.black),
+                      ),
                     ),
                   ),
-                  Text(
-                    _juzzText(currentPage),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w300,
+
+                  /* ---------- Numéro de page cliquable ---------- */
+                  GestureDetector(
+                    onTap: () => _jumpToPageDialog(context),
+                    child: SizedBox(
+                      width: 50,                       // largeur fixe → reste centré
+                      child: Text(
+                        '$currentPage',
+                        textAlign: TextAlign.center,   // centré même si 1 ou 3 chiffres
+                        style: const TextStyle(fontSize: 16, color: Colors.black),
+                      ),
+                    ),
+                  ),
+
+                  /* ---------- Hafs / Warsh ---------- */
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextButton(
+                      onPressed: () => setState(() =>
+                          currentReading = currentReading == "hafs" ? "warsh" : "hafs"),
+                      child: Text(
+                        currentReading.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-
-            /* ---------- Barre du bas ---------- */
-            if (showBottomBar && !isLandscape)
-              Positioned(
-                bottom: 16,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    GestureDetector(
-                      onTap: () => _showSurahSelection(context),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          getCurrentSurahName(),
-                          style: const TextStyle(
-                              fontSize: 14, color: Colors.black),
-                        ),
-                      ),
-                    ),
-                    Text(
-                      "$currentPage",
-                      style:
-                          const TextStyle(fontSize: 16, color: Colors.black),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextButton(
-                        onPressed: () => setState(() =>
-                            currentReading = currentReading == "hafs" ? "warsh" : "hafs"),
-                        child: Text(
-                          currentReading.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
+  /* ---------- Liste des sourates ---------- */
   void _showSurahSelection(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -261,7 +300,8 @@ class _QuranHomePageState extends State<QuranHomePage> {
         itemBuilder: (context, index) {
           final s = fullSurahList[index];
           return ListTile(
-            title: Text("${s['id']}. ${s['name']}"),
+            title: Text('${s['id']}. ${s['nameFr']}'), // français
+            subtitle: Text(s['nameAr']),               // arabe
             onTap: () {
               selectSurah(s['page']);
               Navigator.pop(context);
