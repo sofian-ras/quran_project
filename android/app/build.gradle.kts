@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // Le plugin Flutter doit être après Android et Kotlin
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -16,34 +15,49 @@ android {
     }
 
     kotlinOptions {
-        // Correction de l'erreur jvmTarget
         jvmTarget = "11"
     }
 
     defaultConfig {
         applicationId = "com.rasmi.quran"
-        minSdk = flutter.minSdkVersion // On force 21 pour la compatibilité avec just_audio
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
-    // Bloc de sécurité pour les conflits de fichiers
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
 
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("debug")
-            // Correction des erreurs : on ajoute "is" devant
-            isMinifyEnabled = false
-            isShrinkResources = false
+    signingConfigs {
+        create("release") {
+            storeFile = file("upload-keystore.jks")
+            storePassword = "Football59"
+            keyAlias = "upload"
+            keyPassword = "Football59"
         }
     }
-}
-flutter {
-    source = "../.."
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+        }
+    }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
+        abi {
+            enableSplit = true
+        }
+        density {
+            enableSplit = false
+        }
+    }
 }

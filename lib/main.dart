@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'hizb_juzz.dart';
 import 'surah_name.dart';
+import 'asset_manager.dart'; // version ZIP offline
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,12 +42,13 @@ class QuranHomePage extends StatefulWidget {
 }
 
 class _QuranHomePageState extends State<QuranHomePage> {
-  /* ---------- début fonctions hizb / juzz ---------- */
+  /* ---------- fonctions hizb / juzz ---------- */
   String _hizbText(int page) {
     final h = hizbMap.lastWhere((e) => e['start_page']! <= page);
     final hizb = h['hizb']!;
     final start = h['start_page']!;
-    final nextStart = hizb == 60 ? 605 : hizbMap.firstWhere((e) => e['hizb'] == hizb + 1)['start_page']!;
+    final nextStart =
+        hizb == 60 ? 605 : hizbMap.firstWhere((e) => e['hizb'] == hizb + 1)['start_page']!;
     final total = nextStart - start;
     final done = page - start + 1;
     final quart = ((done * 4) ~/ total).clamp(0, 3);
@@ -57,23 +60,14 @@ class _QuranHomePageState extends State<QuranHomePage> {
     final j = juzzMap.lastWhere((e) => e['start_page']! <= page);
     final juzz = j['juz']!;
     final start = j['start_page']!;
-    final nextStart = juzz == 30 ? 605 : juzzMap.firstWhere((e) => e['juz'] == juzz + 1)['start_page']!;
+    final nextStart =
+        juzz == 30 ? 605 : juzzMap.firstWhere((e) => e['juz'] == juzz + 1)['start_page']!;
     final total = nextStart - start;
     final done = page - start + 1;
     final quart = ((done * 4) ~/ total).clamp(0, 3);
     final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
     return '$frac juzz n°$juzz';
   }
-
-  String _toFraction(int num, int den) {
-    switch ((num * 4) ~/ den) {
-      case 0: return '1/4';
-      case 1: return '1/2';
-      case 2: return '3/4';
-      default: return '';
-    }
-  }
-  /* ---------- fin fonctions hizb / juzz ---------- */
 
   int currentPage = 1;
   String currentReading = "hafs";
@@ -89,11 +83,17 @@ class _QuranHomePageState extends State<QuranHomePage> {
   void initState() {
     super.initState();
     _initApp();
+
+    // Préparer le ZIP offline
+    downloadAndExtractZip().then((_) {
+      print('Pages prêtes en local !');
+    }).catchError((e) {
+      print('Erreur lors de la préparation du ZIP : $e');
+    });
   }
 
-  /* 1. importer les noms français (à placer tout en haut de main.dart) */
-
   Future<void> _initApp() async {
+    // Charge les données JSON
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     quranData = json.decode(jsonStr);
     final added = <int>{};
@@ -103,26 +103,33 @@ class _QuranHomePageState extends State<QuranHomePage> {
         fullSurahList.add({
           'id': id,
           'nameAr': v['sura_name'] ?? 'Sourate $id',
-          'nameFr': surahFr[id] ?? 'Sourate $id',   // nom français
+          'nameFr': surahFr[id] ?? 'Sourate $id',
           'page': v['page'] ?? 1,
         });
         added.add(id);
       }
     }
+
+    // Base de données locale
     final path = p.join(await getDatabasesPath(), "ayahinfo_1120.db");
     if (!await databaseExists(path)) {
       final data = await rootBundle.load("assets/data/ayahinfo_1120.db");
       await File(path).writeAsBytes(data.buffer.asUint8List());
     }
     _db = await openDatabase(path, readOnly: true);
+
     if (mounted) setState(() {});
   }
 
-  String getCurrentSurahName() {
-    final surah = fullSurahList.lastWhere(
-        (s) => s['page']! <= currentPage,
-        orElse: () => {'name': ''});
-    return surah['name'] ?? '';
+  // --------- Nouvelle fonction getPageFile ---------
+  Future<File> getPageFile(String reading, String fileName) async {
+    final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/quran_pages');
+    final file = File('${dir.path}/$reading/$fileName');
+    print('Trying to load: ${file.path}');
+    if (!await file.exists()) {
+      print('File not found!');
+    }
+    return file;
   }
 
   void toggleBottomBar() {
@@ -134,7 +141,6 @@ class _QuranHomePageState extends State<QuranHomePage> {
   bool get isLandscape =>
       MediaQuery.of(context).orientation == Orientation.landscape;
 
-  /* ---------- Dialogue saisie page ---------- */
   void _jumpToPageDialog(BuildContext context) {
     final ctrl = TextEditingController(text: currentPage.toString());
     showDialog(
@@ -162,145 +168,146 @@ class _QuranHomePageState extends State<QuranHomePage> {
       ),
     );
   }
+
+  String getCurrentSurahName() {
+    final surah = fullSurahList.lastWhere(
+        (s) => s['page']! <= currentPage,
+        orElse: () => {'name': ''});
+    return surah['name'] ?? '';
+  }
+
   @override
   Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: const Color(0xFFFEFCF9),
-    body: GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: toggleBottomBar,
-      child: Stack(
-        children: [
-          PageView.builder(
-            controller: _pageController,
-            reverse: true,
-            itemCount: 604,
-            onPageChanged: (p) => setState(() => currentPage = p + 1),
-            itemBuilder: (_, i) {
-              final page = i + 1;
-              final file = currentReading == "hafs" ? "$page.png" : "$page.jpg";
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  const double hMargin = 4;
-                  const double vMargin = 16;
-                  final isPortrait = constraints.maxHeight > constraints.maxWidth;
+    return Scaffold(
+      backgroundColor: const Color(0xFFFEFCF9),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: toggleBottomBar,
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              reverse: true,
+              itemCount: 604,
+              onPageChanged: (p) => setState(() => currentPage = p + 1),
+              itemBuilder: (_, i) {
+                final page = i + 1;
+                final fileName = currentReading == "hafs" ? "$page.png" : "$page.jpg";
 
-                  final imageWidget = Image.asset(
-                    'assets/mushaf/$currentReading/$file',
-                    fit: BoxFit.contain,
-                    cacheWidth: isPortrait
-                      ? constraints.maxWidth.toInt()
-                      : constraints.maxWidth.toInt() - 2 * hMargin.toInt(),
-                  );
-                  return Padding(
-                    padding: isPortrait
-                        ? const EdgeInsets.all(vMargin)
-                        : const EdgeInsets.symmetric(horizontal: hMargin),
-                    child: isPortrait
-                        ? Center(
-                            child: Image.asset(
-                                'assets/mushaf/$currentReading/$file',
-                                fit: BoxFit.contain)) 
-                        : SingleChildScrollView(
-                            physics: const ClampingScrollPhysics(),
-                            child: Image.asset(
-                              'assets/mushaf/$currentReading/$file',
-                              width: constraints.maxWidth - 2 * hMargin,
+                return FutureBuilder<File>(
+                  future: getPageFile(currentReading, fileName),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final imageFile = snapshot.data!;
+
+                    // --- Gestion portrait / paysage ---
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isLandscape =
+                            MediaQuery.of(context).orientation == Orientation.landscape;
+
+                        if (isLandscape) {
+                          // Paysage → largeur pleine + scroll vertical
+                          return SingleChildScrollView(
+                            child: Image.file(
+                              imageFile,
+                              width: constraints.maxWidth,
                               fit: BoxFit.fitWidth,
-                              alignment: Alignment.topCenter,
-                              cacheWidth: (constraints.maxWidth - 2 * hMargin).toInt(),
                             ),
-                          ),
-                  );
-                },
-              );
-            },
-          ),
-
-          /* ---------- Info hizb / juzz ---------- */
-          Positioned(
-            top: 8,
-            right: 12,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(_hizbText(currentPage),
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w300)),
-                Text(_juzzText(currentPage),
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w300)),
-              ],
+                          );
+                        } else {
+                          // Portrait → image entière centrée
+                          return Center(
+                            child: Image.file(
+                              imageFile,
+                              fit: BoxFit.contain,
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                );
+              },
             ),
-          ),
-
-          /* ---------- Barre du bas ---------- */
-          if (showBottomBar && !isLandscape)
+            // Informations hizb/juzz
             Positioned(
-              bottom: 16,
-              left: 0,
-              right: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              top: 8,
+              right: 12,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  /* ---------- Sourate (français) cliquable ---------- */
-                  GestureDetector(
-                    onTap: () => _showSurahSelection(context),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        fullSurahList
-                            .lastWhere((s) => s['page']! <= currentPage,
-                                orElse: () => {'nameFr': ''})['nameFr'],
-                        style: const TextStyle(
-                            fontSize: 14, color: Colors.black),
-                      ),
-                    ),
-                  ),
-
-                  /* ---------- Numéro de page cliquable ---------- */
-                  GestureDetector(
-                    onTap: () => _jumpToPageDialog(context),
-                    child: SizedBox(
-                      width: 50,                       // largeur fixe → reste centré
-                      child: Text(
-                        '$currentPage',
-                        textAlign: TextAlign.center,   // centré même si 1 ou 3 chiffres
-                        style: const TextStyle(fontSize: 16, color: Colors.black),
-                      ),
-                    ),
-                  ),
-
-                  /* ---------- Hafs / Warsh ---------- */
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TextButton(
-                      onPressed: () => setState(() =>
-                          currentReading = currentReading == "hafs" ? "warsh" : "hafs"),
-                      child: Text(
-                        currentReading.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+                  Text(_hizbText(currentPage),
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w300)),
+                  Text(_juzzText(currentPage),
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w300)),
                 ],
               ),
             ),
-        ],
+            // Barre du bas
+            if (showBottomBar && !isLandscape)
+              Positioned(
+                bottom: 16,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _showSurahSelection(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          fullSurahList
+                              .lastWhere((s) => s['page']! <= currentPage,
+                                  orElse: () => {'nameFr': ''})['nameFr'],
+                          style: const TextStyle(fontSize: 14, color: Colors.black),
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => _jumpToPageDialog(context),
+                      child: SizedBox(
+                        width: 50,
+                        child: Text(
+                          '$currentPage',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16, color: Colors.black),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextButton(
+                        onPressed: () => setState(() =>
+                            currentReading = currentReading == "hafs" ? "warsh" : "hafs"),
+                        child: Text(
+                          currentReading.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  /* ---------- Liste des sourates ---------- */
   void _showSurahSelection(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -309,8 +316,8 @@ class _QuranHomePageState extends State<QuranHomePage> {
         itemBuilder: (context, index) {
           final s = fullSurahList[index];
           return ListTile(
-            title: Text('${s['id']}. ${s['nameFr']}'), // français
-            subtitle: Text(s['nameAr']),               // arabe
+            title: Text('${s['id']}. ${s['nameFr']}'),
+            subtitle: Text(s['nameAr']),
             onTap: () {
               selectSurah(s['page']);
               Navigator.pop(context);
