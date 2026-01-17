@@ -1,27 +1,38 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive_io.dart';
-import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
-/// Nom du fichier ZIP dans assets/assetpacks/
-const String zipAssetPath = 'assets/assetpacks/quran_pages.zip';
+/// URL de ton ZIP hébergé sur Google Drive public
+const String zipUrl = 'https://drive.google.com//file/d/1FDBfeza5AXF3yPZKk0Uyri8YcZn-LBuT/view?usp=drive_link';
 const String zipFileName = 'quran_pages.zip';
 
-/// Décompresse le ZIP dans le dossier local
-Future<void> downloadAndExtractZip() async {
+/// Télécharge et décompresse le ZIP
+Future<void> downloadAndExtractZip({Function(double)? onProgress}) async {
   final dir = await getApplicationDocumentsDirectory();
   final zipFile = File(p.join(dir.path, zipFileName));
 
-  // Copie du ZIP depuis les assets si pas déjà présent
   if (!await zipFile.exists()) {
-    print('Copie du ZIP depuis assets...');
-    final bytes = await rootBundle.load(zipAssetPath);
-    await zipFile.writeAsBytes(bytes.buffer.asUint8List());
-    print('ZIP copié dans ${zipFile.path}');
+    print('Téléchargement du ZIP...');
+    final request = await http.Client().send(http.Request('GET', Uri.parse(zipUrl)));
+
+    final contentLength = request.contentLength ?? 0;
+    List<int> bytes = [];
+    int received = 0;
+
+    await request.stream.listen((chunk) {
+      bytes.addAll(chunk);
+      received += chunk.length;
+      if (onProgress != null && contentLength > 0) {
+        onProgress(received / contentLength); // valeur entre 0 et 1
+      }
+    }).asFuture();
+
+    await zipFile.writeAsBytes(bytes);
+    print('ZIP téléchargé !');
   } else {
-    print('ZIP déjà présent dans ${zipFile.path}');
+    print('ZIP déjà présent, pas besoin de retélécharger.');
   }
 
   // Décompression
@@ -29,41 +40,13 @@ Future<void> downloadAndExtractZip() async {
   final archive = ZipDecoder().decodeBytes(bytes);
 
   for (final file in archive) {
-    final filePath = p.join(dir.path, file.name); // garde la structure des dossiers
+    final filePath = p.join(dir.path, file.name);
     if (file.isFile) {
       final outFile = File(filePath);
-      await outFile.create(recursive: true); // crée les dossiers automatiquement
+      await outFile.create(recursive: true);
       await outFile.writeAsBytes(file.content as List<int>);
-      print('Fichier écrit : $filePath');
     }
   }
 
   print('ZIP décompressé !');
-}
-
-/// Retourne le fichier d'une page
-Future<File> getPageFile(String reading, String fileName) async {
-  final dir = await getApplicationDocumentsDirectory();
-  final path = p.join(dir.path, reading, fileName); // hafs/1.png ou warsh/1.jpg
-  final file = File(path);
-
-  if (!await file.exists()) {
-    throw Exception(
-        'Fichier $fileName non trouvé dans $reading. Vérifie que le ZIP a été décompressé.');
-  }
-
-  return file;
-}
-
-/// Précharge les premières pages (optionnel)
-Future<void> preloadAllPages(String reading, int count) async {
-  for (int i = 1; i <= count; i++) {
-    final ext = reading == 'hafs' ? 'png' : 'jpg';
-    final fileName = '$i.$ext';
-    try {
-      await getPageFile(reading, fileName);
-    } catch (e) {
-      debugPrint('Page $fileName non trouvée : $e');
-    }
-  }
 }

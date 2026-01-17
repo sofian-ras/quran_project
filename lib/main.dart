@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:http/http.dart' as http;
 import 'hizb_juzz.dart';
 import 'surah_name.dart';
-import 'asset_manager.dart'; // version ZIP offline
+import 'package:archive/archive_io.dart';
+import 'package:archive/archive.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,33 +44,6 @@ class QuranHomePage extends StatefulWidget {
 }
 
 class _QuranHomePageState extends State<QuranHomePage> {
-  /* ---------- fonctions hizb / juzz ---------- */
-  String _hizbText(int page) {
-    final h = hizbMap.lastWhere((e) => e['start_page']! <= page);
-    final hizb = h['hizb']!;
-    final start = h['start_page']!;
-    final nextStart =
-        hizb == 60 ? 605 : hizbMap.firstWhere((e) => e['hizb'] == hizb + 1)['start_page']!;
-    final total = nextStart - start;
-    final done = page - start + 1;
-    final quart = ((done * 4) ~/ total).clamp(0, 3);
-    final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
-    return '$frac hizb n°$hizb';
-  }
-
-  String _juzzText(int page) {
-    final j = juzzMap.lastWhere((e) => e['start_page']! <= page);
-    final juzz = j['juz']!;
-    final start = j['start_page']!;
-    final nextStart =
-        juzz == 30 ? 605 : juzzMap.firstWhere((e) => e['juz'] == juzz + 1)['start_page']!;
-    final total = nextStart - start;
-    final done = page - start + 1;
-    final quart = ((done * 4) ~/ total).clamp(0, 3);
-    final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
-    return '$frac juzz n°$juzz';
-  }
-
   int currentPage = 1;
   String currentReading = "hafs";
 
@@ -78,22 +53,67 @@ class _QuranHomePageState extends State<QuranHomePage> {
   List<Map<String, dynamic>> fullSurahList = [];
 
   bool showBottomBar = true;
+  bool _isReady = false;
+  double _progress = 0.0;
 
   @override
   void initState() {
     super.initState();
     _initApp();
+  }
 
-    // Préparer le ZIP offline
-    downloadAndExtractZip().then((_) {
-      print('Pages prêtes en local !');
-    }).catchError((e) {
-      print('Erreur lors de la préparation du ZIP : $e');
-    });
+  /// Télécharge le ZIP depuis Google Drive et décompresse
+  Future<void> downloadAndExtractFromDrive({required Function(double) onProgress}) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final zipFile = File(p.join(dir.path, "quran_pages.zip"));
+
+    if (!await zipFile.exists()) {
+      const url = 'https://drive.google.com/uc?export=download&id=1FDBfeza5AXF3yPZKk0Uyri8YcZn-LBuT';
+      final request = await http.Client().send(http.Request('GET', Uri.parse(url)));
+      final contentLength = request.contentLength ?? 0;
+      List<int> bytes = [];
+      int received = 0;
+
+      await request.stream.listen((chunk) {
+        bytes.addAll(chunk);
+        received += chunk.length;
+        if (contentLength > 0) {
+          onProgress(received / contentLength);
+        }
+      }).asFuture();
+
+      await zipFile.writeAsBytes(bytes);
+      print('ZIP téléchargé !');
+    } else {
+      print('ZIP déjà présent.');
+      onProgress(1.0);
+    }
+
+    // Décompression
+    final bytes = await zipFile.readAsBytes();
+    final archive = ZipDecoder().decodeBytes(bytes);
+    for (final file in archive) {
+      final filePath = p.join(dir.path, file.name);
+      if (file.isFile) {
+        final outFile = File(filePath);
+        await outFile.create(recursive: true);
+        await outFile.writeAsBytes(file.content as List<int>);
+      }
+    }
+    print('ZIP décompressé !');
   }
 
   Future<void> _initApp() async {
-    // Charge les données JSON
+    try {
+      await downloadAndExtractFromDrive(onProgress: (p) {
+        setState(() => _progress = p);
+      });
+      print('Pages prêtes en local !');
+    } catch (e) {
+      print('Erreur téléchargement/décompression: $e');
+    }
+
+    // Charger JSON
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     quranData = json.decode(jsonStr);
     final added = <int>{};
@@ -118,28 +138,18 @@ class _QuranHomePageState extends State<QuranHomePage> {
     }
     _db = await openDatabase(path, readOnly: true);
 
-    if (mounted) setState(() {});
+    if (mounted) setState(() => _isReady = true);
   }
 
-  // --------- Nouvelle fonction getPageFile ---------
   Future<File> getPageFile(String reading, String fileName) async {
     final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/quran_pages');
     final file = File('${dir.path}/$reading/$fileName');
-    print('Trying to load: ${file.path}');
-    if (!await file.exists()) {
-      print('File not found!');
-    }
     return file;
   }
 
-  void toggleBottomBar() {
-    setState(() => showBottomBar = !showBottomBar);
-  }
+  void toggleBottomBar() => setState(() => showBottomBar = !showBottomBar);
 
   void selectSurah(int page) => _pageController.jumpToPage(page - 1);
-
-  bool get isLandscape =>
-      MediaQuery.of(context).orientation == Orientation.landscape;
 
   void _jumpToPageDialog(BuildContext context) {
     final ctrl = TextEditingController(text: currentPage.toString());
@@ -169,15 +179,50 @@ class _QuranHomePageState extends State<QuranHomePage> {
     );
   }
 
-  String getCurrentSurahName() {
-    final surah = fullSurahList.lastWhere(
-        (s) => s['page']! <= currentPage,
-        orElse: () => {'name': ''});
-    return surah['name'] ?? '';
+  String _hizbText(int page) {
+    final h = hizbMap.lastWhere((e) => e['start_page']! <= page);
+    final hizb = h['hizb']!;
+    final start = h['start_page']!;
+    final nextStart =
+        hizb == 60 ? 605 : hizbMap.firstWhere((e) => e['hizb'] == hizb + 1)['start_page']!;
+    final total = nextStart - start;
+    final done = page - start + 1;
+    final quart = ((done * 4) ~/ total).clamp(0, 3);
+    final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
+    return '$frac hizb n°$hizb';
+  }
+
+  String _juzzText(int page) {
+    final j = juzzMap.lastWhere((e) => e['start_page']! <= page);
+    final juzz = j['juz']!;
+    final start = j['start_page']!;
+    final nextStart =
+        juzz == 30 ? 605 : juzzMap.firstWhere((e) => e['juz'] == juzz + 1)['start_page']!;
+    final total = nextStart - start;
+    final done = page - start + 1;
+    final quart = ((done * 4) ~/ total).clamp(0, 3);
+    final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
+    return '$frac juzz n°$juzz';
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_isReady) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFEFCF9),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(value: _progress),
+              const SizedBox(height: 12),
+              Text('${(_progress * 100).toStringAsFixed(0)} %'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFFEFCF9),
       body: GestureDetector(
@@ -193,23 +238,16 @@ class _QuranHomePageState extends State<QuranHomePage> {
               itemBuilder: (_, i) {
                 final page = i + 1;
                 final fileName = currentReading == "hafs" ? "$page.png" : "$page.jpg";
-
                 return FutureBuilder<File>(
                   future: getPageFile(currentReading, fileName),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                     final imageFile = snapshot.data!;
-
-                    // --- Gestion portrait / paysage ---
                     return LayoutBuilder(
                       builder: (context, constraints) {
                         final isLandscape =
                             MediaQuery.of(context).orientation == Orientation.landscape;
-
                         if (isLandscape) {
-                          // Paysage → largeur pleine + scroll vertical
                           return SingleChildScrollView(
                             child: Image.file(
                               imageFile,
@@ -218,7 +256,6 @@ class _QuranHomePageState extends State<QuranHomePage> {
                             ),
                           );
                         } else {
-                          // Portrait → image entière centrée
                           return Center(
                             child: Image.file(
                               imageFile,
@@ -232,7 +269,6 @@ class _QuranHomePageState extends State<QuranHomePage> {
                 );
               },
             ),
-            // Informations hizb/juzz
             Positioned(
               top: 8,
               right: 12,
@@ -240,20 +276,13 @@ class _QuranHomePageState extends State<QuranHomePage> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(_hizbText(currentPage),
-                      style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w300)),
+                      style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.w300)),
                   Text(_juzzText(currentPage),
-                      style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w300)),
+                      style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.w300)),
                 ],
               ),
             ),
-            // Barre du bas
-            if (showBottomBar && !isLandscape)
+            if (showBottomBar && MediaQuery.of(context).orientation != Orientation.landscape)
               Positioned(
                 bottom: 16,
                 left: 0,
@@ -267,8 +296,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
                           fullSurahList
-                              .lastWhere((s) => s['page']! <= currentPage,
-                                  orElse: () => {'nameFr': ''})['nameFr'],
+                              .lastWhere((s) => s['page']! <= currentPage, orElse: () => {'nameFr': ''})['nameFr'],
                           style: const TextStyle(fontSize: 14, color: Colors.black),
                         ),
                       ),
@@ -291,11 +319,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
                             currentReading = currentReading == "hafs" ? "warsh" : "hafs"),
                         child: Text(
                           currentReading.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
