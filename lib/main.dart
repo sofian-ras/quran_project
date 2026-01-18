@@ -62,6 +62,14 @@ class _QuranHomePageState extends State<QuranHomePage> {
     _initApp();
   }
 
+  Future<bool> quranPagesAlreadyExtracted() async {
+  final dir = await getApplicationDocumentsDirectory();
+  final testFile = File(
+    p.join(dir.path, 'quran_pages', 'hafs', '1.png'),
+  );
+  return await testFile.exists();
+}
+
   /// Télécharge le ZIP depuis Google Drive et décompresse
   Future<void> downloadAndExtractFromDrive({required Function(double) onProgress}) async {
     final dir = await getApplicationDocumentsDirectory();
@@ -104,14 +112,21 @@ class _QuranHomePageState extends State<QuranHomePage> {
   }
 
   Future<void> _initApp() async {
+  final alreadyReady = await quranPagesAlreadyExtracted();
+
+  if (!alreadyReady) {
     try {
       await downloadAndExtractFromDrive(onProgress: (p) {
         setState(() => _progress = p);
       });
-      print('Pages prêtes en local !');
+      print('Pages téléchargées et décompressées');
     } catch (e) {
       print('Erreur téléchargement/décompression: $e');
     }
+  } else {
+    print('Pages déjà présentes en local');
+    _progress = 1.0;
+  }
 
     // Charger JSON
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
