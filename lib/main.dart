@@ -3,13 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:http/http.dart' as http;
 import 'hizb_juzz.dart';
 import 'surah_name.dart';
-import 'package:archive/archive_io.dart';
-import 'package:archive/archive.dart';
+import 'asset_manager.dart'; // <- notre nouveau fichier
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,73 +59,15 @@ class _QuranHomePageState extends State<QuranHomePage> {
     _initApp();
   }
 
-  Future<bool> quranPagesAlreadyExtracted() async {
-  final dir = await getApplicationDocumentsDirectory();
-  final testFile = File(
-    p.join(dir.path, 'quran_pages', 'hafs', '1.png'),
-  );
-  return await testFile.exists();
-}
-
-  /// Télécharge le ZIP depuis Google Drive et décompresse
-  Future<void> downloadAndExtractFromDrive({required Function(double) onProgress}) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final zipFile = File(p.join(dir.path, "quran_pages.zip"));
-
-    if (!await zipFile.exists()) {
-      const url = 'https://drive.google.com/uc?export=download&id=1FDBfeza5AXF3yPZKk0Uyri8YcZn-LBuT';
-      final request = await http.Client().send(http.Request('GET', Uri.parse(url)));
-      final contentLength = request.contentLength ?? 0;
-      List<int> bytes = [];
-      int received = 0;
-
-      await request.stream.listen((chunk) {
-        bytes.addAll(chunk);
-        received += chunk.length;
-        if (contentLength > 0) {
-          onProgress(received / contentLength);
-        }
-      }).asFuture();
-
-      await zipFile.writeAsBytes(bytes);
-      print('ZIP téléchargé !');
-    } else {
-      print('ZIP déjà présent.');
-      onProgress(1.0);
-    }
-
-    // Décompression
-    final bytes = await zipFile.readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
-    for (final file in archive) {
-      final filePath = p.join(dir.path, file.name);
-      if (file.isFile) {
-        final outFile = File(filePath);
-        await outFile.create(recursive: true);
-        await outFile.writeAsBytes(file.content as List<int>);
-      }
-    }
-    print('ZIP décompressé !');
-  }
-
   Future<void> _initApp() async {
-  final alreadyReady = await quranPagesAlreadyExtracted();
-
-  if (!alreadyReady) {
-    try {
-      await downloadAndExtractFromDrive(onProgress: (p) {
+    // 1. Télécharger Warsh si besoin
+    if (currentReading == "warsh") {
+      await AssetManager.downloadWarshPack(onProgress: (p) {
         setState(() => _progress = p);
       });
-      print('Pages téléchargées et décompressées');
-    } catch (e) {
-      print('Erreur téléchargement/décompression: $e');
     }
-  } else {
-    print('Pages déjà présentes en local');
-    _progress = 1.0;
-  }
 
-    // Charger JSON
+    // 2. Charger JSON
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     quranData = json.decode(jsonStr);
     final added = <int>{};
@@ -145,7 +84,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
       }
     }
 
-    // Base de données locale
+    // 3. Base de données locale
     final path = p.join(await getDatabasesPath(), "ayahinfo_1120.db");
     if (!await databaseExists(path)) {
       final data = await rootBundle.load("assets/data/ayahinfo_1120.db");
@@ -153,13 +92,12 @@ class _QuranHomePageState extends State<QuranHomePage> {
     }
     _db = await openDatabase(path, readOnly: true);
 
-    if (mounted) setState(() => _isReady = true);
+    setState(() => _isReady = true);
+    _progress = 1.0;
   }
 
   Future<File> getPageFile(String reading, String fileName) async {
-    final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/quran_pages');
-    final file = File('${dir.path}/$reading/$fileName');
-    return file;
+    return AssetManager.getPageFile(reading, fileName);
   }
 
   void toggleBottomBar() => setState(() => showBottomBar = !showBottomBar);
@@ -330,8 +268,16 @@ class _QuranHomePageState extends State<QuranHomePage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextButton(
-                        onPressed: () => setState(() =>
-                            currentReading = currentReading == "hafs" ? "warsh" : "hafs"),
+                        onPressed: () async {
+                          if (currentReading == "warsh") return; // déjà téléchargé
+                          setState(() => currentReading = currentReading == "hafs" ? "warsh" : "hafs");
+                          if (currentReading == "warsh") {
+                            _progress = 0.0;
+                            await AssetManager.downloadWarshPack(onProgress: (p) {
+                              setState(() => _progress = p);
+                            });
+                          }
+                        },
                         child: Text(
                           currentReading.toUpperCase(),
                           style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),

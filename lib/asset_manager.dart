@@ -1,52 +1,74 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
 
-/// URL de ton ZIP hébergé sur Google Drive public
-const String zipUrl = 'https://drive.google.com//file/d/1FDBfeza5AXF3yPZKk0Uyri8YcZn-LBuT/view?usp=drive_link';
-const String zipFileName = 'quran_pages.zip';
+/// Clé privée ImageKit pour l’API
+const String imageKitApiKey = "YOUR_PRIVATE_API_KEY";
+const String warshFolder = "/warsh/";
 
-/// Télécharge et décompresse le ZIP
-Future<void> downloadAndExtractZip({Function(double)? onProgress}) async {
-  final dir = await getApplicationDocumentsDirectory();
-  final zipFile = File(p.join(dir.path, zipFileName));
-
-  if (!await zipFile.exists()) {
-    print('Téléchargement du ZIP...');
-    final request = await http.Client().send(http.Request('GET', Uri.parse(zipUrl)));
-
-    final contentLength = request.contentLength ?? 0;
-    List<int> bytes = [];
-    int received = 0;
-
-    await request.stream.listen((chunk) {
-      bytes.addAll(chunk);
-      received += chunk.length;
-      if (onProgress != null && contentLength > 0) {
-        onProgress(received / contentLength); // valeur entre 0 et 1
-      }
-    }).asFuture();
-
-    await zipFile.writeAsBytes(bytes);
-    print('ZIP téléchargé !');
-  } else {
-    print('ZIP déjà présent, pas besoin de retélécharger.');
+class AssetManager {
+  /// Vérifie si le pack Warsh est déjà téléchargé
+  static Future<bool> warshPackExists() async {
+    final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/warsh');
+    final testFile = File(p.join(dir.path, '1.jpg')); // On teste le premier fichier
+    return await testFile.exists();
   }
 
-  // Décompression
-  final bytes = await zipFile.readAsBytes();
-  final archive = ZipDecoder().decodeBytes(bytes);
+  /// Récupère tous les liens Warsh depuis ImageKit
+  static Future<List<String>> fetchWarshUrls() async {
+    final url = "https://api.imagekit.io/v1/files/?path=$warshFolder&limit=1000";
+    final headers = {
+      'Authorization': 'Basic ${base64Encode(utf8.encode("$imageKitApiKey:"))}',
+    };
+    final response = await http.get(Uri.parse(url), headers: headers);
+    if (response.statusCode != 200) throw Exception('Erreur ImageKit: ${response.statusCode}');
+    final data = json.decode(response.body);
+    return (data['response'] as List).map((f) => f['url'] as String).toList();
+  }
 
-  for (final file in archive) {
-    final filePath = p.join(dir.path, file.name);
-    if (file.isFile) {
-      final outFile = File(filePath);
-      await outFile.create(recursive: true);
-      await outFile.writeAsBytes(file.content as List<int>);
+  /// Télécharge le pack Warsh uniquement si nécessaire
+  static Future<void> downloadWarshPack({int batchSize = 50, Function(double)? onProgress}) async {
+    if (await warshPackExists()) {
+      print("Pack Warsh déjà téléchargé.");
+      onProgress?.call(1.0);
+      return;
+    }
+
+    final urls = await fetchWarshUrls();
+    final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/warsh');
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+
+    int total = urls.length;
+    int downloaded = 0;
+
+    for (int i = 0; i < total; i += batchSize) {
+      final batch = urls.sublist(i, (i + batchSize).clamp(0, total));
+      await Future.wait(batch.map((url) async {
+        final ext = url.split('.').last.split('?')[0];
+        final file = File('${dir.path}/${urls.indexOf(url) + 1}.$ext');
+        if (!file.existsSync()) {
+          final r = await http.get(Uri.parse(url));
+          await file.writeAsBytes(r.bodyBytes);
+        }
+        downloaded++;
+        onProgress?.call(downloaded / total);
+      }));
+    }
+
+    print("Pack Warsh téléchargé avec succès !");
+  }
+
+  /// Récupère le fichier local (Hafs ou Warsh)
+  static Future<File> getPageFile(String reading, String fileName) async {
+    if (reading == "hafs") {
+      // Hafs est dans les assets de l'app
+      return File('assets/hafs/$fileName');
+    } else {
+      // Warsh est dans applicationDocumentsDirectory
+      final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/warsh');
+      return File('${dir.path}/$fileName');
     }
   }
-
-  print('ZIP décompressé !');
 }
