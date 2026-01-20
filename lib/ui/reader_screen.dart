@@ -8,6 +8,22 @@ import '../asset_manager.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
 
+class GradientText extends StatelessWidget {
+  final String text;
+  final TextStyle? style;
+  final Gradient gradient;
+
+  const GradientText(this.text, {Key? key, this.style, required this.gradient}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      shaderCallback: (bounds) => gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
+      child: Text(text, style: (style ?? const TextStyle()).copyWith(color: Colors.white)),
+    );
+  }
+}
+
 class ReaderScreen extends StatefulWidget {
   final int initialPage;
   final String reading;
@@ -135,6 +151,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return 'Juzz n°${j['juz']}';
   }
 
+// (GradientText is declared at top-level)
+
   @override
   Widget build(BuildContext context) {
     if (!_isReady) {
@@ -205,7 +223,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         TextButton(onPressed: () => _showSurahSelection(), child: Text(fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
         InkWell(onTap: () => _jumpToPageDialog(), child: CircleAvatar(backgroundColor: Colors.green[50], child: Text('$currentPage', style: const TextStyle(color: Colors.green, fontSize: 12)))),
-        TextButton(onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'), child: Text(currentReading.toUpperCase(), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+        TextButton(
+          onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+          child: GradientText(
+            currentReading.toUpperCase(),
+            gradient: currentReading == 'hafs'
+                ? const LinearGradient(colors: [Color(0xFF083822), Color(0xFF2E8B57)])
+                : const LinearGradient(colors: [Color(0xFF6B3A1A), Color(0xFFC07A3B)]),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
       ]),
     );
   }
