@@ -31,8 +31,8 @@ dev_dependencies:
 # Configuration pour générer l'icône
 flutter_icons:
   android: true
-  ios: false        # pour l'instant, tu n'as pas besoin d'iOS
-  image_path: "assets/icon/logo_coran.png"  # chemin vers ton logo carré 512x512
+  ios: false
+  image_path: "assets/icon/logo_coran.png"  # chemin vers logo 512x512
   adaptive_icon_background: "#FFFFFF"  # fond pour adaptive icon Android
   adaptive_icon_foreground: "assets/icon/logo_coran.png"  # même image pour foreground
 
