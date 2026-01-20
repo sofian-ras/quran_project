@@ -175,9 +175,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 12),
 
                     // All Surahs (card list)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: const Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(height: 8),
                     ListView.builder(
@@ -213,8 +213,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-      bottomNavigationBar: const Padding(
-        padding: EdgeInsets.all(12.0),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(12.0),
         child: BottomAudioBar(title: 'Lecture en cours'),
       ),
     );

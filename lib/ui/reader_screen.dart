@@ -201,7 +201,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+      decoration: BoxDecoration(color: const Color.fromRGBO(255, 255, 255, 0.9), borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         TextButton(onPressed: () => _showSurahSelection(), child: Text(fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
         InkWell(onTap: () => _jumpToPageDialog(), child: CircleAvatar(backgroundColor: Colors.green[50], child: Text('$currentPage', style: const TextStyle(color: Colors.green, fontSize: 12)))),

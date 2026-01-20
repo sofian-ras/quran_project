@@ -49,8 +49,8 @@ class _BottomAudioBarState extends State<BottomAudioBar> {
             },
           ),
           Expanded(child: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white))),
-          IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white70), onPressed: null),
-          IconButton(icon: const Icon(Icons.skip_next, color: gold), onPressed: null),
+          const IconButton(icon: Icon(Icons.skip_previous, color: Colors.white70), onPressed: null),
+          const IconButton(icon: Icon(Icons.skip_next, color: gold), onPressed: null),
         ],
       ),
     );

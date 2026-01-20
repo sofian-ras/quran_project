@@ -15,14 +15,19 @@ void main() {
 
 class QuranApp extends StatelessWidget {
   const QuranApp({super.key});
+
   @override
   Widget build(BuildContext context) {
+    final light = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0B3D2E)),
+      scaffoldBackgroundColor: const Color(0xFFFEFCF9),
+      primaryColor: const Color(0xFF0B3D2E),
+    );
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFFEFCF9),
-      ),
+      theme: light,
       home: const HomeScreen(),
     );
   }
