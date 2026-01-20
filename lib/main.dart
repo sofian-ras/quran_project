@@ -5,11 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:http/http.dart' as http;
+import 'asset_manager.dart'; 
 import 'hizb_juzz.dart';
 import 'surah_name.dart';
-import 'package:archive/archive_io.dart';
-import 'package:archive/archive.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,7 +44,6 @@ class QuranHomePage extends StatefulWidget {
 class _QuranHomePageState extends State<QuranHomePage> {
   int currentPage = 1;
   String currentReading = "hafs";
-
   Database? _db;
   final PageController _pageController = PageController();
   List<dynamic> quranData = [];
@@ -62,73 +59,22 @@ class _QuranHomePageState extends State<QuranHomePage> {
     _initApp();
   }
 
-  Future<bool> quranPagesAlreadyExtracted() async {
-  final dir = await getApplicationDocumentsDirectory();
-  final testFile = File(
-    p.join(dir.path, 'quran_pages', 'hafs', '1.png'),
-  );
-  return await testFile.exists();
-}
-
-  /// Télécharge le ZIP depuis Google Drive et décompresse
-  Future<void> downloadAndExtractFromDrive({required Function(double) onProgress}) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final zipFile = File(p.join(dir.path, "quran_pages.zip"));
-
-    if (!await zipFile.exists()) {
-      const url = 'https://drive.google.com/uc?export=download&id=1FDBfeza5AXF3yPZKk0Uyri8YcZn-LBuT';
-      final request = await http.Client().send(http.Request('GET', Uri.parse(url)));
-      final contentLength = request.contentLength ?? 0;
-      List<int> bytes = [];
-      int received = 0;
-
-      await request.stream.listen((chunk) {
-        bytes.addAll(chunk);
-        received += chunk.length;
-        if (contentLength > 0) {
-          onProgress(received / contentLength);
-        }
-      }).asFuture();
-
-      await zipFile.writeAsBytes(bytes);
-      print('ZIP téléchargé !');
-    } else {
-      print('ZIP déjà présent.');
-      onProgress(1.0);
-    }
-
-    // Décompression
-    final bytes = await zipFile.readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
-    for (final file in archive) {
-      final filePath = p.join(dir.path, file.name);
-      if (file.isFile) {
-        final outFile = File(filePath);
-        await outFile.create(recursive: true);
-        await outFile.writeAsBytes(file.content as List<int>);
-      }
-    }
-    print('ZIP décompressé !');
-  }
-
   Future<void> _initApp() async {
-  final alreadyReady = await quranPagesAlreadyExtracted();
-
-  if (!alreadyReady) {
-    try {
-      await downloadAndExtractFromDrive(onProgress: (p) {
-        setState(() => _progress = p);
-      });
-      print('Pages téléchargées et décompressées');
-    } catch (e) {
-      print('Erreur téléchargement/décompression: $e');
+    // 1. Vérifier/Télécharger les images
+    bool alreadyDownloaded = await AssetManager.areAssetsDownloaded();
+    if (!alreadyDownloaded) {
+      try {
+        await AssetManager.downloadAndExtract(onProgress: (p) {
+          setState(() => _progress = p);
+        });
+      } catch (e) {
+        debugPrint("Erreur init: $e");
+      }
+    } else {
+      setState(() => _progress = 1.0);
     }
-  } else {
-    print('Pages déjà présentes en local');
-    _progress = 1.0;
-  }
 
-    // Charger JSON
+    // 2. Charger JSON des sourates
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     quranData = json.decode(jsonStr);
     final added = <int>{};
@@ -145,92 +91,45 @@ class _QuranHomePageState extends State<QuranHomePage> {
       }
     }
 
-    // Base de données locale
-    final path = p.join(await getDatabasesPath(), "ayahinfo_1120.db");
-    if (!await databaseExists(path)) {
-      final data = await rootBundle.load("assets/data/ayahinfo_1120.db");
-      await File(path).writeAsBytes(data.buffer.asUint8List());
+    // 3. Base de données locale (Ayah info)
+    final dbPath = p.join(await getDatabasesPath(), "ayahinfo_1120.db");
+    if (!await databaseExists(dbPath)) {
+      ByteData data = await rootBundle.load("assets/data/ayahinfo_1120.db");
+      List<int> bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      await File(dbPath).writeAsBytes(bytes);
     }
-    _db = await openDatabase(path, readOnly: true);
+    _db = await openDatabase(dbPath, readOnly: true);
 
     if (mounted) setState(() => _isReady = true);
   }
 
-  Future<File> getPageFile(String reading, String fileName) async {
-    final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/quran_pages');
-    final file = File('${dir.path}/$reading/$fileName');
-    return file;
-  }
-
   void toggleBottomBar() => setState(() => showBottomBar = !showBottomBar);
 
-  void selectSurah(int page) => _pageController.jumpToPage(page - 1);
-
-  void _jumpToPageDialog(BuildContext context) {
-    final ctrl = TextEditingController(text: currentPage.toString());
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Aller à la page'),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(hintText: '1 - 604'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-          ElevatedButton(
-            onPressed: () {
-              final p = int.tryParse(ctrl.text);
-              if (p != null && p >= 1 && p <= 604) {
-                _pageController.jumpToPage(p - 1);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _hizbText(int page) {
-    final h = hizbMap.lastWhere((e) => e['start_page']! <= page);
-    final hizb = h['hizb']!;
-    final start = h['start_page']!;
-    final nextStart =
-        hizb == 60 ? 605 : hizbMap.firstWhere((e) => e['hizb'] == hizb + 1)['start_page']!;
-    final total = nextStart - start;
-    final done = page - start + 1;
-    final quart = ((done * 4) ~/ total).clamp(0, 3);
-    final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
-    return '$frac hizb n°$hizb';
+    final h = hizbMap.lastWhere((e) => e['start_page']! <= page, orElse: () => hizbMap.first);
+    return 'Hizb n°${h['hizb']}';
   }
 
   String _juzzText(int page) {
-    final j = juzzMap.lastWhere((e) => e['start_page']! <= page);
-    final juzz = j['juz']!;
-    final start = j['start_page']!;
-    final nextStart =
-        juzz == 30 ? 605 : juzzMap.firstWhere((e) => e['juz'] == juzz + 1)['start_page']!;
-    final total = nextStart - start;
-    final done = page - start + 1;
-    final quart = ((done * 4) ~/ total).clamp(0, 3);
-    final frac = quart == 0 ? '' : ' ${['1/4', '1/2', '3/4'][quart - 1]}';
-    return '$frac juzz n°$juzz';
+    final j = juzzMap.lastWhere((e) => e['start_page']! <= page, orElse: () => juzzMap.first);
+    return 'Juzz n°${j['juz']}';
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_isReady) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFEFCF9),
         body: Center(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(value: _progress),
-              const SizedBox(height: 12),
+              const Text("Préparation du Coran...", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: 200,
+                child: LinearProgressIndicator(value: _progress, color: Colors.green),
+              ),
+              const SizedBox(height: 10),
               Text('${(_progress * 100).toStringAsFixed(0)} %'),
             ],
           ),
@@ -239,7 +138,6 @@ class _QuranHomePageState extends State<QuranHomePage> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFEFCF9),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: toggleBottomBar,
@@ -250,31 +148,36 @@ class _QuranHomePageState extends State<QuranHomePage> {
               reverse: true,
               itemCount: 604,
               onPageChanged: (p) => setState(() => currentPage = p + 1),
-              itemBuilder: (_, i) {
-                final page = i + 1;
-                final fileName = currentReading == "hafs" ? "$page.png" : "$page.jpg";
+              itemBuilder: (context, i) {
                 return FutureBuilder<File>(
-                  future: getPageFile(currentReading, fileName),
+                  future: AssetManager.getPageFile(currentReading, i + 1),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    
                     final imageFile = snapshot.data!;
+
+                    // Utilisation de LayoutBuilder pour connaître la largeur disponible
                     return LayoutBuilder(
                       builder: (context, constraints) {
-                        final isLandscape =
-                            MediaQuery.of(context).orientation == Orientation.landscape;
+                        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
                         if (isLandscape) {
+                          // MODE PAYSAGE : Toute la largeur + Scroll vertical
                           return SingleChildScrollView(
                             child: Image.file(
                               imageFile,
                               width: constraints.maxWidth,
                               fit: BoxFit.fitWidth,
+                              filterQuality: FilterQuality.high,
                             ),
                           );
                         } else {
+                          // MODE PORTRAIT : Toute la page visible (Center)
                           return Center(
                             child: Image.file(
                               imageFile,
                               fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
                             ),
                           );
                         }
@@ -284,62 +187,29 @@ class _QuranHomePageState extends State<QuranHomePage> {
                 );
               },
             ),
-            Positioned(
-              top: 8,
-              right: 12,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(_hizbText(currentPage),
-                      style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.w300)),
-                  Text(_juzzText(currentPage),
-                      style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.w300)),
-                ],
-              ),
-            ),
-            if (showBottomBar && MediaQuery.of(context).orientation != Orientation.landscape)
+            
+            // Infos Hizb / Juzz (Haut)
+            if (showBottomBar)
               Positioned(
-                bottom: 16,
-                left: 0,
-                right: 0,
+                top: 40,
+                left: 20,
+                right: 20,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    GestureDetector(
-                      onTap: () => _showSurahSelection(context),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          fullSurahList
-                              .lastWhere((s) => s['page']! <= currentPage, orElse: () => {'nameFr': ''})['nameFr'],
-                          style: const TextStyle(fontSize: 14, color: Colors.black),
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => _jumpToPageDialog(context),
-                      child: SizedBox(
-                        width: 50,
-                        child: Text(
-                          '$currentPage',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 16, color: Colors.black),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextButton(
-                        onPressed: () => setState(() =>
-                            currentReading = currentReading == "hafs" ? "warsh" : "hafs"),
-                        child: Text(
-                          currentReading.toUpperCase(),
-                          style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
+                    Text(_juzzText(currentPage), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    Text(_hizbText(currentPage), style: const TextStyle(fontSize: 12, color: Colors.black54)),
                   ],
                 ),
+              ),
+
+            // Barre de navigation (Bas)
+            if (showBottomBar)
+              Positioned(
+                bottom: 20,
+                left: 0,
+                right: 0,
+                child: _buildBottomUI(),
               ),
           ],
         ),
@@ -347,7 +217,44 @@ class _QuranHomePageState extends State<QuranHomePage> {
     );
   }
 
-  void _showSurahSelection(BuildContext context) {
+  Widget _buildBottomUI() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton(
+            onPressed: () => _showSurahSelection(),
+            child: Text(
+              fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+            ),
+          ),
+          InkWell(
+            onTap: () => _jumpToPageDialog(),
+            child: CircleAvatar(
+              backgroundColor: Colors.green[50],
+              child: Text('$currentPage', style: const TextStyle(color: Colors.green, fontSize: 12)),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() => currentReading = (currentReading == "hafs") ? "warsh" : "hafs");
+            },
+            child: Text(currentReading.toUpperCase(), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSurahSelection() {
     showModalBottomSheet(
       context: context,
       builder: (_) => ListView.builder(
@@ -355,14 +262,39 @@ class _QuranHomePageState extends State<QuranHomePage> {
         itemBuilder: (context, index) {
           final s = fullSurahList[index];
           return ListTile(
-            title: Text('${s['id']}. ${s['nameFr']}'),
-            subtitle: Text(s['nameAr']),
+            leading: Text('${s['id']}'),
+            title: Text(s['nameFr']),
+            trailing: Text(s['nameAr'], style: const TextStyle(fontFamily: 'Amiri')),
             onTap: () {
-              selectSurah(s['page']);
+              _pageController.jumpToPage(s['page'] - 1);
               Navigator.pop(context);
             },
           );
         },
+      ),
+    );
+  }
+
+  void _jumpToPageDialog() {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Aller à la page"),
+        content: TextField(controller: ctrl, keyboardType: TextInputType.number, autofocus: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+          ElevatedButton(
+            onPressed: () {
+              int? p = int.tryParse(ctrl.text);
+              if (p != null && p >= 1 && p <= 604) {
+                _pageController.jumpToPage(p - 1);
+              }
+              Navigator.pop(context);
+            },
+            child: const Text("Aller"),
+          )
+        ],
       ),
     );
   }

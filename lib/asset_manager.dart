@@ -1,52 +1,69 @@
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:archive/archive_io.dart';
-import 'package:http/http.dart' as http;
+import 'package:archive/archive.dart';
 
-/// URL de ton ZIP hébergé sur Google Drive public
-const String zipUrl = 'https://drive.google.com//file/d/1FDBfeza5AXF3yPZKk0Uyri8YcZn-LBuT/view?usp=drive_link';
-const String zipFileName = 'quran_pages.zip';
+class AssetManager {
+  static const String zipUrl = 'https://github.com/sofian-ras/quran_project/releases/download/v1.0.0/quran_pages.zip';
+  static const String zipFileName = 'quran_pages.zip';
 
-/// Télécharge et décompresse le ZIP
-Future<void> downloadAndExtractZip({Function(double)? onProgress}) async {
-  final dir = await getApplicationDocumentsDirectory();
-  final zipFile = File(p.join(dir.path, zipFileName));
-
-  if (!await zipFile.exists()) {
-    print('Téléchargement du ZIP...');
-    final request = await http.Client().send(http.Request('GET', Uri.parse(zipUrl)));
-
-    final contentLength = request.contentLength ?? 0;
-    List<int> bytes = [];
-    int received = 0;
-
-    await request.stream.listen((chunk) {
-      bytes.addAll(chunk);
-      received += chunk.length;
-      if (onProgress != null && contentLength > 0) {
-        onProgress(received / contentLength); // valeur entre 0 et 1
-      }
-    }).asFuture();
-
-    await zipFile.writeAsBytes(bytes);
-    print('ZIP téléchargé !');
-  } else {
-    print('ZIP déjà présent, pas besoin de retélécharger.');
+  // Vérifie si le dossier "hafs" existe déjà pour éviter de retélécharger
+  static Future<bool> areAssetsDownloaded() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final hafsFolder = Directory(p.join(dir.path, 'hafs'));
+    return await hafsFolder.exists();
   }
 
-  // Décompression
-  final bytes = await zipFile.readAsBytes();
-  final archive = ZipDecoder().decodeBytes(bytes);
+  // Télécharge et extrait le ZIP
+  static Future<void> downloadAndExtract({required Function(double) onProgress}) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final zipPath = p.join(dir.path, zipFileName);
+    final dio = Dio();
 
-  for (final file in archive) {
-    final filePath = p.join(dir.path, file.name);
-    if (file.isFile) {
-      final outFile = File(filePath);
-      await outFile.create(recursive: true);
-      await outFile.writeAsBytes(file.content as List<int>);
+    try {
+      // 1. Téléchargement
+      await dio.download(
+        zipUrl,
+        zipPath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            onProgress(received / total);
+          }
+        },
+      );
+
+      // 2. Décompression
+      final bytes = File(zipPath).readAsBytesSync();
+      final archive = ZipDecoder().decodeBytes(bytes);
+
+      for (final file in archive) {
+        final filename = file.name;
+        final filePath = p.join(dir.path, filename);
+        if (file.isFile) {
+          final data = file.content as List<int>;
+          File(filePath)
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(data);
+        } else {
+          Directory(filePath).createSync(recursive: true);
+        }
+      }
+
+      // 3. Nettoyage (supprimer le zip)
+      final zFile = File(zipPath);
+      if (await zFile.exists()) await zFile.delete();
+
+    } catch (e) {
+      print("Erreur AssetManager: $e");
+      rethrow;
     }
   }
 
-  print('ZIP décompressé !');
+  // Récupère le fichier d'une page
+  static Future<File> getPageFile(String reading, int page) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final ext = (reading == "hafs") ? "png" : "jpg";
+    return File(p.join(dir.path, reading, "$page.$ext"));
+  }
 }

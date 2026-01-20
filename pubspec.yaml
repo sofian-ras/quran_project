@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   archive: 4.0.7
+  dio: ^5.4.0
   image: ^4.7.2
   cupertino_icons: ^1.0.8
   # Ajout des outils pour la base de données
