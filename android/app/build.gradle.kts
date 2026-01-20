@@ -22,8 +22,8 @@ android {
         applicationId = "com.rasmi.quran"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = flutter.versionCode + 1
+        versionName = "1.0.1"
     }
 
     packaging {
@@ -34,7 +34,7 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("upload-keystore.jks")
+            storeFile = file("new-upload-keystore.jks")
             storePassword = "Football59"
             keyAlias = "upload"
             keyPassword = "Football59"
@@ -46,6 +46,10 @@ android {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
