@@ -1,4 +1,4 @@
-package com.rasmi.quran
+package com.sofian.quran
 
 import io.flutter.embedding.android.FlutterActivity
 
