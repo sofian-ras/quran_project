@@ -26,6 +26,7 @@ class SurahCard extends StatelessWidget {
   const darkGreen = Color(0xFF0B3D2E);
 
     return Card(
+      color: darkGreen,
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 6,
@@ -41,7 +42,7 @@ class SurahCard extends StatelessWidget {
                 height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [darkGreen, Colors.green.shade600]),
+                  gradient: LinearGradient(colors: [darkGreen, Colors.green.shade700]),
                   border: Border.all(color: gold, width: 1.5),
                 ),
                 child: Center(child: Text('$id', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
@@ -51,23 +52,23 @@ class SurahCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(nameAr, style: const TextStyle(fontFamily: 'Amiri', fontSize: 18)),
+                    Text(nameAr, style: const TextStyle(fontFamily: 'Amiri', fontSize: 18, color: Colors.white)),
                     const SizedBox(height: 4),
-                    Text(nameFr, style: const TextStyle(fontSize: 14, color: Colors.black54)),
+                    Text(nameFr, style: const TextStyle(fontSize: 14, color: Color(0xFFC8A165))),
                     const SizedBox(height: 6),
                     Row(children: [
                       if (ayahCount > 0)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
-                          child: Text('$ayahCount ayah', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(8)),
+                          child: Text('$ayahCount ayah', style: const TextStyle(fontSize: 12, color: Colors.white70)),
                         ),
                     ]),
                   ],
                 ),
               ),
               IconButton(
-                icon: Icon(isFavorite ? Icons.star : Icons.star_border, color: isFavorite ? gold : Colors.grey),
+                icon: Icon(isFavorite ? Icons.star : Icons.star_border, color: isFavorite ? gold : Colors.white70),
                 onPressed: onToggleFavorite,
               ),
             ],

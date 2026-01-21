@@ -160,7 +160,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         appBar: AppBar(title: const Text('Lecture')),
         body: Center(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('Préparation du Coran...', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Préparation de votre Coran...', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
             SizedBox(width: 200, child: LinearProgressIndicator(value: _progress, color: Colors.green)),
             const SizedBox(height: 10),

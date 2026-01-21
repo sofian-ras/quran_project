@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.rasmi.quran"
+    namespace = "com.sofian.quran"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.rasmi.quran"
+        applicationId = "com.sofian.quran"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode + 1

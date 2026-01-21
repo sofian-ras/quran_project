@@ -1,13 +1,11 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import 'reader_screen.dart';
 import 'widgets/surah_card.dart';
 import 'widgets/bottom_audio_bar.dart';
 import '../surah_name.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +14,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // <-- garde l'état
+
   List<Map<String, dynamic>> fullSurahList = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
@@ -32,15 +33,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadSurahData() async {
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     final quranData = json.decode(jsonStr) as List<dynamic>;
-  final List<Map<String, dynamic>> list = [];
-    // compute ayah counts and surah page
+
+    final List<Map<String, dynamic>> list = [];
     final Map<int, int> ayahCounts = {};
     final Map<int, int> startPage = {};
+
     for (final v in quranData) {
       final id = v['surah'] as int;
       ayahCounts[id] = (ayahCounts[id] ?? 0) + 1;
       startPage[id] = startPage[id] ?? (v['page'] ?? 1);
     }
+
     for (final id in ayahCounts.keys) {
       list.add({
         'id': id,
@@ -50,172 +53,246 @@ class _HomeScreenState extends State<HomeScreen> {
         'ayahCount': ayahCounts[id] ?? 0,
       });
     }
-    // sort by id
+
     list.sort((a, b) => (a['id'] as int).compareTo(b['id'] as int));
+
     setState(() {
       fullSurahList = list;
       filteredList = List.from(list);
       _isLoading = false;
     });
-    // load favorites from SharedPreferences
+
+    // load favorites
     try {
       final prefs = await SharedPreferences.getInstance();
       final favs = prefs.getStringList('favorites') ?? [];
       setState(() {
-        _favorites.addAll(favs.map((s) => int.tryParse(s)).whereType<int>());
+        _favorites.addAll(favs.map((e) => int.tryParse(e)).whereType<int>());
       });
     } catch (_) {}
   }
 
-  void _openReader(int page) {
+  void _openReader(int page) async {
+    // Préchargement optionnel: AssetManager.preloadPages(page-3, page+3);
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ReaderScreen(initialPage: page)),
+      MaterialPageRoute(
+        builder: (_) => ReaderScreen(initialPage: page),
+      ),
     );
   }
 
   void _onSearchChanged(String q) {
     final qLower = q.trim().toLowerCase();
     if (qLower.isEmpty) {
-      setState(() => filteredList = List.from(fullSurahList));
-      return;
-    }
-    setState(() {
+      filteredList = List.from(fullSurahList);
+    } else {
       filteredList = fullSurahList.where((s) {
-        final a = (s['nameAr'] as String).toLowerCase();
-        final f = (s['nameFr'] as String).toLowerCase();
-        return a.contains(qLower) || f.contains(qLower) || s['id'].toString() == qLower;
+        return s['nameAr'].toLowerCase().contains(qLower) ||
+            s['nameFr'].toLowerCase().contains(qLower) ||
+            s['id'].toString() == qLower;
       }).toList();
-    });
+    }
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // pour AutomaticKeepAliveClientMixin
+
     return Scaffold(
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Hero header
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(colors: [Color(0xFF0B3D2E), Color(0xFF2E8B57)]),
-                        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(24), bottomRight: Radius.circular(24)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Mon Coran', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          const Text('Continue your journey', style: TextStyle(color: Colors.white70)),
-                          const SizedBox(height: 16),
-                          // Search bar
-                          Container(
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: TextField(
-                              controller: _searchCtrl,
-                              onChanged: _onSearchChanged,
-                              decoration: const InputDecoration(border: InputBorder.none, hintText: 'Rechercher une sourate...'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+          : IndexedStack(
+              index: 0,
+              children: [
+                SafeArea(
+                  child: SingleChildScrollView(
+                    key: const PageStorageKey('home_scroll'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // HEADER
+                        const _HomeHeader(),
+                        const SizedBox(height: 16),
 
-                    const SizedBox(height: 16),
-
-                    // Featured (carousel-like horizontal)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('En vedette', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          TextButton(onPressed: () {}, child: const Text('Voir tout')),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      height: 140,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: filteredList.length < 8 ? filteredList.length : 8,
-                        itemBuilder: (context, index) {
-                          final s = filteredList[index];
-                          return GestureDetector(
-                            onTap: () => _openReader(s['page']),
-                            child: Container(
-                              width: 240,
-                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)]),
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Flexible(child: Text(s['nameAr'], style: const TextStyle(fontFamily: 'Amiri', fontSize: 18), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                                  const SizedBox(height: 6),
-                                  Text(s['nameFr'], style: const TextStyle(color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  const SizedBox(height: 8),
-                                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Sourate ${s['id']}', style: const TextStyle(fontSize: 12, color: Colors.black45)), IconButton(onPressed: () {}, icon: const Icon(Icons.play_circle_fill, color: Colors.green))])
-                                ],
+                        // FEATURED
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'En vedette',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                              TextButton(onPressed: () {}, child: const Text('Voir tout')),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          height: 140,
+                          child: ListView.builder(
+                            key: const PageStorageKey('featured_list'),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: filteredList.length > 8 ? 8 : filteredList.length,
+                            itemBuilder: (context, index) {
+                              final s = filteredList[index];
+                              return GestureDetector(
+                                onTap: () => _openReader(s['page']),
+                                child: Container(
+                                  width: 240,
+                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        s['nameAr'],
+                                        style: const TextStyle(fontFamily: 'Amiri', fontSize: 18),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        s['nameFr'],
+                                        style: const TextStyle(color: Colors.black54),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
 
-                    const SizedBox(height: 12),
+                        const SizedBox(height: 12),
 
-                    // All Surahs (card list)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(height: 8),
-                    ListView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      itemCount: filteredList.length,
-                      itemBuilder: (context, index) {
-                        final s = filteredList[index];
-                        return SurahCard(
-                          id: s['id'],
-                          nameAr: s['nameAr'],
-                          nameFr: s['nameFr'],
-                          ayahCount: s['ayahCount'] ?? 0,
-                          isFavorite: _favorites.contains(s['id']),
-                          onTap: () => _openReader(s['page']),
-                          onToggleFavorite: () async {
-                            setState(() {
-                              if (_favorites.contains(s['id'])) {
-                                _favorites.remove(s['id']);
-                              } else {
-                                _favorites.add(s['id']);
-                              }
-                            });
-                            try {
-                              final prefs = await SharedPreferences.getInstance();
-                              prefs.setStringList('favorites', _favorites.map((e) => e.toString()).toList());
-                            } catch (_) {}
+                        // ALL SURAH
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'Toutes les sourates',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        ListView.builder(
+                          key: const PageStorageKey('all_surah_list'),
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final s = filteredList[index];
+                            return SurahCard(
+                              id: s['id'],
+                              nameAr: s['nameAr'],
+                              nameFr: s['nameFr'],
+                              ayahCount: s['ayahCount'],
+                              isFavorite: _favorites.contains(s['id']),
+                              onTap: () => _openReader(s['page']),
+                              onToggleFavorite: () async {
+                                setState(() {
+                                  _favorites.contains(s['id'])
+                                      ? _favorites.remove(s['id'])
+                                      : _favorites.add(s['id']);
+                                });
+                                final prefs = await SharedPreferences.getInstance();
+                                prefs.setStringList(
+                                  'favorites',
+                                  _favorites.map((e) => e.toString()).toList(),
+                                );
+                              },
+                            );
                           },
-                        );
-                      },
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
+              ],
+            ),
+      bottomNavigationBar: const Padding(
+        padding: EdgeInsets.all(12),
+        child: BottomAudioBar(title: 'Lecture en cours'),
+      ),
+    );
+  }
+}
+
+// ---------------- HEADER WIDGET ----------------
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(colors: [Color(0xFF0B3D2E), Color(0xFF2E8B57)]),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          const Text(
+            'الْقُرْآنُ الْكَرِيمُ',
+            textDirection: TextDirection.rtl,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontFamily: 'Scheherazade',
+              fontSize: 32,
+              color: Colors.white,
+              height: 1.7,
+              letterSpacing: 0.5,
+              shadows: [
+                Shadow(
+                  blurRadius: 6,
+                  color: Colors.black26,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
+            textDirection: TextDirection.rtl,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontFamily: 'Scheherazade',
+              fontSize: 26,
+              color: Colors.white70,
+              height: 1.8,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: TextField(
+              controller: TextEditingController(),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Rechercher une sourate...',
               ),
             ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: BottomAudioBar(title: 'Lecture en cours'),
+          ),
+        ],
       ),
     );
   }
