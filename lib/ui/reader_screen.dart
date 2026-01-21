@@ -1,5 +1,5 @@
 // ============================
-// READER SCREEN FINAL V2
+// READER SCREEN FINAL V3
 // ============================
 
 import 'dart:io';
@@ -144,12 +144,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   String _hizbText(int page) {
     final h = hizbMap.lastWhere((e) => e['start_page']! <= page, orElse: () => hizbMap.first);
-    return 'Hizb n°${h['hizb']}';
+    return 'Hizb ${h['hizb']}';
   }
 
   String _juzzText(int page) {
     final j = juzzMap.lastWhere((e) => e['start_page']! <= page, orElse: () => juzzMap.first);
-    return 'Juzz n°${j['juz']}';
+    return 'Juzz ${j['juz']}';
   }
 
   @override
@@ -235,10 +235,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(_juzzText(currentPage),
-                            style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 8),
-                        Text(_hizbText(currentPage),
+                        Text('${_juzzText(currentPage)} ${_hizbText(currentPage)}',
                             style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
                       ],
                     ),
@@ -246,49 +243,62 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
               ),
 
-            // Barre inférieure : Sourate / Numéro page / Hafs-Warsh
+            // Barre inférieure avec numéro de page toujours centré
             if (_showUI)
               Positioned(
                 bottom: 20,
                 left: 0,
                 right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    // Sourate
-                    TextButton.icon(
-                      onPressed: () => _showSurahSelection(),
-                      icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
-                      label: Text(
-                        fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
-                        style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-
-                    // Numéro de page centré
-                    InkWell(
-                      onTap: () => _jumpToPageDialog(),
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.transparent,
-                        child: Text(
-                          '$currentPage',
-                          style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                child: SizedBox(
+                  height: 40,
+                  child: Stack(
+                    children: [
+                      // Bouton Sourate à gauche
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () => _showSurahSelection(),
+                          icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
+                          label: Text(
+                            fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+                            style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
-                    ),
 
-                    // Hafs / Warsh icône avec texte et ton gris-marron
-                    TextButton.icon(
-                      onPressed: () =>
-                          setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
-                      icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
-                      label: Text(
-                        currentReading.toUpperCase(),
-                        style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
+                      // Bouton Hafs/Warsh à droite
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                          icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
+                          label: Text(
+                            currentReading.toUpperCase(),
+                            style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+
+                      // Numéro de page au centre
+                      Align(
+                        alignment: Alignment.center,
+                        child: InkWell(
+                          onTap: () => _jumpToPageDialog(),
+                          child: CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.transparent,
+                            child: Text(
+                              '$currentPage',
+                              style: const TextStyle(
+                                color: Colors.black54,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
           ],
