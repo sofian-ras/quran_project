@@ -201,11 +201,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
               },
             ),
 
+            // Bouton retour en haut à gauche
+            if (_showUI)
+              Positioned(
+                top: 40,
+                left: 10,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+
             // Infos Hizb / Juzz (Haut)
             if (_showUI)
               Positioned(
                 top: 40,
-                left: 20,
+                left: 50,
                 right: 20,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
