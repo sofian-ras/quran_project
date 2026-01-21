@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import '../asset_manager.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
@@ -42,12 +40,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
   double _progress = 0.0;
   List<Map<String, dynamic>> fullSurahList = [];
 
+  // Ajout de la variable toggle UI
+  bool _showUI = true;
+
   @override
   void initState() {
     super.initState();
     currentPage = widget.initialPage;
     currentReading = widget.reading;
-    // Clamp initial page between 1 and 604
     final startPage = (widget.initialPage < 1) ? 1 : (widget.initialPage > 604 ? 604 : widget.initialPage);
     _pageController = PageController(initialPage: startPage - 1);
     _initApp();
@@ -73,7 +73,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       setState(() => _progress = 1.0);
     }
 
-    // load surah list for selection
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     final quranData = json.decode(jsonStr) as List<dynamic>;
     final added = <int>{};
@@ -151,8 +150,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return 'Juzz n°${j['juz']}';
   }
 
-// (GradientText is declared at top-level)
-
   @override
   Widget build(BuildContext context) {
     if (!_isReady) {
@@ -173,7 +170,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Scaffold(
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: () => setState(() {}),
+        onTap: () => setState(() => _showUI = !_showUI),
         child: Stack(
           children: [
             PageView.builder(
@@ -205,10 +202,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
 
             // Infos Hizb / Juzz (Haut)
-            Positioned(top: 40, left: 20, right: 20, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(_juzzText(currentPage), style: const TextStyle(fontSize: 12, color: Colors.black54)), Text(_hizbText(currentPage), style: const TextStyle(fontSize: 12, color: Colors.black54))])),
+            if (_showUI)
+              Positioned(
+                top: 40,
+                left: 20,
+                right: 20,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_juzzText(currentPage), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    Text(_hizbText(currentPage), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  ],
+                ),
+              ),
 
             // Barre de navigation (Bas)
-            Positioned(bottom: 20, left: 0, right: 0, child: _buildBottomUI()),
+            if (_showUI) Positioned(bottom: 20, left: 0, right: 0, child: _buildBottomUI()),
           ],
         ),
       ),
@@ -219,21 +228,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-      decoration: BoxDecoration(color: const Color.fromRGBO(255, 255, 255, 0.9), borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        TextButton(onPressed: () => _showSurahSelection(), child: Text(fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
-        InkWell(onTap: () => _jumpToPageDialog(), child: CircleAvatar(backgroundColor: Colors.green[50], child: Text('$currentPage', style: const TextStyle(color: Colors.green, fontSize: 12)))),
-        TextButton(
-          onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
-          child: GradientText(
-            currentReading.toUpperCase(),
-            gradient: currentReading == 'hafs'
-                ? const LinearGradient(colors: [Color(0xFF083822), Color(0xFF2E8B57)])
-                : const LinearGradient(colors: [Color(0xFF6B3A1A), Color(0xFFC07A3B)]),
-            style: const TextStyle(fontWeight: FontWeight.bold),
+      decoration: BoxDecoration(
+        color: const Color.fromRGBO(255, 255, 255, 0.9),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton(
+            onPressed: () => _showSurahSelection(),
+            child: Text(
+              fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+            ),
           ),
-        ),
-      ]),
+          InkWell(
+            onTap: () => _jumpToPageDialog(),
+            child: CircleAvatar(
+              backgroundColor: Colors.green[50],
+              child: Text('$currentPage', style: const TextStyle(color: Colors.green, fontSize: 12)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+            child: GradientText(
+              currentReading.toUpperCase(),
+              gradient: currentReading == 'hafs'
+                  ? const LinearGradient(colors: [Color(0xFF083822), Color(0xFF2E8B57)])
+                  : const LinearGradient(colors: [Color(0xFF6B3A1A), Color(0xFFC07A3B)]),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
