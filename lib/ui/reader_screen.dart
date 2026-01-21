@@ -1,9 +1,10 @@
 // ============================
-// READER SCREEN FINAL V3
+// READER SCREEN FINAL V4
 // ============================
 
 import 'dart:io';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../asset_manager.dart';
@@ -243,63 +244,118 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
               ),
 
-            // Barre inférieure avec numéro de page toujours centré
+            // Barre inférieure 
             if (_showUI)
               Positioned(
                 bottom: 20,
-                left: 0,
-                right: 0,
-                child: SizedBox(
-                  height: 40,
-                  child: Stack(
-                    children: [
-                      // Bouton Sourate à gauche
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: () => _showSurahSelection(),
-                          icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
-                          label: Text(
-                            fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
-                            style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
+                left: 20,
+                right: 20,
+                child: isLandscape
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // plus fin
+                            decoration: BoxDecoration(
+                              color: Colors.black54.withOpacity(0.25), // plus transparent
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Sourate
+                                TextButton.icon(
+                                  onPressed: () => _showSurahSelection(),
+                                  icon: const Icon(Icons.menu_book, color: Colors.white, size: 18),
+                                  label: Text(
+                                    fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                ),
 
-                      // Bouton Hafs/Warsh à droite
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
-                          icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
-                          label: Text(
-                            currentReading.toUpperCase(),
-                            style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
+                                // Numéro de page
+                                InkWell(
+                                  onTap: () => _jumpToPageDialog(),
+                                  child: CircleAvatar(
+                                    radius: 18, // légèrement plus petit
+                                    backgroundColor: Colors.white.withOpacity(0.15),
+                                    child: Text(
+                                      '$currentPage',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
 
-                      // Numéro de page au centre
-                      Align(
-                        alignment: Alignment.center,
-                        child: InkWell(
-                          onTap: () => _jumpToPageDialog(),
-                          child: CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.transparent,
-                            child: Text(
-                              '$currentPage',
-                              style: const TextStyle(
-                                color: Colors.black54,
-                                fontWeight: FontWeight.bold,
-                              ),
+                                // Hafs/Warsh
+                                TextButton.icon(
+                                  onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                                  icon: Icon(Icons.auto_stories, color: Colors.brown.shade100, size: 18),
+                                  label: Text(
+                                    currentReading.toUpperCase(),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
+                      )
+
+                    : SizedBox(
+                        height: 40,
+                        child: Stack(
+                          children: [
+                            // Bouton Sourate à gauche
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: () => _showSurahSelection(),
+                                icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
+                                label: Text(
+                                  fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+                                  style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+
+                            // Bouton Hafs/Warsh à droite
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                                icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
+                                label: Text(
+                                  currentReading.toUpperCase(),
+                                  style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+
+                            // Numéro de page au centre
+                            Align(
+                              alignment: Alignment.center,
+                              child: InkWell(
+                                onTap: () => _jumpToPageDialog(),
+                                child: CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: Colors.transparent,
+                                  child: Text(
+                                    '$currentPage',
+                                    style: const TextStyle(
+                                      color: Colors.black54,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
               ),
           ],
         ),
