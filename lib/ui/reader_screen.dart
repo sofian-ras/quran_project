@@ -1,3 +1,7 @@
+// ============================
+// READER SCREEN FINAL
+// ============================
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -39,8 +43,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _isReady = false;
   double _progress = 0.0;
   List<Map<String, dynamic>> fullSurahList = [];
-
-  // Ajout de la variable toggle UI
   bool _showUI = true;
 
   @override
@@ -167,6 +169,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
     }
 
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -186,7 +190,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     final imageFile = snapshot.data!;
                     return LayoutBuilder(
                       builder: (context, constraints) {
-                        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
                         if (isLandscape) {
                           return SingleChildScrollView(
                             child: Image.file(imageFile, width: constraints.maxWidth, fit: BoxFit.fitWidth, filterQuality: FilterQuality.high),
@@ -201,109 +204,82 @@ class _ReaderScreenState extends State<ReaderScreen> {
               },
             ),
 
-            // Bouton retour en haut à gauche
-            if (_showUI)
+            // Barre supérieure : flèche à gauche, Juzz/Hizb à droite sans fond
+            if (_showUI && !isLandscape)
               Positioned(
-                top: 40,
+                top: 20,
                 left: 10,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
-
-            // Infos Hizb / Juzz (Haut)
-            if (_showUI)
-              Positioned(
-                top: 40,
-                left: 50,
-                right: 20,
+                right: 10,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(_juzzText(currentPage), style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                    Text(_hizbText(currentPage), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    Opacity(
+                      opacity: 0.5,
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black54),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_juzzText(currentPage),
+                            style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        Text(_hizbText(currentPage),
+                            style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                   ],
                 ),
               ),
 
-            // Barre de navigation (Bas)
-            if (_showUI) Positioned(bottom: 20, left: 0, right: 0, child: _buildBottomUI()),
-          ],
-        ),
-      ),
-    );
-  }
+            // Barre inférieure : Sourate / Numéro page / Hafs-Warsh icône
+            if (_showUI)
+              Positioned(
+                bottom: 20,
+                left: 20,
+                right: 20,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Sourate
+                    TextButton.icon(
+                      onPressed: () => _showSurahSelection(),
+                      icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
+                      label: Text(
+                        fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+                        style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                      ),
+                    ),
 
-  Widget _buildBottomUI() {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 300),
-      opacity: _showUI ? 1.0 : 0.0,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-            Color(0xFF083822), // vert foncé bord gauche
-            Color(0xFF2E8B57), // vert plus clair centre
-            Color(0xFF083822), // vert foncé bord droit
-            ],
-          ),
-          borderRadius: BorderRadius.circular(40),
-          boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Sourate
-            TextButton.icon(
-              onPressed: () => _showSurahSelection(),
-              icon: const Icon(Icons.menu_book, color: Colors.white, size: 20),
-              label: Text(
-                fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
+                    // Numéro de page
+                    InkWell(
+                      onTap: () => _jumpToPageDialog(),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.transparent,
+                        child: Text(
+                          '$currentPage',
+                          style: const TextStyle(
+                            color: Colors.black54,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
 
-            // Numéro de page
-            InkWell(
-              onTap: () => _jumpToPageDialog(),
-              child: CircleAvatar(
-                radius: 20,
-                backgroundColor: const Color(0xFF083822), // vert foncé
-                child: Text(
-                  '$currentPage',
-                  style: const TextStyle(
-                    color: Color(0xFFFFD700), // doré
-                    fontWeight: FontWeight.bold,
-                  ),
+                    // Hafs / Warsh icône
+                    IconButton(
+                      onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                      icon: Icon(
+                        currentReading == 'hafs' ? Icons.book : Icons.auto_stories,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-
-            // Lecture Hafs / Warsh
-            TextButton(
-              onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
-              child: SizedBox(
-                width: 60,
-                child: Center(
-                  child: GradientText(
-                    currentReading.toUpperCase(),
-                    gradient: currentReading == 'hafs'
-                        ? const LinearGradient(colors: [Color(0xFF66BB6A), Color(0xFFA5D6A7)])
-                        : const LinearGradient(colors: [Color(0xFFFFA726), Color(0xFFFFD54F)]),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ),
-
           ],
         ),
       ),
