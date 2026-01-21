@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/audio_service.dart'; // <--- Import du service
+import 'package:dio/dio.dart'; // <--- N'oublie pas d'ajouter dio dans pubspec.yaml
+import '../services/audio_service.dart';
 import 'reader_screen.dart';
 import 'widgets/surah_card.dart';
 import 'widgets/bottom_audio_bar.dart';
@@ -19,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   @override
   bool get wantKeepAlive => true;
 
-  final AudioService _audio = AudioService.instance; // <--- Instance du service
+  final AudioService _audio = AudioService.instance;
   List<Map<String, dynamic>> fullSurahList = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
@@ -32,14 +33,34 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     _loadSurahData();
   }
 
-  // --- NOUVELLE MÉTHODE POUR L'AUDIO ---
+  // --- LOGIQUE POUR CHOISIR LE RÉCITANT ---
+  void _showReciterPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0B3D2E),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => _ReciterSelectorSheet(
+        onSelected: (name, server) {
+          setState(() {
+            _audio.currentReciterName = name;
+            _audio.currentServer = server;
+          });
+        },
+      ),
+    );
+  }
+
   void _startSurahAudio(Map<String, dynamic> s) async {
     final String idStr = s['id'].toString().padLeft(3, '0');
-    final String url = "https://server8.mp3quran.net/afs/$idStr.mp3";
+    String baseUrl = _audio.currentServer;
+    if (!baseUrl.endsWith('/')) baseUrl += '/';
+    
+    final String url = "$baseUrl$idStr.mp3";
+    
     _audio.currentTitle = s['nameFr'];
     await _audio.setUrl(url);
     _audio.play();
-    if (mounted) setState(() {}); // Rafraîchit l'UI pour la BottomBar
   }
 
   Future<void> _loadSurahData() async {
@@ -86,9 +107,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   void _openReader(int page) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ReaderScreen(initialPage: page),
-      ),
+      MaterialPageRoute(builder: (_) => ReaderScreen(initialPage: page)),
     );
   }
 
@@ -114,147 +133,209 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     return Scaffold(
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : IndexedStack(
-              index: 0,
-              children: [
-                SafeArea(
-                  child: SingleChildScrollView(
-                    key: const PageStorageKey('home_scroll'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // HEADER (Passage du controller et de la fonction search)
-                        _HomeHeader(
-                          controller: _searchCtrl,
-                          onChanged: _onSearchChanged,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // FEATURED
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'En vedette',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                              TextButton(onPressed: () {}, child: const Text('Voir tout')),
-                            ],
-                          ),
-                        ),
-                        SizedBox(
-                          height: 140,
-                          child: ListView.builder(
-                            key: const PageStorageKey('featured_list'),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            scrollDirection: Axis.horizontal,
-                            itemCount: filteredList.length > 8 ? 8 : filteredList.length,
-                            itemBuilder: (context, index) {
-                              final s = filteredList[index];
-                              return GestureDetector(
-                                onTap: () {
-                                  _startSurahAudio(s); // Lance l'audio
-                                  _openReader(s['page']); // Ouvre le lecteur
-                                },
-                                child: Container(
-                                  width: 240,
-                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        s['nameAr'],
-                                        style: const TextStyle(fontFamily: 'Amiri', fontSize: 18),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        s['nameFr'],
-                                        style: const TextStyle(color: Colors.black54),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // ALL SURAH
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            'Toutes les sourates',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        ListView.builder(
-                          key: const PageStorageKey('all_surah_list'),
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filteredList.length,
-                          itemBuilder: (context, index) {
-                            final s = filteredList[index];
-                            return SurahCard(
-                              id: s['id'],
-                              nameAr: s['nameAr'],
-                              nameFr: s['nameFr'],
-                              ayahCount: s['ayahCount'],
-                              isFavorite: _favorites.contains(s['id']),
-                              onTap: () {
-                                _startSurahAudio(s); // Lance l'audio
-                                _openReader(s['page']); // Ouvre le lecteur
-                              },
-                              onToggleFavorite: () async {
-                                setState(() {
-                                  _favorites.contains(s['id'])
-                                      ? _favorites.remove(s['id'])
-                                      : _favorites.add(s['id']);
-                                });
-                                final prefs = await SharedPreferences.getInstance();
-                                prefs.setStringList(
-                                  'favorites',
-                                  _favorites.map((e) => e.toString()).toList(),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ],
+          : SafeArea(
+              child: SingleChildScrollView(
+                key: const PageStorageKey('home_scroll'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HomeHeader(
+                      controller: _searchCtrl,
+                      onChanged: _onSearchChanged,
+                      reciterName: _audio.currentReciterName,
+                      onReciterTap: _showReciterPicker, // Relie le clic au picker
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    // ... (Reste de ton code Featured et All Surah identique)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('En vedette', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          TextButton(onPressed: () {}, child: const Text('Voir tout')),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      height: 140,
+                      child: ListView.builder(
+                        key: const PageStorageKey('featured_list'),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: filteredList.length > 8 ? 8 : filteredList.length,
+                        itemBuilder: (context, index) {
+                          final s = filteredList[index];
+                          return GestureDetector(
+                            onTap: () {
+                              _startSurahAudio(s);
+                              _openReader(s['page']);
+                            },
+                            child: Container(
+                              width: 240,
+                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(s['nameAr'], style: const TextStyle(fontFamily: 'Amiri', fontSize: 18), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  const SizedBox(height: 6),
+                                  Text(s['nameFr'], style: const TextStyle(color: Colors.black54)),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filteredList.length,
+                      itemBuilder: (context, index) {
+                        final s = filteredList[index];
+                        return SurahCard(
+                          id: s['id'],
+                          nameAr: s['nameAr'],
+                          nameFr: s['nameFr'],
+                          ayahCount: s['ayahCount'],
+                          isFavorite: _favorites.contains(s['id']),
+                          onTap: () {
+                            _startSurahAudio(s);
+                            _openReader(s['page']);
+                          },
+                          onToggleFavorite: () async {
+                            setState(() {
+                              _favorites.contains(s['id']) ? _favorites.remove(s['id']) : _favorites.add(s['id']);
+                            });
+                            final prefs = await SharedPreferences.getInstance();
+                            prefs.setStringList('favorites', _favorites.map((e) => e.toString()).toList());
+                          },
+                        );
+                      },
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
       bottomNavigationBar: const Padding(
         padding: EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: BottomAudioBar(), // Utilise maintenant le titre du service
+        child: BottomAudioBar(),
       ),
     );
   }
 }
 
-// ---------------- HEADER WIDGET MIS À JOUR ----------------
+// ---------------- WIDGET DE SÉLECTION DES RÉCITANTS ----------------
+class _ReciterSelectorSheet extends StatefulWidget {
+  final Function(String name, String server) onSelected;
+  const _ReciterSelectorSheet({required this.onSelected});
+
+  @override
+  State<_ReciterSelectorSheet> createState() => _ReciterSelectorSheetState();
+}
+
+class _ReciterSelectorSheetState extends State<_ReciterSelectorSheet> {
+  List allReciters = [];
+  List filteredReciters = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchReciters();
+  }
+
+  void _fetchReciters() async {
+    try {
+      final res = await Dio().get("https://mp3quran.net/api/v3/reciters?language=fr");
+      setState(() {
+        allReciters = res.data['reciters'];
+        filteredReciters = allReciters;
+        loading = false;
+      });
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: Column(
+        children: [
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          const Text("Choisir un récitant", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 15),
+          TextField(
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: "Chercher un récitant...",
+              hintStyle: const TextStyle(color: Colors.white54),
+              prefixIcon: const Icon(Icons.search, color: Colors.white54),
+              filled: true,
+              fillColor: Colors.white10,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+            ),
+            onChanged: (val) {
+              setState(() {
+                filteredReciters = allReciters.where((r) => r['name'].toLowerCase().contains(val.toLowerCase())).toList();
+              });
+            },
+          ),
+          const SizedBox(height: 15),
+          Expanded(
+            child: loading 
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFFC8A165)))
+              : ListView.builder(
+                  itemCount: filteredReciters.length,
+                  itemBuilder: (context, i) {
+                    final r = filteredReciters[i];
+                    final moshaf = r['moshaf'][0];
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                      title: Text(r['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      subtitle: Text(moshaf['name'], style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      trailing: const Icon(Icons.play_circle_outline, color: Color(0xFFC8A165)),
+                      onTap: () {
+                        widget.onSelected(r['name'], moshaf['server']);
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------- HEADER MODIFIÉ ----------------
 class _HomeHeader extends StatelessWidget {
   final TextEditingController controller;
   final Function(String) onChanged;
+  final String reciterName;
+  final VoidCallback onReciterTap;
 
   const _HomeHeader({
     required this.controller,
     required this.onChanged,
+    required this.reciterName,
+    required this.onReciterTap,
   });
 
   @override
@@ -264,51 +345,42 @@ class _HomeHeader extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Color(0xFF0B3D2E), Color(0xFF2E8B57)]),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
+        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(24), bottomRight: Radius.circular(24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const Text(
-            'الْقُرْآنُ الْكَرِيمُ',
-            textDirection: TextDirection.rtl,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontFamily: 'Scheherazade',
-              fontSize: 32,
-              color: Colors.white,
-              height: 1.7,
-              letterSpacing: 0.5,
-              shadows: [
-                Shadow(blurRadius: 6, color: Colors.black26, offset: Offset(0, 2)),
-              ],
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Bouton Récitant
+              InkWell(
+                onTap: onReciterTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.mic, color: Color(0xFFC8A165), size: 16),
+                      const SizedBox(width: 8),
+                      Text(reciterName, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+              const Text(
+                'الْقُرْآنُ الْكَرِيمُ',
+                style: TextStyle(fontFamily: 'Scheherazade', fontSize: 28, color: Colors.white),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
-            textDirection: TextDirection.rtl,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontFamily: 'Scheherazade',
-              fontSize: 26,
-              color: Colors.white70,
-              height: 1.8,
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: TextField(
               controller: controller,
-              onChanged: onChanged, // <--- Relie la recherche
+              onChanged: onChanged,
               decoration: const InputDecoration(
                 icon: Icon(Icons.search, color: Colors.grey),
                 border: InputBorder.none,
