@@ -291,7 +291,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             TextButton(
               onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
               child: SizedBox(
-                width: 60, // largeur fixe pour éviter décalage
+                width: 60,
                 child: Center(
                   child: GradientText(
                     currentReading.toUpperCase(),
