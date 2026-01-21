@@ -236,42 +236,76 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _buildBottomUI() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color.fromRGBO(255, 255, 255, 0.9),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          TextButton(
-            onPressed: () => _showSurahSelection(),
-            child: Text(
-              fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
-              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-            ),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: _showUI ? 1.0 : 0.0,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+            Color(0xFF083822), // vert foncé bord gauche
+            Color(0xFF2E8B57), // vert plus clair centre
+            Color(0xFF083822), // vert foncé bord droit
+            ],
           ),
-          InkWell(
-            onTap: () => _jumpToPageDialog(),
-            child: CircleAvatar(
-              backgroundColor: const Color(0xFF064E3B),
-              child: Text('$currentPage', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+          borderRadius: BorderRadius.circular(40),
+          boxShadow: const [
+            BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Sourate
+            TextButton.icon(
+              onPressed: () => _showSurahSelection(),
+              icon: const Icon(Icons.menu_book, color: Colors.white, size: 20),
+              label: Text(
+                fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
-          TextButton(
-            onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
-            child: GradientText(
-              currentReading.toUpperCase(),
-              gradient: currentReading == 'hafs'
-                  ? const LinearGradient(colors: [Color(0xFF083822), Color(0xFF2E8B57)])
-                  : const LinearGradient(colors: [Color(0xFF6B3A1A), Color(0xFFC07A3B)]),
-              style: const TextStyle(fontWeight: FontWeight.bold),
+
+            // Numéro de page
+            InkWell(
+              onTap: () => _jumpToPageDialog(),
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFF083822), // vert foncé
+                child: Text(
+                  '$currentPage',
+                  style: const TextStyle(
+                    color: Color(0xFFFFD700), // doré
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+
+            // Lecture Hafs / Warsh
+            TextButton(
+              onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+              child: SizedBox(
+                width: 60, // largeur fixe pour éviter décalage
+                child: Center(
+                  child: GradientText(
+                    currentReading.toUpperCase(),
+                    gradient: currentReading == 'hafs'
+                        ? const LinearGradient(colors: [Color(0xFF66BB6A), Color(0xFFA5D6A7)])
+                        : const LinearGradient(colors: [Color(0xFFFFA726), Color(0xFFFFD54F)]),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+
+          ],
+        ),
       ),
     );
   }
