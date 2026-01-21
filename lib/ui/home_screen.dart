@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/audio_service.dart'; // <--- Import du service
 import 'reader_screen.dart';
 import 'widgets/surah_card.dart';
 import 'widgets/bottom_audio_bar.dart';
@@ -16,8 +17,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // <-- garde l'état
+  bool get wantKeepAlive => true;
 
+  final AudioService _audio = AudioService.instance; // <--- Instance du service
   List<Map<String, dynamic>> fullSurahList = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
@@ -28,6 +30,16 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   void initState() {
     super.initState();
     _loadSurahData();
+  }
+
+  // --- NOUVELLE MÉTHODE POUR L'AUDIO ---
+  void _startSurahAudio(Map<String, dynamic> s) async {
+    final String idStr = s['id'].toString().padLeft(3, '0');
+    final String url = "https://server8.mp3quran.net/afs/$idStr.mp3";
+    _audio.currentTitle = s['nameFr'];
+    await _audio.setUrl(url);
+    _audio.play();
+    if (mounted) setState(() {}); // Rafraîchit l'UI pour la BottomBar
   }
 
   Future<void> _loadSurahData() async {
@@ -62,7 +74,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       _isLoading = false;
     });
 
-    // load favorites
     try {
       final prefs = await SharedPreferences.getInstance();
       final favs = prefs.getStringList('favorites') ?? [];
@@ -72,8 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     } catch (_) {}
   }
 
-  void _openReader(int page) async {
-    // Préchargement optionnel: AssetManager.preloadPages(page-3, page+3);
+  void _openReader(int page) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -84,21 +94,22 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   void _onSearchChanged(String q) {
     final qLower = q.trim().toLowerCase();
-    if (qLower.isEmpty) {
-      filteredList = List.from(fullSurahList);
-    } else {
-      filteredList = fullSurahList.where((s) {
-        return s['nameAr'].toLowerCase().contains(qLower) ||
-            s['nameFr'].toLowerCase().contains(qLower) ||
-            s['id'].toString() == qLower;
-      }).toList();
-    }
-    setState(() {});
+    setState(() {
+      if (qLower.isEmpty) {
+        filteredList = List.from(fullSurahList);
+      } else {
+        filteredList = fullSurahList.where((s) {
+          return s['nameAr'].toLowerCase().contains(qLower) ||
+              s['nameFr'].toLowerCase().contains(qLower) ||
+              s['id'].toString() == qLower;
+        }).toList();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // pour AutomaticKeepAliveClientMixin
+    super.build(context);
 
     return Scaffold(
       body: _isLoading
@@ -112,8 +123,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // HEADER
-                        const _HomeHeader(),
+                        // HEADER (Passage du controller et de la fonction search)
+                        _HomeHeader(
+                          controller: _searchCtrl,
+                          onChanged: _onSearchChanged,
+                        ),
                         const SizedBox(height: 16),
 
                         // FEATURED
@@ -140,7 +154,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                             itemBuilder: (context, index) {
                               final s = filteredList[index];
                               return GestureDetector(
-                                onTap: () => _openReader(s['page']),
+                                onTap: () {
+                                  _startSurahAudio(s); // Lance l'audio
+                                  _openReader(s['page']); // Ouvre le lecteur
+                                },
                                 child: Container(
                                   width: 240,
                                   margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -156,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                       Text(
                                         s['nameAr'],
                                         style: const TextStyle(fontFamily: 'Amiri', fontSize: 18),
-                                        maxLines: 2,
+                                        maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 6),
@@ -197,7 +214,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                               nameFr: s['nameFr'],
                               ayahCount: s['ayahCount'],
                               isFavorite: _favorites.contains(s['id']),
-                              onTap: () => _openReader(s['page']),
+                              onTap: () {
+                                _startSurahAudio(s); // Lance l'audio
+                                _openReader(s['page']); // Ouvre le lecteur
+                              },
                               onToggleFavorite: () async {
                                 setState(() {
                                   _favorites.contains(s['id'])
@@ -220,16 +240,22 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               ],
             ),
       bottomNavigationBar: const Padding(
-        padding: EdgeInsets.all(12),
-        child: BottomAudioBar(title: 'Lecture en cours'),
+        padding: EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: BottomAudioBar(), // Utilise maintenant le titre du service
       ),
     );
   }
 }
 
-// ---------------- HEADER WIDGET ----------------
+// ---------------- HEADER WIDGET MIS À JOUR ----------------
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({super.key});
+  final TextEditingController controller;
+  final Function(String) onChanged;
+
+  const _HomeHeader({
+    required this.controller,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -257,11 +283,7 @@ class _HomeHeader extends StatelessWidget {
               height: 1.7,
               letterSpacing: 0.5,
               shadows: [
-                Shadow(
-                  blurRadius: 6,
-                  color: Colors.black26,
-                  offset: Offset(0, 2),
-                ),
+                Shadow(blurRadius: 6, color: Colors.black26, offset: Offset(0, 2)),
               ],
             ),
           ),
@@ -285,8 +307,10 @@ class _HomeHeader extends StatelessWidget {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: TextField(
-              controller: TextEditingController(),
+              controller: controller,
+              onChanged: onChanged, // <--- Relie la recherche
               decoration: const InputDecoration(
+                icon: Icon(Icons.search, color: Colors.grey),
                 border: InputBorder.none,
                 hintText: 'Rechercher une sourate...',
               ),

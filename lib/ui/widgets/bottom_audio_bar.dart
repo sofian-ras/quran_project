@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/audio_service.dart';
+import 'package:just_audio/just_audio.dart';
 
 class BottomAudioBar extends StatefulWidget {
   final String title;
@@ -18,8 +19,7 @@ class _BottomAudioBarState extends State<BottomAudioBar> {
   void initState() {
     super.initState();
     _audio.playerStateStream.listen((st) {
-      final playing = st.playing;
-      if (mounted) setState(() => _playing = playing);
+      if (mounted) setState(() => _playing = st.playing);
     });
   }
 
@@ -48,8 +48,24 @@ class _BottomAudioBarState extends State<BottomAudioBar> {
               }
             },
           ),
-          Expanded(child: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white))),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Lecture en cours", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                // Affiche le titre du service ou le widget.title par défaut
+                Text(
+                  _audio.currentTitle.isNotEmpty ? _audio.currentTitle : widget.title, 
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          // Bouton Précédent (à configurer plus tard)
           const IconButton(icon: Icon(Icons.skip_previous, color: Colors.white70), onPressed: null),
+          // Bouton Suivant (à configurer plus tard)
           const IconButton(icon: Icon(Icons.skip_next, color: gold), onPressed: null),
         ],
       ),
@@ -58,7 +74,6 @@ class _BottomAudioBarState extends State<BottomAudioBar> {
 
   @override
   void dispose() {
-    // do not dispose the global audio player here
     super.dispose();
   }
 }

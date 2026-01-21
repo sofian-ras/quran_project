@@ -5,12 +5,20 @@ class AudioService {
   static final AudioService instance = AudioService._();
   final AudioPlayer _player = AudioPlayer();
 
+  // --- LA LIGNE À AJOUTER EST ICI ---
+  String currentTitle = "Aucune lecture"; 
+
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
   Stream<Duration?> get positionStream => _player.positionStream;
 
   Future<void> setUrl(String url) async {
-    await _player.setUrl(url);
+    try {
+      await _player.setUrl(url);
+    } catch (e) {
+      print("Erreur lors du chargement de l'URL audio: $e");
+    }
   }
+
 
   Future<void> play() => _player.play();
   Future<void> pause() => _player.pause();
