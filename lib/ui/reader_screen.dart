@@ -1,5 +1,5 @@
 // ============================
-// READER SCREEN FINAL
+// READER SCREEN FINAL V2
 // ============================
 
 import 'dart:io';
@@ -177,6 +177,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         onTap: () => setState(() => _showUI = !_showUI),
         child: Stack(
           children: [
+            // PageView
             PageView.builder(
               controller: _pageController,
               reverse: true,
@@ -192,10 +193,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       builder: (context, constraints) {
                         if (isLandscape) {
                           return SingleChildScrollView(
-                            child: Image.file(imageFile, width: constraints.maxWidth, fit: BoxFit.fitWidth, filterQuality: FilterQuality.high),
+                            child: Image.file(
+                              imageFile,
+                              width: constraints.maxWidth,
+                              fit: BoxFit.fitWidth,
+                              filterQuality: FilterQuality.high,
+                            ),
                           );
                         } else {
-                          return Center(child: Image.file(imageFile, fit: BoxFit.contain, filterQuality: FilterQuality.high));
+                          return Center(
+                            child: Image.file(
+                              imageFile,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          );
                         }
                       },
                     );
@@ -204,8 +216,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               },
             ),
 
-            // Barre supérieure : flèche à gauche, Juzz/Hizb à droite sans fond
-            if (_showUI && !isLandscape)
+            // Barre supérieure : flèche retour + Juzz/Hizb
+            if (_showUI)
               Positioned(
                 top: 20,
                 left: 10,
@@ -234,14 +246,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
               ),
 
-            // Barre inférieure : Sourate / Numéro page / Hafs-Warsh icône
+            // Barre inférieure : Sourate / Numéro page / Hafs-Warsh
             if (_showUI)
               Positioned(
                 bottom: 20,
-                left: 20,
-                right: 20,
+                left: 0,
+                right: 0,
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     // Sourate
                     TextButton.icon(
@@ -253,7 +265,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ),
                     ),
 
-                    // Numéro de page
+                    // Numéro de page centré
                     InkWell(
                       onTap: () => _jumpToPageDialog(),
                       child: CircleAvatar(
@@ -261,20 +273,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         backgroundColor: Colors.transparent,
                         child: Text(
                           '$currentPage',
-                          style: const TextStyle(
-                            color: Colors.black54,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
 
-                    // Hafs / Warsh icône
-                    IconButton(
-                      onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
-                      icon: Icon(
-                        currentReading == 'hafs' ? Icons.book : Icons.auto_stories,
-                        color: Colors.black54,
+                    // Hafs / Warsh icône avec texte et ton gris-marron
+                    TextButton.icon(
+                      onPressed: () =>
+                          setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                      icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
+                      label: Text(
+                        currentReading.toUpperCase(),
+                        style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
