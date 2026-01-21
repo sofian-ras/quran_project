@@ -257,8 +257,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
           InkWell(
             onTap: () => _jumpToPageDialog(),
             child: CircleAvatar(
-              backgroundColor: Colors.green[50],
-              child: Text('$currentPage', style: const TextStyle(color: Colors.green, fontSize: 12)),
+              backgroundColor: const Color(0xFF064E3B),
+              child: Text('$currentPage', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
             ),
           ),
           TextButton(
