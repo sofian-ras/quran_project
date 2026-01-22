@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dio/dio.dart'; // <--- N'oublie pas d'ajouter dio dans pubspec.yaml
+import 'package:dio/dio.dart';
 import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
 import 'reader_screen.dart';
 import 'widgets/surah_card.dart';
-import 'widgets/player_bottom_sheet.dart';
+import 'widgets/mini_audio_player.dart'; // Remplacé
 import '../surah_name.dart';
+import 'full_player_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,25 +36,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     _loadSurahData();
   }
 
-  void _showPlayerSheet() {
-    if (_currentSurah == null) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => PlayerBottomSheet(
-        surahList: fullSurahList,
-        currentSurah: _currentSurah!,
-        onReciterChangeRequested: _showReciterPicker,
-        onSurahChange: (newSurah) {
-          // On ne veut pas ré-ouvrir le lecteur, juste jouer le son
-          _startSurahAudio(newSurah);
-        },
-      ),
-    );
-  }
-
   // --- LOGIQUE POUR CHOISIR LE RÉCITANT ---
   void _showReciterPicker() {
     showModalBottomSheet(
@@ -67,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             _audio.currentReciterName = name;
             _audio.currentServer = server;
           });
-          // Optionnel : redémarrer la lecture avec le nouveau récitant si une sourate est en cours
+          // Si une sourate était en cours de lecture, la relancer avec le nouveau récitateur
           if (_currentSurah != null) {
             _startSurahAudio(_currentSurah!);
           }
@@ -76,20 +58,12 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
-  void _startSurahAudio(Map<String, dynamic> s) async {
+  void _startSurahAudio(Map<String, dynamic> s) {
     setState(() {
       _currentSurah = s;
     });
-
-    final String idStr = s['id'].toString().padLeft(3, '0');
-    String baseUrl = _audio.currentServer;
-    if (!baseUrl.endsWith('/')) baseUrl += '/';
-    
-    final String url = "$baseUrl$idStr.mp3";
-    
-    _audio.currentTitle = s['nameFr'];
-    await _audio.setUrl(url);
-    _audio.play();
+    // Appelle la nouvelle fonction de playlist dans le service audio
+    _audio.loadPlaylistAndPlay(s['id'] as int);
   }
 
   Future<void> _loadSurahData() async {
@@ -162,120 +136,130 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     return Scaffold(
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: SingleChildScrollView(
-                key: const PageStorageKey('home_scroll'),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _HomeHeader(
-                      controller: _searchCtrl,
-                      onChanged: _onSearchChanged,
-                      reciterName: _audio.currentReciterName,
-                      onReciterTap: _showReciterPicker, // Relie le clic au picker
-                    ),
-                    const SizedBox(height: 16),
-                    // ... (Reste de ton code Featured et All Surah identique)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('En vedette', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          TextButton(onPressed: () {}, child: const Text('Voir tout')),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      height: 140,
-                      child: ListView.builder(
-                        key: const PageStorageKey('featured_list'),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: filteredList.length > 8 ? 8 : filteredList.length,
-                        itemBuilder: (context, index) {
-                          final s = filteredList[index];
-                          return GestureDetector(
-                            onTap: () {
-                              _startSurahAudio(s);
-                              _openReader(s['page']);
+          : Stack(
+              children: [
+                SafeArea(
+                  child: SingleChildScrollView(
+                    key: const PageStorageKey('home_scroll'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _HomeHeader(
+                          controller: _searchCtrl,
+                          onChanged: _onSearchChanged,
+                          reciterName: _audio.currentReciterName,
+                          onReciterTap: _showReciterPicker,
+                        ),
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('En vedette', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              TextButton(onPressed: () {}, child: const Text('Voir tout')),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          height: 140,
+                          child: ListView.builder(
+                            key: const PageStorageKey('featured_list'),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: filteredList.length > 8 ? 8 : filteredList.length,
+                            itemBuilder: (context, index) {
+                              final s = filteredList[index];
+                              return GestureDetector(
+                                onTap: () => _openReader(s['page']),
+                                child: Container(
+                                  width: 240,
+                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                       Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(child: Text(s['nameAr'], style: const TextStyle(fontFamily: 'Amiri', fontSize: 18), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                          IconButton(icon: const Icon(Icons.play_circle_fill, color: Color(0xFF0B3D2E)), onPressed: () => _startSurahAudio(s)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(s['nameFr'], style: const TextStyle(color: Colors.black54)),
+                                    ],
+                                  ),
+                                ),
+                              );
                             },
-                            child: Container(
-                              width: 240,
-                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(s['nameAr'], style: const TextStyle(fontFamily: 'Amiri', fontSize: 18), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  const SizedBox(height: 6),
-                                  Text(s['nameFr'], style: const TextStyle(color: Colors.black54)),
-                                ],
-                              ),
-                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        ),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final s = filteredList[index];
+                            return SurahCard(
+                              id: s['id'],
+                              nameAr: s['nameAr'],
+                              nameFr: s['nameFr'],
+                              ayahCount: s['ayahCount'],
+                              isFavorite: _favorites.contains(s['id']),
+                              onTap: () => _openReader(s['page']),
+                              onPlay: () => _startSurahAudio(s),
+                              onToggleFavorite: () async {
+                                setState(() {
+                                  _favorites.contains(s['id']) ? _favorites.remove(s['id']) : _favorites.add(s['id']);
+                                });
+                                final prefs = await SharedPreferences.getInstance();
+                                prefs.setStringList('favorites', _favorites.map((e) => e.toString()).toList());
+                              },
+                            );
+                          },
+                        ),
+                         const SizedBox(height: 150), // Espace pour le mini-lecteur
+                      ],
+                    ),
+                  ),
+                ),
+                StreamBuilder<bool>(
+                  stream: _audio.isActiveStream,
+                  builder: (context, snapshot) {
+                    final bool isActive = snapshot.data ?? false;
+                    return AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      bottom: isActive ? 0 : -150,
+                      left: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => const FullPlayerScreen(),
                           );
                         },
+                        child: const MiniAudioPlayer(),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filteredList.length,
-                      itemBuilder: (context, index) {
-                        final s = filteredList[index];
-                        return SurahCard(
-                          id: s['id'],
-                          nameAr: s['nameAr'],
-                          nameFr: s['nameFr'],
-                          ayahCount: s['ayahCount'],
-                          isFavorite: _favorites.contains(s['id']),
-                          onTap: () {
-                            _startSurahAudio(s);
-                            _openReader(s['page']);
-                          },
-                          onToggleFavorite: () async {
-                            setState(() {
-                              _favorites.contains(s['id']) ? _favorites.remove(s['id']) : _favorites.add(s['id']);
-                            });
-                            final prefs = await SharedPreferences.getInstance();
-                            prefs.setStringList('favorites', _favorites.map((e) => e.toString()).toList());
-                          },
-                        );
-                      },
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              ),
+              ],
             ),
-      floatingActionButton: StreamBuilder<bool>(
-        stream: _audio.isActiveStream,
-        builder: (context, snapshot) {
-          final bool isActive = snapshot.data ?? false;
-          if (!isActive) return const SizedBox.shrink();
-
-          return FloatingActionButton(
-            onPressed: _showPlayerSheet,
-            backgroundColor: const Color(0xFFC8A165),
-            child: StreamBuilder<PlayerState>(
-              stream: _audio.playerStateStream,
-              builder: (context, stateSnapshot) {
-                final isPlaying = stateSnapshot.data?.playing ?? false;
-                return Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white);
-              }
-            ),
-          );
-        },
-      ),
     );
   }
 }

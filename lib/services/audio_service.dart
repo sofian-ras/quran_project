@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
+import '../surah_name.dart';
 
 class PositionData {
   final Duration position;
@@ -11,31 +12,43 @@ class PositionData {
 
 class AudioService {
   AudioService._() {
-    // Écouter l'état du lecteur pour le chargement
+    _player.setLoopMode(loopModeNotifier.value);
     _player.processingStateStream.listen((state) {
       isBuffering.value = state == ProcessingState.buffering || state == ProcessingState.loading;
     });
+
+    // Écouter les changements de piste pour mettre à jour le titre
+    _player.currentIndexStream.listen((index) {
+      if (index != null) {
+        final surahId = index + 1;
+        currentTitleNotifier.value = surahFr[surahId] ?? 'Sourate $surahId';
+      }
+    });
   }
+
   static final AudioService instance = AudioService._();
-  
+
   final AudioPlayer _player = AudioPlayer();
-  
-  // Notifiers pour mise à jour automatique de l'UI
+  ConcatenatingAudioSource? _playlist;
+
   final ValueNotifier<String> currentTitleNotifier = ValueNotifier("Aucune lecture");
   final ValueNotifier<String> currentReciterNotifier = ValueNotifier("Mishari Alafasy");
   final ValueNotifier<bool> isBuffering = ValueNotifier(false);
-  
-  // Getters simples pour compatibilité avec ton code existant
+  final ValueNotifier<LoopMode> loopModeNotifier = ValueNotifier(LoopMode.off);
+
   String get currentTitle => currentTitleNotifier.value;
-  set currentTitle(String val) => currentTitleNotifier.value = val;
-
   String get currentReciterName => currentReciterNotifier.value;
-  set currentReciterName(String val) => currentReciterNotifier.value = val;
+  set currentReciterName(String val) {
+     if(currentReciterNotifier.value != val) {
+        currentReciterNotifier.value = val;
+        // Invalider la playlist pour qu'elle soit regénérée avec le nouveau récitateur
+        _playlist = null; 
+     }
+  }
 
-  String currentServer = "https://download.quranicaudio.com/quran/mishari_rashid_alafasy"; 
+  String currentServer = "https://download.quranicaudio.com/quran/mishari_rashid_alafasy";
 
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
-
   Stream<bool> get isActiveStream => _player.processingStateStream.map((state) => state != ProcessingState.idle);
 
   Stream<PositionData> get positionDataStream =>
@@ -50,11 +63,26 @@ class AudioService {
         ),
       );
 
-  Future<void> setUrl(String url) async {
+  Future<void> loadPlaylistAndPlay(int surahId) async {
     try {
-      await _player.setUrl(url);
+      // Si la playlist n'existe pas (premier lancement ou changement de récitateur), on la crée.
+      if (_playlist == null) {
+        final List<AudioSource> sources = [];
+        for (int i = 1; i <= 114; i++) {
+          final surahNum = i.toString().padLeft(3, '0');
+          final url = '$currentServer/$surahNum.mp3';
+          sources.add(AudioSource.uri(Uri.parse(url), tag: i));
+        }
+        _playlist = ConcatenatingAudioSource(children: sources);
+      }
+      
+      await _player.setAudioSource(
+        _playlist!,
+        initialIndex: surahId - 1, // L'index est 0-based
+      );
+      play();
     } catch (e) {
-      debugPrint("Erreur lors du chargement de l'URL audio: $e");
+      debugPrint("Erreur lors du chargement de la playlist: $e");
     }
   }
 
@@ -63,13 +91,30 @@ class AudioService {
   Future<void> stop() => _player.stop();
   Future<void> seek(Duration position) => _player.seek(position);
 
+  Future<void> skipToPrevious() => _player.seekToPrevious();
+  Future<void> skipToNext() => _player.seekToNext();
+
   Future<void> togglePlayPause() async {
     if (_player.playing) {
-      await _player.pause();
+      await pause();
     } else {
-      await _player.play();
+      await play();
     }
   }
 
   Future<void> dispose() => _player.dispose();
+
+  void cycleLoopMode() {
+    final currentMode = loopModeNotifier.value;
+    LoopMode newMode;
+    if (currentMode == LoopMode.off) {
+      newMode = LoopMode.one;
+    } else if (currentMode == LoopMode.one) {
+      newMode = LoopMode.all;
+    } else {
+      newMode = LoopMode.off;
+    }
+    loopModeNotifier.value = newMode;
+    _player.setLoopMode(newMode);
+  }
 }

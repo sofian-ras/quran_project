@@ -7,6 +7,7 @@ class SurahCard extends StatelessWidget {
   final int ayahCount;
   final bool isFavorite;
   final VoidCallback? onTap;
+  final VoidCallback? onPlay;
   final VoidCallback? onToggleFavorite;
 
   const SurahCard({
@@ -17,6 +18,7 @@ class SurahCard extends StatelessWidget {
     this.ayahCount = 0,
     this.isFavorite = false,
     this.onTap,
+    this.onPlay,
     this.onToggleFavorite,
   });
 
@@ -66,6 +68,10 @@ class SurahCard extends StatelessWidget {
                     ]),
                   ],
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.play_circle_outline, color: Colors.white70),
+                onPressed: onPlay,
               ),
               IconButton(
                 icon: Icon(isFavorite ? Icons.star : Icons.star_border, color: isFavorite ? gold : Colors.white70),
