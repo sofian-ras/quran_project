@@ -47,8 +47,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       builder: (context) => ReciterSelectorSheet(
         onSelected: (name, server) {
           setState(() {
-            _audio.currentReciterName = name;
-            _audio.currentServer = server;
+            _audio.setReciter(name, server);
           });
           // Si une sourate était en cours de lecture, la relancer avec le nouveau récitateur
           if (_currentSurah != null) {
@@ -206,29 +205,38 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         ),
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filteredList.length,
-                          itemBuilder: (context, index) {
-                            final s = filteredList[index];
-                            return SurahCard(
-                              id: s['id'],
-                              nameAr: s['nameAr'],
-                              nameFr: s['nameFr'],
-                              ayahCount: s['ayahCount'],
-                              isFavorite: _favorites.contains(s['id']),
-                              onTap: () => _openReader(s['page']),
-                              onPlay: () => _startSurahAudio(s),
-                              onToggleFavorite: () async {
-                                setState(() {
-                                  _favorites.contains(s['id']) ? _favorites.remove(s['id']) : _favorites.add(s['id']);
-                                });
-                                final prefs = await SharedPreferences.getInstance();
-                                prefs.setStringList('favorites', _favorites.map((e) => e.toString()).toList());
+                        // 2. UI/UX : StreamBuilder pour mettre à jour l'UI quand la sourate change
+                        StreamBuilder<int?>(
+                          stream: _audio.currentIndexStream,
+                          builder: (context, snapshot) {
+                            final currentPlayingId = (snapshot.data ?? -1) + 1;
+                            
+                            return ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: filteredList.length,
+                              itemBuilder: (context, index) {
+                                final s = filteredList[index];
+                                return SurahCard(
+                                  id: s['id'],
+                                  nameAr: s['nameAr'],
+                                  nameFr: s['nameFr'],
+                                  ayahCount: s['ayahCount'],
+                                  isFavorite: _favorites.contains(s['id']),
+                                  isPlaying: s['id'] == currentPlayingId, // Nouvel état
+                                  onTap: () => _openReader(s['page']),
+                                  onPlay: () => _startSurahAudio(s),
+                                  onToggleFavorite: () async {
+                                    setState(() {
+                                      _favorites.contains(s['id']) ? _favorites.remove(s['id']) : _favorites.add(s['id']);
+                                    });
+                                    final prefs = await SharedPreferences.getInstance();
+                                    prefs.setStringList('favorites', _favorites.map((e) => e.toString()).toList());
+                                  },
+                                );
                               },
                             );
-                          },
+                          }
                         ),
                          const SizedBox(height: 150), // Espace pour le mini-lecteur
                       ],

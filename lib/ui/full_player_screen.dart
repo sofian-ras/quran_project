@@ -216,8 +216,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
               backgroundColor: const Color(0xFF0B3D2E),
               shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
               builder: (sheetContext) => ReciterSelectorSheet(onSelected: (name, server) {
-                _audio.currentReciterName = name;
-                _audio.currentServer = server;
+                _audio.setReciter(name, server);
                 final id = _audio.currentSurahId;
                 if (id != null) _audio.loadPlaylistAndPlay(id);
               }),
