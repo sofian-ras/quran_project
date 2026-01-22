@@ -36,6 +36,8 @@ class AudioService {
 
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
 
+  Stream<bool> get isActiveStream => _player.processingStateStream.map((state) => state != ProcessingState.idle);
+
   Stream<PositionData> get positionDataStream =>
       Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
         _player.positionStream,

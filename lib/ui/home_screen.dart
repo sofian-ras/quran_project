@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart'; // <--- N'oublie pas d'ajouter dio dans pubspec.yaml
+import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
 import 'reader_screen.dart';
 import 'widgets/surah_card.dart';
-import 'widgets/bottom_audio_bar.dart';
+import 'widgets/player_bottom_sheet.dart';
 import '../surah_name.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,11 +27,31 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   List<Map<String, dynamic>> filteredList = [];
   final TextEditingController _searchCtrl = TextEditingController();
   final Set<int> _favorites = {};
+  Map<String, dynamic>? _currentSurah;
 
   @override
   void initState() {
     super.initState();
     _loadSurahData();
+  }
+
+  void _showPlayerSheet() {
+    if (_currentSurah == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PlayerBottomSheet(
+        surahList: fullSurahList,
+        currentSurah: _currentSurah!,
+        onReciterChangeRequested: _showReciterPicker,
+        onSurahChange: (newSurah) {
+          // On ne veut pas ré-ouvrir le lecteur, juste jouer le son
+          _startSurahAudio(newSurah);
+        },
+      ),
+    );
   }
 
   // --- LOGIQUE POUR CHOISIR LE RÉCITANT ---
@@ -46,12 +67,20 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             _audio.currentReciterName = name;
             _audio.currentServer = server;
           });
+          // Optionnel : redémarrer la lecture avec le nouveau récitant si une sourate est en cours
+          if (_currentSurah != null) {
+            _startSurahAudio(_currentSurah!);
+          }
         },
       ),
     );
   }
 
   void _startSurahAudio(Map<String, dynamic> s) async {
+    setState(() {
+      _currentSurah = s;
+    });
+
     final String idStr = s['id'].toString().padLeft(3, '0');
     String baseUrl = _audio.currentServer;
     if (!baseUrl.endsWith('/')) baseUrl += '/';
@@ -228,9 +257,24 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 ),
               ),
             ),
-      bottomNavigationBar: const Padding(
-        padding: EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: BottomAudioBar(),
+      floatingActionButton: StreamBuilder<bool>(
+        stream: _audio.isActiveStream,
+        builder: (context, snapshot) {
+          final bool isActive = snapshot.data ?? false;
+          if (!isActive) return const SizedBox.shrink();
+
+          return FloatingActionButton(
+            onPressed: _showPlayerSheet,
+            backgroundColor: const Color(0xFFC8A165),
+            child: StreamBuilder<PlayerState>(
+              stream: _audio.playerStateStream,
+              builder: (context, stateSnapshot) {
+                final isPlaying = stateSnapshot.data?.playing ?? false;
+                return Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white);
+              }
+            ),
+          );
+        },
       ),
     );
   }
