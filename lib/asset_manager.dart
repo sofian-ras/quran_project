@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -55,7 +56,10 @@ class AssetManager {
       if (await zFile.exists()) await zFile.delete();
 
     } catch (e) {
-      print("Erreur AssetManager: $e");
+      // use debugPrint instead of print for better control and lint compliance
+      // ignore: avoid_print
+      // debugPrint is preferred in Flutter for logging
+      debugPrint("Erreur AssetManager: $e");
       rethrow;
     }
   }
