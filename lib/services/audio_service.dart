@@ -38,6 +38,10 @@ class AudioService {
 
   String get currentTitle => currentTitleNotifier.value;
   String get currentReciterName => currentReciterNotifier.value;
+  int? get currentSurahId => _player.currentIndex == null ? null : _player.currentIndex! + 1;
+  List<AudioSource> get playlistSources => _playlist?.children ?? [];
+  Stream<int?> get currentIndexStream => _player.currentIndexStream;
+  
   set currentReciterName(String val) {
      if(currentReciterNotifier.value != val) {
         currentReciterNotifier.value = val;
@@ -61,7 +65,7 @@ class AudioService {
           bufferedPosition,
           duration ?? Duration.zero,
         ),
-      );
+      ).asBroadcastStream();
 
   Future<void> loadPlaylistAndPlay(int surahId) async {
     try {
@@ -90,6 +94,7 @@ class AudioService {
   Future<void> pause() => _player.pause();
   Future<void> stop() => _player.stop();
   Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seekToIndex(int index) => _player.seek(Duration.zero, index: index);
 
   Future<void> skipToPrevious() => _player.seekToPrevious();
   Future<void> skipToNext() => _player.seekToNext();

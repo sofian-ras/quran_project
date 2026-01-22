@@ -7,9 +7,10 @@ import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
 import 'reader_screen.dart';
 import 'widgets/surah_card.dart';
-import 'widgets/mini_audio_player.dart'; // Remplacé
+import 'widgets/mini_audio_player.dart';
 import '../surah_name.dart';
 import 'full_player_screen.dart';
+import 'widgets/reciter_selector.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -43,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       isScrollControlled: true,
       backgroundColor: const Color(0xFF0B3D2E),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => _ReciterSelectorSheet(
+      builder: (context) => ReciterSelectorSheet(
         onSelected: (name, server) {
           setState(() {
             _audio.currentReciterName = name;
@@ -260,94 +261,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 ),
               ],
             ),
-    );
-  }
-}
-
-// ---------------- WIDGET DE SÉLECTION DES RÉCITANTS ----------------
-class _ReciterSelectorSheet extends StatefulWidget {
-  final Function(String name, String server) onSelected;
-  const _ReciterSelectorSheet({required this.onSelected});
-
-  @override
-  State<_ReciterSelectorSheet> createState() => _ReciterSelectorSheetState();
-}
-
-class _ReciterSelectorSheetState extends State<_ReciterSelectorSheet> {
-  List allReciters = [];
-  List filteredReciters = [];
-  bool loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchReciters();
-  }
-
-  void _fetchReciters() async {
-    try {
-      final res = await Dio().get("https://mp3quran.net/api/v3/reciters?language=fr");
-      setState(() {
-        allReciters = res.data['reciters'];
-        filteredReciters = allReciters;
-        loading = false;
-      });
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      child: Column(
-        children: [
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 20),
-          const Text("Choisir un récitant", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 15),
-          TextField(
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: "Chercher un récitant...",
-              hintStyle: const TextStyle(color: Colors.white54),
-              prefixIcon: const Icon(Icons.search, color: Colors.white54),
-              filled: true,
-              fillColor: Colors.white10,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-            ),
-            onChanged: (val) {
-              setState(() {
-                filteredReciters = allReciters.where((r) => r['name'].toLowerCase().contains(val.toLowerCase())).toList();
-              });
-            },
-          ),
-          const SizedBox(height: 15),
-          Expanded(
-            child: loading 
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFFC8A165)))
-              : ListView.builder(
-                  itemCount: filteredReciters.length,
-                  itemBuilder: (context, i) {
-                    final r = filteredReciters[i];
-                    final moshaf = r['moshaf'][0];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                      title: Text(r['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                      subtitle: Text(moshaf['name'], style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                      trailing: const Icon(Icons.play_circle_outline, color: Color(0xFFC8A165)),
-                      onTap: () {
-                        widget.onSelected(r['name'], moshaf['server']);
-                        Navigator.pop(context);
-                      },
-                    );
-                  },
-                ),
-          ),
-        ],
-      ),
     );
   }
 }
