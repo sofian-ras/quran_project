@@ -9,7 +9,7 @@ import 'widgets/surah_card.dart';
 import 'widgets/mini_audio_player.dart';
 import '../surah_name.dart';
 import 'full_player_screen.dart';
-import 'widgets/reciter_selector.dart';
+import 'widgets/ios_side_menu.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,7 +28,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   List<Map<String, dynamic>> filteredList = [];
   final TextEditingController _searchCtrl = TextEditingController();
   final Set<int> _favorites = {};
-  Map<String, dynamic>? _currentSurah;
 
   @override
   void initState() {
@@ -36,31 +35,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     _loadSurahData();
   }
 
-  // --- LOGIQUE POUR CHOISIR LE RÉCITANT ---
-  void _showReciterPicker() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0B3D2E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => ReciterSelectorSheet(
-        onSelected: (name, server) {
-          setState(() {
-            _audio.setReciter(name, server);
-          });
-          // Si une sourate était en cours de lecture, la relancer avec le nouveau récitateur
-          if (_currentSurah != null) {
-            _startSurahAudio(_currentSurah!);
-          }
-        },
-      ),
-    );
-  }
-
   void _startSurahAudio(Map<String, dynamic> s) {
-    setState(() {
-      _currentSurah = s;
-    });
     // Appelle la nouvelle fonction de playlist dans le service audio
     _audio.loadPlaylistAndPlay(s['id'] as int);
   }
@@ -146,8 +121,28 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         _HomeHeader(
                           controller: _searchCtrl,
                           onChanged: _onSearchChanged,
-                          reciterName: _audio.currentReciterName,
-                          onReciterTap: _showReciterPicker,
+                          onMenuTap: () {
+                            showGeneralDialog(
+                              context: context,
+                              barrierDismissible: true,
+                              barrierLabel: 'Menu',
+                              barrierColor: Colors.black54,
+                              transitionDuration: const Duration(milliseconds: 300),
+                              pageBuilder: (context, anim1, anim2) => const IOSSideMenu(),
+                              transitionBuilder: (context, anim1, anim2, child) {
+                                return SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(-1, 0),
+                                    end: Offset.zero,
+                                  ).animate(CurvedAnimation(
+                                    parent: anim1,
+                                    curve: Curves.easeOutCubic,
+                                  )),
+                                  child: child,
+                                );
+                              },
+                            );
+                          },
                         ),
                         const SizedBox(height: 16),
                         Padding(
@@ -276,14 +271,12 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 class _HomeHeader extends StatelessWidget {
   final TextEditingController controller;
   final Function(String) onChanged;
-  final String reciterName;
-  final VoidCallback onReciterTap;
+  final VoidCallback onMenuTap;
 
   const _HomeHeader({
     required this.controller,
     required this.onChanged,
-    required this.reciterName,
-    required this.onReciterTap,
+    required this.onMenuTap,
   });
 
   @override
@@ -292,8 +285,22 @@ class _HomeHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Color(0xFF0B3D2E), Color(0xFF2E8B57)]),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(24), bottomRight: Radius.circular(24)),
+        gradient: LinearGradient(
+          colors: [Color(0xFF0B3D2E), Color(0xFF2E8B57)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -301,30 +308,48 @@ class _HomeHeader extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Bouton Récitant
-              InkWell(
-                onTap: onReciterTap,
+              // Bouton Menu iOS
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: onMenuTap,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(20)),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.mic, color: Color(0xFFC8A165), size: 16),
-                      const SizedBox(width: 8),
-                      Text(reciterName, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24, width: 1),
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.line_horizontal_3,
+                    color: Color(0xFFC8A165),
+                    size: 24,
                   ),
                 ),
               ),
               const Text(
                 'الْقُرْآنُ الْكَرِيمُ',
-                style: TextStyle(fontFamily: 'Scheherazade', fontSize: 28, color: Colors.white),
+                style: TextStyle(
+                  fontFamily: 'Scheherazade',
+                  fontSize: 28,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 20),
           Container(
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: TextField(
               controller: controller,

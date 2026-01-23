@@ -51,7 +51,8 @@ class AudioService {
     }
   }
 
-  String currentServer = "https://download.quranicaudio.com/quran/mishari_rashid_alafasy";
+  // Serveur par défaut de mp3quran.net (Mishary Rashid Alafasy)
+  String currentServer = "https://server8.mp3quran.net/afs";
 
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
   Stream<bool> get isActiveStream => _player.processingStateStream.map((state) => state != ProcessingState.idle);
@@ -70,10 +71,13 @@ class AudioService {
 
   Future<void> loadPlaylistAndPlay(int surahId) async {
     try {
-      // 3. REFACTOR : Logique de création extraite
+      // Si la playlist n'existe pas (premier lancement ou changement de récitateur), on la crée.
       if (_playlist == null) {
         _playlist = _createPlaylist();
       }
+      
+      // Mettre à jour le titre de la sourate
+      currentTitleNotifier.value = surahFr[surahId] ?? 'Sourate $surahId';
       
       await _player.setAudioSource(
         _playlist!,
@@ -82,6 +86,8 @@ class AudioService {
       play();
     } catch (e) {
       debugPrint("Erreur lors du chargement de la playlist: $e");
+      // Réinitialiser l'état en cas d'erreur
+      _playlist = null;
     }
   }
 
