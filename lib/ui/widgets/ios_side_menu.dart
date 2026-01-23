@@ -5,6 +5,9 @@ import 'reciter_selector.dart';
 import '../../services/audio_service.dart';
 import '../../theme/app_theme.dart';
 import '../downloads_screen.dart';
+import '../favorites_screen.dart';
+import '../statistics_screen.dart';
+import '../bookmarks_screen.dart';
 
 class IOSSideMenu extends StatelessWidget {
   const IOSSideMenu({super.key});
@@ -186,6 +189,54 @@ class IOSSideMenu extends StatelessWidget {
                               title: 'Coran',
                               subtitle: 'Lecture et récitation',
                               onTap: () => Navigator.pop(context),
+                            ),
+                            
+                            // Favoris Section
+                            _MenuSection(
+                              icon: CupertinoIcons.heart_fill,
+                              title: 'Favoris',
+                              subtitle: 'Vos sourates préférées',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Future.delayed(const Duration(milliseconds: 300), () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+                                  );
+                                });
+                              },
+                            ),
+                            
+                            // Statistiques Section
+                            _MenuSection(
+                              icon: CupertinoIcons.chart_bar_alt_fill,
+                              title: 'Statistiques',
+                              subtitle: 'Vos progrès et historique',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Future.delayed(const Duration(milliseconds: 300), () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const StatisticsScreen()),
+                                  );
+                                });
+                              },
+                            ),
+                            
+                            // Marque-pages Section
+                            _MenuSection(
+                              icon: CupertinoIcons.bookmark_fill,
+                              title: 'Marque-pages',
+                              subtitle: 'Pages sauvegardées',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Future.delayed(const Duration(milliseconds: 300), () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const BookmarksScreen()),
+                                  );
+                                });
+                              },
                             ),
                             
                             // Écouter Section

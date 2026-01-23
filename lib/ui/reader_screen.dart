@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import '../asset_manager.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
+import '../services/reading_history_service.dart';
+import '../services/bookmark_service.dart';
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -198,6 +200,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final j = juzzMap.lastWhere((e) => e['start_page']! <= page, orElse: () => juzzMap.first);
     return 'Juzz ${j['juz']}';
   }
+  
+  // Sauvegarder dans l'historique
+  void _saveToHistory(int page) {
+    // Trouver la sourate correspondante
+    final surah = fullSurahList.firstWhere(
+      (s) => s['page'] == page,
+      orElse: () => fullSurahList.first,
+    );
+    
+    ReadingHistoryService.instance.saveLastReading(
+      page: page,
+      surahId: surah['id'] as int,
+      surahName: surah['nameFr'] as String,
+      reading: currentReading,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,6 +241,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
               onPageChanged: (p) {
                 setState(() => currentPage = p + 1);
                 _preloadPages(p + 1); // Précharger dès le changement de page
+                
+                // Enregistrer dans l'historique
+                _saveToHistory(p + 1);
               },
               itemBuilder: (context, i) {
                 final pageNum = i + 1;
@@ -323,6 +344,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         Text('${_juzzText(currentPage)} ${_hizbText(currentPage)}',
                             style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
                       ],
+                    ),
+                    FutureBuilder<bool>(
+                      future: BookmarkService.instance.isBookmarked(currentPage),
+                      builder: (context, snapshot) {
+                        final isBookmarked = snapshot.data ?? false;
+                        return Opacity(
+                          opacity: 0.5,
+                          child: IconButton(
+                            icon: Icon(
+                              isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                              size: 24,
+                              color: isBookmarked ? Colors.amber : Colors.black54,
+                            ),
+                            onPressed: () async {
+                              if (isBookmarked) {
+                                await BookmarkService.instance.removeBookmark(currentPage);
+                              } else {
+                                final surah = fullSurahList.firstWhere(
+                                  (s) => s['page'] <= currentPage,
+                                  orElse: () => fullSurahList.first,
+                                );
+                                await BookmarkService.instance.addBookmark(
+                                  Bookmark(
+                                    page: currentPage,
+                                    surahId: surah['id'] as int,
+                                    surahName: surah['nameFr'] as String,
+                                    createdAt: DateTime.now(),
+                                  ),
+                                );
+                              }
+                              setState(() {});
+                            },
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),

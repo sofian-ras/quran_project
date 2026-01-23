@@ -7,8 +7,19 @@ import 'package:archive/archive.dart';
 
 class AssetManager {
   static const String zipUrl = 'https://github.com/sofian-ras/quran_project/releases/download/v1.0.0/quran_pages.zip';
-  static const String baseImageUrl = 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/hafs';
   static const String zipFileName = 'quran_pages.zip';
+  
+  // URLs par type de lecture
+  static const Map<String, String> readingUrls = {
+    'hafs': 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/hafs',
+    'warsh': 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/warsh',
+    'sousi': 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/sousi',
+    'shouba': 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/shouba',
+    'qaloon': 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/qaloon',
+    'doori': 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/doori',
+    'bazzi': 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/bazzi',
+    'qumbul': 'https://raw.githubusercontent.com/sofian-ras/quran_project/main/assets/qumbul',
+  };
   
   static final Dio _dio = Dio();
   static final Set<int> _downloadingPages = {}; // Pour éviter les téléchargements en double
@@ -68,9 +79,9 @@ class AssetManager {
         await folder.create(recursive: true);
       }
       
-      // URL de la page individuelle
-      // Note: Adapter cette URL selon votre hébergement réel
-      final pageUrl = '$baseImageUrl/$page.$ext';
+      // URL de la page individuelle basée sur le type de lecture
+      final baseUrl = readingUrls[reading] ?? readingUrls['hafs']!;
+      final pageUrl = '$baseUrl/$page.$ext';
       
       // Télécharger la page
       await _dio.download(
