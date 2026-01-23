@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../services/audio_service.dart';
+import '../music_player_fullscreen.dart';
 
 class MiniAudioPlayer extends StatefulWidget {
   const MiniAudioPlayer({super.key});
@@ -13,11 +14,23 @@ class MiniAudioPlayer extends StatefulWidget {
 class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   final AudioService _audio = AudioService.instance;
 
+  void _openFullPlayer() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MusicPlayerFullScreen(),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const gold = Color(0xFFC8A165);
 
-    return ClipRRect(
+    return GestureDetector(
+      onTap: _openFullPlayer,
+      child: ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
@@ -88,6 +101,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
