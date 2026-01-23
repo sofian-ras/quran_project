@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import '../../services/audio_service.dart';
 
 class ReciterSelectorSheet extends StatefulWidget {
   final Function(String name, String server) onReciterSelected;

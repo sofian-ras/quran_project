@@ -109,8 +109,7 @@ class IOSSideMenu extends StatelessWidget {
                           ),
                           builder: (context) => ReciterSelectorSheet(
                             onSelected: (name, server) {
-                              AudioService.instance.currentReciterName = name;
-                              AudioService.instance.currentServer = server;
+                              AudioService.instance.setReciter(name, server);
                             },
                           ),
                         );
