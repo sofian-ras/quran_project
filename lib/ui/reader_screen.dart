@@ -530,8 +530,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               width: constraints.maxWidth,
               fit: BoxFit.fitWidth,
               filterQuality: FilterQuality.high,
-              // Optimisation: réduit la mémoire en décoding l'image à la bonne taille
-              cacheWidth: constraints.maxWidth.toInt(),
+              // Pas de cache resize pour préserver la qualité maximale
             ),
           );
         } else {
@@ -540,8 +539,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               imageFile,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
-              // Optimisation: réduit la mémoire
-              cacheHeight: constraints.maxHeight.toInt(),
+              // Pas de cache resize pour préserver la qualité maximale
             ),
           );
         }
