@@ -45,7 +45,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   double _progress = 0.0;
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
-
+  
+  // Cache pour les images préchargées
+  final Map<int, File?> _imageCache = {};
+  final int _preloadRange = 3; // Nombre de pages à précharger avant/après
+  
   @override
   void initState() {
     super.initState();
@@ -53,12 +57,60 @@ class _ReaderScreenState extends State<ReaderScreen> {
     currentReading = widget.reading;
     final startPage = (widget.initialPage < 1) ? 1 : (widget.initialPage > 604 ? 604 : widget.initialPage);
     _pageController = PageController(initialPage: startPage - 1);
+    _pageController.addListener(_onPageScroll);
     _initApp();
+  }
+  
+  void _onPageScroll() {
+    // Précharger les pages adjacentes pendant le scroll
+    final currentIndex = _pageController.page?.round() ?? 0;
+    _preloadPages(currentIndex + 1);
+  }
+  
+  Future<void> _preloadPages(int centerPage) async {
+    // Précharger les pages dans une plage autour de la page actuelle
+    for (int offset = -_preloadRange; offset <= _preloadRange; offset++) {
+      final pageNum = centerPage + offset;
+      if (pageNum >= 1 && pageNum <= 604 && !_imageCache.containsKey(pageNum)) {
+        _loadPageIntoCache(pageNum);
+      }
+    }
+    
+    // Nettoyer le cache des pages trop éloignées
+    _cleanDistantPages(centerPage);
+  }
+  
+  Future<void> _loadPageIntoCache(int pageNum) async {
+    try {
+      final file = await AssetManager.getPageFile(currentReading, pageNum);
+      if (mounted) {
+        setState(() {
+          _imageCache[pageNum] = file;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur préchargement page $pageNum: $e');
+    }
+  }
+  
+  void _cleanDistantPages(int centerPage) {
+    final pagesToRemove = <int>[];
+    _imageCache.forEach((pageNum, _) {
+      if ((pageNum - centerPage).abs() > _preloadRange * 2) {
+        pagesToRemove.add(pageNum);
+      }
+    });
+    
+    for (final pageNum in pagesToRemove) {
+      _imageCache.remove(pageNum);
+    }
   }
 
   @override
   void dispose() {
+    _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
+    _imageCache.clear();
     super.dispose();
   }
 
@@ -171,6 +223,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
 
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    // Précharger les pages autour de la page actuelle
+    _preloadPages(currentPage);
 
     return Scaffold(
       body: GestureDetector(
@@ -178,40 +233,58 @@ class _ReaderScreenState extends State<ReaderScreen> {
         onTap: () => setState(() => _showUI = !_showUI),
         child: Stack(
           children: [
-            // PageView
+            // PageView avec chargement optimisé
             PageView.builder(
               controller: _pageController,
               reverse: true,
               itemCount: 604,
-              onPageChanged: (p) => setState(() => currentPage = p + 1),
+              onPageChanged: (p) {
+                setState(() => currentPage = p + 1);
+                _preloadPages(p + 1); // Précharger dès le changement de page
+              },
               itemBuilder: (context, i) {
+                final pageNum = i + 1;
+                
+                // Utiliser le cache si disponible
+                if (_imageCache.containsKey(pageNum) && _imageCache[pageNum] != null) {
+                  final imageFile = _imageCache[pageNum]!;
+                  return _buildPageContent(imageFile, isLandscape, context);
+                }
+                
+                // Sinon charger de manière asynchrone
                 return FutureBuilder<File>(
-                  future: AssetManager.getPageFile(currentReading, i + 1),
+                  future: AssetManager.getPageFile(currentReading, pageNum),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 16),
+                            Text('Chargement page $pageNum...'),
+                          ],
+                        ),
+                      );
+                    }
+                    
+                    if (!snapshot.hasData || snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                            const SizedBox(height: 16),
+                            Text('Erreur chargement page $pageNum'),
+                          ],
+                        ),
+                      );
+                    }
+                    
                     final imageFile = snapshot.data!;
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (isLandscape) {
-                          return SingleChildScrollView(
-                            child: Image.file(
-                              imageFile,
-                              width: constraints.maxWidth,
-                              fit: BoxFit.fitWidth,
-                              filterQuality: FilterQuality.high,
-                            ),
-                          );
-                        } else {
-                          return Center(
-                            child: Image.file(
-                              imageFile,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
-                            ),
-                          );
-                        }
-                      },
-                    );
+                    // Mettre en cache après chargement
+                    _imageCache[pageNum] = imageFile;
+                    return _buildPageContent(imageFile, isLandscape, context);
                   },
                 );
               },
@@ -360,6 +433,36 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // Méthode pour construire le contenu de la page avec optimisation
+  Widget _buildPageContent(File imageFile, bool isLandscape, BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (isLandscape) {
+          return SingleChildScrollView(
+            child: Image.file(
+              imageFile,
+              width: constraints.maxWidth,
+              fit: BoxFit.fitWidth,
+              filterQuality: FilterQuality.high,
+              // Optimisation: réduit la mémoire en décoding l'image à la bonne taille
+              cacheWidth: constraints.maxWidth.toInt(),
+            ),
+          );
+        } else {
+          return Center(
+            child: Image.file(
+              imageFile,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              // Optimisation: réduit la mémoire
+              cacheHeight: constraints.maxHeight.toInt(),
+            ),
+          );
+        }
+      },
     );
   }
 }
