@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 
 class AppColors {
   // Palette principale - Vert foncé moderne avec dégradés

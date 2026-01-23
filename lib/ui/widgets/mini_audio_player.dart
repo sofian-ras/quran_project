@@ -37,7 +37,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black54.withOpacity(0.25),
+            color: Colors.black54.withValues(alpha: 0.25),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
           child: Column(

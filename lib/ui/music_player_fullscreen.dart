@@ -23,7 +23,8 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 20),
-    )..repeat();
+    );
+    // Ne pas démarrer automatiquement, attendre que l'audio joue
   }
 
   @override
@@ -60,9 +61,9 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.black.withOpacity(0.7),
-                      Colors.black54.withOpacity(0.5),
-                      Colors.black.withOpacity(0.6),
+                      Colors.black.withValues(alpha: 0.7),
+                      Colors.black54.withValues(alpha: 0.5),
+                      Colors.black.withValues(alpha: 0.6),
                     ],
                   ),
                 ),

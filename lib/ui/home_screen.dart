@@ -37,6 +37,12 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     _loadSurahData();
   }
 
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   void _startSurahAudio(Map<String, dynamic> s) {
     // Appelle la nouvelle fonction de playlist dans le service audio
     _audio.loadPlaylistAndPlay(s['id'] as int);
