@@ -432,7 +432,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
                                 // Hafs/Warsh
                                 TextButton.icon(
-                                  onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                                  onPressed: () {
+                                    setState(() {
+                                      currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
+                                      // Vider le cache pour recharger les images du nouveau type de lecture
+                                      _imageCache.clear();
+                                      // Précharger les pages autour de la page actuelle
+                                      _preloadPages(currentPage);
+                                    });
+                                  },
                                   icon: Icon(Icons.auto_stories, color: Colors.brown.shade100, size: 18),
                                   label: Text(
                                     currentReading.toUpperCase(),
@@ -466,7 +474,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton.icon(
-                                onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                                onPressed: () {
+                                  setState(() {
+                                    currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
+                                    // Vider le cache pour recharger les images du nouveau type de lecture
+                                    _imageCache.clear();
+                                    // Précharger les pages autour de la page actuelle
+                                    _preloadPages(currentPage);
+                                  });
+                                },
                                 icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
                                 label: Text(
                                   currentReading.toUpperCase(),
