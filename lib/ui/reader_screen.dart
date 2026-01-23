@@ -42,7 +42,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String currentReading = 'hafs';
   late PageController _pageController;
   bool _isReady = false;
-  double _progress = 0.0;
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
   
@@ -115,19 +114,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _initApp() async {
-    bool alreadyDownloaded = await AssetManager.areAssetsDownloaded();
-    if (!alreadyDownloaded) {
-      try {
-        await AssetManager.downloadAndExtract(onProgress: (p) {
-          setState(() => _progress = p);
-        });
-      } catch (e) {
-        debugPrint('Erreur init: $e');
-      }
-    } else {
-      setState(() => _progress = 1.0);
-    }
-
+    // Plus besoin de télécharger tout le ZIP !
+    // Les pages seront téléchargées à la demande via getPageFile()
+    
+    // Charger uniquement les données JSON
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     final quranData = json.decode(jsonStr) as List<dynamic>;
     final added = <int>{};
@@ -144,9 +134,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         added.add(id);
       }
     }
+    
+    // Précharger la page initiale en arrière-plan
+    _preloadPages(currentPage);
+    
     setState(() {
       fullSurahList = list;
-      _isReady = true;
+      _isReady = true; // Prêt immédiatement !
     });
   }
 
@@ -207,25 +201,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isReady) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Lecture')),
-        body: Center(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('Préparation de votre Coran...', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            SizedBox(width: 200, child: LinearProgressIndicator(value: _progress, color: Colors.green)),
-            const SizedBox(height: 10),
-            Text('${(_progress * 100).toStringAsFixed(0)} %'),
-          ]),
-        ),
-      );
-    }
-
+    // Plus d'écran de chargement ! L'app démarre immédiatement
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     
     // Précharger les pages autour de la page actuelle
-    _preloadPages(currentPage);
+    if (_isReady) {
+      _preloadPages(currentPage);
+    }
 
     return Scaffold(
       body: GestureDetector(
@@ -262,7 +244,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           children: [
                             const CircularProgressIndicator(),
                             const SizedBox(height: 16),
-                            Text('Chargement page $pageNum...'),
+                            Text(
+                              'Téléchargement page $pageNum...',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Première ouverture, patientez',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
                           ],
                         ),
                       );
@@ -273,9 +263,30 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                            const Icon(Icons.cloud_off_outlined, size: 48, color: Colors.orange),
                             const SizedBox(height: 16),
-                            Text('Erreur chargement page $pageNum'),
+                            Text(
+                              'Erreur de téléchargement',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Vérifiez votre connexion Internet',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () => setState(() {
+                                // Force le rechargement
+                                _imageCache.remove(pageNum);
+                              }),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Réessayer'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
                           ],
                         ),
                       );
