@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../services/audio_service.dart';
@@ -15,84 +16,78 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   @override
   Widget build(BuildContext context) {
     const gold = Color(0xFFC8A165);
-    const darkGreen = Color(0xFF0B3D2E);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [darkGreen, Color(0xFF1B5E20)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black54,
-            blurRadius: 10,
-            offset: Offset(0, -2),
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black54.withOpacity(0.25),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ValueListenableBuilder<String>(
-                      valueListenable: _audio.currentTitleNotifier,
-                      builder: (context, title, _) => Text(
-                        title,
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ValueListenableBuilder<String>(
+                          valueListenable: _audio.currentTitleNotifier,
+                          builder: (context, title, _) => Text(
+                            title,
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        ValueListenableBuilder<String>(
+                          valueListenable: _audio.currentReciterNotifier,
+                          builder: (context, name, _) => Text(name, style: const TextStyle(color: gold, fontSize: 12)),
+                        ),
+                      ],
                     ),
-                    ValueListenableBuilder<String>(
-                      valueListenable: _audio.currentReciterNotifier,
-                      builder: (context, name, _) => Text(name, style: const TextStyle(color: gold, fontSize: 12)),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32),
+                    onPressed: _audio.skipToPrevious,
+                  ),
+                  StreamBuilder<PlayerState>(
+                    stream: _audio.playerStateStream,
+                    builder: (context, snapshot) {
+                      final playerState = snapshot.data;
+                      final isPlaying = playerState?.playing ?? false;
+                      final processingState = playerState?.processingState;
+                      
+                      if (processingState == ProcessingState.loading || processingState == ProcessingState.buffering) {
+                        return const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator(color: gold)));
+                      }
+                      return IconButton(
+                        icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: gold, size: 48),
+                        onPressed: _audio.togglePlayPause,
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 32),
+                    onPressed: _audio.skipToNext,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.stop_circle_outlined, color: Colors.white, size: 28),
+                    onPressed: () => _audio.stop(),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.skip_previous, color: Colors.white70, size: 32),
-                onPressed: _audio.skipToPrevious,
-              ),
-              StreamBuilder<PlayerState>(
-                stream: _audio.playerStateStream,
-                builder: (context, snapshot) {
-                  final playerState = snapshot.data;
-                  final isPlaying = playerState?.playing ?? false;
-                  final processingState = playerState?.processingState;
-                  
-                  if (processingState == ProcessingState.loading || processingState == ProcessingState.buffering) {
-                    return const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator(color: gold)));
-                  }
-                  return IconButton(
-                    icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: gold, size: 48),
-                    onPressed: _audio.togglePlayPause,
-                  );
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.skip_next, color: Colors.white70, size: 32),
-                onPressed: _audio.skipToNext,
-              ),
-              IconButton(
-                icon: const Icon(Icons.stop_circle_outlined, color: Colors.white70, size: 28),
-                onPressed: () => _audio.stop(),
-              ),
+              const SizedBox(height: 4),
+              _buildProgressBar(),
             ],
           ),
-          const SizedBox(height: 4),
-          _buildProgressBar(),
-        ],
+        ),
       ),
     );
   }

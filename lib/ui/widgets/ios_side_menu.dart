@@ -260,10 +260,7 @@ class IOSSideMenu extends StatelessWidget {
                                   showModalBottomSheet(
                                     context: context,
                                     isScrollControlled: true,
-                                    backgroundColor: AppColors.primary,
-                                    shape: const RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-                                    ),
+                                    backgroundColor: Colors.transparent,
                                     builder: (context) => ReciterSelectorSheet(
                                       onSelected: (name, server) {
                                         AudioService.instance.setReciter(name, server);
