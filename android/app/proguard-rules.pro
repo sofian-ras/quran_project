@@ -12,3 +12,4 @@
 
 # Annotations Google
 -dontwarn com.google.android.gms.common.annotation.**
+-dontwarn com.google.android.gms.common.annotation.NoNullnessRewrite

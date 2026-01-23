@@ -1,7 +1,7 @@
 name: quran
 description: "Coran"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.5.0 # Mis à jour pour plus de stabilité avec sqflite
@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   archive: 4.0.7
+  rxdart: ^0.28.0
+  dio: ^5.4.0
   image: ^4.7.2
   cupertino_icons: ^1.0.8
   # Ajout des outils pour la base de données
@@ -20,6 +22,7 @@ dependencies:
   just_audio: ^0.9.36
   audio_session: ^0.1.18
   asset_delivery: ^1.0.0
+  shared_preferences: ^2.1.1
 
 dev_dependencies:
   flutter_launcher_icons: 0.14.0
@@ -30,8 +33,8 @@ dev_dependencies:
 # Configuration pour générer l'icône
 flutter_icons:
   android: true
-  ios: false        # pour l'instant, tu n'as pas besoin d'iOS
-  image_path: "assets/icon/logo_coran.png"  # chemin vers ton logo carré 512x512
+  ios: false
+  image_path: "assets/icon/logo_coran.png"  # chemin vers logo 512x512
   adaptive_icon_background: "#FFFFFF"  # fond pour adaptive icon Android
   adaptive_icon_foreground: "assets/icon/logo_coran.png"  # même image pour foreground
 
