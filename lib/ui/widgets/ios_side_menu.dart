@@ -16,22 +16,46 @@ class IOSSideMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Effet blur en arrière-plan
+        // Effet blur premium
         BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
-            color: Colors.black.withOpacity(0.3),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.black.withValues(alpha: 0.6),
+                  Colors.black.withValues(alpha: 0.4),
+                  const Color(0xFF0B3D2E).withValues(alpha: 0.5),
+                ],
+              ),
+            ),
           ),
         ),
-        // Menu principal avec dégradé
+        // Menu principal premium glassmorphism
         Container(
           width: MediaQuery.of(context).size.width * 0.85,
           decoration: BoxDecoration(
-            gradient: AppColors.variant1,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF0A1F1A).withValues(alpha: 0.95),
+                const Color(0xFF0B3D2E).withValues(alpha: 0.92),
+                const Color(0xFF1A4D3D).withValues(alpha: 0.90),
+              ],
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 20,
+                color: const Color(0xFF0B3D2E).withValues(alpha: 0.5),
+                blurRadius: 40,
+                spreadRadius: 5,
+                offset: const Offset(8, 0),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.6),
+                blurRadius: 30,
                 offset: const Offset(4, 0),
               ),
             ],
@@ -40,108 +64,135 @@ class IOSSideMenu extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header avec effet glassmorphism
+                // Header premium avec effet doré
                 Container(
                   margin: const EdgeInsets.all(16),
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        AppColors.primary.withOpacity(0.8),
-                        AppColors.primary.withOpacity(0.6),
-                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                        const Color(0xFFC9A65C).withValues(alpha: 0.1),
+                        const Color(0xFF8B7355).withValues(alpha: 0.05),
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
                       width: 1.5,
+                      color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          // Logo de l'application
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
+                      // Logo premium avec effet doré
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(15),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFFFFD700),
+                              Color(0xFFD4AF37),
+                              Color(0xFFC9A65C),
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                              blurRadius: 12,
+                              spreadRadius: 2,
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.asset(
-                                'assets/icon/logo_coran.png',
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      CupertinoIcons.book_fill,
-                                      color: Colors.white,
-                                      size: 30,
-                                    ),
-                                  );
-                                },
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: Image.asset(
+                            'assets/icon/logo_coran.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                CupertinoIcons.book_fill,
+                                color: Colors.white,
+                                size: 28,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'القرآن الكريم',
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: const Color(0xFFFFD700),
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Amiri',
+                                letterSpacing: 0.5,
+                                shadows: [
+                                  Shadow(
+                                    color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                                    blurRadius: 8,
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Menu',
-                            style: TextStyle(
-                              fontSize: 24,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withOpacity(0.3),
-                                  offset: Offset(0, 2),
-                                  blurRadius: 4,
-                                ),
-                              ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'Coran Premium',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 1.2,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       CupertinoButton(
                         padding: EdgeInsets.zero,
                         onPressed: () => Navigator.pop(context),
+                        minimumSize: const Size(0, 0),
                         child: Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(10),
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.15),
+                                Colors.white.withValues(alpha: 0.05),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.2),
                               width: 1,
                             ),
                           ),
                           child: const Icon(
                             CupertinoIcons.xmark,
                             color: Colors.white,
-                            size: 20,
+                            size: 18,
                           ),
                         ),
                       ),
@@ -150,38 +201,30 @@ class IOSSideMenu extends StatelessWidget {
                 ),
 
                 Expanded(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.2),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(25),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
                     ),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppColors.primary.withOpacity(0.9),
-                              AppColors.primaryLight.withOpacity(0.7),
-                              AppColors.primaryLight.withOpacity(0.4),
-                            ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: [0.0, 0.4, 1.0],
-                          ),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(30),
-                            topRight: Radius.circular(30),
-                          ),
-                          border: Border(
-                            top: BorderSide(
-                              color: AppColors.primary.withOpacity(0.3),
-                              width: 2,
-                            ),
-                          ),
-                        ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(25),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                         child: ListView(
-                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
                           children: [
                             // Coran Section
                             _MenuSection(
@@ -199,10 +242,12 @@ class IOSSideMenu extends StatelessWidget {
                               onTap: () {
                                 Navigator.pop(context);
                                 Future.delayed(const Duration(milliseconds: 300), () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-                                  );
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+                                    );
+                                  }
                                 });
                               },
                             ),
@@ -215,10 +260,12 @@ class IOSSideMenu extends StatelessWidget {
                               onTap: () {
                                 Navigator.pop(context);
                                 Future.delayed(const Duration(milliseconds: 300), () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const StatisticsScreen()),
-                                  );
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const StatisticsScreen()),
+                                    );
+                                  }
                                 });
                               },
                             ),
@@ -231,10 +278,12 @@ class IOSSideMenu extends StatelessWidget {
                               onTap: () {
                                 Navigator.pop(context);
                                 Future.delayed(const Duration(milliseconds: 300), () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const BookmarksScreen()),
-                                  );
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const BookmarksScreen()),
+                                    );
+                                  }
                                 });
                               },
                             ),
@@ -248,25 +297,28 @@ class IOSSideMenu extends StatelessWidget {
                                 valueListenable: AudioService.instance.currentReciterNotifier,
                                 builder: (context, reciter, _) => Text(
                                   reciter,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     color: AppColors.accent,
-                                    fontSize: 12,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
                               onTap: () {
                                 Navigator.pop(context);
                                 Future.delayed(const Duration(milliseconds: 300), () {
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (context) => ReciterSelectorSheet(
-                                      onSelected: (name, server) {
-                                        AudioService.instance.setReciter(name, server);
-                                      },
-                                    ),
-                                  );
+                                  if (context.mounted) {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (context) => ReciterSelectorSheet(
+                                        onSelected: (name, server) {
+                                          AudioService.instance.setReciter(name, server);
+                                        },
+                                      ),
+                                    );
+                                  }
                                 });
                               },
                             ),
@@ -279,15 +331,27 @@ class IOSSideMenu extends StatelessWidget {
                               trailing: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: AppColors.accent.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(12),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFFFD700),
+                                      Color(0xFFD4AF37),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0xFFD4AF37),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
                                 ),
-                                child: Text(
-                                  'Bientôt',
+                                child: const Text(
+                                  'BIENTÔT',
                                   style: TextStyle(
-                                    color: AppColors.accent,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
                                   ),
                                 ),
                               ),
@@ -301,20 +365,38 @@ class IOSSideMenu extends StatelessWidget {
                               },
                             ),
 
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 12),
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: Text(
-                                'PRÉFÉRENCES',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.2,
-                                ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 3,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFFFFD700),
+                                          Color(0xFFD4AF37),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'PRÉFÉRENCES',
+                                    style: TextStyle(
+                                      color: Color(0xFFD4AF37),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
 
                             // Favoris
                             _MenuSection(
@@ -323,111 +405,153 @@ class IOSSideMenu extends StatelessWidget {
                               subtitle: 'Sourates sauvegardées',
                               onTap: () {
                                 Navigator.pop(context);
-                      // TODO: Navigate to favorites
-                    },
-                  ),
+                                // TODO: Navigate to favorites
+                              },
+                            ),
 
                             // Historique
                             _MenuSection(
-                    icon: CupertinoIcons.clock_fill,
-                    title: 'Historique',
-                    subtitle: 'Lectures récentes',
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'Bientôt',
-                        style: TextStyle(
-                          color: AppColors.accent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Fonctionnalité bientôt disponible'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                  ),
+                              icon: CupertinoIcons.clock_fill,
+                              title: 'Historique',
+                              subtitle: 'Lectures récentes',
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFFFD700),
+                                      Color(0xFFD4AF37),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                                child: const Text(
+                                  'BIENTÔT',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ),
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Fonctionnalité bientôt disponible'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                            ),
 
                             // Téléchargements
                             _MenuSection(
-                    icon: CupertinoIcons.arrow_down_circle,
-                    title: 'Téléchargements',
-                    subtitle: 'Gérer les fichiers',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DownloadsScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                              icon: CupertinoIcons.arrow_down_circle,
+                              title: 'Téléchargements',
+                              subtitle: 'Gérer les fichiers',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const DownloadsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
 
                             // Paramètres
                             _MenuSection(
-                    icon: CupertinoIcons.settings,
-                    title: 'Paramètres',
-                    subtitle: 'Personnalisation',
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'Bientôt',
-                        style: TextStyle(
-                          color: AppColors.accent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Fonctionnalité bientôt disponible'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                  ),
-
-                            const SizedBox(height: 20),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: Text(
-                                'INFORMATIONS',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.2,
+                              icon: CupertinoIcons.settings,
+                              title: 'Paramètres',
+                              subtitle: 'Personnalisation',
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFFFD700),
+                                      Color(0xFFD4AF37),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                                child: const Text(
+                                  'BIENTÔT',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                  ),
                                 ),
                               ),
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Fonctionnalité bientôt disponible'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
                             ),
-                            const SizedBox(height: 10),
+
+                            const SizedBox(height: 12),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 3,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFFFFD700),
+                                          Color(0xFFD4AF37),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'INFORMATIONS',
+                                    style: TextStyle(
+                                      color: Color(0xFFD4AF37),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
 
                             // À propos
                             _MenuSection(
-                    icon: CupertinoIcons.info_circle_fill,
-                    title: 'À propos',
-                    subtitle: 'Version et crédits',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showAboutDialog(context);
-                    },
-                  ),
+                              icon: CupertinoIcons.info_circle_fill,
+                              title: 'À propos',
+                              subtitle: 'Version et crédits',
+                              onTap: () {
+                                Navigator.pop(context);
+                                _showAboutDialog(context);
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -494,73 +618,125 @@ class _MenuSection extends StatelessWidget {
     return CupertinoButton(
       padding: EdgeInsets.zero,
       onPressed: onTap,
+      minimumSize: const Size(0, 0),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.12),
+              Colors.white.withValues(alpha: 0.05),
+            ],
+          ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withOpacity(0.2),
             width: 1,
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppColors.accent, AppColors.accentLight],
+                  colors: [
+                    Colors.white.withValues(alpha: 0.08),
+                    Colors.transparent,
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.accent.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
-              child: Icon(
-                icon,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
+                  // Icône avec effet premium doré
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFFFFD700),
+                          Color(0xFFD4AF37),
+                          Color(0xFFC9A65C),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFD4AF37).withValues(alpha: 0.4),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      icon,
                       color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.7),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  if (trailing != null)
+                    trailing!
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFFD4AF37).withValues(alpha: 0.2),
+                            const Color(0xFFD4AF37).withValues(alpha: 0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        CupertinoIcons.chevron_right,
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.8),
+                        size: 16,
+                      ),
+                    ),
                 ],
               ),
             ),
-            if (trailing != null)
-              trailing!
-            else
-              const Icon(
-                CupertinoIcons.chevron_right,
-                color: Colors.white38,
-                size: 20,
-              ),
-          ],
+          ),
         ),
       ),
     );

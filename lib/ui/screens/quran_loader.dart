@@ -285,7 +285,7 @@ class _QuranLoaderState extends State<QuranLoader> {
 
                 // Texte arabe - Verset
                 const Text(
-                  '﴿إِنَّا سَنُلْقِي عَلَيْكَ قَوْلًا ثَقِيلًا﴾',
+                  '﴾إِنَّا سَنُلْقِي عَلَيْكَ قَوْلًا ثَقِيلًا﴿',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 28,
