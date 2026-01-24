@@ -82,6 +82,43 @@ class _QuranLoaderState extends State<QuranLoader> {
     }
   }
 
+  Future<bool> _onWillPop() async {
+    // Si ce n'est pas en cours de chargement, permettre de revenir
+    if (!_isLoading) {
+      return true;
+    }
+
+    // Afficher un dialogue de confirmation pendant le téléchargement
+    final shouldPop = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Téléchargement en cours'),
+        content: const Text(
+          'Le téléchargement des pages du Coran est en cours. '
+          'Si vous quittez maintenant, le téléchargement continuera en arrière-plan '
+          'et sera disponible lors de votre prochaine visite.\n\n'
+          'Voulez-vous vraiment quitter ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Rester'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Quitter'),
+          ),
+        ],
+      ),
+    );
+
+    return shouldPop ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Affichage d'erreur
@@ -168,9 +205,18 @@ class _QuranLoaderState extends State<QuranLoader> {
     }
 
     // Écran de chargement élégant
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAF9F6), // Beige clair
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFAF9F6), // Beige clair
+        body: SafeArea(
         child: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32.0),
@@ -338,8 +384,9 @@ class _QuranLoaderState extends State<QuranLoader> {
             ),
           ),
         ),
+        ),
       ),
-    );
+    ); // Fin du PopScope
   }
 
   String _getDownloadSize(double progress) {
