@@ -210,6 +210,7 @@ class _QuranPageViewState extends State<QuranPageView> {
     // PageView principal
     return PageView.builder(
       controller: _pageController,
+      reverse: true, // Défilement de droite à gauche (sens arabe)
       itemCount: widget.totalPages,
       onPageChanged: (index) {
         final pageNum = index + 1;

@@ -5,7 +5,7 @@ import '../services/favorites_service.dart';
 import '../services/audio_service.dart';
 import '../theme/app_theme.dart';
 import '../surah_name.dart';
-import 'reader_screen.dart';
+import 'screens/quran_loader.dart';
 import 'widgets/surah_card.dart';
 
 /// Écran dédié aux sourates favorites
@@ -69,7 +69,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   void _openReader(int page) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ReaderScreen(initialPage: page)),
+      MaterialPageRoute(builder: (_) => QuranLoader(initialPage: page)),
     );
   }
 

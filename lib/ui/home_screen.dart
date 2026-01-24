@@ -7,12 +7,12 @@ import '../services/reading_history_service.dart';
 import '../services/daily_verse_service.dart';
 import '../services/favorites_service.dart';
 import '../theme/app_theme.dart';
-import 'reader_screen.dart';
 import 'widgets/surah_card.dart';
 import 'widgets/mini_audio_player.dart';
 import '../surah_name.dart';
 import 'full_player_screen.dart';
 import 'widgets/ios_side_menu.dart';
+import 'screens/quran_loader.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   void _openReader(int page) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ReaderScreen(initialPage: page)),
+      MaterialPageRoute(builder: (_) => QuranLoader(initialPage: page)),
     );
   }
 
