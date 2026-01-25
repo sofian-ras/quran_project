@@ -108,73 +108,74 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             : Stack(
               children: [
                 SafeArea(
-                  child: SingleChildScrollView(
-                    key: const PageStorageKey('home_scroll'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _HomeHeader(
-                          onMenuTap: () {
-                            showGeneralDialog(
-                              context: context,
-                              barrierDismissible: true,
-                              barrierLabel: 'Menu',
-                              barrierColor: Colors.black54,
-                              transitionDuration: const Duration(milliseconds: 300),
-                              pageBuilder: (context, anim1, anim2) => const IOSSideMenu(),
-                              transitionBuilder: (context, anim1, anim2, child) {
-                                return SlideTransition(
-                                  position: Tween<Offset>(
-                                    begin: const Offset(-1, 0),
-                                    end: Offset.zero,
-                                  ).animate(CurvedAnimation(
-                                    parent: anim1,
-                                    curve: Curves.easeOutCubic,
-                                  )),
-                                  child: child,
-                                );
-                              },
-                            );
-                          },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header et widgets fixes
+                      _HomeHeader(
+                        onMenuTap: () {
+                          showGeneralDialog(
+                            context: context,
+                            barrierDismissible: true,
+                            barrierLabel: 'Menu',
+                            barrierColor: Colors.black54,
+                            transitionDuration: const Duration(milliseconds: 300),
+                            pageBuilder: (context, anim1, anim2) => const IOSSideMenu(),
+                            transitionBuilder: (context, anim1, anim2, child) {
+                              return SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(-1, 0),
+                                  end: Offset.zero,
+                                ).animate(CurvedAnimation(
+                                  parent: anim1,
+                                  curve: Curves.easeOutCubic,
+                                )),
+                                child: child,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Widget Récitateur
+                      _ReciterWidget(),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Widgets actions rapides
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _ResumeReadingWidget(onTap: _openReader),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _FrenchQuranWidget(),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        
-                        // Widget Récitateur
-                        _ReciterWidget(),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Widgets actions rapides
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _ResumeReadingWidget(onTap: _openReader),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _FrenchQuranWidget(),
-                              ),
-                            ],
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        ),
-                        // 2. UI/UX : StreamBuilder pour mettre à jour l'UI quand la sourate change
-                        StreamBuilder<int?>(
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(height: 8),
+                      
+                      // Liste scrollable des sourates
+                      Expanded(
+                        child: StreamBuilder<int?>(
                           stream: _audio.currentIndexStream,
                           builder: (context, snapshot) {
                             final currentPlayingId = (snapshot.data ?? -1) + 1;
                             
                             return ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
+                              key: const PageStorageKey('surah_list'),
                               itemCount: filteredList.length,
                               itemBuilder: (context, index) {
                                 final s = filteredList[index];
@@ -199,11 +200,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                 );
                               },
                             );
-                          }
+                          },
                         ),
-                         const SizedBox(height: 150), // Espace pour le mini-lecteur
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
                 StreamBuilder<bool>(
@@ -407,62 +407,62 @@ class _ReciterWidget extends StatelessWidget {
                                 color: Colors.white,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              const SizedBox(width: 12),
+              
+              // Bouton Play
+              StreamBuilder<PlayerState>(
+                stream: audio.playerStateStream,
+                builder: (context, snapshot) {
+                  final playerState = snapshot.data;
+                  final isPlaying = playerState?.playing ?? false;
+                  
+                  return InkWell(
+                    onTap: () {
+                      if (isPlaying) {
+                        audio.pause();
+                      } else {
+                        // Si rien n'est en cours, lancer la première sourate
+                        if (audio.currentSurahId == null) {
+                          audio.loadPlaylistAndPlay(1);
+                        } else {
+                          audio.play();
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFD4AF37),
+                          width: 2,
                         ),
                       ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // Bouton Play
-          StreamBuilder<PlayerState>(
-            stream: audio.playerStateStream,
-            builder: (context, snapshot) {
-              final playerState = snapshot.data;
-              final isPlaying = playerState?.playing ?? false;
-              
-              return InkWell(
-                onTap: () {
-                  if (isPlaying) {
-                    audio.pause();
-                  } else {
-                    // Si rien n'est en cours, lancer la première sourate
-                    if (audio.currentSurahId == null) {
-                      audio.loadPlaylistAndPlay(1);
-                    } else {
-                      audio.play();
-                    }
-                  }
-                },
-                borderRadius: BorderRadius.circular(30),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFFD4AF37),
-                      width: 2,
+                      child: Icon(
+                        isPlaying ? Icons.pause : Icons.play_arrow,
+                        color: const Color(0xFFD4AF37),
+                        size: 28,
+                      ),
                     ),
-                  ),
-                  child: Icon(
-                    isPlaying ? Icons.pause : Icons.play_arrow,
-                    color: const Color(0xFFD4AF37),
-                    size: 28,
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
+        ),
         // Traits dorés décoratifs au milieu du widget
         // Côté gauche/centre
         Positioned(
