@@ -820,47 +820,36 @@ class _ResumeReadingWidget extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.bookmark,
-                          color: const Color(0xFFD4AF37),
-                          size: 18,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Reprendre',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: const Color(0xFFD4AF37).withOpacity(0.9),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                    Icon(
+                      Icons.bookmark,
+                      color: const Color(0xFFD4AF37),
+                      size: 32,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Reprendre',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: const Color(0xFFD4AF37).withOpacity(0.9),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 2),
                     Text(
                       surahName,
                       style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                         color: Colors.white,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Page $page',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -881,74 +870,74 @@ class _FrenchQuranWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFF1a0033),
-            const Color(0xFF2d1b4e),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: const Color(0xFFD4AF37),
           width: 1.5,
         ),
       ),
-      child: Material(
-        color: Colors.transparent,
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: () {
-            // TODO: Ouvrir la fenêtre Coran en français
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.menu_book,
-                      color: const Color(0xFFD4AF37),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Traduction',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: const Color(0xFFD4AF37).withOpacity(0.9),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Coran',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Français',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withOpacity(0.7),
-                  ),
-                ),
-              ],
+        child: Stack(
+          children: [
+            // Image en arrière-plan
+            Positioned.fill(
+              child: Image.asset(
+                'assets/icon/logo_coran.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: const Color(0xFF1a0033),
+                  );
+                },
+              ),
             ),
-          ),
+            // Overlay gradient semi-transparent
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFF5F7FA).withOpacity(0.9),
+                      const Color(0xFFE8EEF7).withOpacity(0.9),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+              ),
+            ),
+            // Contenu
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                onTap: () {
+                  // TODO: Ouvrir la fenêtre Coran en français
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Coran en français',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: const Color(0xFF1a0033),
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
