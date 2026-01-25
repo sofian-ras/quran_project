@@ -177,117 +177,149 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               onHorizontalDragStart: _handleDragStart,
               onHorizontalDragUpdate: _handleDragUpdate,
               onHorizontalDragEnd: _handleDragEnd,
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFDBE4F0)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)))
-                    : Stack(
-              children: [
-                SafeArea(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header et widgets fixes
-                      _HomeHeader(
-                        onMenuTap: _openMenu,
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      // Widget Récitateur
-                      _ReciterWidget(),
-                      
-                      const SizedBox(height: 8),
-                      
-                      // Widgets actions rapides
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _ResumeReadingWidget(onTap: _openReader),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _FrenchQuranWidget(),
-                            ),
-                          ],
+              child: _isLoading
+                  ? Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFDBE4F0)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
                       ),
-                      
-                      const SizedBox(height: 12),
-                      
-                      // Liste scrollable des sourates
-                      Expanded(
-                        child: StreamBuilder<int?>(
-                          stream: _audio.currentIndexStream,
-                          builder: (context, snapshot) {
-                            final currentPlayingId = (snapshot.data ?? -1) + 1;
-                            
-                            return ListView.builder(
-                              key: const PageStorageKey('surah_list'),
-                              itemCount: filteredList.length,
-                              itemBuilder: (context, index) {
-                                final s = filteredList[index];
-                                return FutureBuilder<bool>(
-                                  future: FavoritesService.instance.isFavorite(s['id']),
-                                  builder: (context, favoriteSnapshot) {
-                                    return SurahCard(
-                                      id: s['id'],
-                                      nameAr: s['nameAr'],
-                                      nameFr: s['nameFr'],
-                                      ayahCount: s['ayahCount'],
-                                      isFavorite: favoriteSnapshot.data ?? false,
-                                      isPlaying: s['id'] == currentPlayingId,
-                                      onTap: () => _openReader(s['page']),
-                                      onPlay: () => _startSurahAudio(s),
-                                      onToggleFavorite: () async {
-                                        await FavoritesService.instance.toggleFavorite(s['id']);
-                                        setState(() {}); // Rafraîchir l'UI
+                      child: const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37))),
+                    )
+                  : Stack(
+                      children: [
+                        // Header en arrière-plan
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: _HomeHeader(
+                            onMenuTap: _openMenu,
+                          ),
+                        ),
+                        
+                        // Contenu principal avec overlap
+                        Positioned.fill(
+                          top: 120, // Ajuster selon la hauteur du header
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFDBE4F0)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(30),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, -5),
+                                  spreadRadius: 5,
+                                ),
+                              ],
+                            ),
+                            child: SafeArea(
+                              top: false,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 16),
+                                  
+                                  // Widget Récitateur
+                                  _ReciterWidget(),
+                                  
+                                  const SizedBox(height: 8),
+                                  
+                                  // Widgets actions rapides
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: _ResumeReadingWidget(onTap: _openReader),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _FrenchQuranWidget(),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  
+                                  const SizedBox(height: 12),
+                                  
+                                  // Liste scrollable des sourates
+                                  Expanded(
+                                    child: StreamBuilder<int?>(
+                                      stream: _audio.currentIndexStream,
+                                      builder: (context, snapshot) {
+                                        final currentPlayingId = (snapshot.data ?? -1) + 1;
+                                        
+                                        return ListView.builder(
+                                          key: const PageStorageKey('surah_list'),
+                                          itemCount: filteredList.length,
+                                          itemBuilder: (context, index) {
+                                            final s = filteredList[index];
+                                            return FutureBuilder<bool>(
+                                              future: FavoritesService.instance.isFavorite(s['id']),
+                                              builder: (context, favoriteSnapshot) {
+                                                return SurahCard(
+                                                  id: s['id'],
+                                                  nameAr: s['nameAr'],
+                                                  nameFr: s['nameFr'],
+                                                  ayahCount: s['ayahCount'],
+                                                  isFavorite: favoriteSnapshot.data ?? false,
+                                                  isPlaying: s['id'] == currentPlayingId,
+                                                  onTap: () => _openReader(s['page']),
+                                                  onPlay: () => _startSurahAudio(s),
+                                                  onToggleFavorite: () async {
+                                                    await FavoritesService.instance.toggleFavorite(s['id']);
+                                                    setState(() {}); // Rafraîchir l'UI
+                                                  },
+                                                );
+                                              },
+                                            );
+                                          },
+                                        );
                                       },
-                                    );
-                                  },
-                                );
-                              },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Mini lecteur audio
+                        StreamBuilder<bool>(
+                          stream: _audio.isActiveStream,
+                          builder: (context, snapshot) {
+                            final bool isActive = snapshot.data ?? false;
+                            return AnimatedPositioned(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              bottom: isActive ? 0 : -150,
+                              left: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (_) => const FullPlayerScreen(),
+                                  );
+                                },
+                                child: const MiniAudioPlayer(),
+                              ),
                             );
                           },
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                StreamBuilder<bool>(
-                  stream: _audio.isActiveStream,
-                  builder: (context, snapshot) {
-                    final bool isActive = snapshot.data ?? false;
-                    return AnimatedPositioned(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      bottom: isActive ? 0 : -150,
-                      left: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => const FullPlayerScreen(),
-                          );
-                        },
-                        child: const MiniAudioPlayer(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-              ),
+                      ],
+                    ),
             ),
           ),
           // Menu latéral qui suit le doigt
@@ -329,15 +361,10 @@ class _HomeHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       height: 140,
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         image: const DecorationImage(
           image: AssetImage('assets/images/quran_header_mobile.webp'),
-          fit: BoxFit.fitWidth,
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
+          fit: BoxFit.cover,
         ),
         boxShadow: [
           BoxShadow(
@@ -352,25 +379,33 @@ class _HomeHeader extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Bouton Menu iOS
-              CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: onMenuTap,
-                child: const Icon(
-                  Icons.dehaze,
-                  color: Colors.white,
-                  size: 28,
+      child: Padding(
+        padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + 20,
+          left: 20,
+          right: 20,
+          bottom: 20,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Bouton Menu iOS
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: onMenuTap,
+                  child: const Icon(
+                    Icons.dehaze,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
