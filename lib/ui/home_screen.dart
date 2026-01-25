@@ -144,8 +144,21 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         
                         const SizedBox(height: 16),
                         
-                        // Reprendre la lecture
-                        _ResumeReadingWidget(onTap: _openReader),
+                        // Widgets actions rapides
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _ResumeReadingWidget(onTap: _openReader),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _FrenchQuranWidget(),
+                              ),
+                            ],
+                          ),
+                        ),
                         
                         const SizedBox(height: 24),
                         
@@ -763,7 +776,7 @@ class _DailyVerseWidget extends StatelessWidget {
   }
 }
 
-// Widget Reprendre la lecture
+// Widget Reprendre la lecture (compact)
 class _ResumeReadingWidget extends StatelessWidget {
   final Function(int) onTap;
   
@@ -783,7 +796,6 @@ class _ResumeReadingWidget extends StatelessWidget {
         final surahName = lastReading['surahName'] as String;
         
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -793,161 +805,152 @@ class _ResumeReadingWidget extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: const Color(0xFFD4AF37),
               width: 1.5,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1a0033).withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: const Color(0xFFD4AF37).withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
-          child: Stack(
-            children: [
-              // Décorations dorées
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
-                  width: 3,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4AF37).withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 10,
-                right: 10,
-                child: Container(
-                  width: 3,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4AF37).withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 15,
-                right: 15,
-                child: Container(
-                  width: 4,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4AF37).withOpacity(0.5),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 15,
-                left: 15,
-                child: Container(
-                  width: 4,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4AF37).withOpacity(0.5),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-              // Contenu principal
-              Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(30),
-                child: InkWell(
-                  onTap: () => onTap(page),
-                  borderRadius: BorderRadius.circular(30),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            child: InkWell(
+              onTap: () => onTap(page),
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFD4AF37).withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFFD4AF37).withOpacity(0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.bookmark,
-                            color: const Color(0xFFD4AF37),
-                            size: 20,
-                          ),
+                        Icon(
+                          Icons.bookmark,
+                          color: const Color(0xFFD4AF37),
+                          size: 18,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 6),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Reprendre la lecture',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: const Color(0xFFD4AF37).withOpacity(0.9),
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                surahName,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                'Page $page',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white.withOpacity(0.7),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFD4AF37).withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: const Color(0xFFD4AF37).withOpacity(0.3),
-                              width: 1,
+                          child: Text(
+                            'Reprendre',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: const Color(0xFFD4AF37).withOpacity(0.9),
+                              fontWeight: FontWeight.w600,
                             ),
-                          ),
-                          child: Icon(
-                            Icons.arrow_forward_ios,
-                            color: const Color(0xFFD4AF37),
-                            size: 14,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      surahName,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Page $page',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+// Widget Coran en français
+class _FrenchQuranWidget extends StatelessWidget {
+  const _FrenchQuranWidget();
+  
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF1a0033),
+            const Color(0xFF2d1b4e),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFD4AF37),
+          width: 1.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () {
+            // TODO: Ouvrir la fenêtre Coran en français
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.menu_book,
+                      color: const Color(0xFFD4AF37),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Traduction',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: const Color(0xFFD4AF37).withOpacity(0.9),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Coran',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Français',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
