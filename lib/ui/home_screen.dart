@@ -328,9 +328,13 @@ class _HomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
+      height: 140,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: AppColors.variant1,
+        image: const DecorationImage(
+          image: AssetImage('assets/images/quran_header_mobile.webp'),
+          fit: BoxFit.fitWidth,
+        ),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
@@ -362,40 +366,6 @@ class _HomeHeader extends StatelessWidget {
                   Icons.dehaze,
                   color: Colors.white,
                   size: 28,
-                ),
-              ),
-              ShaderMask(
-                shaderCallback: (bounds) => LinearGradient(
-                  colors: [
-                    Colors.white,
-                    Colors.white.withOpacity(0.95),
-                    Colors.white,
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ).createShader(bounds),
-                child: const Text(
-                  'القرآن الكريم',
-                  style: TextStyle(
-                    fontFamily: 'Amiri',
-                    fontSize: 36,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    height: 1.4,
-                    letterSpacing: 3,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black45,
-                        offset: Offset(0, 3),
-                        blurRadius: 6,
-                      ),
-                      Shadow(
-                        color: Colors.black26,
-                        offset: Offset(0, 1),
-                        blurRadius: 2,
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ],
