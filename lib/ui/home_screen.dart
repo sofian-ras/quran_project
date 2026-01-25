@@ -147,58 +147,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         // Reprendre la lecture
                         _ResumeReadingWidget(onTap: _openReader),
                         
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
                         
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('En vedette', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              TextButton(onPressed: () {}, child: const Text('Voir tout')),
-                            ],
-                          ),
-                        ),
-                        SizedBox(
-                          height: 140,
-                          child: ListView.builder(
-                            key: const PageStorageKey('featured_list'),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            scrollDirection: Axis.horizontal,
-                            itemCount: filteredList.length > 8 ? 8 : filteredList.length,
-                            itemBuilder: (context, index) {
-                              final s = filteredList[index];
-                              return GestureDetector(
-                                onTap: () => _openReader(s['page']),
-                                child: Container(
-                                  width: 240,
-                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(child: Text(s['nameAr'], style: const TextStyle(fontFamily: 'Amiri', fontSize: 18), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                          IconButton(icon: const Icon(Icons.play_circle_fill, color: Color(0xFF0B3D2E)), onPressed: () => _startSurahAudio(s)),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(s['nameFr'], style: const TextStyle(color: Colors.black54)),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 12),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -835,73 +785,166 @@ class _ResumeReadingWidget extends StatelessWidget {
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFF1a0033),
+                const Color(0xFF2d1b4e),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: const Color(0xFFD4AF37),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: const Color(0xFF1a0033).withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: const Color(0xFFD4AF37).withOpacity(0.1),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-            child: InkWell(
-              onTap: () => onTap(page),
-              borderRadius: BorderRadius.circular(30),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.bookmark,
-                      color: AppColors.accent,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Reprendre la lecture',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            surahName,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            'Page $page',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[500],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      color: Colors.grey,
-                      size: 16,
-                    ),
-                  ],
+          child: Stack(
+            children: [
+              // Décorations dorées
+              Positioned(
+                top: 10,
+                left: 10,
+                child: Container(
+                  width: 3,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4AF37).withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
+              Positioned(
+                bottom: 10,
+                right: 10,
+                child: Container(
+                  width: 3,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4AF37).withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 15,
+                right: 15,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4AF37).withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 15,
+                left: 15,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4AF37).withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              // Contenu principal
+              Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(30),
+                child: InkWell(
+                  onTap: () => onTap(page),
+                  borderRadius: BorderRadius.circular(30),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD4AF37).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFD4AF37).withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.bookmark,
+                            color: const Color(0xFFD4AF37),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Reprendre la lecture',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: const Color(0xFFD4AF37).withOpacity(0.9),
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                surahName,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                'Page $page',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD4AF37).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFFD4AF37).withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.arrow_forward_ios,
+                            color: const Color(0xFFD4AF37),
+                            size: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },

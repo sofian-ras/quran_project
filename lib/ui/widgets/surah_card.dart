@@ -26,59 +26,95 @@ class SurahCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-  const gold = Color(0xFFC8A165);
-  const darkGreen = Color(0xFF0B3D2E);
-
-    return Card(
-      color: darkGreen,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: isPlaying ? 10 : 6, // Plus d'élévation si en lecture
+    const gold = Color(0xFFD4AF37);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPlaying ? gold : Colors.grey.shade200,
+          width: isPlaying ? 1.5 : 1,
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
+              // Numéro simple
               Container(
-                width: 48,
-                height: 48,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: isPlaying ? [gold, Colors.orangeAccent] : [darkGreen, Colors.green.shade700]),
-                  border: Border.all(color: gold, width: 1.5),
+                  color: isPlaying ? gold.withOpacity(0.1) : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Center(child: Text('$id', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                child: Center(
+                  child: Text(
+                    '$id',
+                    style: TextStyle(
+                      color: isPlaying ? gold : Colors.grey.shade700,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
+              // Textes
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(nameAr, style: TextStyle(fontFamily: 'Amiri', fontSize: 18, color: isPlaying ? gold : Colors.white, fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal)),
-                    const SizedBox(height: 4),
-                    Text(nameFr, style: TextStyle(fontSize: 14, color: isPlaying ? Colors.white70 : const Color(0xFFC8A165))),
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      if (ayahCount > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(8)),
-                          child: Text('$ayahCount ayah', style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                        ),
-                    ]),
+                    Text(
+                      nameAr,
+                      style: TextStyle(
+                        fontFamily: 'Amiri',
+                        fontSize: 17,
+                        color: isPlaying ? gold : const Color(0xFF1a0033),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      nameFr,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(isPlaying ? Icons.equalizer : Icons.play_circle_outline, color: isPlaying ? gold : Colors.white70),
-                onPressed: onPlay,
-              ),
-              IconButton(
-                icon: Icon(isFavorite ? Icons.star : Icons.star_border, color: isFavorite ? gold : Colors.white70),
-                onPressed: onToggleFavorite,
-              ),
+              // Icônes minimalistes
+              if (onPlay != null)
+                IconButton(
+                  icon: Icon(
+                    isPlaying ? Icons.pause_circle_outline : Icons.play_circle_outline,
+                    color: isPlaying ? gold : Colors.grey.shade400,
+                    size: 26,
+                  ),
+                  onPressed: onPlay,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              const SizedBox(width: 8),
+              if (onToggleFavorite != null)
+                IconButton(
+                  icon: Icon(
+                    isFavorite ? Icons.star : Icons.star_border,
+                    color: isFavorite ? gold : Colors.grey.shade400,
+                    size: 22,
+                  ),
+                  onPressed: onToggleFavorite,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
             ],
           ),
         ),
