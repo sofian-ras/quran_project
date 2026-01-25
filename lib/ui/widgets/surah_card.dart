@@ -29,7 +29,7 @@ class SurahCard extends StatelessWidget {
     const gold = Color(0xFFD4AF37);
     
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -71,19 +71,19 @@ class SurahCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      nameAr,
+                      nameFr,
                       style: TextStyle(
-                        fontFamily: 'Amiri',
-                        fontSize: 17,
+                        fontSize: 16,
                         color: isPlaying ? gold : const Color(0xFF1a0033),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      nameFr,
+                      nameAr,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontFamily: 'Amiri',
+                        fontSize: 15,
                         color: Colors.grey.shade600,
                         fontWeight: FontWeight.w400,
                       ),
