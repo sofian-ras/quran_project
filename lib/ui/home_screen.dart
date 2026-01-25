@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
 import '../services/reading_history_service.dart';
 import '../services/daily_verse_service.dart';
@@ -9,6 +10,7 @@ import '../services/favorites_service.dart';
 import '../theme/app_theme.dart';
 import 'widgets/surah_card.dart';
 import 'widgets/mini_audio_player.dart';
+import 'widgets/reciter_selector.dart';
 import '../surah_name.dart';
 import 'full_player_screen.dart';
 import 'widgets/ios_side_menu.dart';
@@ -129,8 +131,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         ),
                         const SizedBox(height: 16),
                         
-                        // Citation du jour
-                        _DailyVerseWidget(),
+                        // Widget Récitateur
+                        _ReciterWidget(),
                         
                         const SizedBox(height: 16),
                         
@@ -358,6 +360,116 @@ class _HomeHeader extends StatelessWidget {
   }
 }
 
+// Widget Récitateur
+class _ReciterWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final AudioService audio = AudioService.instance;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0f0f0f), Color(0xFF1a1a2e), Color(0xFF16213e)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF16213e).withOpacity(0.5),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Image et nom du récitateur
+          Expanded(
+            child: ValueListenableBuilder<String>(
+              valueListenable: audio.currentReciterNotifier,
+              builder: (context, reciterName, _) {
+                return InkWell(
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => ReciterSelectorSheet(
+                        onSelected: (name, server) {
+                          audio.setReciter(name, server);
+                        },
+                      ),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      // Avatar du récitateur
+                      const Icon(
+                        Icons.person,
+                        color: Color(0xFFD4AF37),
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      
+                      // Nom du récitateur
+                      Expanded(
+                        child: Text(
+                          reciterName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          const SizedBox(width: 12),
+          
+          // Bouton Play
+          StreamBuilder<PlayerState>(
+            stream: audio.playerStateStream,
+            builder: (context, snapshot) {
+              final playerState = snapshot.data;
+              final isPlaying = playerState?.playing ?? false;
+              
+              return InkWell(
+                onTap: () {
+                  if (isPlaying) {
+                    audio.pause();
+                  } else {
+                    // Si rien n'est en cours, lancer la première sourate
+                    if (audio.currentSurahId == null) {
+                      audio.loadPlaylistAndPlay(1);
+                    } else {
+                      audio.play();
+                    }
+                  }
+                },
+                child: Icon(
+                  isPlaying ? Icons.pause_circle : Icons.play_circle,
+                  color: const Color(0xFFD4AF37),
+                  size: 48,
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // Widget Citation du jour
 class _DailyVerseWidget extends StatelessWidget {
   @override
@@ -375,15 +487,15 @@ class _DailyVerseWidget extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryLight],
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0f0f0f), Color(0xFF1a1a2e), Color(0xFF16213e)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.3),
+                color: const Color(0xFF16213e).withOpacity(0.5),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
