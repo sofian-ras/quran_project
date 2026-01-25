@@ -375,7 +375,7 @@ class _ReciterWidget extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(40),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF16213e).withOpacity(0.5),
@@ -456,10 +456,21 @@ class _ReciterWidget extends StatelessWidget {
                     }
                   }
                 },
-                child: Icon(
-                  isPlaying ? Icons.pause_circle : Icons.play_circle,
-                  color: const Color(0xFFD4AF37),
-                  size: 48,
+                borderRadius: BorderRadius.circular(30),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFD4AF37),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    isPlaying ? Icons.pause : Icons.play_arrow,
+                    color: const Color(0xFFD4AF37),
+                    size: 28,
+                  ),
                 ),
               );
             },
