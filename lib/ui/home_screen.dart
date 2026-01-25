@@ -371,15 +371,21 @@ class _ReciterWidget extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0f0f0f), Color(0xFF1a1a2e), Color(0xFF16213e)],
+          colors: [Color(0xFF1a0033), Color(0xFF2d1b4e), Color(0xFF4a1c6f)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(40),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF16213e).withOpacity(0.5),
-            blurRadius: 12,
+            color: const Color(0xFF4a1c6f).withOpacity(0.6),
+            blurRadius: 20,
+            spreadRadius: 2,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 15,
             offset: const Offset(0, 4),
           ),
         ],
