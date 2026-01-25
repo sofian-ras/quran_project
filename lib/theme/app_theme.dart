@@ -59,7 +59,7 @@ class AppColors {
   
   // Variantes de dégradés (pour tester)
   static const LinearGradient variant1 = LinearGradient(
-    colors: [Color(0xFF1A3329), Color(0xFF2D5A45), Color(0xFF1E3A2F)],
+    colors: [Color(0xFF0f0f0f), Color(0xFF1a1a2e), Color(0xFF16213e)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

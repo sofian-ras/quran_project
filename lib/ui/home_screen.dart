@@ -29,7 +29,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   List<Map<String, dynamic>> fullSurahList = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
-  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -39,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -88,20 +86,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
-  void _onSearchChanged(String q) {
-    final qLower = q.trim().toLowerCase();
-    setState(() {
-      if (qLower.isEmpty) {
-        filteredList = List.from(fullSurahList);
-      } else {
-        filteredList = fullSurahList.where((s) {
-          return s['nameAr'].toLowerCase().contains(qLower) ||
-              s['nameFr'].toLowerCase().contains(qLower) ||
-              s['id'].toString() == qLower;
-        }).toList();
-      }
-    });
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -119,8 +104,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _HomeHeader(
-                          controller: _searchCtrl,
-                          onChanged: _onSearchChanged,
                           onMenuTap: () {
                             showGeneralDialog(
                               context: context,
@@ -282,13 +265,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
 // ---------------- HEADER MODIFIÉ ----------------
 class _HomeHeader extends StatelessWidget {
-  final TextEditingController controller;
-  final Function(String) onChanged;
   final VoidCallback onMenuTap;
 
   const _HomeHeader({
-    required this.controller,
-    required this.onChanged,
     required this.onMenuTap,
   });
 
@@ -305,7 +284,7 @@ class _HomeHeader extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.4),
+            color: const Color(0xFF16213e).withOpacity(0.5),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -372,34 +351,6 @@ class _HomeHeader extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.5),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              decoration: const InputDecoration(
-                icon: Icon(Icons.search, color: Colors.grey),
-                border: InputBorder.none,
-                hintText: 'Rechercher une sourate...',
-              ),
-            ),
           ),
         ],
       ),

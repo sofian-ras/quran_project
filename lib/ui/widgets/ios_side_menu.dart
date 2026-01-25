@@ -25,9 +25,9 @@ class IOSSideMenu extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.black.withValues(alpha: 0.6),
-                  Colors.black.withValues(alpha: 0.4),
-                  const Color(0xFF0B3D2E).withValues(alpha: 0.5),
+                  Colors.black.withValues(alpha: 0.7),
+                  const Color(0xFF1a1a2e).withValues(alpha: 0.6),
+                  const Color(0xFF16213e).withValues(alpha: 0.5),
                 ],
               ),
             ),
@@ -41,14 +41,14 @@ class IOSSideMenu extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF0A1F1A).withValues(alpha: 0.95),
-                const Color(0xFF0B3D2E).withValues(alpha: 0.92),
-                const Color(0xFF1A4D3D).withValues(alpha: 0.90),
+                const Color(0xFF0f0f0f).withValues(alpha: 0.95),
+                const Color(0xFF1a1a2e).withValues(alpha: 0.92),
+                const Color(0xFF16213e).withValues(alpha: 0.90),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0B3D2E).withValues(alpha: 0.5),
+                color: const Color(0xFF16213e).withValues(alpha: 0.5),
                 blurRadius: 40,
                 spreadRadius: 5,
                 offset: const Offset(8, 0),
@@ -66,8 +66,8 @@ class IOSSideMenu extends StatelessWidget {
               children: [
                 // Header premium avec effet doré
                 Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(20),
+                  margin: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
@@ -78,7 +78,7 @@ class IOSSideMenu extends StatelessWidget {
                         const Color(0xFF8B7355).withValues(alpha: 0.05),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       width: 1.5,
                       color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
@@ -100,10 +100,10 @@ class IOSSideMenu extends StatelessWidget {
                     children: [
                       // Logo premium avec effet doré
                       Container(
-                        width: 50,
-                        height: 50,
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(15),
+                          borderRadius: BorderRadius.circular(12),
                           gradient: const LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -122,7 +122,7 @@ class IOSSideMenu extends StatelessWidget {
                           ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(15),
+                          borderRadius: BorderRadius.circular(12),
                           child: Image.asset(
                             'assets/icon/logo_coran.png',
                             fit: BoxFit.cover,
@@ -136,7 +136,7 @@ class IOSSideMenu extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,7 +144,7 @@ class IOSSideMenu extends StatelessWidget {
                             Text(
                               'القرآن الكريم',
                               style: TextStyle(
-                                fontSize: 20,
+                                fontSize: 16,
                                 color: const Color(0xFFFFD700),
                                 fontWeight: FontWeight.bold,
                                 fontFamily: 'Amiri',
@@ -157,11 +157,11 @@ class IOSSideMenu extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
                               'Coran Premium',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 9,
                                 color: Colors.white.withValues(alpha: 0.7),
                                 fontWeight: FontWeight.w500,
                                 letterSpacing: 1.2,
@@ -192,7 +192,7 @@ class IOSSideMenu extends StatelessWidget {
                           child: const Icon(
                             CupertinoIcons.xmark,
                             color: Colors.white,
-                            size: 18,
+                            size: 16,
                           ),
                         ),
                       ),
