@@ -95,9 +95,17 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     super.build(context);
 
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFDBE4F0)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)))
+            : Stack(
               children: [
                 SafeArea(
                   child: SingleChildScrollView(
@@ -261,6 +269,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 ),
               ],
             ),
+      ),
     );
   }
 }
@@ -366,68 +375,75 @@ class _ReciterWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final AudioService audio = AudioService.instance;
     
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1a0033), Color(0xFF2d1b4e), Color(0xFF4a1c6f)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(40),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4a1c6f).withOpacity(0.6),
-            blurRadius: 20,
-            spreadRadius: 2,
-            offset: const Offset(0, 6),
+    return Stack(
+      children: [
+        // Container principal avec décorations
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1a0033), Color(0xFF2d1b4e), Color(0xFF4a1c6f)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(
+              color: const Color(0xFFD4AF37).withOpacity(0.3),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4a1c6f).withOpacity(0.6),
+                blurRadius: 20,
+                spreadRadius: 2,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Image et nom du récitateur
-          Expanded(
-            child: ValueListenableBuilder<String>(
-              valueListenable: audio.currentReciterNotifier,
-              builder: (context, reciterName, _) {
-                return InkWell(
-                  onTap: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => ReciterSelectorSheet(
-                        onSelected: (name, server) {
-                          audio.setReciter(name, server);
-                        },
-                      ),
-                    );
-                  },
-                  child: Row(
-                    children: [
-                      // Avatar du récitateur
-                      const Icon(
-                        Icons.person,
-                        color: Color(0xFFD4AF37),
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      
-                      // Nom du récitateur
-                      Expanded(
-                        child: Text(
-                          reciterName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+          child: Row(
+            children: [
+              // Image et nom du récitateur
+              Expanded(
+                child: ValueListenableBuilder<String>(
+                  valueListenable: audio.currentReciterNotifier,
+                  builder: (context, reciterName, _) {
+                    return InkWell(
+                      onTap: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => ReciterSelectorSheet(
+                            onSelected: (name, server) {
+                              audio.setReciter(name, server);
+                            },
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          // Avatar du récitateur
+                          const Icon(
+                            Icons.person,
+                            color: Color(0xFFD4AF37),
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          
+                          // Nom du récitateur
+                          Expanded(
+                            child: Text(
+                              reciterName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -483,6 +499,216 @@ class _ReciterWidget extends StatelessWidget {
           ),
         ],
       ),
+    ),
+        // Traits dorés décoratifs au milieu du widget
+        // Côté gauche/centre
+        Positioned(
+          top: 15,
+          left: 25,
+          child: Transform.rotate(
+            angle: -0.6,
+            child: Container(
+              width: 50,
+              height: 3,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFD4AF37).withOpacity(0.0),
+                    const Color(0xFFD4AF37).withOpacity(0.8),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 28,
+          left: 32,
+          child: Transform.rotate(
+            angle: -0.3,
+            child: Container(
+              width: 30,
+              height: 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFD4AF37).withOpacity(0.0),
+                    const Color(0xFFD4AF37).withOpacity(0.6),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 35,
+          left: 60,
+          child: Transform.rotate(
+            angle: 0.4,
+            child: Container(
+              width: 40,
+              height: 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFD4AF37).withOpacity(0.7),
+                    const Color(0xFFD4AF37).withOpacity(0.0),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+        
+        // Côté bas/centre
+        Positioned(
+          bottom: 15,
+          left: 25,
+          child: Transform.rotate(
+            angle: -0.6,
+            child: Container(
+              width: 50,
+              height: 3,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFD4AF37).withOpacity(0.0),
+                    const Color(0xFFD4AF37).withOpacity(0.8),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 28,
+          left: 30,
+          child: Transform.rotate(
+            angle: 0.3,
+            child: Container(
+              width: 35,
+              height: 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFD4AF37).withOpacity(0.0),
+                    const Color(0xFFD4AF37).withOpacity(0.6),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 35,
+          left: 55,
+          child: Transform.rotate(
+            angle: -0.5,
+            child: Container(
+              width: 45,
+              height: 3,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFD4AF37).withOpacity(0.8),
+                    const Color(0xFFD4AF37).withOpacity(0.0),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+        
+        // Points et ornements dorés au centre
+        Positioned(
+          top: 25,
+          left: 20,
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD4AF37).withOpacity(0.7),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFD4AF37).withOpacity(0.5),
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 20,
+          left: 50,
+          child: Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD4AF37).withOpacity(0.6),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 25,
+          left: 22,
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD4AF37).withOpacity(0.7),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFD4AF37).withOpacity(0.5),
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 30,
+          left: 65,
+          child: Container(
+            width: 4,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD4AF37).withOpacity(0.5),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 40,
+          left: 80,
+          child: Container(
+            width: 3,
+            height: 3,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD4AF37).withOpacity(0.5),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 40,
+          left: 45,
+          child: Container(
+            width: 3,
+            height: 3,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD4AF37).withOpacity(0.5),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -610,7 +836,7 @@ class _ResumeReadingWidget extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.08),
@@ -621,29 +847,20 @@ class _ResumeReadingWidget extends StatelessWidget {
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(30),
             child: InkWell(
               onTap: () => onTap(page),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(30),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppColors.accent.withOpacity(0.2), AppColors.accent.withOpacity(0.1)],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.bookmark,
-                        color: AppColors.accent,
-                        size: 24,
-                      ),
+                    Icon(
+                      Icons.bookmark,
+                      color: AppColors.accent,
+                      size: 20,
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,42 +868,35 @@ class _ResumeReadingWidget extends StatelessWidget {
                           Text(
                             'Reprendre la lecture',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Colors.grey[600],
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             surahName,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Text(
                             'Page $page',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Colors.grey[500],
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.white,
-                        size: 16,
-                      ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.grey,
+                      size: 16,
                     ),
                   ],
                 ),
