@@ -44,6 +44,7 @@ flutter:
 
   # Gestion des images et fichiers de données
   assets:
+    - assets/images/
     - assets/data/
     - assets/data/ayahinfo_1120.db
     #- assets/assetpacks/quran_pages.zip

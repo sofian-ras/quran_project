@@ -23,7 +23,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin {
+class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   @override
   bool get wantKeepAlive => true;
 
@@ -31,15 +31,28 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   List<Map<String, dynamic>> fullSurahList = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
+  
+  late AnimationController _menuController;
+  late Animation<double> _menuAnimation;
+  bool _isMenuOpen = false;
+  double _dragStartX = 0;
 
   @override
   void initState() {
     super.initState();
     _loadSurahData();
+    _menuController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _menuAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _menuController, curve: Curves.easeOutCubic),
+    );
   }
 
   @override
   void dispose() {
+    _menuController.dispose();
     super.dispose();
   }
 
@@ -88,6 +101,67 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 
+  void _openMenu() {
+    if (!_isMenuOpen) {
+      setState(() => _isMenuOpen = true);
+      _menuController.forward();
+    }
+  }
+
+  void _closeMenu() {
+    if (_isMenuOpen) {
+      _menuController.reverse().then((_) {
+        setState(() => _isMenuOpen = false);
+      });
+    }
+  }
+
+  void _handleDragStart(DragStartDetails details) {
+    _dragStartX = details.globalPosition.dx;
+    final screenWidth = MediaQuery.of(context).size.width * 0.8;
+    
+    // Ouvrir le menu si on commence près du bord gauche
+    if (_dragStartX < 50 && !_isMenuOpen) {
+      setState(() => _isMenuOpen = true);
+    }
+    // Permettre de glisser le menu si on est déjà dessus
+    else if (_isMenuOpen && _dragStartX < screenWidth) {
+      // Le menu est ouvert et on touche dessus - on peut le faire glisser
+    }
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    final screenWidth = MediaQuery.of(context).size.width * 0.8;
+    final currentX = details.globalPosition.dx;
+    
+    // Calculer la progression: 0 = fermé, 1 = ouvert
+    double progress;
+    
+    if (_isMenuOpen) {
+      // Menu déjà ouvert - calculer la progression basée sur la position actuelle
+      progress = (currentX / screenWidth).clamp(0.0, 1.0);
+    } else if (_dragStartX < 50) {
+      // Ouverture depuis le bord gauche
+      progress = (currentX / screenWidth).clamp(0.0, 1.0);
+    } else {
+      // Ignorer les drags qui ne commencent pas près du bord gauche si le menu est fermé
+      return;
+    }
+    
+    _menuController.value = progress;
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (!_isMenuOpen) return;
+    
+    // Si plus de 50% ouvert, terminer l'ouverture, sinon fermer
+    if (_menuController.value > 0.5) {
+      _menuController.forward();
+    } else {
+      _closeMenu();
+    }
+  }
+
 
 
   @override
@@ -95,17 +169,25 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     super.build(context);
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFDBE4F0)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)))
-            : Stack(
+      body: Stack(
+        children: [
+          IgnorePointer(
+            ignoring: _isMenuOpen,
+            child: GestureDetector(
+              onHorizontalDragStart: _handleDragStart,
+              onHorizontalDragUpdate: _handleDragUpdate,
+              onHorizontalDragEnd: _handleDragEnd,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFDBE4F0)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)))
+                    : Stack(
               children: [
                 SafeArea(
                   child: Column(
@@ -113,35 +195,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                     children: [
                       // Header et widgets fixes
                       _HomeHeader(
-                        onMenuTap: () {
-                          showGeneralDialog(
-                            context: context,
-                            barrierDismissible: true,
-                            barrierLabel: 'Menu',
-                            barrierColor: Colors.black54,
-                            transitionDuration: const Duration(milliseconds: 300),
-                            pageBuilder: (context, anim1, anim2) => const IOSSideMenu(),
-                            transitionBuilder: (context, anim1, anim2, child) {
-                              return SlideTransition(
-                                position: Tween<Offset>(
-                                  begin: const Offset(-1, 0),
-                                  end: Offset.zero,
-                                ).animate(CurvedAnimation(
-                                  parent: anim1,
-                                  curve: Curves.easeOutCubic,
-                                )),
-                                child: child,
-                              );
-                            },
-                          );
-                        },
+                        onMenuTap: _openMenu,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
                       
                       // Widget Récitateur
                       _ReciterWidget(),
                       
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
                       
                       // Widgets actions rapides
                       Padding(
@@ -159,13 +220,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         ),
                       ),
                       
-                      const SizedBox(height: 24),
-                      
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text('Toutes les sourates', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       
                       // Liste scrollable des sourates
                       Expanded(
@@ -232,6 +287,30 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                 ),
               ],
             ),
+              ),
+            ),
+          ),
+          // Menu latéral qui suit le doigt
+          if (_isMenuOpen)
+            AnimatedBuilder(
+              animation: _menuAnimation,
+              builder: (context, child) {
+                final screenWidth = MediaQuery.of(context).size.width * 0.8;
+                return GestureDetector(
+                  onHorizontalDragStart: _handleDragStart,
+                  onHorizontalDragUpdate: _handleDragUpdate,
+                  onHorizontalDragEnd: _handleDragEnd,
+                  child: Transform.translate(
+                    offset: Offset(
+                      -screenWidth + (screenWidth * _menuAnimation.value),
+                      0,
+                    ),
+                    child: const IOSSideMenu(),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }
@@ -279,49 +358,44 @@ class _HomeHeader extends StatelessWidget {
               CupertinoButton(
                 padding: EdgeInsets.zero,
                 onPressed: onMenuTap,
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.2),
-                        Colors.white.withOpacity(0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                child: const Icon(
+                  Icons.dehaze,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [
+                    Colors.white,
+                    Colors.white.withOpacity(0.95),
+                    Colors.white,
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ).createShader(bounds),
+                child: const Text(
+                  'القرآن الكريم',
+                  style: TextStyle(
+                    fontFamily: 'Amiri',
+                    fontSize: 36,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
+                    letterSpacing: 3,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black45,
+                        offset: Offset(0, 3),
+                        blurRadius: 6,
+                      ),
+                      Shadow(
+                        color: Colors.black26,
+                        offset: Offset(0, 1),
+                        blurRadius: 2,
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    CupertinoIcons.line_horizontal_3,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-              ),
-              const Text(
-                'الْقُرْآنُ الْكَرِيمُ',
-                style: TextStyle(
-                  fontFamily: 'Scheherazade',
-                  fontSize: 28,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black38,
-                      offset: Offset(0, 2),
-                      blurRadius: 4,
-                    ),
-                  ],
                 ),
               ),
             ],
