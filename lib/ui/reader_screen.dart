@@ -12,6 +12,8 @@ import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../services/reading_history_service.dart';
 import '../services/bookmark_service.dart';
+import 'dart:async';
+
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -46,6 +48,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _isReady = false;
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
+  Timer? _saveTimer;
   
   // Cache pour les images préchargées
   final Map<int, File?> _imageCache = {};
@@ -109,6 +112,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    _saveTimer?.cancel();
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     _imageCache.clear();
@@ -256,11 +260,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
               itemCount: 604,
               onPageChanged: (p) {
                 setState(() => currentPage = p + 1);
-                _preloadPages(p + 1); // Précharger dès le changement de page
-                
-                // Enregistrer dans l'historique
-                _saveToHistory(p + 1);
+                _preloadPages(p + 1);
+
+                _saveTimer?.cancel();
+                _saveTimer = Timer(const Duration(milliseconds: 350), () {
+                  if (!mounted) return;
+                  _saveToHistory(p + 1);
+                });
               },
+
               itemBuilder: (context, i) {
                 final pageNum = i + 1;
                 

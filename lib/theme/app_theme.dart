@@ -328,6 +328,31 @@ class AppTheme {
       ),
     );
   }
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+
+      primaryColor: AppColors.primary,
+      scaffoldBackgroundColor: AppColors.darkBackground,
+
+      colorScheme: ColorScheme.dark(
+        primary: AppColors.primaryAccent,
+        primaryContainer: AppColors.primary,
+        secondary: AppColors.accent,
+        secondaryContainer: AppColors.accentLight,
+        surface: AppColors.primaryDark,
+        background: AppColors.darkBackground,
+        error: AppColors.error,
+        onPrimary: AppColors.textOnPrimary,
+        onSecondary: AppColors.primaryDark,
+        onSurface: Colors.white,
+        onBackground: Colors.white,
+        onError: Colors.white,
+      ),
+    );
+  }
+
   
   // Gradients personnalisés
   static LinearGradient get primaryGradient => LinearGradient(

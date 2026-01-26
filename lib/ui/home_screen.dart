@@ -3,18 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:quran/theme/theme_service.dart';
 import '../services/audio_service.dart';
 import '../services/reading_history_service.dart';
-import '../services/daily_verse_service.dart';
 import '../services/favorites_service.dart';
-import '../theme/app_theme.dart';
 import 'widgets/surah_card.dart';
 import 'widgets/mini_audio_player.dart';
 import 'widgets/reciter_selector.dart';
 import '../surah_name.dart';
 import 'full_player_screen.dart';
 import 'widgets/ios_side_menu.dart';
-import 'screens/quran_loader.dart';
 import 'reader_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -34,7 +32,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   List<Map<String, dynamic>> filteredList = [];
   String _preferredReading = 'hafs';
   final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>(<int>{});
-  bool _favoritesLoaded = false;
 
 
   
@@ -118,59 +115,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     if (!mounted) return;
     setState(() {
       _favoriteIdsNotifier.value = favs;
-      _favoritesLoaded = true;
     });
   }
 
 
-  void _showReadingSelector() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text('Choisir la lecture', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              ListTile(
-                title: const Text('Hafs'),
-                trailing: _preferredReading == 'hafs' ? const Icon(Icons.check, color: Color(0xFF2E7D32)) : null,
-                onTap: () async {
-                  await ReadingHistoryService.instance.setPreferredReading('hafs');
-                  if (mounted) setState(() => _preferredReading = 'hafs');
-                  if (context.mounted) Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Warsh'),
-                trailing: _preferredReading == 'warsh' ? const Icon(Icons.check, color: Color(0xFF2E7D32)) : null,
-                onTap: () async {
-                  await ReadingHistoryService.instance.setPreferredReading('warsh');
-                  if (mounted) setState(() => _preferredReading = 'warsh');
-                  if (context.mounted) Navigator.pop(context);
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   void _openReader(int page, {String? reading}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -268,12 +216,18 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                   ? Container(
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFDBE4F0)],
+                          colors: [
+                            Color(0xFFF5F7FA),
+                            Color(0xFFE8EEF7),
+                            Color(0xFFDBE4F0),
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                       ),
-                      child: const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37))),
+                      child: const Center(
+                        child: CircularProgressIndicator(color: Color(0xFFD4AF37)),
+                      ),
                     )
                   : Stack(
                       children: [
@@ -284,114 +238,201 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           right: 0,
                           child: _HomeHeader(
                             onMenuTap: _openMenu,
-                            reading: _preferredReading,
-                            onReadingTap: _showReadingSelector,
                           ),
                         ),
-                        
-                        // Contenu principal avec overlap
-                        Positioned.fill(
-                          top: 120, // Ajuster selon la hauteur du header
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFDBE4F0)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(30),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.15),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, -5),
-                                  spreadRadius: 5,
+
+                        // FOND DÉGRADÉ EN BAS (AJOUT)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          height: 180,
+                          child: IgnorePointer(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(30),
                                 ),
-                              ],
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.white.withOpacity(0.0),
+                                    const Color(0xFF4169E1).withOpacity(0.25), // bleu roi
+                                  ],
+                                ),
+                              ),
                             ),
-                            child: SafeArea(
-                              top: false,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                        ),
+                        // Contenu principal avec overlap
+                       Positioned.fill(
+                        top: 120, // Ajuster selon la hauteur du header
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: Theme.of(context).brightness == Brightness.dark
+                                ? const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Color(0xFF020617), // bleu nuit très sombre (haut)
+                                      Color(0xFF0B1025), // bleu nuit
+                                      Color(0xFF1A0033), // transition vers violet
+                                      Color(0xFF2D1B4E), // violet foncé (bas)
+                                    ],
+                                  )
+                                : const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Color(0xFFFFFEFB), // crème très clair
+                                      Color(0xFFF7F2E8), // crème chaud
+                                      Color(0xFFF1E6D0), // beige doré très léger
+                                    ],
+                                    stops: [
+                                      0.0,
+                                      0.6,
+                                      1.0,  // bleu tout en bas
+                                    ],
+                                  ),
+                                
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(30),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(
+                                  Theme.of(context).brightness == Brightness.dark ? 0.55 : 0.15,
+                                ),
+                                blurRadius: 28,
+                                offset: const Offset(0, -8),
+                                spreadRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: Builder(
+                            builder: (context) {
+                              final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+                              return Stack(
                                 children: [
-                                  const SizedBox(height: 16),
-                                  
-                                  // Widget Récitateur
-                                  _ReciterWidget(),
-                                  
-                                  const SizedBox(height: 8),
-                                  
-                                  // Widgets actions rapides
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: _ResumeReadingWidget(
-                                                  onTap: (page, reading) => _openReader(page, reading: reading),
-                                                 ),
+                                  // Overlay doré subtil (ne capte pas les touches)
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: isDark
+                                                ? [
+                                                    const Color(0xFFD4AF37).withOpacity(0.05),
+                                                    Colors.transparent,
+                                                    const Color(0xFFD4AF37).withOpacity(0.08),
+                                                  ]
+                                                : [
+                                                    const Color(0xFFD4AF37).withOpacity(0.04),
+                                                    Colors.transparent,
+                                                  ],
+                                          ),
                                         ),
-                                        const SizedBox(width: 12),
+                                      ),
+                                    ),
+                                  ),
+
+                                  SafeArea(
+                                    top: false,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 16),
+
+                                        // Widget Récitateur
+                                        const ReciterWidget(),
+
+                                        const SizedBox(height: 8),
+
+                                        // Widgets actions rapides
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: _ResumeReadingWidget(
+                                                  onTap: (page, reading) => _openReader(page, reading: reading),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: _FrenchQuranWidget(),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 12),
+
+                                        // Liste scrollable des sourates
                                         Expanded(
-                                          child: _FrenchQuranWidget(),
+                                          child: Container(
+                                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                                            decoration: BoxDecoration(
+                                              color: Colors.transparent,
+                                              borderRadius: BorderRadius.circular(18),
+                                              border: Border.all(
+                                                color: isDark
+                                                    ? const Color(0xFFD4AF37).withOpacity(0.15)
+                                                    : Colors.black12,
+                                                width: 1,
+                                              ),
+                                            ),
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(18),
+                                              child: ListView.builder(
+                                                key: const PageStorageKey('surah_list'),
+                                                itemCount: filteredList.length,
+                                                itemBuilder: (context, index) {
+                                                  final s = filteredList[index];
+                                                  final int surahId = s['id'];
+
+                                                  return _SurahPlayingTileWidget(
+                                                    surahId: surahId,
+                                                    childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
+                                                      valueListenable: _favoriteIdsNotifier,
+                                                      builder: (context, favoriteIds, child) {
+                                                        return SurahCard(
+                                                          id: surahId,
+                                                          nameAr: s['nameAr'],
+                                                          nameFr: s['nameFr'],
+                                                          ayahCount: s['ayahCount'],
+                                                          isFavorite: favoriteIds.contains(surahId),
+                                                          isPlaying: isPlaying,
+                                                          onTap: () => _openReader(s['page']),
+                                                          onPlay: () => _startSurahAudio(s),
+                                                          onToggleFavorite: () async {
+                                                            await FavoritesService.instance.toggleFavorite(surahId);
+                                                            _favoriteIdsNotifier.value =
+                                                                await FavoritesService.instance.getFavorites();
+                                                          },
+                                                        );
+                                                      },
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  
-                                  const SizedBox(height: 12),
-                                  
-                                  // Liste scrollable des sourates
-                                  Expanded(
-                                    child: ListView.builder(
-                                      key: const PageStorageKey('surah_list'),
-                                      itemCount: filteredList.length,
-                                      itemBuilder: (context, index) {
-                                        final s = filteredList[index];
-                                        final int surahId = s['id'];
-
-                                        return _SurahPlayingTile(
-                                          surahId: surahId,
-                                          childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
-                                            valueListenable: _favoriteIdsNotifier,
-                                            builder: (context, favs, _) {
-                                              return SurahCard(
-                                                id: surahId,
-                                                nameAr: s['nameAr'],
-                                                nameFr: s['nameFr'],
-                                                ayahCount: s['ayahCount'],
-                                                isFavorite: _favoritesLoaded ? favs.contains(surahId) : false,
-                                                isPlaying: isPlaying,
-                                                onTap: () => _openReader(s['page']),
-                                                onPlay: () => _startSurahAudio(s),
-                                                onToggleFavorite: () async {
-                                                  final isNowFavorite = await FavoritesService.instance.toggleFavorite(surahId);
-                                                  if (!mounted) return;
-
-                                                  final next = Set<int>.from(_favoriteIdsNotifier.value);
-                                                  if (isNowFavorite) {
-                                                    next.add(surahId);
-                                                  } else {
-                                                    next.remove(surahId);
-                                                  }
-                                                  _favoriteIdsNotifier.value = next;
-                                                },
-                                              );
-                                            },
-                                          ),
-
-                                        );
-                                      },
-                                    ),
-                                  ),
-
                                 ],
-                              ),
-                            ),
+                              );
+                            },
                           ),
                         ),
+                      ),
+
                         // Mini lecteur audio
                         StreamBuilder<bool>(
                           stream: _audio.isActiveStream,
@@ -421,6 +462,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                     ),
             ),
           ),
+
           // Menu latéral qui suit le doigt
           if (_isMenuOpen)
             AnimatedBuilder(
@@ -446,17 +488,37 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     );
   }
 }
+class BottomArcClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
 
+    path.lineTo(0, size.height - 40);
+
+    path.quadraticBezierTo(
+      size.width / 2,
+      size.height + 30,
+      size.width,
+      size.height - 40,
+    );
+
+    path.lineTo(size.width, 0);
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+ 
 // ---------------- HEADER MODIFIÉ ----------------
 class _HomeHeader extends StatelessWidget {
   final VoidCallback onMenuTap;
-  final String reading;
-  final VoidCallback onReadingTap;
-
+  
   const _HomeHeader({
     required this.onMenuTap,
-    required this.reading,
-    required this.onReadingTap,
   });
 
 
@@ -507,26 +569,26 @@ class _HomeHeader extends StatelessWidget {
                   ),
                 ),
 
-                // Badge Hafs/Warsh (à droite)
-                GestureDetector(
-                  onTap: onReadingTap,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.35), width: 1),
+                // Theme Switcher
+                PopupMenuButton<ThemeMode>(
+                  icon: const Icon(Icons.brightness_6, color: Colors.white),
+                  onSelected: ThemeService.setTheme,
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: ThemeMode.system,
+                      child: Text("Système"),
                     ),
-                    child: Text(
-                      reading == 'warsh' ? 'Warsh' : 'Hafs',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
+                    PopupMenuItem(
+                      value: ThemeMode.light,
+                      child: Text("Clair"),
                     ),
-                  ),
+                    PopupMenuItem(
+                      value: ThemeMode.dark,
+                      child: Text("Sombre"),
+                    ),
+                  ],
                 ),
+
               ],
             ),
 
@@ -538,7 +600,9 @@ class _HomeHeader extends StatelessWidget {
 }
 
 // Widget Récitateur
-class _ReciterWidget extends StatelessWidget {
+class ReciterWidget extends StatelessWidget {
+  const ReciterWidget({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     final AudioService audio = AudioService.instance;
@@ -881,149 +945,59 @@ class _ReciterWidget extends StatelessWidget {
   }
 }
 
-// Widget Citation du jour
-class _DailyVerseWidget extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<DailyVerse>(
-      future: DailyVerseService.instance.getDailyVerse(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox.shrink();
-        }
-        
-        final verse = snapshot.data!;
-        
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0f0f0f), Color(0xFF1a1a2e), Color(0xFF16213e)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF16213e).withOpacity(0.5),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.auto_awesome, color: Colors.white.withOpacity(0.9), size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Citation du jour',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                verse.arabic,
-                style: const TextStyle(
-                  fontFamily: 'Scheherazade',
-                  fontSize: 24,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                  height: 1.8,
-                ),
-                textAlign: TextAlign.right,
-                textDirection: TextDirection.rtl,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                verse.french,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withOpacity(0.95),
-                  height: 1.5,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  '${verse.surahName} (${verse.surahNumber}:${verse.verseNumber})',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withOpacity(0.9),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
+// Widget Reprendre la lecture (compact)
 // Widget Reprendre la lecture (compact)
 class _ResumeReadingWidget extends StatelessWidget {
   final void Function(int page, String reading) onTap;
-  
+
   const _ResumeReadingWidget({required this.onTap});
-  
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>?>(
       future: ReadingHistoryService.instance.getLastReading(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data == null) {
-          return const SizedBox.shrink();
+        final lastReading = snapshot.data;
+
+        // Fallbacks robustes
+        final int page = (lastReading?['page'] is int) ? lastReading!['page'] as int : 1;
+        final String reading = (lastReading?['reading'] as String?) ?? 'hafs';
+
+        String surahName = (lastReading?['surahName'] as String?) ?? '';
+        surahName = surahName.trim();
+        if (surahName.isEmpty) {
+          surahName = 'Page $page';
         }
-        
-        final lastReading = snapshot.data!;
-        final page = lastReading['page'] as int;
-        final surahName = lastReading['surahName'] as String;
-        
+
+        // Si rien du tout n’existe, on affiche quand même un bouton “Reprendre”
+        // (au lieu de shrink), qui ouvre page 1 (ou ce que tu veux)
+        final bool hasAnyData = lastReading != null;
+
         return Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFF1a0033),
-                const Color(0xFF2d1b4e),
-              ],
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1a0033), Color(0xFF2d1b4e)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: const Color(0xFFD4AF37),
-              width: 1.5,
-            ),
+            border: Border.all(color: const Color(0xFFD4AF37), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(20),
             child: InkWell(
-              onTap: () => onTap(page, (lastReading['reading'] as String?) ?? 'hafs'),
+              onTap: () => onTap(page, reading),
               borderRadius: BorderRadius.circular(20),
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1040,11 +1014,11 @@ class _ResumeReadingWidget extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         color: const Color(0xFFD4AF37).withOpacity(0.9),
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 6),
                     Text(
                       surahName,
                       style: const TextStyle(
@@ -1052,10 +1026,21 @@ class _ResumeReadingWidget extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                     ),
+                    if (hasAnyData) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Page $page',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white.withOpacity(0.75),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1066,7 +1051,6 @@ class _ResumeReadingWidget extends StatelessWidget {
     );
   }
 }
-
 // Widget Coran en français
 class _FrenchQuranWidget extends StatelessWidget {
   const _FrenchQuranWidget();
@@ -1148,20 +1132,20 @@ class _FrenchQuranWidget extends StatelessWidget {
     );
   }
 }
-class _SurahPlayingTile extends StatefulWidget {
+class _SurahPlayingTileWidget extends StatefulWidget {
   final int surahId;
   final Widget Function(bool isPlaying) childBuilder;
 
-  const _SurahPlayingTile({
+  const _SurahPlayingTileWidget({
     required this.surahId,
     required this.childBuilder,
   });
 
   @override
-  State<_SurahPlayingTile> createState() => _SurahPlayingTileState();
+  State<_SurahPlayingTileWidget> createState() => _SurahPlayingTileWidgetState();
 }
 
-class _SurahPlayingTileState extends State<_SurahPlayingTile> {
+class _SurahPlayingTileWidgetState extends State<_SurahPlayingTileWidget> {
   late final AudioService _audio;
   late bool _isPlaying;
 
