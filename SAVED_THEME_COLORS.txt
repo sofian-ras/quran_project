@@ -1,0 +1,15 @@
+// COULEURS DU THÈME SAUVEGARDÉES
+// Palette principale - Vert foncé moderne
+static const Color primary = Color(0xFF1E3A2F); // Vert foncé principal
+static const Color primaryLight = Color(0xFF2D5A45); // Vert foncé clair
+static const Color primaryDark = Color(0xFF0F1F18); // Vert très foncé
+static const Color primaryAccent = Color(0xFF3A6B54); // Vert moyen
+
+// Couleurs secondaires
+static const Color accent = Color(0xFFD4AF77); // Or doux
+static const Color accentLight = Color(0xFFE5C8A0);
+
+// Arrière-plans
+static const Color background = Color(0xFFF5F7F6); // Gris très clair verdâtre
+static const Color cardBackground = Colors.white;
+static const Color darkBackground = Color(0xFF0F1F18);

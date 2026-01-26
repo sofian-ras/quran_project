@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
@@ -24,36 +25,42 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   Widget build(BuildContext context) {
     const gold = Color(0xFFC8A165);
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.7, // Ne prend pas tout l'écran
-      decoration: const BoxDecoration(
-        color: Color(0xFF1B5E20),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      child: DefaultTabController(
-        length: 2,
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            automaticallyImplyLeading: false,
-            title: TabBar(
-              indicatorColor: gold,
-              indicatorSize: TabBarIndicatorSize.label,
-              labelColor: gold,
-              unselectedLabelColor: Colors.white60,
-              tabs: const [
-                Tab(text: 'Lecteur'),
-                Tab(text: "File d'attente"),
-              ],
-            ),
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: BoxDecoration(
+            color: Colors.black54.withOpacity(0.3),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
           ),
-          body: TabBarView(
-            children: [
-              _buildPlayerView(context, gold),
-              _buildPlaylistView(context, gold),
-            ],
+          child: DefaultTabController(
+            length: 2,
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              appBar: AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                automaticallyImplyLeading: false,
+                title: TabBar(
+                  indicatorColor: gold,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  labelColor: gold,
+                  unselectedLabelColor: Colors.white60,
+                  tabs: const [
+                    Tab(text: 'Lecteur'),
+                    Tab(text: "File d'attente"),
+                  ],
+                ),
+              ),
+              body: TabBarView(
+                children: [
+                  _buildPlayerView(context, gold),
+                  _buildPlaylistView(context, gold),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -213,11 +220,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
             showModalBottomSheet(
               context: context,
               isScrollControlled: true,
-              backgroundColor: const Color(0xFF0B3D2E),
-              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+              backgroundColor: Colors.transparent,
               builder: (sheetContext) => ReciterSelectorSheet(onSelected: (name, server) {
-                _audio.currentReciterName = name;
-                _audio.currentServer = server;
+                _audio.setReciter(name, server);
                 final id = _audio.currentSurahId;
                 if (id != null) _audio.loadPlaylistAndPlay(id);
               }),

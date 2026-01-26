@@ -8,31 +8,87 @@ import 'package:archive/archive.dart';
 class AssetManager {
   static const String zipUrl = 'https://github.com/sofian-ras/quran_project/releases/download/v1.0.0/quran_pages.zip';
   static const String zipFileName = 'quran_pages.zip';
+  
+  static final Dio _dio = Dio();
+  static bool _isDownloadingZip = false; // Pour éviter les téléchargements multiples du ZIP
 
-  // Vérifie si le dossier "hafs" existe déjà pour éviter de retélécharger
+  // Vérifie si les pages sont déjà téléchargées (ZIP extrait)
   static Future<bool> areAssetsDownloaded() async {
     final dir = await getApplicationDocumentsDirectory();
     final hafsFolder = Directory(p.join(dir.path, 'hafs'));
-    return await hafsFolder.exists();
+    final warshFolder = Directory(p.join(dir.path, 'warsh'));
+    
+    // Vérifier que les deux dossiers existent avec des pages
+    if (await hafsFolder.exists() && await warshFolder.exists()) {
+      final hafsFiles = await hafsFolder.list().toList();
+      final warshFiles = await warshFolder.list().toList();
+      // Si on a au moins 600 fichiers dans chaque dossier, c'est bon
+      return hafsFiles.length >= 600 && warshFiles.length >= 600;
+    }
+    return false;
   }
 
-  // Télécharge et extrait le ZIP
-  static Future<void> downloadAndExtract({required Function(double) onProgress}) async {
+  // Récupère le fichier d'une page (télécharge le ZIP si nécessaire)
+  static Future<File> getPageFile(String reading, int page) async {
     final dir = await getApplicationDocumentsDirectory();
-    final zipPath = p.join(dir.path, zipFileName);
-    final dio = Dio();
-
+    final ext = (reading == "hafs") ? "png" : "jpg";
+    final pagePath = p.join(dir.path, reading, "$page.$ext");
+    final pageFile = File(pagePath);
+    
+    // Si la page existe déjà, la retourner
+    if (await pageFile.exists()) {
+      return pageFile;
+    }
+    
+    // Si les assets ne sont pas téléchargés, télécharger le ZIP complet
+    final assetsDownloaded = await areAssetsDownloaded();
+    if (!assetsDownloaded) {
+      await _downloadAndExtractZipIfNeeded();
+    }
+    
+    // Vérifier à nouveau si la page existe maintenant
+    if (await pageFile.exists()) {
+      return pageFile;
+    }
+    
+    // Si toujours pas là, erreur
+    throw Exception('Page $page pour $reading introuvable après téléchargement');
+  }
+  
+  // Télécharge et extrait le ZIP si pas déjà fait (avec protection contre téléchargements multiples)
+  static Future<void> _downloadAndExtractZipIfNeeded() async {
+    // Si déjà téléchargé, ne rien faire
+    if (await areAssetsDownloaded()) {
+      return;
+    }
+    
+    // Si déjà en cours de téléchargement, attendre
+    if (_isDownloadingZip) {
+      while (_isDownloadingZip) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      return;
+    }
+    
+    _isDownloadingZip = true;
+    
     try {
+      final dir = await getApplicationDocumentsDirectory();
+      final zipPath = p.join(dir.path, zipFileName);
+
+      debugPrint('Téléchargement du ZIP depuis: $zipUrl');
+      
       // 1. Téléchargement
-      await dio.download(
+      await _dio.download(
         zipUrl,
         zipPath,
-        onReceiveProgress: (received, total) {
-          if (total != -1) {
-            onProgress(received / total);
-          }
-        },
+        options: Options(
+          receiveTimeout: const Duration(minutes: 10),
+          sendTimeout: const Duration(minutes: 10),
+        ),
       );
+
+      debugPrint('ZIP téléchargé, extraction en cours...');
 
       // 2. Décompression
       final bytes = File(zipPath).readAsBytesSync();
@@ -40,6 +96,11 @@ class AssetManager {
 
       for (final file in archive) {
         final filename = file.name;
+        // Ignorer les métadonnées MacOS
+        if (filename.contains('__MACOSX') || filename.startsWith('.')) {
+          continue;
+        }
+        
         final filePath = p.join(dir.path, filename);
         if (file.isFile) {
           final data = file.content as List<int>;
@@ -51,23 +112,19 @@ class AssetManager {
         }
       }
 
+      debugPrint('Extraction terminée avec succès');
+
       // 3. Nettoyage (supprimer le zip)
       final zFile = File(zipPath);
-      if (await zFile.exists()) await zFile.delete();
+      if (await zFile.exists()) {
+        await zFile.delete();
+      }
 
     } catch (e) {
-      // use debugPrint instead of print for better control and lint compliance
-      // ignore: avoid_print
-      // debugPrint is preferred in Flutter for logging
-      debugPrint("Erreur AssetManager: $e");
+      debugPrint("Erreur lors du téléchargement/extraction: $e");
       rethrow;
+    } finally {
+      _isDownloadingZip = false;
     }
-  }
-
-  // Récupère le fichier d'une page
-  static Future<File> getPageFile(String reading, int page) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final ext = (reading == "hafs") ? "png" : "jpg";
-    return File(p.join(dir.path, reading, "$page.$ext"));
   }
 }

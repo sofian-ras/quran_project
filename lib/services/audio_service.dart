@@ -42,15 +42,17 @@ class AudioService {
   List<AudioSource> get playlistSources => _playlist?.children ?? [];
   Stream<int?> get currentIndexStream => _player.currentIndexStream;
   
-  set currentReciterName(String val) {
-     if(currentReciterNotifier.value != val) {
-        currentReciterNotifier.value = val;
-        // Invalider la playlist pour qu'elle soit regénérée avec le nouveau récitateur
-        _playlist = null; 
-     }
+  // 1. DEBUG : Méthode atomique pour changer de récitant et invalider la playlist
+  void setReciter(String name, String server) {
+    if (currentReciterNotifier.value != name || currentServer != server) {
+      currentReciterNotifier.value = name;
+      currentServer = server;
+      _playlist = null; // Force la régénération de la playlist
+    }
   }
 
-  String currentServer = "https://download.quranicaudio.com/quran/mishari_rashid_alafasy";
+  // Serveur par défaut de mp3quran.net (Mishary Rashid Alafasy)
+  String currentServer = "https://server8.mp3quran.net/afs";
 
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
   Stream<bool> get isActiveStream => _player.processingStateStream.map((state) => state != ProcessingState.idle);
@@ -71,14 +73,11 @@ class AudioService {
     try {
       // Si la playlist n'existe pas (premier lancement ou changement de récitateur), on la crée.
       if (_playlist == null) {
-        final List<AudioSource> sources = [];
-        for (int i = 1; i <= 114; i++) {
-          final surahNum = i.toString().padLeft(3, '0');
-          final url = '$currentServer/$surahNum.mp3';
-          sources.add(AudioSource.uri(Uri.parse(url), tag: i));
-        }
-        _playlist = ConcatenatingAudioSource(children: sources);
+        _playlist = _createPlaylist();
       }
+      
+      // Mettre à jour le titre de la sourate
+      currentTitleNotifier.value = surahFr[surahId] ?? 'Sourate $surahId';
       
       await _player.setAudioSource(
         _playlist!,
@@ -87,7 +86,20 @@ class AudioService {
       play();
     } catch (e) {
       debugPrint("Erreur lors du chargement de la playlist: $e");
+      // Réinitialiser l'état en cas d'erreur
+      _playlist = null;
     }
+  }
+
+  // Méthode privée pour générer la playlist proprement
+  ConcatenatingAudioSource _createPlaylist() {
+    final List<AudioSource> sources = [];
+    for (int i = 1; i <= 114; i++) {
+      final surahNum = i.toString().padLeft(3, '0');
+      final url = '$currentServer/$surahNum.mp3';
+      sources.add(AudioSource.uri(Uri.parse(url), tag: i));
+    }
+    return ConcatenatingAudioSource(children: sources);
   }
 
   Future<void> play() => _player.play();

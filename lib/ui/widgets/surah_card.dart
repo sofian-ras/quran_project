@@ -6,6 +6,7 @@ class SurahCard extends StatelessWidget {
   final String nameFr;
   final int ayahCount;
   final bool isFavorite;
+  final bool isPlaying;
   final VoidCallback? onTap;
   final VoidCallback? onPlay;
   final VoidCallback? onToggleFavorite;
@@ -17,6 +18,7 @@ class SurahCard extends StatelessWidget {
     required this.nameFr,
     this.ayahCount = 0,
     this.isFavorite = false,
+    this.isPlaying = false,
     this.onTap,
     this.onPlay,
     this.onToggleFavorite,
@@ -31,7 +33,7 @@ class SurahCard extends StatelessWidget {
       color: darkGreen,
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 6,
+      elevation: isPlaying ? 10 : 6, // Plus d'élévation si en lecture
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -44,7 +46,7 @@ class SurahCard extends StatelessWidget {
                 height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [darkGreen, Colors.green.shade700]),
+                  gradient: LinearGradient(colors: isPlaying ? [gold, Colors.orangeAccent] : [darkGreen, Colors.green.shade700]),
                   border: Border.all(color: gold, width: 1.5),
                 ),
                 child: Center(child: Text('$id', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
@@ -54,9 +56,9 @@ class SurahCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(nameAr, style: const TextStyle(fontFamily: 'Amiri', fontSize: 18, color: Colors.white)),
+                    Text(nameAr, style: TextStyle(fontFamily: 'Amiri', fontSize: 18, color: isPlaying ? gold : Colors.white, fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal)),
                     const SizedBox(height: 4),
-                    Text(nameFr, style: const TextStyle(fontSize: 14, color: Color(0xFFC8A165))),
+                    Text(nameFr, style: TextStyle(fontSize: 14, color: isPlaying ? Colors.white70 : const Color(0xFFC8A165))),
                     const SizedBox(height: 6),
                     Row(children: [
                       if (ayahCount > 0)
@@ -70,7 +72,7 @@ class SurahCard extends StatelessWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.play_circle_outline, color: Colors.white70),
+                icon: Icon(isPlaying ? Icons.equalizer : Icons.play_circle_outline, color: isPlaying ? gold : Colors.white70),
                 onPressed: onPlay,
               ),
               IconButton(

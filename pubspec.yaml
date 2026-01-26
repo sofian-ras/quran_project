@@ -49,6 +49,7 @@ flutter:
     #- assets/assetpacks/quran_pages.zip
     - assets/screenshots/
     - assets/fonts/
+    - assets/icon/
 
   # Configuration des polices de caractères
   fonts:

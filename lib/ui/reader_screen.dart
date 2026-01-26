@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import '../asset_manager.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
+import '../services/reading_history_service.dart';
+import '../services/bookmark_service.dart';
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -42,10 +44,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String currentReading = 'hafs';
   late PageController _pageController;
   bool _isReady = false;
-  double _progress = 0.0;
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
-
+  
+  // Cache pour les images préchargées
+  final Map<int, File?> _imageCache = {};
+  final int _preloadRange = 3; // Nombre de pages à précharger avant/après
+  
   @override
   void initState() {
     super.initState();
@@ -53,29 +58,68 @@ class _ReaderScreenState extends State<ReaderScreen> {
     currentReading = widget.reading;
     final startPage = (widget.initialPage < 1) ? 1 : (widget.initialPage > 604 ? 604 : widget.initialPage);
     _pageController = PageController(initialPage: startPage - 1);
+    _pageController.addListener(_onPageScroll);
     _initApp();
+  }
+  
+  void _onPageScroll() {
+    // Précharger les pages adjacentes pendant le scroll
+    final currentIndex = _pageController.page?.round() ?? 0;
+    _preloadPages(currentIndex + 1);
+  }
+  
+  Future<void> _preloadPages(int centerPage) async {
+    // Précharger les pages dans une plage autour de la page actuelle
+    for (int offset = -_preloadRange; offset <= _preloadRange; offset++) {
+      final pageNum = centerPage + offset;
+      if (pageNum >= 1 && pageNum <= 604 && !_imageCache.containsKey(pageNum)) {
+        _loadPageIntoCache(pageNum);
+      }
+    }
+    
+    // Nettoyer le cache des pages trop éloignées
+    _cleanDistantPages(centerPage);
+  }
+  
+  Future<void> _loadPageIntoCache(int pageNum) async {
+    try {
+      final file = await AssetManager.getPageFile(currentReading, pageNum);
+      if (mounted) {
+        setState(() {
+          _imageCache[pageNum] = file;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur préchargement page $pageNum: $e');
+    }
+  }
+  
+  void _cleanDistantPages(int centerPage) {
+    final pagesToRemove = <int>[];
+    _imageCache.forEach((pageNum, _) {
+      if ((pageNum - centerPage).abs() > _preloadRange * 2) {
+        pagesToRemove.add(pageNum);
+      }
+    });
+    
+    for (final pageNum in pagesToRemove) {
+      _imageCache.remove(pageNum);
+    }
   }
 
   @override
   void dispose() {
+    _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
+    _imageCache.clear();
     super.dispose();
   }
 
   Future<void> _initApp() async {
-    bool alreadyDownloaded = await AssetManager.areAssetsDownloaded();
-    if (!alreadyDownloaded) {
-      try {
-        await AssetManager.downloadAndExtract(onProgress: (p) {
-          setState(() => _progress = p);
-        });
-      } catch (e) {
-        debugPrint('Erreur init: $e');
-      }
-    } else {
-      setState(() => _progress = 1.0);
-    }
-
+    // Plus besoin de télécharger tout le ZIP !
+    // Les pages seront téléchargées à la demande via getPageFile()
+    
+    // Charger uniquement les données JSON
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     final quranData = json.decode(jsonStr) as List<dynamic>;
     final added = <int>{};
@@ -92,9 +136,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         added.add(id);
       }
     }
+    
+    // Précharger la page initiale en arrière-plan
+    _preloadPages(currentPage);
+    
     setState(() {
       fullSurahList = list;
-      _isReady = true;
+      _isReady = true; // Prêt immédiatement !
     });
   }
 
@@ -152,25 +200,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final j = juzzMap.lastWhere((e) => e['start_page']! <= page, orElse: () => juzzMap.first);
     return 'Juzz ${j['juz']}';
   }
+  
+  // Sauvegarder dans l'historique
+  void _saveToHistory(int page) {
+    // Trouver la sourate correspondante
+    final surah = fullSurahList.firstWhere(
+      (s) => s['page'] == page,
+      orElse: () => fullSurahList.first,
+    );
+    
+    ReadingHistoryService.instance.saveLastReading(
+      page: page,
+      surahId: surah['id'] as int,
+      surahName: surah['nameFr'] as String,
+      reading: currentReading,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isReady) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Lecture')),
-        body: Center(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('Préparation de votre Coran...', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            SizedBox(width: 200, child: LinearProgressIndicator(value: _progress, color: Colors.green)),
-            const SizedBox(height: 10),
-            Text('${(_progress * 100).toStringAsFixed(0)} %'),
-          ]),
-        ),
-      );
-    }
-
+    // Plus d'écran de chargement ! L'app démarre immédiatement
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    // Précharger les pages autour de la page actuelle
+    if (_isReady) {
+      _preloadPages(currentPage);
+    }
 
     return Scaffold(
       body: GestureDetector(
@@ -178,40 +233,90 @@ class _ReaderScreenState extends State<ReaderScreen> {
         onTap: () => setState(() => _showUI = !_showUI),
         child: Stack(
           children: [
-            // PageView
+            // PageView avec chargement optimisé
             PageView.builder(
               controller: _pageController,
               reverse: true,
               itemCount: 604,
-              onPageChanged: (p) => setState(() => currentPage = p + 1),
+              onPageChanged: (p) {
+                setState(() => currentPage = p + 1);
+                _preloadPages(p + 1); // Précharger dès le changement de page
+                
+                // Enregistrer dans l'historique
+                _saveToHistory(p + 1);
+              },
               itemBuilder: (context, i) {
+                final pageNum = i + 1;
+                
+                // Utiliser le cache si disponible
+                if (_imageCache.containsKey(pageNum) && _imageCache[pageNum] != null) {
+                  final imageFile = _imageCache[pageNum]!;
+                  return _buildPageContent(imageFile, isLandscape, context);
+                }
+                
+                // Sinon charger de manière asynchrone
                 return FutureBuilder<File>(
-                  future: AssetManager.getPageFile(currentReading, i + 1),
+                  future: AssetManager.getPageFile(currentReading, pageNum),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Téléchargement page $pageNum...',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Première ouverture, patientez',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    
+                    if (!snapshot.hasData || snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.cloud_off_outlined, size: 48, color: Colors.orange),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Erreur de téléchargement',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Vérifiez votre connexion Internet',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () => setState(() {
+                                // Force le rechargement
+                                _imageCache.remove(pageNum);
+                              }),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Réessayer'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    
                     final imageFile = snapshot.data!;
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (isLandscape) {
-                          return SingleChildScrollView(
-                            child: Image.file(
-                              imageFile,
-                              width: constraints.maxWidth,
-                              fit: BoxFit.fitWidth,
-                              filterQuality: FilterQuality.high,
-                            ),
-                          );
-                        } else {
-                          return Center(
-                            child: Image.file(
-                              imageFile,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
-                            ),
-                          );
-                        }
-                      },
-                    );
+                    // Mettre en cache après chargement
+                    _imageCache[pageNum] = imageFile;
+                    return _buildPageContent(imageFile, isLandscape, context);
                   },
                 );
               },
@@ -239,6 +344,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         Text('${_juzzText(currentPage)} ${_hizbText(currentPage)}',
                             style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
                       ],
+                    ),
+                    FutureBuilder<bool>(
+                      future: BookmarkService.instance.isBookmarked(currentPage),
+                      builder: (context, snapshot) {
+                        final isBookmarked = snapshot.data ?? false;
+                        return Opacity(
+                          opacity: 0.5,
+                          child: IconButton(
+                            icon: Icon(
+                              isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                              size: 24,
+                              color: isBookmarked ? Colors.amber : Colors.black54,
+                            ),
+                            onPressed: () async {
+                              if (isBookmarked) {
+                                await BookmarkService.instance.removeBookmark(currentPage);
+                              } else {
+                                final surah = fullSurahList.firstWhere(
+                                  (s) => s['page'] <= currentPage,
+                                  orElse: () => fullSurahList.first,
+                                );
+                                await BookmarkService.instance.addBookmark(
+                                  Bookmark(
+                                    page: currentPage,
+                                    surahId: surah['id'] as int,
+                                    surahName: surah['nameFr'] as String,
+                                    createdAt: DateTime.now(),
+                                  ),
+                                );
+                              }
+                              setState(() {});
+                            },
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -292,7 +432,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
                                 // Hafs/Warsh
                                 TextButton.icon(
-                                  onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                                  onPressed: () {
+                                    setState(() {
+                                      currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
+                                      // Vider le cache pour recharger les images du nouveau type de lecture
+                                      _imageCache.clear();
+                                      // Précharger les pages autour de la page actuelle
+                                      _preloadPages(currentPage);
+                                    });
+                                  },
                                   icon: Icon(Icons.auto_stories, color: Colors.brown.shade100, size: 18),
                                   label: Text(
                                     currentReading.toUpperCase(),
@@ -326,7 +474,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton.icon(
-                                onPressed: () => setState(() => currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs'),
+                                onPressed: () {
+                                  setState(() {
+                                    currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
+                                    // Vider le cache pour recharger les images du nouveau type de lecture
+                                    _imageCache.clear();
+                                    // Précharger les pages autour de la page actuelle
+                                    _preloadPages(currentPage);
+                                  });
+                                },
                                 icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
                                 label: Text(
                                   currentReading.toUpperCase(),
@@ -360,6 +516,34 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // Méthode pour construire le contenu de la page avec optimisation
+  Widget _buildPageContent(File imageFile, bool isLandscape, BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (isLandscape) {
+          return SingleChildScrollView(
+            child: Image.file(
+              imageFile,
+              width: constraints.maxWidth,
+              fit: BoxFit.fitWidth,
+              filterQuality: FilterQuality.high,
+              // Pas de cache resize pour préserver la qualité maximale
+            ),
+          );
+        } else {
+          return Center(
+            child: Image.file(
+              imageFile,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              // Pas de cache resize pour préserver la qualité maximale
+            ),
+          );
+        }
+      },
     );
   }
 }

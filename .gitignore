@@ -49,4 +49,4 @@ assets/mushaf/**/*.jpg
 assets/mushaf/**/*.png
 
 # Optionnel : si tu veux aussi exclure les fichiers de base de données volumineux
-# *.db
+*.db
