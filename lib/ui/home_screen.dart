@@ -32,6 +32,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
   String _preferredReading = 'hafs';
+  final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>(<int>{});
+  bool _favoritesLoaded = false;
+
+
   
   late AnimationController _menuController;
   late Animation<double> _menuAnimation;
@@ -43,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     super.initState();
     _loadSurahData();
     _loadPreferredReading();
+    _loadFavorites();
     _menuController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -101,6 +106,15 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       setState(() => _preferredReading = reading);
     }
   }
+  Future<void> _loadFavorites() async {
+    final favs = await FavoritesService.instance.getFavorites();
+    if (!mounted) return;
+    setState(() {
+      _favoriteIdsNotifier.value = favs;
+      _favoritesLoaded = true;
+    });
+  }
+
 
   void _showReadingSelector() {
     showModalBottomSheet(
@@ -315,40 +329,48 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                   
                                   // Liste scrollable des sourates
                                   Expanded(
-                                    child: StreamBuilder<int?>(
-                                      stream: _audio.currentIndexStream,
-                                      builder: (context, snapshot) {
-                                        final currentPlayingId = (snapshot.data ?? -1) + 1;
-                                        
-                                        return ListView.builder(
-                                          key: const PageStorageKey('surah_list'),
-                                          itemCount: filteredList.length,
-                                          itemBuilder: (context, index) {
-                                            final s = filteredList[index];
-                                            return FutureBuilder<bool>(
-                                              future: FavoritesService.instance.isFavorite(s['id']),
-                                              builder: (context, favoriteSnapshot) {
-                                                return SurahCard(
-                                                  id: s['id'],
-                                                  nameAr: s['nameAr'],
-                                                  nameFr: s['nameFr'],
-                                                  ayahCount: s['ayahCount'],
-                                                  isFavorite: favoriteSnapshot.data ?? false,
-                                                  isPlaying: s['id'] == currentPlayingId,
-                                                  onTap: () => _openReader(s['page']),
-                                                  onPlay: () => _startSurahAudio(s),
-                                                  onToggleFavorite: () async {
-                                                    await FavoritesService.instance.toggleFavorite(s['id']);
-                                                    setState(() {}); // Rafraîchir l'UI
-                                                  },
-                                                );
-                                              },
-                                            );
-                                          },
+                                    child: ListView.builder(
+                                      key: const PageStorageKey('surah_list'),
+                                      itemCount: filteredList.length,
+                                      itemBuilder: (context, index) {
+                                        final s = filteredList[index];
+                                        final int surahId = s['id'];
+
+                                        return _SurahPlayingTile(
+                                          surahId: surahId,
+                                          childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
+                                            valueListenable: _favoriteIdsNotifier,
+                                            builder: (context, favs, _) {
+                                              return SurahCard(
+                                                id: surahId,
+                                                nameAr: s['nameAr'],
+                                                nameFr: s['nameFr'],
+                                                ayahCount: s['ayahCount'],
+                                                isFavorite: _favoritesLoaded ? favs.contains(surahId) : false,
+                                                isPlaying: isPlaying,
+                                                onTap: () => _openReader(s['page']),
+                                                onPlay: () => _startSurahAudio(s),
+                                                onToggleFavorite: () async {
+                                                  final isNowFavorite = await FavoritesService.instance.toggleFavorite(surahId);
+                                                  if (!mounted) return;
+
+                                                  final next = Set<int>.from(_favoriteIdsNotifier.value);
+                                                  if (isNowFavorite) {
+                                                    next.add(surahId);
+                                                  } else {
+                                                    next.remove(surahId);
+                                                  }
+                                                  _favoriteIdsNotifier.value = next;
+                                                },
+                                              );
+                                            },
+                                          ),
+
                                         );
                                       },
                                     ),
                                   ),
+
                                 ],
                               ),
                             ),
@@ -1108,5 +1130,49 @@ class _FrenchQuranWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+class _SurahPlayingTile extends StatefulWidget {
+  final int surahId;
+  final Widget Function(bool isPlaying) childBuilder;
+
+  const _SurahPlayingTile({
+    required this.surahId,
+    required this.childBuilder,
+  });
+
+  @override
+  State<_SurahPlayingTile> createState() => _SurahPlayingTileState();
+}
+
+class _SurahPlayingTileState extends State<_SurahPlayingTile> {
+  late final AudioService _audio;
+  late bool _isPlaying;
+
+  void _handlePlayingChanged() {
+    final current = _audio.currentPlayingSurahIdNotifier.value;
+    final shouldBePlaying = current == widget.surahId;
+    if (_isPlaying != shouldBePlaying) {
+      setState(() => _isPlaying = shouldBePlaying);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _audio = AudioService.instance;
+    _isPlaying = _audio.currentPlayingSurahIdNotifier.value == widget.surahId;
+    _audio.currentPlayingSurahIdNotifier.addListener(_handlePlayingChanged);
+  }
+
+  @override
+  void dispose() {
+    _audio.currentPlayingSurahIdNotifier.removeListener(_handlePlayingChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.childBuilder(_isPlaying);
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../services/quran_image_service.dart';
+import 'dart:async';
 
 /// Widget PageView pour afficher les pages du Coran avec pre-caching intelligent
 class QuranPageView extends StatefulWidget {
@@ -24,6 +25,9 @@ class QuranPageView extends StatefulWidget {
 }
 
 class _QuranPageViewState extends State<QuranPageView> {
+  final Set<int> _loadingPages = {};
+  Timer? _precacheDebounce;
+  int _lastCenterPage = -1;
   late PageController _pageController;
   final Map<int, File> _imageCache = {};
   bool _isLoading = true;
@@ -45,6 +49,8 @@ class _QuranPageViewState extends State<QuranPageView> {
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     _imageCache.clear();
+    _precacheDebounce?.cancel();
+    _precacheDebounce = null;
     super.dispose();
   }
 
@@ -88,9 +94,20 @@ class _QuranPageViewState extends State<QuranPageView> {
   void _onPageScroll() {
     if (!_pageController.hasClients) return;
 
-    final currentPage = (_pageController.page?.round() ?? 0) + 1;
-    _precachePages(currentPage);
+    final int currentPage = (_pageController.page?.round() ?? 0) + 1;
+
+    // évite de refaire la même chose
+    if (currentPage == _lastCenterPage) return;
+    _lastCenterPage = currentPage;
+
+    // debounce: attendre la fin d’un petit mouvement
+    _precacheDebounce?.cancel();
+    _precacheDebounce = Timer(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      _precachePages(currentPage);
+    });
   }
+
 
   /// Pre-cache les pages autour de la page courante
   Future<void> _precachePages(int centerPage) async {
@@ -107,8 +124,11 @@ class _QuranPageViewState extends State<QuranPageView> {
 
     // Charger les pages en cache
     for (final pageNum in pagesToCache) {
-      if (!_imageCache.containsKey(pageNum)) {
-        _loadPageIntoCache(pageNum);
+      if (!_imageCache.containsKey(pageNum) && !_loadingPages.contains(pageNum)) {
+        _loadingPages.add(pageNum);
+        _loadPageIntoCache(pageNum).whenComplete(() {
+          _loadingPages.remove(pageNum);
+        });
       }
     }
 
@@ -120,16 +140,15 @@ class _QuranPageViewState extends State<QuranPageView> {
   Future<void> _loadPageIntoCache(int pageNum) async {
     try {
       final file = await QuranImageService.getPageFile(widget.reading, pageNum);
-      
-      if (mounted && !_imageCache.containsKey(pageNum)) {
-        setState(() {
-          _imageCache[pageNum] = file;
-        });
 
-        // Pre-cacher l'image dans le cache de Flutter
-        if (context.mounted) {
-          await precacheImage(FileImage(file), context);
-        }
+      if (!mounted) return;
+
+      // juste remplir le cache mémoire (pas besoin de rebuild)
+      _imageCache[pageNum] = file;
+
+      // Pre-cacher l'image dans le cache de Flutter
+      if (context.mounted) {
+        await precacheImage(FileImage(file), context);
       }
     } catch (e) {
       debugPrint('Erreur lors du chargement de la page $pageNum: $e');
