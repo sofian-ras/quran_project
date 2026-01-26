@@ -14,37 +14,45 @@ class IOSSideMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor = isDark ? const Color(0xFFE5E7EB) : const Color(0xFF1A1A1A);
+    final Color subTextColor = isDark ? Colors.white70 : Colors.black54;
+    final Color iconColor = isDark ? const Color(0xFFD4AF37) : const Color(0xFF8A6A1F);
+    final Color tileHover = isDark
+        ? Colors.white.withOpacity(0.06)
+        : Colors.black.withOpacity(0.04);
+
     return Container(
       width: MediaQuery.of(context).size.width * 0.85,
       decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF0f0f0f).withValues(alpha: 0.95),
-                const Color(0xFF1a1a2e).withValues(alpha: 0.92),
-                const Color(0xFF16213e).withValues(alpha: 0.90),
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF16213e).withValues(alpha: 0.5),
-                blurRadius: 40,
-                spreadRadius: 5,
-                offset: const Offset(8, 0),
+        gradient: Theme.of(context).brightness == Brightness.dark
+            ? LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFF020617).withOpacity(0.96),
+                  const Color(0xFF0B1025).withOpacity(0.94),
+                  const Color(0xFF1A0033).withOpacity(0.92),
+                  const Color(0xFF2D1B4E).withOpacity(0.92),
+                ],
+              )
+            : LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFFFDFDFD),
+                  const Color(0xFFF7F2E8),
+                  const Color(0xFFEDEAE0),
+                ],
+                stops: const [0.0, 0.6, 1.0],
               ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
-                blurRadius: 30,
-                offset: const Offset(4, 0),
-              ),
-            ],
-          ),
+      ),
+
           child: SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header premium avec effet doré
+                // Header premium avec effet ajusté pour le mode clair
                 Container(
                   margin: const EdgeInsets.all(12),
                   padding: const EdgeInsets.all(12),
@@ -52,25 +60,35 @@ class IOSSideMenu extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFFD4AF37).withValues(alpha: 0.15),
-                        const Color(0xFFC9A65C).withValues(alpha: 0.1),
-                        const Color(0xFF8B7355).withValues(alpha: 0.05),
-                      ],
+                      colors: isDark
+                          ? [
+                              const Color(0xFFD4AF37).withOpacity(0.15),
+                              const Color(0xFFC9A65C).withOpacity(0.1),
+                              const Color(0xFF8B7355).withOpacity(0.05),
+                            ]
+                          : [
+                              const Color(0xFFFDFDFD),
+                              const Color(0xFFEDEAE0),
+                              const Color(0xFFDAD5C4),
+                            ],
                     ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       width: 1.5,
-                      color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
+                      color: isDark
+                          ? const Color(0xFFD4AF37).withOpacity(0.3)
+                          : const Color(0xFFB0A895),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
+                        color: isDark
+                            ? const Color(0xFFD4AF37).withOpacity(0.2)
+                            : const Color(0xFFB0A895).withOpacity(0.2),
                         blurRadius: 15,
                         spreadRadius: 2,
                       ),
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -78,24 +96,32 @@ class IOSSideMenu extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      // Logo premium avec effet doré
+                      // Icône premium ajustée
                       Container(
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFFFFD700),
-                              Color(0xFFD4AF37),
-                              Color(0xFFC9A65C),
-                            ],
+                            colors: isDark
+                                ? [
+                                    const Color(0xFFFFD700),
+                                    const Color(0xFFD4AF37),
+                                    const Color(0xFFC9A65C),
+                                  ]
+                                : [
+                                    const Color(0xFFEDEAE0),
+                                    const Color(0xFFDAD5C4),
+                                    const Color(0xFFB0A895),
+                                  ],
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                              color: isDark
+                                  ? const Color(0xFFD4AF37).withOpacity(0.5)
+                                  : const Color(0xFFB0A895).withOpacity(0.5),
                               blurRadius: 12,
                               spreadRadius: 2,
                             ),
@@ -107,9 +133,9 @@ class IOSSideMenu extends StatelessWidget {
                             'assets/icon/logo_coran.png',
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
+                              return Icon(
                                 CupertinoIcons.book_fill,
-                                color: Colors.white,
+                                color: iconColor, // Couleur des icônes encore plus foncées
                                 size: 28,
                               );
                             },
@@ -125,16 +151,18 @@ class IOSSideMenu extends StatelessWidget {
                               'القرآن الكريم',
                               style: TextStyle(
                                 fontSize: 16,
-                                color: const Color(0xFFFFD700),
+                                color: textColor, // Couleur du texte principal encore plus foncée
                                 fontWeight: FontWeight.bold,
                                 fontFamily: 'Amiri',
                                 letterSpacing: 0.5,
-                                shadows: [
-                                  Shadow(
-                                    color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
-                                    blurRadius: 8,
-                                  ),
-                                ],
+                                shadows: isDark
+                                    ? [
+                                        Shadow(
+                                          color: const Color(0xFFD4AF37).withOpacity(0.5),
+                                          blurRadius: 8,
+                                        ),
+                                      ]
+                                    : null,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -142,7 +170,7 @@ class IOSSideMenu extends StatelessWidget {
                               'Coran Premium',
                               style: TextStyle(
                                 fontSize: 9,
-                                color: Colors.white.withValues(alpha: 0.7),
+                                color: subTextColor, // Couleur du texte secondaire encore plus foncée
                                 fontWeight: FontWeight.w500,
                                 letterSpacing: 1.2,
                               ),

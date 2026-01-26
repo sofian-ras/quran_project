@@ -236,8 +236,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           top: 0,
                           left: 0,
                           right: 0,
-                          child: _HomeHeader(
-                            onMenuTap: _openMenu,
+                          child: RepaintBoundary(
+                            child: _HomeHeader(
+                              onMenuTap: _openMenu,
+                            ),
                           ),
                         ),
 
@@ -267,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         ),
                         // Contenu principal avec overlap
                        Positioned.fill(
-                        top: 120, // Ajuster selon la hauteur du header
+                        top: 120,
                         child: Container(
                           decoration: BoxDecoration(
                             gradient: Theme.of(context).brightness == Brightness.dark
@@ -275,30 +277,23 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
                                     colors: [
-                                      Color(0xFF020617), // bleu nuit très sombre (haut)
-                                      Color(0xFF0B1025), // bleu nuit
-                                      Color(0xFF1A0033), // transition vers violet
-                                      Color(0xFF2D1B4E), // violet foncé (bas)
+                                      Color(0xFF020617),
+                                      Color(0xFF0B1025),
+                                      Color(0xFF1A0033),
+                                      Color(0xFF2D1B4E),
                                     ],
                                   )
                                 : const LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
                                     colors: [
-                                      Color(0xFFFFFEFB), // crème très clair
+                                      Color(0xFFFFFEFB), // crème
                                       Color(0xFFF7F2E8), // crème chaud
-                                      Color(0xFFF1E6D0), // beige doré très léger
+                                      Color(0xFFF1E6D0), // beige doré léger
                                     ],
-                                    stops: [
-                                      0.0,
-                                      0.6,
-                                      1.0,  // bleu tout en bas
-                                    ],
+                                    stops: [0.0, 0.6, 1.0],
                                   ),
-                                
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(30),
-                            ),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(
@@ -310,128 +305,116 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                               ),
                             ],
                           ),
-                          child: Builder(
-                            builder: (context) {
-                              final bool isDark = Theme.of(context).brightness == Brightness.dark;
+                          child: Stack(
+                            children: [
+                              // ✨ effet lumière subtil
+                              Positioned.fill(
+                                child: IgnorePointer(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Colors.white.withOpacity(0.04),
+                                          Colors.transparent,
+                                          const Color(0xFFD4AF37).withOpacity(0.02),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
 
-                              return Stack(
-                                children: [
-                                  // Overlay doré subtil (ne capte pas les touches)
-                                  Positioned.fill(
-                                    child: IgnorePointer(
+                              // TON CONTENU EXISTANT
+                              SafeArea(
+                                top: false,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 16),
+
+                                    const ReciterWidget(),
+
+                                    const SizedBox(height: 8),
+
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: _ResumeReadingWidget(
+                                              onTap: (page, reading) => _openReader(page, reading: reading),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: _FrenchQuranWidget(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 12),
+
+                                    Expanded(
                                       child: Container(
+                                        margin: const EdgeInsets.symmetric(horizontal: 16),
                                         decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            colors: isDark
-                                                ? [
-                                                    const Color(0xFFD4AF37).withOpacity(0.05),
-                                                    Colors.transparent,
-                                                    const Color(0xFFD4AF37).withOpacity(0.08),
-                                                  ]
-                                                : [
-                                                    const Color(0xFFD4AF37).withOpacity(0.04),
-                                                    Colors.transparent,
-                                                  ],
+                                          color: Colors.transparent,
+                                          borderRadius: BorderRadius.circular(18),
+                                          border: Border.all(
+                                            color: Theme.of(context).brightness == Brightness.dark
+                                                ? const Color(0xFFD4AF37).withOpacity(0.15)
+                                                : Colors.black12,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(18),
+                                          child: ListView.builder(
+                                            key: const PageStorageKey('surah_list'),
+                                            itemCount: filteredList.length,
+                                            itemBuilder: (context, index) {
+                                              final s = filteredList[index];
+                                              final int surahId = s['id'];
+
+                                              return _SurahPlayingTileWidget(
+                                                surahId: surahId,
+                                                childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
+                                                  valueListenable: _favoriteIdsNotifier,
+                                                  builder: (context, favoriteIds, child) {
+                                                    return SurahCard(
+                                                      id: surahId,
+                                                      nameAr: s['nameAr'],
+                                                      nameFr: s['nameFr'],
+                                                      ayahCount: s['ayahCount'],
+                                                      isFavorite: favoriteIds.contains(surahId),
+                                                      isPlaying: isPlaying,
+                                                      onTap: () => _openReader(s['page']),
+                                                      onPlay: () => _startSurahAudio(s),
+                                                      onToggleFavorite: () async {
+                                                        await FavoritesService.instance.toggleFavorite(surahId);
+                                                        _favoriteIdsNotifier.value =
+                                                            await FavoritesService.instance.getFavorites();
+                                                      },
+                                                    );
+                                                  },
+                                                ),
+                                              );
+                                            },
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-
-                                  SafeArea(
-                                    top: false,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const SizedBox(height: 16),
-
-                                        // Widget Récitateur
-                                        const ReciterWidget(),
-
-                                        const SizedBox(height: 8),
-
-                                        // Widgets actions rapides
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: _ResumeReadingWidget(
-                                                  onTap: (page, reading) => _openReader(page, reading: reading),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: _FrenchQuranWidget(),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 12),
-
-                                        // Liste scrollable des sourates
-                                        Expanded(
-                                          child: Container(
-                                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                                            decoration: BoxDecoration(
-                                              color: Colors.transparent,
-                                              borderRadius: BorderRadius.circular(18),
-                                              border: Border.all(
-                                                color: isDark
-                                                    ? const Color(0xFFD4AF37).withOpacity(0.15)
-                                                    : Colors.black12,
-                                                width: 1,
-                                              ),
-                                            ),
-                                            child: ClipRRect(
-                                              borderRadius: BorderRadius.circular(18),
-                                              child: ListView.builder(
-                                                key: const PageStorageKey('surah_list'),
-                                                itemCount: filteredList.length,
-                                                itemBuilder: (context, index) {
-                                                  final s = filteredList[index];
-                                                  final int surahId = s['id'];
-
-                                                  return _SurahPlayingTileWidget(
-                                                    surahId: surahId,
-                                                    childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
-                                                      valueListenable: _favoriteIdsNotifier,
-                                                      builder: (context, favoriteIds, child) {
-                                                        return SurahCard(
-                                                          id: surahId,
-                                                          nameAr: s['nameAr'],
-                                                          nameFr: s['nameFr'],
-                                                          ayahCount: s['ayahCount'],
-                                                          isFavorite: favoriteIds.contains(surahId),
-                                                          isPlaying: isPlaying,
-                                                          onTap: () => _openReader(s['page']),
-                                                          onPlay: () => _startSurahAudio(s),
-                                                          onToggleFavorite: () async {
-                                                            await FavoritesService.instance.toggleFavorite(surahId);
-                                                            _favoriteIdsNotifier.value =
-                                                                await FavoritesService.instance.getFavorites();
-                                                          },
-                                                        );
-                                                      },
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
+
 
                         // Mini lecteur audio
                         StreamBuilder<bool>(
@@ -478,7 +461,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                       -screenWidth + (screenWidth * _menuAnimation.value),
                       0,
                     ),
-                    child: const IOSSideMenu(),
+                    child: const RepaintBoundary(
+                      child: IOSSideMenu(),
+                    ),
                   ),
                 );
               },
@@ -570,28 +555,25 @@ class _HomeHeader extends StatelessWidget {
                 ),
 
                 // Theme Switcher
-                PopupMenuButton<ThemeMode>(
-                  icon: const Icon(Icons.brightness_6, color: Colors.white),
-                  onSelected: ThemeService.setTheme,
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: ThemeMode.system,
-                      child: Text("Système"),
-                    ),
-                    PopupMenuItem(
-                      value: ThemeMode.light,
-                      child: Text("Clair"),
-                    ),
-                    PopupMenuItem(
-                      value: ThemeMode.dark,
-                      child: Text("Sombre"),
-                    ),
-                  ],
-                ),
+                Builder(
+                  builder: (context) {
+                    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
+                    return CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        ThemeService.setTheme(isDark ? ThemeMode.light : ThemeMode.dark);
+                      },
+                      child: Icon(
+                        isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                        size: 26,
+                        color: isDark ? Colors.white : const Color(0xFFD4AF37),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
-
           ],
         ),
       ),

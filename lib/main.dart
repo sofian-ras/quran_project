@@ -28,6 +28,8 @@ class QuranApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: mode,
+          themeAnimationDuration: Duration.zero,
+          themeAnimationCurve: Curves.linear,
           home: const HomeScreen(),
         );
       },
