@@ -41,7 +41,11 @@ class _QuranPageViewState extends State<QuranPageView> {
     super.initState();
     _pageController = PageController(initialPage: widget.initialPage - 1);
     _initializeImages();
-    _pageController.addListener(_onPageScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _pageController.addListener(_onPageScroll);
+    });
+
   }
 
   @override
@@ -76,10 +80,13 @@ class _QuranPageViewState extends State<QuranPageView> {
       }
 
       // Pre-charger la page initiale et les pages suivantes
-      await _precachePages(widget.initialPage);
-
       setState(() {
         _isLoading = false;
+      });
+      // Lancer le precache après la 1ère frame (ne bloque pas l'entrée)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _precachePages(widget.initialPage);
       });
     } catch (e) {
       setState(() {
@@ -245,60 +252,33 @@ class _QuranPageViewState extends State<QuranPageView> {
 
   /// Construit une page individuelle
   Widget _buildPage(int pageNum) {
-    // Si l'image est en cache, l'afficher directement
-    if (_imageCache.containsKey(pageNum)) {
-      return _buildPageImage(_imageCache[pageNum]!);
+    final cached = _imageCache[pageNum];
+    if (cached != null) {
+      return _buildPageImage(cached);
     }
 
-    // Sinon, charger l'image de manière asynchrone
-    return FutureBuilder<File>(
-      future: QuranImageService.getPageFile(widget.reading, pageNum),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text(
-                  'Chargement page $pageNum...',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-          );
+    // Lancer le chargement en arrière-plan (sans FutureBuilder)
+    if (!_loadingPages.contains(pageNum)) {
+      _loadingPages.add(pageNum);
+      _loadPageIntoCache(pageNum).whenComplete(() {
+        _loadingPages.remove(pageNum);
+        if (mounted) {
+          setState(() {});
         }
+      });
+    }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text(
-                  'Erreur de chargement\nPage $pageNum',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (snapshot.hasData) {
-          // Ajouter au cache
-          if (!_imageCache.containsKey(pageNum)) {
-            _imageCache[pageNum] = snapshot.data!;
-          }
-          return _buildPageImage(snapshot.data!);
-        }
-
-        return const Center(child: CircularProgressIndicator());
-      },
+    // Placeholder léger et discret
+    return const Center(
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(strokeWidth: 3),
+      ),
     );
   }
+
+
 
   /// Construit l'affichage de l'image de la page
   Widget _buildPageImage(File imageFile) {

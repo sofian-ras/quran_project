@@ -11,53 +11,68 @@ class QuranImageService {
       'https://github.com/sofian-ras/quran_project/releases/download/v1.0.0/quran_pages.zip';
   static const String zipFileName = 'quran_pages.zip';
   static const int totalPages = 604;
-
+  static String? _docsPath;
+  static String? _hafsPath;
+  static String? _warshPath;
   static final Dio _dio = Dio();
   static bool _isDownloading = false;
   static bool _isExtracting = false;
   static double _downloadProgress = 0.0;
   static final double _extractionProgress = 0.0;
 
+  static Future<void> _ensurePaths() async {
+    if (_docsPath != null) return;
+    final dir = await getApplicationDocumentsDirectory();
+    _docsPath = dir.path;
+    _hafsPath = p.join(_docsPath!, 'hafs');
+    _warshPath = p.join(_docsPath!, 'warsh');
+  }
+
   /// Vérifie si les images sont déjà téléchargées et extraites
   static Future<bool> areImagesDownloaded() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final hafsFolder = Directory(p.join(dir.path, 'hafs'));
-      final warshFolder = Directory(p.join(dir.path, 'warsh'));
+      final hafsPath = p.join(dir.path, 'hafs');
+      final warshPath = p.join(dir.path, 'warsh');
 
-      if (!await hafsFolder.exists() || !await warshFolder.exists()) {
-        return false;
-      }
+      final hafsFolder = Directory(hafsPath);
+      final warshFolder = Directory(warshPath);
 
-      final hafsFiles = await hafsFolder.list().toList();
-      final warshFiles = await warshFolder.list().toList();
+      if (!await hafsFolder.exists() || !await warshFolder.exists()) return false;
 
-      // Vérifier qu'on a au moins 600 pages dans chaque dossier
-      return hafsFiles.length >= 600 && warshFiles.length >= 600;
-    } catch (e) {
-      debugPrint('Erreur lors de la vérification des images: $e');
+      final hafsFirst = File(p.join(hafsPath, '1.png'));
+      final hafsLast = File(p.join(hafsPath, '${totalPages}.png'));
+      final warshFirst = File(p.join(warshPath, '1.jpg'));
+      final warshLast = File(p.join(warshPath, '${totalPages}.jpg'));
+
+      return await hafsFirst.exists() &&
+          await hafsLast.exists() &&
+          await warshFirst.exists() &&
+          await warshLast.exists();
+    } catch (_) {
       return false;
     }
   }
 
+
   /// Récupère le fichier d'une page spécifique
   static Future<File> getPageFile(String reading, int page) async {
-    final dir = await getApplicationDocumentsDirectory();
+    await _ensurePaths();
+
     final ext = reading == 'hafs' ? 'png' : 'jpg';
-    final pagePath = p.join(dir.path, reading, '$page.$ext');
+    final basePath = reading == 'hafs' ? _hafsPath! : _warshPath!;
+    final pagePath = p.join(basePath, '$page.$ext');
     final pageFile = File(pagePath);
 
-    // Si la page existe déjà, la retourner
     if (await pageFile.exists()) {
       return pageFile;
     }
 
-    // Sinon, télécharger les images si nécessaire
+    // Si pas prêt, télécharger/extraire une fois
     if (!await areImagesDownloaded()) {
       await downloadAndExtractImages();
     }
 
-    // Vérifier à nouveau
     if (await pageFile.exists()) {
       return pageFile;
     }
@@ -83,9 +98,10 @@ class QuranImageService {
     }
 
     try {
+      await _ensurePaths();
+
       _isDownloading = true;
-      final dir = await getApplicationDocumentsDirectory();
-      final zipPath = p.join(dir.path, zipFileName);
+      final zipPath = p.join(_docsPath!, zipFileName);
 
       // Étape 1: Téléchargement
       debugPrint('Début du téléchargement depuis: $zipUrl');
@@ -113,7 +129,7 @@ class QuranImageService {
       // Étape 2: Extraction dans un Isolate séparé (pour ne pas bloquer l'UI)
       await _extractZipInIsolate(
         zipPath,
-        dir.path,
+        _docsPath!,
         onExtractionProgress,
       );
 
@@ -165,7 +181,7 @@ class QuranImageService {
         final filename = file.name;
 
         // Ignorer les métadonnées MacOS et fichiers cachés
-        if (filename.contains('__MACOSX') || 
+        if (filename.contains('__MACOSX') ||
             filename.startsWith('.') ||
             filename.contains('/.')) {
           continue;
@@ -198,9 +214,11 @@ class QuranImageService {
 
   /// Récupère le chemin local d'une page (sans forcer le téléchargement)
   static Future<String?> getPagePathIfExists(String reading, int page) async {
-    final dir = await getApplicationDocumentsDirectory();
+    await _ensurePaths();
+
     final ext = reading == 'hafs' ? 'png' : 'jpg';
-    final pagePath = p.join(dir.path, reading, '$page.$ext');
+    final basePath = reading == 'hafs' ? _hafsPath! : _warshPath!;
+    final pagePath = p.join(basePath, '$page.$ext');
     final pageFile = File(pagePath);
 
     if (await pageFile.exists()) {
@@ -221,10 +239,10 @@ class QuranImageService {
 
   /// Supprime toutes les images téléchargées (pour libérer de l'espace)
   static Future<void> clearCache() async {
+    await _ensurePaths();
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final hafsFolder = Directory(p.join(dir.path, 'hafs'));
-      final warshFolder = Directory(p.join(dir.path, 'warsh'));
+      final hafsFolder = Directory(_hafsPath!);
+      final warshFolder = Directory(_warshPath!);
 
       if (await hafsFolder.exists()) {
         await hafsFolder.delete(recursive: true);
@@ -242,10 +260,10 @@ class QuranImageService {
 
   /// Calcule la taille totale des images téléchargées
   static Future<int> getCacheSize() async {
+    await _ensurePaths();
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final hafsFolder = Directory(p.join(dir.path, 'hafs'));
-      final warshFolder = Directory(p.join(dir.path, 'warsh'));
+      final hafsFolder = Directory(_hafsPath!);
+      final warshFolder = Directory(_warshPath!);
 
       int totalSize = 0;
 

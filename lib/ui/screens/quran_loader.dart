@@ -22,12 +22,29 @@ class _QuranLoaderState extends State<QuranLoader> {
   double _downloadProgress = 0.0;
   bool _isExtracting = false;
   String? _errorMessage;
+  bool _hasNavigated = false;
+  void _goToReaderOnce() {
+    if (_hasNavigated) return;
+    _hasNavigated = true;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => ReaderScreen(
+          reading: widget.reading,
+          initialPage: widget.initialPage,
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
-    _initializeQuranData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeQuranData();
+    });
   }
+
 
   Future<void> _initializeQuranData() async {
     try {
@@ -38,6 +55,12 @@ class _QuranLoaderState extends State<QuranLoader> {
         // Déjà prêt, charger directement
         if (mounted) {
           setState(() => _isLoading = false);
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _goToReaderOnce();
+            });
+          }
         }
         return;
       }
@@ -71,6 +94,10 @@ class _QuranLoaderState extends State<QuranLoader> {
       // Terminer le chargement
       if (mounted) {
         setState(() => _isLoading = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _goToReaderOnce();
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -180,29 +207,21 @@ class _QuranLoaderState extends State<QuranLoader> {
     }
 
     // Si chargé, naviguer vers ReaderScreen
-    if (!_isLoading) {
-      // Utiliser addPostFrameCallback pour naviguer après le build
+    if (!_isLoading && !_hasNavigated) {
+      _hasNavigated = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => ReaderScreen(
-                reading: widget.reading,
-                initialPage: widget.initialPage,
-              ),
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => ReaderScreen(
+              reading: widget.reading,
+              initialPage: widget.initialPage,
             ),
-          );
-        }
+          ),
+        );
       });
-      
-      // Afficher un indicateur pendant la transition
-      return const Scaffold(
-        backgroundColor: Color(0xFFFAF9F6),
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
     }
+
 
     // Écran de chargement élégant
     return PopScope(

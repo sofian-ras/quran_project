@@ -15,6 +15,7 @@ import '../surah_name.dart';
 import 'full_player_screen.dart';
 import 'widgets/ios_side_menu.dart';
 import 'screens/quran_loader.dart';
+import 'reader_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -166,11 +167,20 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   }
 
   void _openReader(int page, {String? reading}) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => QuranLoader(initialPage: page, reading: reading ?? _preferredReading)),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReaderScreen(
+            initialPage: page,
+            reading: reading ?? _preferredReading,
+          ),
+        ),
+      );
+    });
   }
+
 
   void _openMenu() {
     if (!_isMenuOpen) {
