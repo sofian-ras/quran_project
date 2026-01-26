@@ -1,6 +1,3 @@
-// ============================
-// READER SCREEN FINAL V4
-// ============================
 
 import 'dart:io';
 import 'dart:convert';
@@ -13,6 +10,7 @@ import '../surah_name.dart';
 import '../services/reading_history_service.dart';
 import '../services/bookmark_service.dart';
 import 'dart:async';
+import '../theme/app_theme.dart'; // Import the file where AppTheme is defined
 
 
 class GradientText extends StatelessWidget {
@@ -247,303 +245,347 @@ class _ReaderScreenState extends State<ReaderScreen> {
           orElse: () => fullSurahList.first,
         )['nameFr'] as String? ?? '');
 
-    return Scaffold(
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => setState(() => _showUI = !_showUI),
-        child: Stack(
-          children: [
-            // PageView avec chargement optimisé
-            PageView.builder(
-              controller: _pageController,
-              reverse: true,
-              itemCount: 604,
-              onPageChanged: (p) {
-                setState(() => currentPage = p + 1);
-                _preloadPages(p + 1);
+    return Theme(
+      data: AppTheme.lightTheme, // thème fixe pour la lecture
+      child: Scaffold(
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => setState(() => _showUI = !_showUI),
+          child: Stack(
+            children: [
+              // PageView avec chargement optimisé
+              PageView.builder(
+                controller: _pageController,
+                reverse: true,
+                itemCount: 604,
+                onPageChanged: (p) {
+                  setState(() => currentPage = p + 1);
+                  _preloadPages(p + 1);
 
-                _saveTimer?.cancel();
-                _saveTimer = Timer(const Duration(milliseconds: 350), () {
-                  if (!mounted) return;
-                  _saveToHistory(p + 1);
-                });
-              },
+                  _saveTimer?.cancel();
+                  _saveTimer = Timer(const Duration(milliseconds: 350), () {
+                    if (!mounted) return;
+                    _saveToHistory(p + 1);
+                  });
+                },
 
-              itemBuilder: (context, i) {
-                final pageNum = i + 1;
-                
-                // Utiliser le cache si disponible
-                if (_imageCache.containsKey(pageNum) && _imageCache[pageNum] != null) {
-                  final imageFile = _imageCache[pageNum]!;
-                  return _buildPageContent(imageFile, isLandscape, context);
-                }
-                
-                // Sinon charger de manière asynchrone
-                return FutureBuilder<File>(
-                  future: AssetManager.getPageFile(currentReading, pageNum),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      // Affichage élégant pendant le chargement
-                      return Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-                              Theme.of(context).colorScheme.secondary.withValues(alpha: 0.03),
-                            ],
+                itemBuilder: (context, i) {
+                  final pageNum = i + 1;
+                  
+                  // Utiliser le cache si disponible
+                  if (_imageCache.containsKey(pageNum) && _imageCache[pageNum] != null) {
+                    final imageFile = _imageCache[pageNum]!;
+                    return _buildPageContent(imageFile, isLandscape, context);
+                  }
+                  
+                  // Sinon charger de manière asynchrone
+                  return FutureBuilder<File>(
+                    future: AssetManager.getPageFile(currentReading, pageNum),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        // Affichage élégant pendant le chargement
+                        return Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.03),
+                              ],
+                            ),
                           ),
-                        ),
-                        child: Center(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Indicateur circulaire animé
+                                SizedBox(
+                                  width: 80,
+                                  height: 80,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        strokeWidth: 6,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Theme.of(context).colorScheme.primary,
+                                        ),
+                                      ),
+                                      Center(
+                                        child: Icon(
+                                          Icons.menu_book_outlined,
+                                          size: 36,
+                                          color: Theme.of(context).colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                
+                                const SizedBox(height: 24),
+                                
+                                // Numéro de page
+                                Text(
+                                  'Page $pageNum',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                                
+                                const SizedBox(height: 8),
+                                
+                                // Message de chargement
+                                Text(
+                                  'Chargement en cours...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                
+                                const SizedBox(height: 16),
+                                
+                                // Info additionnelle
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.hourglass_bottom,
+                                        size: 16,
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Première ouverture',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Theme.of(context).colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      if (!snapshot.hasData || snapshot.hasError) {
+                        return Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // Indicateur circulaire animé
-                              SizedBox(
-                                width: 80,
-                                height: 80,
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    CircularProgressIndicator(
-                                      strokeWidth: 6,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Theme.of(context).colorScheme.primary,
-                                      ),
-                                    ),
-                                    Center(
-                                      child: Icon(
-                                        Icons.menu_book_outlined,
-                                        size: 36,
-                                        color: Theme.of(context).colorScheme.primary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              
-                              const SizedBox(height: 24),
-                              
-                              // Numéro de page
-                              Text(
-                                'Page $pageNum',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
-                              
-                              const SizedBox(height: 8),
-                              
-                              // Message de chargement
-                              Text(
-                                'Chargement en cours...',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              
+                              const Icon(Icons.cloud_off_outlined, size: 48, color: Colors.orange),
                               const SizedBox(height: 16),
-                              
-                              // Info additionnelle
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.hourglass_bottom,
-                                      size: 16,
-                                      color: Theme.of(context).colorScheme.primary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Première ouverture',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Theme.of(context).colorScheme.primary,
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                'Erreur de téléchargement',
+                                style: const TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Vérifiez votre connexion Internet',
+                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () => setState(() {
+                                  // Force le rechargement
+                                  _imageCache.remove(pageNum);
+                                }),
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('Réessayer'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      );
-                    }
-                    
-                    if (!snapshot.hasData || snapshot.hasError) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.cloud_off_outlined, size: 48, color: Colors.orange),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Erreur de téléchargement',
-                              style: const TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Vérifiez votre connexion Internet',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () => setState(() {
-                                // Force le rechargement
-                                _imageCache.remove(pageNum);
-                              }),
-                              icon: const Icon(Icons.refresh, size: 18),
-                              label: const Text('Réessayer'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    
-                    final imageFile = snapshot.data!;
-                    // Mettre en cache après chargement
-                    _imageCache[pageNum] = imageFile;
-                    return _buildPageContent(imageFile, isLandscape, context);
-                  },
-                );
-              },
-            ),
-
-            // Barre supérieure : flèche retour + Juzz/Hizb
-            if (_showUI)
-              Positioned(
-                top: 20,
-                left: 10,
-                right: 10,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Opacity(
-                      opacity: 0.5,
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black54),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('${_juzzText(currentPage)} ${_hizbText(currentPage)}',
-                            style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    FutureBuilder<bool>(
-                      future: BookmarkService.instance.isBookmarked(currentPage),
-                      builder: (context, snapshot) {
-                        final isBookmarked = snapshot.data ?? false;
-                        return Opacity(
-                          opacity: 0.5,
-                          child: IconButton(
-                            icon: Icon(
-                              isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                              size: 24,
-                              color: isBookmarked ? Colors.amber : Colors.black54,
-                            ),
-                            onPressed: () async {
-                              if (isBookmarked) {
-                                await BookmarkService.instance.removeBookmark(currentPage);
-                              } else {
-                                if (fullSurahList.isEmpty) return;
-                                final surah = fullSurahList.lastWhere(
-                                  (s) => s['page'] <= currentPage,
-                                  orElse: () => fullSurahList.first,
-                                );
-
-                                await BookmarkService.instance.addBookmark(
-                                  Bookmark(
-                                    page: currentPage,
-                                    surahId: surah['id'] as int,
-                                    surahName: surah['nameFr'] as String,
-                                    createdAt: DateTime.now(),
-                                  ),
-                                );
-                              }
-                              setState(() {});
-                            },
-                          ),
                         );
-                      },
-                    ),
-                  ],
-                ),
+                      }
+                      
+                      final imageFile = snapshot.data!;
+                      // Mettre en cache après chargement
+                      _imageCache[pageNum] = imageFile;
+                      return _buildPageContent(imageFile, isLandscape, context);
+                    },
+                  );
+                },
               ),
 
-            // Barre inférieure 
-            if (_showUI)
-              Positioned(
-                bottom: 20,
-                left: 20,
-                right: 20,
-                child: isLandscape
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // plus fin
-                            decoration: BoxDecoration(
-                              color: Colors.black54.withOpacity(0.25), // plus transparent
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // Sourate
-                                TextButton.icon(
-                                  onPressed: () => _showSurahSelection(),
-                                  icon: const Icon(Icons.menu_book, color: Colors.white, size: 18),
-                                  label: Text(
-                                    fullSurahList.isEmpty
-                                        ? ''
-                                        : fullSurahList.lastWhere(
-                                            (s) => s['page'] <= currentPage,
-                                            orElse: () => fullSurahList.first,
-                                          )['nameFr'],
-                                    style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
+              // Barre supérieure : flèche retour + Juzz/Hizb
+              if (_showUI)
+                Positioned(
+                  top: 20,
+                  left: 10,
+                  right: 10,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Opacity(
+                        opacity: 0.5,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black54),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('${_juzzText(currentPage)} ${_hizbText(currentPage)}',
+                              style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      FutureBuilder<bool>(
+                        future: BookmarkService.instance.isBookmarked(currentPage),
+                        builder: (context, snapshot) {
+                          final isBookmarked = snapshot.data ?? false;
+                          return Opacity(
+                            opacity: 0.5,
+                            child: IconButton(
+                              icon: Icon(
+                                isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                                size: 24,
+                                color: isBookmarked ? Colors.amber : Colors.black54,
+                              ),
+                              onPressed: () async {
+                                if (isBookmarked) {
+                                  await BookmarkService.instance.removeBookmark(currentPage);
+                                } else {
+                                  if (fullSurahList.isEmpty) return;
+                                  final surah = fullSurahList.lastWhere(
+                                    (s) => s['page'] <= currentPage,
+                                    orElse: () => fullSurahList.first,
+                                  );
 
-                                // Numéro de page
-                                InkWell(
-                                  onTap: () => _jumpToPageDialog(),
-                                  child: CircleAvatar(
-                                    radius: 18, // légèrement plus petit
-                                    backgroundColor: Colors.white.withOpacity(0.15),
-                                    child: Text(
-                                      '$currentPage',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
+                                  await BookmarkService.instance.addBookmark(
+                                    Bookmark(
+                                      page: currentPage,
+                                      surahId: surah['id'] as int,
+                                      surahName: surah['nameFr'] as String,
+                                      createdAt: DateTime.now(),
+                                    ),
+                                  );
+                                }
+                                setState(() {});
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Barre inférieure 
+              if (_showUI)
+                Positioned(
+                  bottom: 20,
+                  left: 20,
+                  right: 20,
+                  child: isLandscape
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // plus fin
+                              decoration: BoxDecoration(
+                                color: Colors.black54.withOpacity(0.25), // plus transparent
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  // Sourate
+                                  TextButton.icon(
+                                    onPressed: () => _showSurahSelection(),
+                                    icon: const Icon(Icons.menu_book, color: Colors.white, size: 18),
+                                    label: Text(
+                                      fullSurahList.isEmpty
+                                          ? ''
+                                          : fullSurahList.lastWhere(
+                                              (s) => s['page'] <= currentPage,
+                                              orElse: () => fullSurahList.first,
+                                            )['nameFr'],
+                                      style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+
+                                  // Numéro de page
+                                  InkWell(
+                                    onTap: () => _jumpToPageDialog(),
+                                    child: CircleAvatar(
+                                      radius: 18, // légèrement plus petit
+                                      backgroundColor: Colors.white.withOpacity(0.15),
+                                      child: Text(
+                                        '$currentPage',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
 
-                                // Hafs/Warsh
-                                TextButton.icon(
+                                  // Hafs/Warsh
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
+                                        // Vider le cache pour recharger les images du nouveau type de lecture
+                                        _imageCache.clear();
+                                        // Précharger les pages autour de la page actuelle
+                                        _preloadPages(currentPage);
+                                      });
+                                    },
+                                    icon: Icon(Icons.auto_stories, color: Colors.brown.shade100, size: 18),
+                                    label: Text(
+                                      currentReading.toUpperCase(),
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      
+                      : SizedBox(
+                          height: 40,
+                          child: Stack(
+                            children: [
+                              // Bouton Sourate à gauche
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () => _showSurahSelection(),
+                                  icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
+                                  label: Text(
+                                    surahNameFr,
+                                    style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+
+                              // Bouton Hafs/Warsh à droite
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
                                   onPressed: () {
                                     setState(() {
                                       currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
@@ -553,79 +595,38 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                       _preloadPages(currentPage);
                                     });
                                   },
-                                  icon: Icon(Icons.auto_stories, color: Colors.brown.shade100, size: 18),
+                                  icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
                                   label: Text(
                                     currentReading.toUpperCase(),
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      )
-                    
-                    : SizedBox(
-                        height: 40,
-                        child: Stack(
-                          children: [
-                            // Bouton Sourate à gauche
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton.icon(
-                                onPressed: () => _showSurahSelection(),
-                                icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
-                                label: Text(
-                                  surahNameFr,
-                                  style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
-                                ),
                               ),
-                            ),
 
-                            // Bouton Hafs/Warsh à droite
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
-                                    // Vider le cache pour recharger les images du nouveau type de lecture
-                                    _imageCache.clear();
-                                    // Précharger les pages autour de la page actuelle
-                                    _preloadPages(currentPage);
-                                  });
-                                },
-                                icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
-                                label: Text(
-                                  currentReading.toUpperCase(),
-                                  style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-
-                            // Numéro de page au centre
-                            Align(
-                              alignment: Alignment.center,
-                              child: InkWell(
-                                onTap: () => _jumpToPageDialog(),
-                                child: CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: Colors.transparent,
-                                  child: Text(
-                                    '$currentPage',
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                      fontWeight: FontWeight.bold,
+                              // Numéro de page au centre
+                              Align(
+                                alignment: Alignment.center,
+                                child: InkWell(
+                                  onTap: () => _jumpToPageDialog(),
+                                  child: CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: Colors.transparent,
+                                    child: Text(
+                                      '$currentPage',
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-              ),
-          ],
+                ),
+            ],
+          ),
         ),
       ),
     );
