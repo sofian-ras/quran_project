@@ -84,14 +84,20 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     }
 
     for (final id in ayahCounts.keys) {
+      final ar = quranData.firstWhere(
+        (e) => e['surah'] == id,
+        orElse: () => null,
+      );
+
       list.add({
         'id': id,
-        'nameAr': quranData.firstWhere((e) => e['surah'] == id)['sura_name'] ?? 'Sourate $id',
+        'nameAr': ar?['sura_name'] ?? 'Sourate $id',
         'nameFr': surahFr[id] ?? 'Sourate $id',
         'page': startPage[id] ?? 1,
         'ayahCount': ayahCounts[id] ?? 0,
       });
     }
+
 
     list.sort((a, b) => (a['id'] as int).compareTo(b['id'] as int));
 

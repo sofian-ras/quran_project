@@ -60,10 +60,12 @@ class _QuranPageViewState extends State<QuranPageView> {
 
   /// Initialise les images (télécharge si nécessaire)
   Future<void> _initializeImages() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (!mounted) return;
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
 
     try {
       // Vérifier si les images sont disponibles
@@ -80,19 +82,22 @@ class _QuranPageViewState extends State<QuranPageView> {
       }
 
       // Pre-charger la page initiale et les pages suivantes
-      setState(() {
-        _isLoading = false;
-      });
+      if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+
       // Lancer le precache après la 1ère frame (ne bloque pas l'entrée)
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _precachePages(widget.initialPage);
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Erreur lors du chargement des images: $e';
-      });
+      if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Erreur lors du chargement des images: $e';
+        });
       debugPrint('Erreur d\'initialisation: $e');
     }
   }

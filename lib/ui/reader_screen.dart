@@ -192,22 +192,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   String _hizbText(int page) {
-    final h = hizbMap.lastWhere((e) => e['start_page']! <= page, orElse: () => hizbMap.first);
+    if (hizbMap.isEmpty) return '';
+    final h = hizbMap.lastWhere(
+      (e) => e['start_page']! <= page,
+      orElse: () => hizbMap.first,
+    );
     return 'Hizb ${h['hizb']}';
   }
 
   String _juzzText(int page) {
-    final j = juzzMap.lastWhere((e) => e['start_page']! <= page, orElse: () => juzzMap.first);
+    if (juzzMap.isEmpty) return '';
+    final j = juzzMap.lastWhere(
+      (e) => e['start_page']! <= page,
+      orElse: () => juzzMap.first,
+    );
     return 'Juzz ${j['juz']}';
   }
   
   // Sauvegarder dans l'historique
   void _saveToHistory(int page) {
     // Trouver la sourate correspondante
+    if (fullSurahList.isEmpty) return;
     final surah = fullSurahList.firstWhere(
       (s) => s['page'] == page,
-      orElse: () => fullSurahList.first,
+      orElse: () => fullSurahList.last,
     );
+
     
     ReadingHistoryService.instance.saveLastReading(
       page: page,
@@ -221,11 +231,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     // Plus d'écran de chargement ! L'app démarre immédiatement
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    
     // Précharger les pages autour de la page actuelle
     if (_isReady) {
       _preloadPages(currentPage);
     }
+
+    final surahNameFr = fullSurahList.isEmpty
+      ? ''
+      : (fullSurahList.lastWhere(
+          (s) => (s['page'] as int) <= currentPage,
+          orElse: () => fullSurahList.first,
+        )['nameFr'] as String? ?? '');
 
     return Scaffold(
       body: GestureDetector(
@@ -442,10 +458,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                               if (isBookmarked) {
                                 await BookmarkService.instance.removeBookmark(currentPage);
                               } else {
-                                final surah = fullSurahList.firstWhere(
+                                if (fullSurahList.isEmpty) return;
+                                final surah = fullSurahList.lastWhere(
                                   (s) => s['page'] <= currentPage,
                                   orElse: () => fullSurahList.first,
                                 );
+
                                 await BookmarkService.instance.addBookmark(
                                   Bookmark(
                                     page: currentPage,
@@ -490,8 +508,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                   onPressed: () => _showSurahSelection(),
                                   icon: const Icon(Icons.menu_book, color: Colors.white, size: 18),
                                   label: Text(
-                                    fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    fullSurahList.isEmpty
+                                        ? ''
+                                        : fullSurahList.lastWhere(
+                                            (s) => s['page'] <= currentPage,
+                                            orElse: () => fullSurahList.first,
+                                          )['nameFr'],
+                                    style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
                                   ),
                                 ),
 
@@ -533,7 +556,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           ),
                         ),
                       )
-
+                    
                     : SizedBox(
                         height: 40,
                         child: Stack(
@@ -545,7 +568,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 onPressed: () => _showSurahSelection(),
                                 icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
                                 label: Text(
-                                  fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+                                  surahNameFr,
                                   style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
                                 ),
                               ),
