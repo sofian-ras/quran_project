@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 import '../surah_name.dart';
+import 'dart:async';
 
 class PositionData {
   final Duration position;
@@ -17,10 +18,11 @@ class AudioService {
       isBuffering.value = state == ProcessingState.buffering || state == ProcessingState.loading;
     });
 
-    // Écouter les changements de piste pour mettre à jour le titre
-    _player.currentIndexStream.listen((index) {
-      if (index != null) {
-        final surahId = index + 1;
+    // Écouter les changements de piste pour mettre à jour le titre + l'ID en cours (optimisation UI)
+    _currentIndexSub = _player.currentIndexStream.listen((index) {
+      final int? surahId = index == null ? null : index + 1;
+      currentPlayingSurahIdNotifier.value = surahId;
+      if (surahId != null) {
         currentTitleNotifier.value = surahFr[surahId] ?? 'Sourate $surahId';
       }
     });
@@ -31,6 +33,8 @@ class AudioService {
   final AudioPlayer _player = AudioPlayer();
   ConcatenatingAudioSource? _playlist;
 
+  final ValueNotifier<int?> currentPlayingSurahIdNotifier = ValueNotifier<int?>(null);
+  StreamSubscription<int?>? _currentIndexSub;
   final ValueNotifier<String> currentTitleNotifier = ValueNotifier("Aucune lecture");
   final ValueNotifier<String> currentReciterNotifier = ValueNotifier("Mishari Alafasy");
   final ValueNotifier<bool> isBuffering = ValueNotifier(false);
@@ -41,7 +45,7 @@ class AudioService {
   int? get currentSurahId => _player.currentIndex == null ? null : _player.currentIndex! + 1;
   List<AudioSource> get playlistSources => _playlist?.children ?? [];
   Stream<int?> get currentIndexStream => _player.currentIndexStream;
-  
+
   // 1. DEBUG : Méthode atomique pour changer de récitant et invalider la playlist
   void setReciter(String name, String server) {
     if (currentReciterNotifier.value != name || currentServer != server) {
@@ -75,10 +79,10 @@ class AudioService {
       if (_playlist == null) {
         _playlist = _createPlaylist();
       }
-      
+
       // Mettre à jour le titre de la sourate
       currentTitleNotifier.value = surahFr[surahId] ?? 'Sourate $surahId';
-      
+
       await _player.setAudioSource(
         _playlist!,
         initialIndex: surahId - 1, // L'index est 0-based
@@ -119,7 +123,11 @@ class AudioService {
     }
   }
 
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    await _currentIndexSub?.cancel();
+    _currentIndexSub = null;
+    await _player.dispose();
+  }
 
   void cycleLoopMode() {
     final currentMode = loopModeNotifier.value;

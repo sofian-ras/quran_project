@@ -8,7 +8,19 @@ class ReadingHistoryService {
   static const String _lastReadingKey = 'last_reading';
   static const String _historyKey = 'reading_history';
   static const String _statsKey = 'reading_stats';
-  
+  static const String _preferredReadingKey = 'preferred_reading';
+
+  // Sauvegarder la lecture préférée (hafs/warsh)
+  Future<void> setPreferredReading(String reading) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_preferredReadingKey, reading);
+  }
+
+  // Récupérer la lecture préférée (hafs par défaut)
+  Future<String> getPreferredReading() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_preferredReadingKey) ?? 'hafs';
+  }
   // Sauvegarder la dernière position de lecture
   Future<void> saveLastReading({
     required int page,

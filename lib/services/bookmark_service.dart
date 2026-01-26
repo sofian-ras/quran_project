@@ -96,11 +96,9 @@ class BookmarkService {
   // Obtenir un marque-page spécifique
   Future<Bookmark?> getBookmark(int page) async {
     final bookmarks = await getBookmarks();
-    try {
-      return bookmarks.firstWhere((b) => b.page == page);
-    } catch (_) {
-      return null;
-    }
+    final match = bookmarks.where((b) => b.page == page);
+    return match.isEmpty ? null : match.first;
+
   }
   
   // Récupérer tous les marque-pages

@@ -12,6 +12,8 @@ import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../services/reading_history_service.dart';
 import '../services/bookmark_service.dart';
+import 'dart:async';
+
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -46,6 +48,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _isReady = false;
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
+  Timer? _saveTimer;
   
   // Cache pour les images préchargées
   final Map<int, File?> _imageCache = {};
@@ -109,6 +112,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    _saveTimer?.cancel();
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     _imageCache.clear();
@@ -192,22 +196,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   String _hizbText(int page) {
-    final h = hizbMap.lastWhere((e) => e['start_page']! <= page, orElse: () => hizbMap.first);
+    if (hizbMap.isEmpty) return '';
+    final h = hizbMap.lastWhere(
+      (e) => e['start_page']! <= page,
+      orElse: () => hizbMap.first,
+    );
     return 'Hizb ${h['hizb']}';
   }
 
   String _juzzText(int page) {
-    final j = juzzMap.lastWhere((e) => e['start_page']! <= page, orElse: () => juzzMap.first);
+    if (juzzMap.isEmpty) return '';
+    final j = juzzMap.lastWhere(
+      (e) => e['start_page']! <= page,
+      orElse: () => juzzMap.first,
+    );
     return 'Juzz ${j['juz']}';
   }
   
   // Sauvegarder dans l'historique
   void _saveToHistory(int page) {
     // Trouver la sourate correspondante
+    if (fullSurahList.isEmpty) return;
     final surah = fullSurahList.firstWhere(
       (s) => s['page'] == page,
-      orElse: () => fullSurahList.first,
+      orElse: () => fullSurahList.last,
     );
+
     
     ReadingHistoryService.instance.saveLastReading(
       page: page,
@@ -221,11 +235,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     // Plus d'écran de chargement ! L'app démarre immédiatement
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    
     // Précharger les pages autour de la page actuelle
     if (_isReady) {
       _preloadPages(currentPage);
     }
+
+    final surahNameFr = fullSurahList.isEmpty
+      ? ''
+      : (fullSurahList.lastWhere(
+          (s) => (s['page'] as int) <= currentPage,
+          orElse: () => fullSurahList.first,
+        )['nameFr'] as String? ?? '');
 
     return Scaffold(
       body: GestureDetector(
@@ -240,11 +260,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
               itemCount: 604,
               onPageChanged: (p) {
                 setState(() => currentPage = p + 1);
-                _preloadPages(p + 1); // Précharger dès le changement de page
-                
-                // Enregistrer dans l'historique
-                _saveToHistory(p + 1);
+                _preloadPages(p + 1);
+
+                _saveTimer?.cancel();
+                _saveTimer = Timer(const Duration(milliseconds: 350), () {
+                  if (!mounted) return;
+                  _saveToHistory(p + 1);
+                });
               },
+
               itemBuilder: (context, i) {
                 final pageNum = i + 1;
                 
@@ -259,22 +283,103 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   future: AssetManager.getPageFile(currentReading, pageNum),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const CircularProgressIndicator(),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Téléchargement page $pageNum...',
-                              style: const TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Première ouverture, patientez',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                            ),
-                          ],
+                      // Affichage élégant pendant le chargement
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                              Theme.of(context).colorScheme.secondary.withValues(alpha: 0.03),
+                            ],
+                          ),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Indicateur circulaire animé
+                              SizedBox(
+                                width: 80,
+                                height: 80,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      strokeWidth: 6,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Theme.of(context).colorScheme.primary,
+                                      ),
+                                    ),
+                                    Center(
+                                      child: Icon(
+                                        Icons.menu_book_outlined,
+                                        size: 36,
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 24),
+                              
+                              // Numéro de page
+                              Text(
+                                'Page $pageNum',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 8),
+                              
+                              // Message de chargement
+                              Text(
+                                'Chargement en cours...',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 16),
+                              
+                              // Info additionnelle
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.hourglass_bottom,
+                                      size: 16,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Première ouverture',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     }
@@ -361,10 +466,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                               if (isBookmarked) {
                                 await BookmarkService.instance.removeBookmark(currentPage);
                               } else {
-                                final surah = fullSurahList.firstWhere(
+                                if (fullSurahList.isEmpty) return;
+                                final surah = fullSurahList.lastWhere(
                                   (s) => s['page'] <= currentPage,
                                   orElse: () => fullSurahList.first,
                                 );
+
                                 await BookmarkService.instance.addBookmark(
                                   Bookmark(
                                     page: currentPage,
@@ -409,8 +516,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                   onPressed: () => _showSurahSelection(),
                                   icon: const Icon(Icons.menu_book, color: Colors.white, size: 18),
                                   label: Text(
-                                    fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    fullSurahList.isEmpty
+                                        ? ''
+                                        : fullSurahList.lastWhere(
+                                            (s) => s['page'] <= currentPage,
+                                            orElse: () => fullSurahList.first,
+                                          )['nameFr'],
+                                    style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
                                   ),
                                 ),
 
@@ -452,7 +564,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           ),
                         ),
                       )
-
+                    
                     : SizedBox(
                         height: 40,
                         child: Stack(
@@ -464,7 +576,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 onPressed: () => _showSurahSelection(),
                                 icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
                                 label: Text(
-                                  fullSurahList.lastWhere((s) => s['page'] <= currentPage)['nameFr'],
+                                  surahNameFr,
                                   style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
                                 ),
                               ),

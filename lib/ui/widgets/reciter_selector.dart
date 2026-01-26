@@ -26,8 +26,28 @@ class _ReciterSelectorSheetState extends State<ReciterSelectorSheet> {
     try {
       final res = await Dio().get("https://mp3quran.net/api/v3/reciters?language=fr");
       if (mounted) {
+        // Trier pour mettre Abdul Rashid Sofy en premier
+        final reciters = res.data['reciters'] as List;
+        reciters.sort((a, b) {
+          final nameA = a['name'] as String;
+          final nameB = b['name'] as String;
+          
+          // Abdul Rashid Sofy en premier
+          if (nameA.toLowerCase().contains('abdul rashid') || 
+              nameA.toLowerCase().contains('sofy')) {
+            return -1;
+          }
+          if (nameB.toLowerCase().contains('abdul rashid') || 
+              nameB.toLowerCase().contains('sofy')) {
+            return 1;
+          }
+          
+          // Sinon ordre alphabétique
+          return nameA.compareTo(nameB);
+        });
+        
         setState(() {
-          allReciters = res.data['reciters'];
+          allReciters = reciters;
           filteredReciters = allReciters;
           loading = false;
         });
@@ -66,64 +86,50 @@ class _ReciterSelectorSheetState extends State<ReciterSelectorSheet> {
                 ),
                 const SizedBox(height: 20),
                 
-                // Titre avec icône
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.person_search, color: gold, size: 24),
-                    SizedBox(width: 8),
-                    Text(
-                      "Choisir un récitant",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                // Barre de recherche améliorée
+                Center(
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * 0.75,
+                    height: 45,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: gold.withOpacity(0.6),
+                        width: 1.5,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                
-                // Barre de recherche améliorée
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: searchQuery.isNotEmpty 
-                        ? gold.withOpacity(0.5) 
-                        : Colors.white.withOpacity(0.2),
-                      width: 1,
+                    child: TextField(
+                      style: const TextStyle(color: Colors.white, fontSize: 15),
+                      decoration: InputDecoration(
+                        hintText: "Rechercher un récitant...",
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
+                        prefixIcon: const Icon(Icons.search, color: gold, size: 20),
+                        suffixIcon: searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear, color: Colors.white.withOpacity(0.7), size: 18),
+                              onPressed: () {
+                                setState(() {
+                                  searchQuery = '';
+                                  filteredReciters = allReciters;
+                                });
+                              },
+                            )
+                          : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        fillColor: Colors.transparent,
+                        filled: true,
+                      ),
+                      onChanged: (val) {
+                        setState(() {
+                          searchQuery = val;
+                          filteredReciters = allReciters
+                            .where((r) => r['name'].toLowerCase().contains(val.toLowerCase()))
+                            .toList();
+                        });
+                      },
                     ),
-                  ),
-                  child: TextField(
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                    decoration: InputDecoration(
-                      hintText: "Rechercher un récitant...",
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      prefixIcon: const Icon(Icons.search, color: gold, size: 22),
-                      suffixIcon: searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(Icons.clear, color: Colors.white.withOpacity(0.7), size: 20),
-                            onPressed: () {
-                              setState(() {
-                                searchQuery = '';
-                                filteredReciters = allReciters;
-                              });
-                            },
-                          )
-                        : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    ),
-                    onChanged: (val) {
-                      setState(() {
-                        searchQuery = val;
-                        filteredReciters = allReciters
-                          .where((r) => r['name'].toLowerCase().contains(val.toLowerCase()))
-                          .toList();
-                      });
-                    },
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -176,9 +182,14 @@ class _ReciterSelectorSheetState extends State<ReciterSelectorSheet> {
                             ],
                           ),
                         )
-                      : ListView.builder(
+                      : ListView.separated(
                           physics: const BouncingScrollPhysics(),
                           itemCount: filteredReciters.length,
+                          separatorBuilder: (context, index) => Divider(
+                            color: Colors.white.withOpacity(0.1),
+                            height: 1,
+                            thickness: 1,
+                          ),
                           itemBuilder: (context, i) {
                             final r = filteredReciters[i];
                             if (r['moshaf'] == null || r['moshaf'].isEmpty) {
@@ -186,64 +197,52 @@ class _ReciterSelectorSheetState extends State<ReciterSelectorSheet> {
                             }
                             final moshaf = r['moshaf'][0];
                             
-                            return Container(
-                              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.1),
-                                  width: 1,
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                              leading: CircleAvatar(
+                                radius: 20,
+                                backgroundColor: gold.withOpacity(0.2),
+                                backgroundImage: r['photo'] != null && r['photo'].toString().isNotEmpty
+                                    ? NetworkImage(r['photo'])
+                                    : null,
+                                child: r['photo'] == null || r['photo'].toString().isEmpty
+                                    ? Text(
+                                        r['name'][0].toUpperCase(),
+                                        style: const TextStyle(
+                                          color: gold,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              title: Text(
+                                r['name'],
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
                                 ),
                               ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                leading: CircleAvatar(
-                                  backgroundColor: gold.withOpacity(0.2),
-                                  child: Text(
-                                    r['name'][0].toUpperCase(),
-                                    style: const TextStyle(
-                                      color: gold,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  moshaf['name'],
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.6),
+                                    fontSize: 11,
                                   ),
                                 ),
-                                title: Text(
-                                  r['name'],
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                subtitle: Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    moshaf['name'],
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.6),
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                                trailing: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: gold.withOpacity(0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.play_arrow,
-                                    color: gold,
-                                    size: 24,
-                                  ),
-                                ),
-                                onTap: () {
-                                  widget.onSelected(r['name'], moshaf['server']);
-                                  Navigator.pop(context);
-                                },
                               ),
+                              trailing: const Icon(
+                                Icons.play_circle_outline,
+                                color: gold,
+                                size: 28,
+                              ),
+                              onTap: () {
+                                widget.onSelected(r['name'], moshaf['server']);
+                                Navigator.pop(context);
+                              },
                             );
                           },
                         ),

@@ -40,10 +40,12 @@ class _PlayerBottomSheetState extends State<PlayerBottomSheet> {
 
   void _updateCurrentSurahFromTitle() {
     final newTitle = _audio.currentTitle;
+    if (widget.surahList.isEmpty) return;
     final newSurah = widget.surahList.firstWhere(
       (s) => s['nameFr'] == newTitle,
       orElse: () => _currentSurah,
     );
+
     if (newSurah['id'] != _currentSurah['id']) {
       setState(() {
         _currentSurah = newSurah;

@@ -59,7 +59,7 @@ class AppColors {
   
   // Variantes de dégradés (pour tester)
   static const LinearGradient variant1 = LinearGradient(
-    colors: [Color(0xFF1A3329), Color(0xFF2D5A45), Color(0xFF1E3A2F)],
+    colors: [Color(0xFF0f0f0f), Color(0xFF1a1a2e), Color(0xFF16213e)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -328,6 +328,31 @@ class AppTheme {
       ),
     );
   }
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+
+      primaryColor: AppColors.primary,
+      scaffoldBackgroundColor: AppColors.darkBackground,
+
+      colorScheme: ColorScheme.dark(
+        primary: AppColors.primaryAccent,
+        primaryContainer: AppColors.primary,
+        secondary: AppColors.accent,
+        secondaryContainer: AppColors.accentLight,
+        surface: AppColors.primaryDark,
+        background: AppColors.darkBackground,
+        error: AppColors.error,
+        onPrimary: AppColors.textOnPrimary,
+        onSecondary: AppColors.primaryDark,
+        onSurface: Colors.white,
+        onBackground: Colors.white,
+        onError: Colors.white,
+      ),
+    );
+  }
+
   
   // Gradients personnalisés
   static LinearGradient get primaryGradient => LinearGradient(
