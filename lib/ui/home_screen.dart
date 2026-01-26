@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   List<Map<String, dynamic>> fullSurahList = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
+  String _preferredReading = 'hafs';
   
   late AnimationController _menuController;
   late Animation<double> _menuAnimation;
@@ -41,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   void initState() {
     super.initState();
     _loadSurahData();
+    _loadPreferredReading();
     _menuController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -93,11 +95,66 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       _isLoading = false;
     });
   }
+  Future<void> _loadPreferredReading() async {
+    final reading = await ReadingHistoryService.instance.getPreferredReading();
+    if (mounted) {
+      setState(() => _preferredReading = reading);
+    }
+  }
 
-  void _openReader(int page) {
+  void _showReadingSelector() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Choisir la lecture', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              ListTile(
+                title: const Text('Hafs'),
+                trailing: _preferredReading == 'hafs' ? const Icon(Icons.check, color: Color(0xFF2E7D32)) : null,
+                onTap: () async {
+                  await ReadingHistoryService.instance.setPreferredReading('hafs');
+                  if (mounted) setState(() => _preferredReading = 'hafs');
+                  if (context.mounted) Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: const Text('Warsh'),
+                trailing: _preferredReading == 'warsh' ? const Icon(Icons.check, color: Color(0xFF2E7D32)) : null,
+                onTap: () async {
+                  await ReadingHistoryService.instance.setPreferredReading('warsh');
+                  if (mounted) setState(() => _preferredReading = 'warsh');
+                  if (context.mounted) Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openReader(int page, {String? reading}) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => QuranLoader(initialPage: page)),
+      MaterialPageRoute(builder: (_) => QuranLoader(initialPage: page, reading: reading ?? _preferredReading)),
     );
   }
 
@@ -197,6 +254,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                           right: 0,
                           child: _HomeHeader(
                             onMenuTap: _openMenu,
+                            reading: _preferredReading,
+                            onReadingTap: _showReadingSelector,
                           ),
                         ),
                         
@@ -240,7 +299,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                     child: Row(
                                       children: [
                                         Expanded(
-                                          child: _ResumeReadingWidget(onTap: _openReader),
+                                          child: _ResumeReadingWidget(
+                                                  onTap: (page, reading) => _openReader(page, reading: reading),
+                                                 ),
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
@@ -351,10 +412,15 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 // ---------------- HEADER MODIFIÉ ----------------
 class _HomeHeader extends StatelessWidget {
   final VoidCallback onMenuTap;
+  final String reading;
+  final VoidCallback onReadingTap;
 
   const _HomeHeader({
     required this.onMenuTap,
+    required this.reading,
+    required this.onReadingTap,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -402,8 +468,30 @@ class _HomeHeader extends StatelessWidget {
                     size: 28,
                   ),
                 ),
+
+                // Badge Hafs/Warsh (à droite)
+                GestureDetector(
+                  onTap: onReadingTap,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.35), width: 1),
+                    ),
+                    child: Text(
+                      reading == 'warsh' ? 'Warsh' : 'Hafs',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
+
           ],
         ),
       ),
@@ -857,7 +945,7 @@ class _DailyVerseWidget extends StatelessWidget {
 
 // Widget Reprendre la lecture (compact)
 class _ResumeReadingWidget extends StatelessWidget {
-  final Function(int) onTap;
+  final void Function(int page, String reading) onTap;
   
   const _ResumeReadingWidget({required this.onTap});
   
@@ -894,7 +982,7 @@ class _ResumeReadingWidget extends StatelessWidget {
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(20),
             child: InkWell(
-              onTap: () => onTap(page),
+              onTap: () => onTap(page, (lastReading['reading'] as String?) ?? 'hafs'),
               borderRadius: BorderRadius.circular(20),
               child: Padding(
                 padding: const EdgeInsets.all(14),
