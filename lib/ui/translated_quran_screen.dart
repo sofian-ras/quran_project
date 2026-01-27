@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import '../surah_name.dart';
 import '../hizb_juzz.dart';
 import '../services/quran_translation_pack_service.dart';
+import '../services/verse_favorites_service.dart';
 import 'package:sqflite/sqflite.dart';
 
 class TranslatedQuranScreen extends StatelessWidget {
@@ -40,6 +42,19 @@ class TranslatedQuranScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+List<dynamic> _extractQuranEncList(dynamic data) {
+  if (data is List) return data;
+  if (data is Map<String, dynamic>) {
+    final result = data['result'];
+    if (result is List) return result;
+  }
+  return const [];
+}
+
+String _stripHtml(String input) {
+  return input.replaceAll(RegExp(r'<[^>]+>'), '');
 }
 
 
@@ -240,6 +255,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   List<String> _translation = [];
   List<String> _tafsir = [];
   bool _loadedOnce = false;
+  bool _showArabic = true;
+  bool _showTranslation = true;
+  bool _showTafsir = false;
+  double _fontArabic = 22;
+  double _fontTranslation = 16;
+  double _fontTafsir = 14;
+  Set<String> _favoriteKeys = <String>{};
 
 
   final Dio _dio = Dio();
@@ -263,8 +285,17 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     _loadedOnce = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _load();
+      if (mounted) {
+        _loadFavorites();
+        _load();
+      }
     });
+  }
+
+  Future<void> _loadFavorites() async {
+    final favs = await VerseFavoritesService.instance.getFavorites();
+    if (!mounted) return;
+    setState(() => _favoriteKeys = favs);
   }
 
 
@@ -276,8 +307,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     if (mounted) setState(() {});
 
     try {
-      final langCode = Localizations.localeOf(context).languageCode.toLowerCase();
-      final lang = langCode.startsWith('en') ? AppLang.en : AppLang.fr;
+      final lang = AppLang.fr;
 
       final packReady = await QuranTranslationPackService.isPackReady(lang);
       final useOffline = widget.preferOffline && packReady;
@@ -296,7 +326,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
         await db.close();
 
-        _arabic = rows.map((r) => (r['ar'] as String?) ?? '').toList();
+        _arabic = rows.map((r) => _stripHtml((r['ar'] as String?) ?? '')).toList();
 
         // IMPORTANT: dans tes 2 DB (FR et EN), la traduction est dans la colonne "fr"
         _translation = rows.map((r) => (r['fr'] as String?) ?? '').toList();
@@ -310,12 +340,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
         // 2) Traduction
         final trRes = await _dio.get('$_quranEncBase/translation/sura/$_translationKey/${widget.surahNumber}');
-        final trAyahs = (trRes.data as List);
+        final trAyahs = _extractQuranEncList(trRes.data);
         _translation = trAyahs.map((e) => (e['translation'] ?? '').toString()).toList();
 
         // 3) Tafsir abrégé
         final tafRes = await _dio.get('$_quranEncBase/translation/sura/$_tafsirKey/${widget.surahNumber}');
-        final tafAyahs = (tafRes.data as List);
+        final tafAyahs = _extractQuranEncList(tafRes.data);
         _tafsir = tafAyahs.map((e) => (e['translation'] ?? '').toString()).toList();
       }
 
@@ -328,6 +358,190 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     }
   }
 
+  String _verseKey(int ayah) => '${widget.surahNumber}:$ayah';
+
+  void _showSettingsSheet() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) {
+        return SafeArea(
+          child: StatefulBuilder(
+            builder: (context, setStateSheet) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Arabe'),
+                            value: _showArabic,
+                            onChanged: (v) => setStateSheet(() => _showArabic = v),
+                          ),
+                        ),
+                        Expanded(
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Traduction'),
+                            value: _showTranslation,
+                            onChanged: (v) => setStateSheet(() => _showTranslation = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Tafsir'),
+                      value: _showTafsir,
+                      onChanged: (v) => setStateSheet(() => _showTafsir = v),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text('Taille arabe'),
+                        Expanded(
+                          child: Slider(
+                            min: 18,
+                            max: 30,
+                            value: _fontArabic,
+                            onChanged: (v) => setStateSheet(() => _fontArabic = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Text('Taille traduction'),
+                        Expanded(
+                          child: Slider(
+                            min: 12,
+                            max: 22,
+                            value: _fontTranslation,
+                            onChanged: (v) => setStateSheet(() => _fontTranslation = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Text('Taille tafsir'),
+                        Expanded(
+                          child: Slider(
+                            min: 12,
+                            max: 20,
+                            value: _fontTafsir,
+                            onChanged: (v) => setStateSheet(() => _fontTafsir = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    FilledButton(
+                      onPressed: () {
+                        if (mounted) {
+                          setState(() {});
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: const Text('Appliquer'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _copyText(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copié')),
+    );
+  }
+
+  Future<void> _toggleFavorite(int ayah) async {
+    final key = _verseKey(ayah);
+    final isNowFavorite = await VerseFavoritesService.instance.toggleFavorite(key);
+    if (!mounted) return;
+    setState(() {
+      if (isNowFavorite) {
+        _favoriteKeys.add(key);
+      } else {
+        _favoriteKeys.remove(key);
+      }
+    });
+  }
+
+  void _showVerseActions({
+    required int ayah,
+    required String ar,
+    required String tr,
+  }) {
+    final key = _verseKey(ayah);
+    final isFav = _favoriteKeys.contains(key);
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.copy_all_rounded),
+                title: const Text('Copier arabe + traduction'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyText('$ar\n\n$tr');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copier arabe'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyText(ar);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copier traduction'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyText(tr);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share_rounded),
+                title: const Text('Partager'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Share.share('$ar\n\n$tr');
+                },
+              ),
+              ListTile(
+                leading: Icon(isFav ? Icons.favorite : Icons.favorite_border),
+                title: Text(isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleFavorite(ayah);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = '${widget.surahNumber}. ${widget.surahNameFr}';
@@ -335,41 +549,171 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
+        actions: [
+          IconButton(
+            onPressed: _showSettingsSheet,
+            icon: const Icon(Icons.tune_rounded),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : (_error != null)
               ? Center(child: Text(_error!))
               : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _arabic.length,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _arabic.length + 1,
                   itemBuilder: (context, i) {
-                    final ayaNum = i + 1;
-                    final ar = _arabic.length > i ? _arabic[i] : '';
-                    final tr = _translation.length > i ? _translation[i] : '';
-                    final taf = _tafsir.length > i ? _tafsir[i] : '';
+                    if (i == 0) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: LinearGradient(
+                            colors: [
+                              Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                              Theme.of(context).colorScheme.primary.withOpacity(0.02),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.25),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.surahNameAr,
+                              textDirection: TextDirection.rtl,
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              widget.surahNameFr,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${_arabic.length} versets',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
 
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
+                    final idx = i - 1;
+                    final ayaNum = idx + 1;
+                    final ar = _arabic.length > idx ? _arabic[idx] : '';
+                    final tr = _translation.length > idx ? _translation[idx] : '';
+                    final taf = _tafsir.length > idx ? _tafsir[idx] : '';
+                    final key = _verseKey(ayaNum);
+                    final isFav = _favoriteKeys.contains(key);
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        color: Theme.of(context).cardColor,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onLongPress: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              '$ayaNum',
-                              style: Theme.of(context).textTheme.labelLarge,
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(999),
+                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                  ),
+                                  child: Text(
+                                    '$ayaNum',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  onPressed: () => _toggleFavorite(ayaNum),
+                                  icon: Icon(
+                                    isFav ? Icons.favorite : Icons.favorite_border,
+                                    color: isFav ? Colors.redAccent : null,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
+                                  icon: const Icon(Icons.more_horiz_rounded),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              ar,
-                              textAlign: TextAlign.right,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 10),
-                            Text(tr),
-                            const SizedBox(height: 10),
-                            ExpansionTile(
-                              tilePadding: EdgeInsets.zero,
+                            if (_showArabic) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                ar,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: _fontArabic,
+                                  height: 1.7,
+                                  fontFamily: 'ScheherazadeNew',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                            if (_showTranslation) ...[
+                              const SizedBox(height: 10),
+                              Text(
+                                tr,
+                                style: TextStyle(
+                                  fontSize: _fontTranslation,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
+                            if (_showTafsir && taf.trim().isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
+                                ),
+                                child: Text(
+                                  taf,
+                                  style: TextStyle(
+                                    fontSize: _fontTafsir,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            /*
                               title: const Text('Tafsir (résumé)'),
                               children: [
                                 Align(
@@ -378,6 +722,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                 ),
                               ],
                             ),
+                            */
                           ],
                         ),
                       ),
