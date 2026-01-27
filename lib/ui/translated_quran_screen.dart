@@ -257,11 +257,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   bool _loadedOnce = false;
   bool _showArabic = true;
   bool _showTranslation = true;
-  bool _showTafsir = false;
-  double _fontArabic = 22;
+  double _fontArabic = 36;
   double _fontTranslation = 16;
   double _fontTafsir = 14;
   Set<String> _favoriteKeys = <String>{};
+  String? _openTafsirKey;
 
 
   final Dio _dio = Dio();
@@ -326,7 +326,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
         await db.close();
 
-        _arabic = rows.map((r) => _stripHtml((r['ar'] as String?) ?? '')).toList();
+        _arabic = rows.map((r) => (r['ar'] as String?) ?? '').toList();
 
         // IMPORTANT: dans tes 2 DB (FR et EN), la traduction est dans la colonne "fr"
         _translation = rows.map((r) => (r['fr'] as String?) ?? '').toList();
@@ -380,7 +380,10 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                             contentPadding: EdgeInsets.zero,
                             title: const Text('Arabe'),
                             value: _showArabic,
-                            onChanged: (v) => setStateSheet(() => _showArabic = v),
+                            onChanged: (v) {
+                              setStateSheet(() => _showArabic = v);
+                              if (mounted) setState(() {});
+                            },
                           ),
                         ),
                         Expanded(
@@ -388,16 +391,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                             contentPadding: EdgeInsets.zero,
                             title: const Text('Traduction'),
                             value: _showTranslation,
-                            onChanged: (v) => setStateSheet(() => _showTranslation = v),
+                            onChanged: (v) {
+                              setStateSheet(() => _showTranslation = v);
+                              if (mounted) setState(() {});
+                            },
                           ),
                         ),
                       ],
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Tafsir'),
-                      value: _showTafsir,
-                      onChanged: (v) => setStateSheet(() => _showTafsir = v),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -405,8 +405,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                         const Text('Taille arabe'),
                         Expanded(
                           child: Slider(
-                            min: 18,
-                            max: 30,
+                            min: 28,
+                            max: 56,
                             value: _fontArabic,
                             onChanged: (v) => setStateSheet(() => _fontArabic = v),
                           ),
@@ -478,6 +478,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
         _favoriteKeys.remove(key);
       }
     });
+  }
+
+  void _toggleTafsir(int ayah) {
+    final key = _verseKey(ayah);
+    setState(() => _openTafsirKey = (_openTafsirKey == key) ? null : key);
   }
 
   void _showVerseActions({
@@ -558,6 +563,73 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
       ),
     );
   }
+
+  List<InlineSpan> _parseTajweedSpans(String input, Color fallback) {
+    final spans = <InlineSpan>[];
+    final regex = RegExp(
+      "<rulee?\\s+class=['\\\"]?([^\\s>]+)['\\\"]?>(.*?)</rulee?>",
+      dotAll: true,
+    );
+
+    int last = 0;
+    for (final m in regex.allMatches(input)) {
+      if (m.start > last) {
+        spans.add(TextSpan(text: input.substring(last, m.start), style: TextStyle(color: fallback)));
+      }
+      final cls = m.group(1) ?? '';
+      final txt = m.group(2) ?? '';
+      spans.add(
+        TextSpan(
+          text: txt,
+          style: TextStyle(color: _tajweedColors[cls] ?? fallback),
+        ),
+      );
+      last = m.end;
+    }
+    if (last < input.length) {
+      spans.add(TextSpan(text: input.substring(last), style: TextStyle(color: fallback)));
+    }
+    return spans;
+  }
+
+  String _stripTrailingAyahNumber(String input) {
+    return input.replaceAll(RegExp(r'[\s\u0660-\u0669\u06F0-\u06F9]+$'), '');
+  }
+
+  String _toArabicIndic(int value) {
+    const map = {
+      '0': '٠',
+      '1': '١',
+      '2': '٢',
+      '3': '٣',
+      '4': '٤',
+      '5': '٥',
+      '6': '٦',
+      '7': '٧',
+      '8': '٨',
+      '9': '٩',
+    };
+    return value.toString().split('').map((d) => map[d] ?? d).join();
+  }
+
+  static const Map<String, Color> _tajweedColors = {
+    'ham_wasl': Color(0xFF7E9CBF),
+    'laam_shamsiyah': Color(0xFFD18B47),
+    'madda_normal': Color(0xFF2E7D32),
+    'madda_permissible': Color(0xFF7B1FA2),
+    'madda_necessary': Color(0xFF6A1B9A),
+    'madda_obligatory_monfasel': Color(0xFF5E35B1),
+    'madda_obligatory_mottasel': Color(0xFF512DA8),
+    'ghunnah': Color(0xFFE53935),
+    'idgham_ghunnah': Color(0xFFEF6C00),
+    'idgham_wo_ghunnah': Color(0xFF8E24AA),
+    'ikhafa': Color(0xFF00796B),
+    'ikhafa_shafawi': Color(0xFF00695C),
+    'idgham_shafawi': Color(0xFF5D4037),
+    'iqlab': Color(0xFFAD1457),
+    'qalaqah': Color(0xFF1565C0),
+    'slnt': Color(0xFF546E7A),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -770,6 +842,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                   ),
                                 ),
                                 IconButton(
+                                  onPressed: () => _toggleTafsir(ayaNum),
+                                  icon: Icon(
+                                    _openTafsirKey == key ? Icons.menu_book_rounded : Icons.menu_book_outlined,
+                                    color: _openTafsirKey == key ? accentColor : null,
+                                  ),
+                                ),
+                                IconButton(
                                   onPressed: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
                                   icon: const Icon(Icons.more_horiz_rounded),
                                 ),
@@ -778,39 +857,90 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                             if (_showArabic) ...[
                               _softDivider(accentColor),
                               const SizedBox(height: 8),
-                              Text(
-                                ar,
-                                textAlign: TextAlign.right,
-                                style: TextStyle(
-                                  fontSize: _fontArabic,
-                                  height: 2.1,
-                                  fontFamily: 'ScheherazadeNew',
-                                  fontWeight: FontWeight.w600,
-                                  wordSpacing: 2,
-                                  color: arabicColor,
-                                  shadows: [
-                                    Shadow(
-                                      color: accentColor.withOpacity(0.25),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
+                              Builder(
+                                builder: (_) {
+                                  final style = TextStyle(
+                                    fontSize: _fontArabic,
+                                  height: 3.0,
+                                    fontFamily: 'ScheherazadeNew',
+                                    fontWeight: FontWeight.w600,
+                                  wordSpacing: 6,
+                                  letterSpacing: 0.7,
+                                    color: arabicColor,
+                                    shadows: [
+                                      Shadow(
+                                        color: accentColor.withOpacity(0.25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  );
+                                  final clean = _stripTrailingAyahNumber(ar);
+                                  final spans = _parseTajweedSpans(clean, arabicColor);
+                                  spans.add(
+                                    TextSpan(
+                                      text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
+                                      style: TextStyle(
+                                        color: accentColor,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                  ],
-                                ),
+                                  );
+                                  return RichText(
+                                    textDirection: TextDirection.rtl,
+                                    text: TextSpan(style: style, children: spans),
+                                  );
+                                },
                               ),
                             ],
                             if (_showTranslation) ...[
                               _softDivider(accentColor),
                               const SizedBox(height: 10),
-                              Text(
-                                tr,
-                                style: TextStyle(
-                                  fontSize: _fontTranslation,
-                                  height: 1.5,
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(isDark ? 0.9 : 0.85),
+                              Container(
+                                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  color: isDark
+                                      ? const Color(0xFF0E1530).withOpacity(0.7)
+                                      : const Color(0xFFFFF8EE),
+                                  border: Border.all(
+                                    color: accentColor.withOpacity(0.25),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 3,
+                                      height: 42,
+                                      margin: const EdgeInsets.only(right: 10, top: 2),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(999),
+                                        color: accentColor.withOpacity(0.7),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        tr,
+                                        textAlign: TextAlign.justify,
+                                        style: TextStyle(
+                                          fontSize: _fontTranslation + 1,
+                                          height: 1.7,
+                                          fontFamily: 'serif',
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.2,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(isDark ? 0.95 : 0.9),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
-                            if (_showTafsir && taf.trim().isNotEmpty) ...[
+                            if (_openTafsirKey == key) ...[
                               _softDivider(accentColor),
                               const SizedBox(height: 10),
                               Container(
@@ -820,10 +950,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                   color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
                                 ),
                                 child: Text(
-                                  taf,
+                                  taf.trim().isEmpty ? 'Tafsir indisponible.' : taf,
                                   style: TextStyle(
                                     fontSize: _fontTafsir,
                                     height: 1.45,
+                                    fontFamily: 'serif',
                                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
                                 ),
