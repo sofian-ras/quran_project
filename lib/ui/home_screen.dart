@@ -14,6 +14,17 @@ import '../surah_name.dart';
 import 'full_player_screen.dart';
 import 'widgets/ios_side_menu.dart';
 import 'reader_screen.dart';
+import 'surah_list_screen.dart';
+import 'surah_list_screen.dart';
+import 'widgets/liste_de_sourates_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../asset_manager.dart';
+import '../services/quran_translation_pack_service.dart';
+import 'translated_quran_screen.dart';
+
+
+
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -39,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   late Animation<double> _menuAnimation;
   bool _isMenuOpen = false;
   double _dragStartX = 0;
+  
 
   @override
   void initState() {
@@ -75,9 +87,16 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     final Map<int, int> startPage = {};
 
     for (final v in quranData) {
-      final id = v['surah'] as int;
+      final surahRaw = v['surah'];
+      final pageRaw = v['page'];
+
+      final int? id = (surahRaw is int) ? surahRaw : int.tryParse('$surahRaw');
+      if (id == null) continue; // skip lignes invalides
+
+      final int page = (pageRaw is int) ? pageRaw : (int.tryParse('$pageRaw') ?? 1);
+
       ayahCounts[id] = (ayahCounts[id] ?? 0) + 1;
-      startPage[id] = startPage[id] ?? (v['page'] ?? 1);
+      startPage[id] = startPage[id] ?? page;
     }
 
     for (final id in ayahCounts.keys) {
@@ -119,8 +138,68 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   }
 
 
+  void _openSurahListScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SurahListScreen(
+          surahList: filteredList,
+          favoriteIdsNotifier: _favoriteIdsNotifier,
+          onOpenReader: (page) => _openReader(page),
+          onPlaySurah: (s) => _startSurahAudio(s),
+        ),
+      ),
+    );
+  }
+  Future<void> _maybeShowPagesDownloadInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadySeen = prefs.getBool('pages_download_info_seen') ?? false;
+    if (alreadySeen) return;
 
-  void _openReader(int page, {String? reading}) {
+    final downloaded = await AssetManager.areAssetsDownloaded();
+    if (downloaded) return;
+
+    bool dontAskAgain = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Téléchargement requis'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Pour lire le Coran (Hafs/Warsh), l’application doit télécharger les pages (une seule fois).',
+              ),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: dontAskAgain,
+                onChanged: (v) => setState(() => dontAskAgain = v ?? false),
+                title: const Text('Ne plus afficher'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Compris'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (dontAskAgain) {
+      await prefs.setBool('pages_download_info_seen', true);
+    }
+  }
+
+
+  Future<void> _openReader(int page, {String? reading}) async {
+    await _maybeShowPagesDownloadInfo();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.push(
@@ -134,7 +213,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       );
     });
   }
-
 
   void _openMenu() {
     if (!_isMenuOpen) {
@@ -358,55 +436,18 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                     const SizedBox(height: 12),
 
                                     Expanded(
-                                      child: Container(
-                                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                                        decoration: BoxDecoration(
-                                          color: Colors.transparent,
-                                          borderRadius: BorderRadius.circular(18),
-                                          border: Border.all(
-                                            color: Theme.of(context).brightness == Brightness.dark
-                                                ? const Color(0xFFD4AF37).withOpacity(0.15)
-                                                : Colors.black12,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(18),
-                                          child: ListView.builder(
-                                            key: const PageStorageKey('surah_list'),
-                                            itemCount: filteredList.length,
-                                            itemBuilder: (context, index) {
-                                              final s = filteredList[index];
-                                              final int surahId = s['id'];
-
-                                              return _SurahPlayingTileWidget(
-                                                surahId: surahId,
-                                                childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
-                                                  valueListenable: _favoriteIdsNotifier,
-                                                  builder: (context, favoriteIds, child) {
-                                                    return SurahCard(
-                                                      id: surahId,
-                                                      nameAr: s['nameAr'],
-                                                      nameFr: s['nameFr'],
-                                                      ayahCount: s['ayahCount'],
-                                                      isFavorite: favoriteIds.contains(surahId),
-                                                      isPlaying: isPlaying,
-                                                      onTap: () => _openReader(s['page']),
-                                                      onPlay: () => _startSurahAudio(s),
-                                                      onToggleFavorite: () async {
-                                                        await FavoritesService.instance.toggleFavorite(surahId);
-                                                        _favoriteIdsNotifier.value =
-                                                            await FavoritesService.instance.getFavorites();
-                                                      },
-                                                    );
-                                                  },
-                                                ),
-                                              );
-                                            },
+                                      child: Align(
+                                        alignment: Alignment.topCenter,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          child: ListeDeSouratesWidget(
+                                            surahCount: filteredList.length,
+                                            onTap: _openSurahListScreen,
                                           ),
                                         ),
                                       ),
                                     ),
+
                                   ],
                                 ),
                               ),
@@ -1083,9 +1124,140 @@ class _FrenchQuranWidget extends StatelessWidget {
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(20),
               child: InkWell(
-                onTap: () {
-                  // TODO: Ouvrir la fenêtre Coran en français
+                onTap: () async {
+                  final mode = await showModalBottomSheet<_FrenchMode>(
+                    context: context,
+                    showDragHandle: true,
+                    builder: (ctx) {
+                      return SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ListTile(
+                                title: const Text('Lire en ligne'),
+                                subtitle: const Text('Pas de téléchargement, rapide'),
+                                leading: const Icon(Icons.wifi_rounded),
+                                onTap: () => Navigator.pop(ctx, _FrenchMode.online),
+                              ),
+                              const SizedBox(height: 8),
+                              ListTile(
+                                title: const Text('Lire hors-ligne'),
+                                subtitle: const Text('Télécharger traduction + tafsir une seule fois'),
+                                leading: const Icon(Icons.download_rounded),
+                                onTap: () => Navigator.pop(ctx, _FrenchMode.offline),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+
+                  if (mode == null) return;
+
+                  if (mode == _FrenchMode.offline) {
+                    // Langue (pour l’instant: langue du téléphone)
+                    final langCode = Localizations.localeOf(context).languageCode.toLowerCase();
+                    final lang = langCode.startsWith('en') ? AppLang.en : AppLang.fr;
+
+                    final ready = await QuranTranslationPackService.isPackReady(lang);
+
+                    if (!ready) {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(lang == AppLang.fr ? 'Mode hors-ligne' : 'Offline mode'),
+                          content: Text(
+                            lang == AppLang.fr
+                                ? 'Pour lire hors connexion, il faut télécharger le pack (traduction + tafsir).'
+                                : 'To read offline, you need to download the pack (translation + tafsir).',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: Text(lang == AppLang.fr ? 'Annuler' : 'Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: Text(lang == AppLang.fr ? 'Télécharger' : 'Download'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (ok != true) return;
+
+                      final progress = ValueNotifier<double>(0.0);
+
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (_) => AlertDialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          title: Text(lang == AppLang.fr ? 'Téléchargement…' : 'Downloading…'),
+                          content: ValueListenableBuilder<double>(
+                            valueListenable: progress,
+                            builder: (_, p01, __) {
+                              final pct = (p01 * 100).toStringAsFixed(0);
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('القرآن الكريم', style: TextStyle(fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 12),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(999),
+                                    child: LinearProgressIndicator(
+                                      value: p01,
+                                      minHeight: 12,
+                                      backgroundColor: const Color(0xFFD4AF37).withOpacity(0.18),
+                                      valueColor: const AlwaysStoppedAnimation(Color(0xFFD4AF37)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    '$pct%',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF1a0033),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      );
+
+                      try {
+                        await QuranTranslationPackService.downloadPack(
+                          lang,
+                          onProgress: (p01) => progress.value = p01,
+                        );
+                      } finally {
+                        progress.dispose();
+                        if (context.mounted) Navigator.pop(context); // ferme la popup
+                      }
+                    }
+
+                    if (!context.mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                      ),
+                    );
+                    return;
+                  }
+
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TranslatedQuranScreen(preferOffline: false)),
+                  );
                 },
+
                 borderRadius: BorderRadius.circular(20),
                 child: Padding(
                   padding: const EdgeInsets.all(14),
@@ -1095,7 +1267,7 @@ class _FrenchQuranWidget extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Coran en français',
+                        'Coran traduction',
                         style: TextStyle(
                           fontSize: 16,
                           color: const Color(0xFF1a0033),
@@ -1114,6 +1286,8 @@ class _FrenchQuranWidget extends StatelessWidget {
     );
   }
 }
+enum _FrenchMode { online, offline }
+// Widget Surah Playing Tile
 class _SurahPlayingTileWidget extends StatefulWidget {
   final int surahId;
   final Widget Function(bool isPlaying) childBuilder;

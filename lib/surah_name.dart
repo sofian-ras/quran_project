@@ -115,3 +115,5 @@ final Map<int, String> surahFr = {
   113: 'Al-Falaq',
   114: 'An-Nas'
 };
+// EN (pour l'instant: mêmes noms translittérés que FR, mais l'app affichera "Surah" au lieu de "Sourate")
+final Map<int, String> surahEn = Map<int, String>.from(surahFr);
