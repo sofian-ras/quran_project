@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:dio/dio.dart';
 import 'package:quran/theme/theme_service.dart';
 import '../services/audio_service.dart';
 import '../services/reading_history_service.dart';
@@ -17,7 +18,7 @@ import 'reader_screen.dart';
 import 'surah_list_screen.dart';
 import 'surah_list_screen.dart';
 import 'widgets/liste_de_sourates_widget.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/quran_loader.dart';
 import '../asset_manager.dart';
 import '../services/quran_translation_pack_service.dart';
 import 'translated_quran_screen.dart';
@@ -151,6 +152,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       ),
     );
   }
+  /*
   Future<void> _maybeShowPagesDownloadInfo() async {
     final prefs = await SharedPreferences.getInstance();
     final alreadySeen = prefs.getBool('pages_download_info_seen') ?? false;
@@ -195,10 +197,106 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       await prefs.setBool('pages_download_info_seen', true);
     }
   }
+  */
+
+
+  Future<bool> _showPagesDownloadPrompt() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF0F1734) : const Color(0xFFFFF7EA);
+    final titleColor = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF5B3F12);
+    final textColor = isDark ? Colors.white70 : const Color(0xFF5B4A2F);
+    final accent = const Color(0xFFD4AF37);
+
+    final shouldDownload = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.cloud_download_rounded, color: accent),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Telechargement requis',
+                      style: TextStyle(
+                        color: titleColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Pour lire les pages (Hafs et Warsh), l\'application doit telecharger les images une seule fois.',
+                  style: TextStyle(color: textColor),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: titleColor,
+                          side: BorderSide(color: accent.withOpacity(0.6)),
+                        ),
+                        child: const Text('Annuler'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: accent,
+                          foregroundColor: const Color(0xFF1B1205),
+                        ),
+                        child: const Text('Telecharger'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    return shouldDownload ?? false;
+  }
 
 
   Future<void> _openReader(int page, {String? reading}) async {
-    await _maybeShowPagesDownloadInfo();
+    final selectedReading = reading ?? _preferredReading;
+    final downloaded = await AssetManager.areAssetsDownloaded();
+
+    if (!downloaded) {
+      final shouldDownload = await _showPagesDownloadPrompt();
+      if (!shouldDownload) return;
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => QuranLoader(
+            initialPage: page,
+            reading: selectedReading,
+          ),
+        ),
+      );
+      return;
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -207,7 +305,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
         MaterialPageRoute(
           builder: (_) => ReaderScreen(
             initialPage: page,
-            reading: reading ?? _preferredReading,
+            reading: selectedReading,
           ),
         ),
       );
@@ -1125,6 +1223,168 @@ class _FrenchQuranWidget extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               child: InkWell(
                 onTap: () async {
+                  {
+                    final langCode = Localizations.localeOf(context).languageCode.toLowerCase();
+                    final lang = langCode.startsWith('en') ? AppLang.en : AppLang.fr;
+
+                    final ready = await QuranTranslationPackService.isPackReady(lang);
+                    if (ready) {
+                      if (!context.mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final mode = await showModalBottomSheet<_FrenchMode>(
+                      context: context,
+                      showDragHandle: true,
+                      builder: (ctx) {
+                        return SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  title: const Text('Lire en ligne'),
+                                  subtitle: const Text('Pas de telechargement, rapide'),
+                                  leading: const Icon(Icons.wifi_rounded),
+                                  onTap: () => Navigator.pop(ctx, _FrenchMode.online),
+                                ),
+                                const SizedBox(height: 8),
+                                ListTile(
+                                  title: const Text('Lire hors-ligne'),
+                                  subtitle: const Text('Telecharger traduction + tafsir une seule fois'),
+                                  leading: const Icon(Icons.download_rounded),
+                                  onTap: () => Navigator.pop(ctx, _FrenchMode.offline),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+
+                    if (mode == null) return;
+
+                    if (mode == _FrenchMode.online) {
+                      if (!context.mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TranslatedQuranScreen(preferOffline: false),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final progress = ValueNotifier<double>(0.0);
+                    final cancelToken = CancelToken();
+                    bool canceled = false;
+
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isDismissible: false,
+                      enableDrag: false,
+                      showDragHandle: false,
+                      backgroundColor: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF0F1734)
+                          : const Color(0xFFFFF7EA),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      builder: (sheetContext) {
+                        return SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                            child: ValueListenableBuilder<double>(
+                              valueListenable: progress,
+                              builder: (_, p01, __) {
+                                final pct = (p01 * 100).toStringAsFixed(0);
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      lang == AppLang.fr ? 'Telechargement' : 'Downloading',
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      lang == AppLang.fr
+                                          ? 'Telechargement du pack (traduction + tafsir)...'
+                                          : 'Downloading pack (translation + tafsir)...',
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(999),
+                                      child: LinearProgressIndicator(
+                                        value: p01,
+                                        minHeight: 12,
+                                        backgroundColor: const Color(0xFFD4AF37).withOpacity(0.18),
+                                        valueColor: const AlwaysStoppedAnimation(Color(0xFFD4AF37)),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        '$pct%',
+                                        style: const TextStyle(fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton(
+                                        onPressed: () {
+                                          canceled = true;
+                                          cancelToken.cancel('User canceled');
+                                          Navigator.pop(sheetContext);
+                                        },
+                                        child: Text(lang == AppLang.fr ? 'Annuler' : 'Cancel'),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    );
+
+                    try {
+                      await QuranTranslationPackService.downloadPack(
+                        lang,
+                        onProgress: (p01) => progress.value = p01,
+                        cancelToken: cancelToken,
+                      );
+                    } on DioException catch (_) {
+                      // ignore cancels
+                    } finally {
+                      progress.dispose();
+                      if (!canceled && context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    }
+
+                    if (canceled) return;
+                    final readyAfter = await QuranTranslationPackService.isPackReady(lang);
+                    if (!readyAfter) return;
+                    if (!context.mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                      ),
+                    );
+                    return;
+                  }
                   final mode = await showModalBottomSheet<_FrenchMode>(
                     context: context,
                     showDragHandle: true,
@@ -1165,7 +1425,7 @@ class _FrenchQuranWidget extends StatelessWidget {
                     final ready = await QuranTranslationPackService.isPackReady(lang);
 
                     if (!ready) {
-                      final ok = await showDialog<bool>(
+                      /*
                         context: context,
                         builder: (ctx) => AlertDialog(
                           title: Text(lang == AppLang.fr ? 'Mode hors-ligne' : 'Offline mode'),
@@ -1187,11 +1447,85 @@ class _FrenchQuranWidget extends StatelessWidget {
                         ),
                       );
 
-                      if (ok != true) return;
-
+                      */
                       final progress = ValueNotifier<double>(0.0);
+                      final cancelToken = CancelToken();
+                      bool canceled = false;
 
-                      showDialog(
+                      showModalBottomSheet<void>(
+                        context: context,
+                        isDismissible: false,
+                        enableDrag: false,
+                        showDragHandle: false,
+                        backgroundColor: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF0F1734)
+                            : const Color(0xFFFFF7EA),
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                        ),
+                        builder: (_) {
+                          return SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                              child: ValueListenableBuilder<double>(
+                                valueListenable: progress,
+                                builder: (_, p01, __) {
+                                  final pct = (p01 * 100).toStringAsFixed(0);
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        lang == AppLang.fr ? 'TÇ¸lÇ¸chargement' : 'Downloading',
+                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        lang == AppLang.fr
+                                            ? 'TÇ¸lÇ¸chargement du pack (traduction + tafsir)...'
+                                            : 'Downloading pack (translation + tafsir)...',
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(999),
+                                        child: LinearProgressIndicator(
+                                          value: p01,
+                                          minHeight: 12,
+                                          backgroundColor: const Color(0xFFD4AF37).withOpacity(0.18),
+                                          valueColor: const AlwaysStoppedAnimation(Color(0xFFD4AF37)),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: Text(
+                                          '$pct%',
+                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton(
+                                          onPressed: () {
+                                            canceled = true;
+                                            cancelToken.cancel('User canceled');
+                                            Navigator.pop(context);
+                                          },
+                                          child: Text(lang == AppLang.fr ? 'Annuler' : 'Cancel'),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      );
+
+                      /*
+                      // showDialog(
                         context: context,
                         barrierDismissible: false,
                         builder: (_) => AlertDialog(
@@ -1228,16 +1562,20 @@ class _FrenchQuranWidget extends StatelessWidget {
                             },
                           ),
                         ),
-                      );
+                      // );
+                      */
 
                       try {
                         await QuranTranslationPackService.downloadPack(
                           lang,
                           onProgress: (p01) => progress.value = p01,
+                          cancelToken: cancelToken,
                         );
+                      } on DioException catch (_) {
+                        // ignore cancels
                       } finally {
                         progress.dispose();
-                        if (context.mounted) Navigator.pop(context); // ferme la popup
+                        if (!canceled && context.mounted) Navigator.pop(context); // ferme la popup
                       }
                     }
 

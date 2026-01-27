@@ -37,6 +37,7 @@ class QuranTranslationPackService {
   static Future<void> downloadPack(
     AppLang lang, {
     void Function(double progress01)? onProgress,
+    CancelToken? cancelToken,
   }) async {
     if (_busy) return;
     _busy = true;
@@ -53,6 +54,7 @@ class QuranTranslationPackService {
       await _dio.download(
         url,
         tmpPath,
+        cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
           if (total <= 0) return;
           onProgress?.call((received / total).clamp(0.0, 1.0));

@@ -25,6 +25,10 @@ class SurahListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const gold = Color(0xFFD4AF37);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appBarBg = Theme.of(context).appBarTheme.backgroundColor ??
+        (isDark ? const Color(0xFF0F1734) : const Color(0xFFF7F2E8));
+    final appBarFg = Theme.of(context).appBarTheme.foregroundColor ??
+        (isDark ? const Color(0xFFF6E9D7) : const Color(0xFF1a0033));
 
     final surahsByPage = List<Map<String, dynamic>>.from(surahList)
       ..sort((a, b) => (a['page'] as int).compareTo(b['page'] as int));
@@ -33,7 +37,12 @@ class SurahListScreen extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Coran'),
+          backgroundColor: appBarBg,
+          foregroundColor: appBarFg,
+          title: Text(
+            'Coran',
+            style: TextStyle(color: appBarFg),
+          ),
           centerTitle: true,
           bottom: TabBar(
             labelColor: isDark ? Colors.white : const Color(0xFF1a0033),
