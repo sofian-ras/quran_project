@@ -542,13 +542,35 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     );
   }
 
+  Widget _softDivider(Color color) {
+    return Container(
+      height: 1,
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.0),
+            color.withOpacity(0.35),
+            color.withOpacity(0.0),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = '${widget.surahNumber}. ${widget.surahNameFr}';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final arabicColor = isDark ? const Color(0xFFF6E7C5) : const Color(0xFF4B2E0E);
+    final accentColor = isDark ? const Color(0xFFE3C880) : const Color(0xFFB37A2A);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
+        backgroundColor: isDark ? const Color(0xFF0D132F) : const Color(0xFFF7EEDB),
+        foregroundColor: isDark ? const Color(0xFFF6E7C5) : const Color(0xFF3B2A0B),
         actions: [
           IconButton(
             onPressed: _showSettingsSheet,
@@ -556,31 +578,60 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : (_error != null)
-              ? Center(child: Text(_error!))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _arabic.length + 1,
-                  itemBuilder: (context, i) {
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: Theme.of(context).brightness == Brightness.dark
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF0B1025),
+                    Color(0xFF131A3A),
+                    Color(0xFF1C1635),
+                  ],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFFFBF5),
+                    Color(0xFFF6F0E4),
+                    Color(0xFFEDE2D1),
+                  ],
+                ),
+        ),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : (_error != null)
+                ? Center(child: Text(_error!))
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    itemCount: _arabic.length + 1,
+                    itemBuilder: (context, i) {
                     if (i == 0) {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
                           gradient: LinearGradient(
                             colors: [
-                              Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                              Theme.of(context).colorScheme.primary.withOpacity(0.02),
+                              accentColor.withOpacity(isDark ? 0.18 : 0.12),
+                              accentColor.withOpacity(isDark ? 0.08 : 0.05),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           border: Border.all(
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.25),
+                            color: accentColor.withOpacity(0.35),
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentColor.withOpacity(0.18),
+                              blurRadius: 18,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -589,9 +640,17 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                               widget.surahNameAr,
                               textDirection: TextDirection.rtl,
                               style: TextStyle(
-                                fontSize: 26,
+                                fontSize: 28,
                                 fontWeight: FontWeight.w700,
-                                color: Theme.of(context).colorScheme.onSurface,
+                                fontFamily: 'ScheherazadeNew',
+                                color: arabicColor,
+                                shadows: [
+                                  Shadow(
+                                    color: accentColor.withOpacity(0.35),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -600,6 +659,20 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 2,
+                              width: 120,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    accentColor.withOpacity(0.9),
+                                    accentColor.withOpacity(0.0),
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -627,13 +700,28 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: LinearGradient(
+                          colors: isDark
+                              ? const [
+                                  Color(0xFF141B3A),
+                                  Color(0xFF10162E),
+                                ]
+                              : const [
+                                  Color(0xFFFFFFFF),
+                                  Color(0xFFF6F2EA),
+                                ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        border: Border.all(
+                          color: accentColor.withOpacity(0.2),
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
@@ -643,19 +731,33 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            Container(
+                              height: 2,
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    accentColor.withOpacity(0.0),
+                                    accentColor.withOpacity(0.6),
+                                    accentColor.withOpacity(0.0),
+                                  ],
+                                ),
+                              ),
+                            ),
                             Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(999),
-                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                    color: accentColor.withOpacity(0.18),
                                   ),
                                   child: Text(
                                     '$ayaNum',
                                     style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: Theme.of(context).colorScheme.primary,
+                                      fontWeight: FontWeight.w800,
+                                      color: accentColor,
                                     ),
                                   ),
                                 ),
@@ -674,29 +776,42 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                               ],
                             ),
                             if (_showArabic) ...[
+                              _softDivider(accentColor),
                               const SizedBox(height: 8),
                               Text(
                                 ar,
                                 textAlign: TextAlign.right,
                                 style: TextStyle(
                                   fontSize: _fontArabic,
-                                  height: 1.7,
+                                  height: 2.1,
                                   fontFamily: 'ScheherazadeNew',
                                   fontWeight: FontWeight.w600,
+                                  wordSpacing: 2,
+                                  color: arabicColor,
+                                  shadows: [
+                                    Shadow(
+                                      color: accentColor.withOpacity(0.25),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                             if (_showTranslation) ...[
+                              _softDivider(accentColor),
                               const SizedBox(height: 10),
                               Text(
                                 tr,
                                 style: TextStyle(
                                   fontSize: _fontTranslation,
                                   height: 1.5,
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(isDark ? 0.9 : 0.85),
                                 ),
                               ),
                             ],
                             if (_showTafsir && taf.trim().isNotEmpty) ...[
+                              _softDivider(accentColor),
                               const SizedBox(height: 10),
                               Container(
                                 padding: const EdgeInsets.all(10),
@@ -709,6 +824,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                   style: TextStyle(
                                     fontSize: _fontTafsir,
                                     height: 1.45,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ),
@@ -727,8 +843,9 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                         ),
                       ),
                     );
-                  },
-                ),
+                    },
+                  ),
+      ),
     );
   }
 }
