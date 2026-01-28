@@ -26,7 +26,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    const green = Color(0xFF1F8F4A); // Vert foncé
+    const green = Color(0xFF38C172); // Vert mat
 
     return GestureDetector(
       onTap: _openFullPlayer,
@@ -38,15 +38,15 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF0F5A2A), Color(0xFF0B3D1F)],
+              colors: [Color(0xFF0B3D1F), Color(0xFF0F5A2A)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF1F8F4A).withOpacity(0.45),
-                blurRadius: 18,
+                color: const Color(0xFF0B3D1F).withOpacity(0.45),
+                blurRadius: 12,
                 offset: const Offset(0, -2),
               ),
             ],
@@ -65,9 +65,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                           valueListenable: _audio.currentTitleNotifier,
                           builder: (context, title, _) => Text(
                             title,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16, shadows: [
-                              Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1)),
-                            ]),
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -80,7 +78,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]),
+                    icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32),
                     onPressed: _audio.skipToPrevious,
                   ),
                   StreamBuilder<PlayerState>(
@@ -94,17 +92,17 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                         return const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator(color: green)));
                       }
                       return IconButton(
-                        icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: green, size: 48, shadows: [Shadow(color: Colors.black38, blurRadius: 8, offset: Offset(0,2))]),
+                        icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.white, size: 48),
                         onPressed: _audio.togglePlayPause,
                       );
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 32, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]),
+                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 32),
                     onPressed: _audio.skipToNext,
                   ),
                   IconButton(
-                    icon: const Icon(Icons.stop_circle_outlined, color: Colors.white, size: 28, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]),
+                    icon: const Icon(Icons.stop_circle_outlined, color: Colors.white, size: 28),
                     onPressed: () => _audio.stop(),
                   ),
                 ],
@@ -129,7 +127,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   }
 
   Widget _buildProgressBar() {
-    const green = Color(0xFF1F8F4A);
+    const green = Color(0xFF38C172);
     return StreamBuilder<PositionData>(
       stream: _audio.positionDataStream,
       builder: (context, snapshot) {

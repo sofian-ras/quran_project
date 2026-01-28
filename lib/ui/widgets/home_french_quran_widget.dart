@@ -16,13 +16,13 @@ class FrenchQuranWidget extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFF1F8F4A),
-          width: 1.5,
+          color: Colors.black.withOpacity(0.12),
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1F8F4A).withOpacity(0.35),
-            blurRadius: 14,
+            color: const Color(0xFF0B3D1F).withOpacity(0.45),
+            blurRadius: 12,
             offset: const Offset(0, 6),
           ),
         ],
@@ -49,8 +49,8 @@ class FrenchQuranWidget extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFF0B3D1F).withOpacity(0.78),
-                      const Color(0xFF0F5A2A).withOpacity(0.78),
+                      const Color(0xFF0B3D1F).withOpacity(0.85),
+                      const Color(0xFF0F5A2A).withOpacity(0.85),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -447,10 +447,10 @@ class FrenchQuranWidget extends StatelessWidget {
                         'Coran traduction',
                         style: TextStyle(
                           fontSize: 16,
-                          color: const Color(0xFFD4AF37),
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                           shadows: const [
-                            Shadow(color: Color(0xFF7A5A12), blurRadius: 6, offset: Offset(1, 1)),
+                            Shadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 1)),
                           ],
                         ),
                         textAlign: TextAlign.center,

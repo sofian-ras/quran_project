@@ -28,11 +28,10 @@ class ResumeReadingWidget extends StatelessWidget {
         // Si rien du tout nâ€™existe, on affiche quand mÃªme un bouton â€œReprendreâ€
         // (au lieu de shrink), qui ouvre page 1 (ou ce que tu veux)
         final bool hasAnyData = lastReading != null;
-        final Color textColor = const Color(0xFFD4AF37);
-        final Color secondaryColor = const Color(0xFFB88A2B);
+        final Color textColor = Colors.white;
+        final Color secondaryColor = Colors.white70;
         final List<Shadow> reliefShadows = const [
-          Shadow(color: Color(0xFFFFF2C9), offset: Offset(-0.6, -0.6), blurRadius: 1),
-          Shadow(color: Color(0xFF7A5A12), offset: Offset(0.9, 0.9), blurRadius: 1.6),
+          Shadow(color: Colors.black45, offset: Offset(0.6, 0.6), blurRadius: 1.5),
         ];
 
         return Container(
@@ -43,11 +42,11 @@ class ResumeReadingWidget extends StatelessWidget {
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF1F8F4A), width: 1.5),
+            border: Border.all(color: Colors.black.withOpacity(0.12), width: 1.2),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF1F8F4A).withOpacity(0.35),
-                blurRadius: 14,
+                color: const Color(0xFF0B3D1F).withOpacity(0.45),
+                blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
             ],
