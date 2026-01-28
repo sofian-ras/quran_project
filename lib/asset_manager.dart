@@ -4,16 +4,19 @@ import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive.dart';
+import 'dart:isolate';
+
 
 class AssetManager {
   static const String zipUrl = 'https://github.com/sofian-ras/quran_project/releases/download/v1.0.0/quran_pages.zip';
   static const String zipFileName = 'quran_pages.zip';
-  
+  static bool? _assetsReadyCache; 
   static final Dio _dio = Dio();
   static bool _isDownloadingZip = false; // Pour éviter les téléchargements multiples du ZIP
 
   // Vérifie si les pages sont déjà téléchargées (ZIP extrait)
   static Future<bool> areAssetsDownloaded() async {
+    if (_assetsReadyCache == true) return true;
     final dir = await getApplicationDocumentsDirectory();
     final hafsFolder = Directory(p.join(dir.path, 'hafs'));
     final warshFolder = Directory(p.join(dir.path, 'warsh'));
@@ -22,8 +25,9 @@ class AssetManager {
     if (await hafsFolder.exists() && await warshFolder.exists()) {
       final hafsFiles = await hafsFolder.list().toList();
       final warshFiles = await warshFolder.list().toList();
-      // Si on a au moins 600 fichiers dans chaque dossier, c'est bon
-      return hafsFiles.length >= 600 && warshFiles.length >= 600;
+      final ok = hafsFiles.length >= 600 && warshFiles.length >= 600;
+      if (ok) _assetsReadyCache = true;
+      return ok;
     }
     return false;
   }
@@ -90,27 +94,34 @@ class AssetManager {
 
       debugPrint('ZIP téléchargé, extraction en cours...');
 
-      // 2. Décompression
-      final bytes = File(zipPath).readAsBytesSync();
-      final archive = ZipDecoder().decodeBytes(bytes);
+      // 2. Décompression (dans un isolate pour éviter le freeze UI)
+      await Isolate.run(() {
+        final bytes = File(zipPath).readAsBytesSync();
+        final archive = ZipDecoder().decodeBytes(bytes);
 
-      for (final file in archive) {
-        final filename = file.name;
-        // Ignorer les métadonnées MacOS
-        if (filename.contains('__MACOSX') || filename.startsWith('.')) {
-          continue;
+        for (final file in archive) {
+          final filename = file.name;
+
+          // Ignorer les métadonnées MacOS
+          if (filename.contains('__MACOSX') || filename.startsWith('.')) {
+            continue;
+          }
+
+          final filePath = p.join(dir.path, filename);
+          if (file.isFile) {
+            final data = file.content as List<int>;
+            File(filePath)
+              ..createSync(recursive: true)
+              ..writeAsBytesSync(data);
+          } else {
+            Directory(filePath).createSync(recursive: true);
+          }
         }
-        
-        final filePath = p.join(dir.path, filename);
-        if (file.isFile) {
-          final data = file.content as List<int>;
-          File(filePath)
-            ..createSync(recursive: true)
-            ..writeAsBytesSync(data);
-        } else {
-          Directory(filePath).createSync(recursive: true);
-        }
-      }
+      });
+
+      // Après extraction réussie
+      _assetsReadyCache = true;
+
 
       debugPrint('Extraction terminée avec succès');
 

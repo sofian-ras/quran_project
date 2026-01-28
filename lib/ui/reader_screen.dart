@@ -47,6 +47,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
   Timer? _saveTimer;
+  Timer? _preloadDebounce;
   
   // Cache pour les images préchargées
   final Map<int, File?> _imageCache = {};
@@ -64,9 +65,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
   
   void _onPageScroll() {
-    // Précharger les pages adjacentes pendant le scroll
-    final currentIndex = _pageController.page?.round() ?? 0;
-    _preloadPages(currentIndex + 1);
+    _preloadDebounce?.cancel();
+    _preloadDebounce = Timer(const Duration(milliseconds: 120), () {
+      final currentIndex = _pageController.page?.round() ?? 0;
+      _preloadPages(currentIndex + 1);
+    });
   }
   
   Future<void> _preloadPages(int centerPage) async {
@@ -85,11 +88,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _loadPageIntoCache(int pageNum) async {
     try {
       final file = await AssetManager.getPageFile(currentReading, pageNum);
-      if (mounted) {
-        setState(() {
-          _imageCache[pageNum] = file;
-        });
-      }
+      _imageCache[pageNum] = file;
     } catch (e) {
       debugPrint('Erreur préchargement page $pageNum: $e');
     }
@@ -110,6 +109,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    _preloadDebounce?.cancel();
     _saveTimer?.cancel();
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();

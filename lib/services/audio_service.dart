@@ -32,7 +32,7 @@ class AudioService {
 
   final AudioPlayer _player = AudioPlayer();
   ConcatenatingAudioSource? _playlist;
-
+  bool _audioSourceReady = false;
   final ValueNotifier<int?> currentPlayingSurahIdNotifier = ValueNotifier<int?>(null);
   StreamSubscription<int?>? _currentIndexSub;
   final ValueNotifier<String> currentTitleNotifier = ValueNotifier("Aucune lecture");
@@ -52,6 +52,7 @@ class AudioService {
       currentReciterNotifier.value = name;
       currentServer = server;
       _playlist = null; // Force la régénération de la playlist
+      _audioSourceReady = false;  // Force un setAudioSource au prochain play
     }
   }
 
@@ -78,22 +79,31 @@ class AudioService {
       // Si la playlist n'existe pas (premier lancement ou changement de récitateur), on la crée.
       if (_playlist == null) {
         _playlist = _createPlaylist();
+        _audioSourceReady = false;
       }
 
       // Mettre à jour le titre de la sourate
       currentTitleNotifier.value = surahFr[surahId] ?? 'Sourate $surahId';
 
-      await _player.setAudioSource(
-        _playlist!,
-        initialIndex: surahId - 1, // L'index est 0-based
-      );
+      final targetIndex = surahId - 1;
+
+      // Si la source n'a jamais été posée (ou récitant changé), on fait setAudioSource UNE fois.
+      if (!_audioSourceReady || _player.audioSource == null) {
+        await _player.setAudioSource(_playlist!, initialIndex: targetIndex);
+        _audioSourceReady = true;
+      } else {
+        // Sinon : on change juste l'index (beaucoup plus léger) + reset position
+        await _player.seek(Duration.zero, index: targetIndex);
+      }
+
       play();
     } catch (e) {
       debugPrint("Erreur lors du chargement de la playlist: $e");
-      // Réinitialiser l'état en cas d'erreur
       _playlist = null;
+      _audioSourceReady = false;
     }
   }
+
 
   // Méthode privée pour générer la playlist proprement
   ConcatenatingAudioSource _createPlaylist() {

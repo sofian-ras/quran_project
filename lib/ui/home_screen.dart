@@ -18,6 +18,7 @@ import 'widgets/home_resume_reading_widget.dart';
 import 'widgets/ios_side_menu.dart';
 import 'widgets/liste_de_sourates_widget.dart';
 import 'widgets/mini_audio_player.dart';
+import 'widgets/prayer_times_card.dart';
 
 
 
@@ -492,6 +493,13 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const SizedBox(height: 16),
+
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      child: const PrayerTimesCard(),
+                                    ),
+
+                                    const SizedBox(height: 12),
 
                                     const ReciterWidget(),
 
