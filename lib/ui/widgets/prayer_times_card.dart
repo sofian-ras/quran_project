@@ -447,29 +447,19 @@ class PrayerTimesHeroCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         child: Stack(
           children: [
-            // Background premium
+            // Background image
             Container(
-              height: 290,
+              height: 230,
               decoration: BoxDecoration(
-                gradient: isDark
-                    ? const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF020617),
-                          Color(0xFF0B1025),
-                          Color(0xFF1A0033),
-                        ],
-                      )
-                    : const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF1E3A2F),
-                          Color(0xFF2D5A45),
-                          Color(0xFF3A6B54),
-                        ],
-                      ),
+                image: DecorationImage(
+                  image: const AssetImage('assets/images/fond_widget.png'),
+                  fit: BoxFit.cover,
+                  // assombrit pour que le texte reste lisible
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withOpacity(isDark ? 0.45 : 0.25),
+                    BlendMode.darken,
+                  ),
+                ),
               ),
             ),
 
@@ -493,73 +483,59 @@ class PrayerTimesHeroCard extends StatelessWidget {
             ),
 
             // Glass content
+            // Content (sans grand cadre transparent)
             Positioned.fill(
               child: Padding(
                 padding: const EdgeInsets.all(14),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(isDark ? 0.06 : 0.10),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(isDark ? 0.10 : 0.18),
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header line
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.access_time_rounded,
-                                color: const Color(0xFFD4AF77),
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  location,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: fg,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                dateLine,
-                                style: TextStyle(
-                                  color: fgSoft,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          Expanded(
-                            child: Center(
-                              child: _WetGlassNextPrayer(
-                                nextPrayerName: nextPrayerName,
-                                nextPrayerTime: nextPrayerTime,
-                                remaining: remaining,
-                                isDark: isDark,
-                              ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header line
+                    Row(
+                      children: [
+                              Icon(Icons.access_time_rounded, color: const Color(0xFFFFC857), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: fg,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
                             ),
                           ),
-                        ],
+                        ),
+                        // si tu as gardé le décalage pour laisser place aux boutons :
+                        Padding(
+                          padding: const EdgeInsets.only(right: 96),
+                          child: Text(
+                            dateLine,
+                            style: TextStyle(
+                              color: fgSoft,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Next prayer au centre (seul cadre conservé = WetGlass)
+                    Expanded(
+                      child: Center(
+                        child: _WetGlassNextPrayer(
+                          nextPrayerName: nextPrayerName,
+                          nextPrayerTime: nextPrayerTime,
+                          remaining: remaining,
+                          isDark: isDark,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -588,11 +564,11 @@ class _PrayerPill extends StatelessWidget {
     final Color fg = isDark ? const Color(0xFFE5E7EB) : Colors.white;
 
     final bg = isNext
-        ? const Color(0xFFD4AF77).withOpacity(0.22)
+        ? const Color(0xFFFFC857).withOpacity(0.22)
         : Colors.white.withOpacity(isDark ? 0.08 : 0.14);
 
     final border = isNext
-        ? const Color(0xFFD4AF77).withOpacity(0.35)
+        ? const Color(0xFFFFC857).withOpacity(0.35)
         : Colors.white.withOpacity(isDark ? 0.12 : 0.20);
 
     return Container(
@@ -713,16 +689,16 @@ class _WetGlassNextPrayer extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD4AF77).withOpacity(0.18),
+                      color: const Color(0xFFFFC857).withOpacity(0.18),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
-                        color: const Color(0xFFD4AF77).withOpacity(0.30),
+                        color: const Color(0xFFFFC857).withOpacity(0.30),
                       ),
                     ),
                     child: Text(
                       '- $remaining',
                       style: const TextStyle(
-                        color: Color(0xFFD4AF77),
+                        color: Color(0xFFFFC857),
                         fontWeight: FontWeight.w900,
                         fontSize: 12,
                       ),
