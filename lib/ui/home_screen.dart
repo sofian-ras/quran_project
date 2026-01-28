@@ -7,7 +7,6 @@ import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import '../services/reading_history_service.dart';
 import '../surah_name.dart';
-import '../theme/theme_service.dart';
 import 'full_player_screen.dart';
 import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
@@ -20,6 +19,7 @@ import 'widgets/liste_de_sourates_widget.dart';
 import 'widgets/mini_audio_player.dart';
 import '../theme/theme_service.dart';
 import 'widgets/prayer_times_card.dart';
+
 
 
 
@@ -442,15 +442,55 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                 child: CustomScrollView(
                                   physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                                   slivers: [
-                                    SliverPadding(
-                                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-                                      sliver: SliverToBoxAdapter(
-                                        child: _HomeTopBar(
-                                          onMenuTap: _openMenu,
-                                          onThemeTap: _cycleTheme,
+                                    SliverAppBar(
+                                      pinned: true,
+                                      floating: true,
+                                      snap: true,
+                                      elevation: 0,
+                                      backgroundColor: Colors.transparent,
+                                      surfaceTintColor: Colors.transparent,
+                                      leading: IconButton(
+                                        onPressed: _openMenu,
+                                        icon: Icon(
+                                          Icons.menu_rounded,
+                                          color: Theme.of(context).brightness == Brightness.dark
+                                              ? Colors.white
+                                              : Colors.black87,
                                         ),
                                       ),
+                                      title: Text(
+                                        'القرآن الكريم',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: Theme.of(context).brightness == Brightness.dark
+                                              ? Colors.white
+                                              : Colors.black87,
+                                        ),
+                                      ),
+                                      actions: [
+                                        ValueListenableBuilder<ThemeMode>(
+                                          valueListenable: ThemeService.themeMode,
+                                          builder: (context, mode, _) {
+                                            final icon = (mode == ThemeMode.system)
+                                                ? Icons.brightness_auto_rounded
+                                                : (mode == ThemeMode.light)
+                                                    ? Icons.light_mode_rounded
+                                                    : Icons.dark_mode_rounded;
+
+                                            return IconButton(
+                                              onPressed: _cycleTheme,
+                                              icon: Icon(
+                                                icon,
+                                                color: Theme.of(context).brightness == Brightness.dark
+                                                    ? Colors.white
+                                                    : Colors.black87,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ],
                                     ),
+
 
                                     SliverPadding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),

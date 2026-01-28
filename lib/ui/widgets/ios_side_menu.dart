@@ -12,6 +12,7 @@ import '../bookmarks_screen.dart';
 import '../settings_screen.dart';
 import '../reading_history_screen.dart';
 
+
 class IOSSideMenu extends StatelessWidget {
   const IOSSideMenu({super.key});
 
@@ -418,6 +419,7 @@ class IOSSideMenu extends StatelessWidget {
                             ),
 
                             const SizedBox(height: 12),
+
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: Row(
@@ -448,8 +450,8 @@ class IOSSideMenu extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 12),
 
+                            const SizedBox(height: 12),
                             // Historique
                             _MenuSection(
                               icon: CupertinoIcons.clock_fill,

@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -406,4 +406,301 @@ class _LocationResult {
   final String country;
 
   const _LocationResult({required this.city, required this.country});
+}
+
+class PrayerRowData {
+  final String name;
+  final String time;
+  final bool isNext;
+  const PrayerRowData(this.name, this.time, {this.isNext = false});
+}
+
+class PrayerTimesHeroCard extends StatelessWidget {
+  final String location;
+  final String dateLine;        // ex: "Mer. 28 jan • 17 Rajab"
+  final String nextPrayerName;  // ex: "Asr"
+  final String nextPrayerTime;  // ex: "15:42"
+  final String remaining;       // ex: "01:12"
+  final List<PrayerRowData> rows;
+  final VoidCallback? onTap;
+
+  const PrayerTimesHeroCard({
+    super.key,
+    required this.location,
+    required this.dateLine,
+    required this.nextPrayerName,
+    required this.nextPrayerTime,
+    required this.remaining,
+    required this.rows,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Color fg = isDark ? const Color(0xFFE5E7EB) : const Color(0xFF0B1220);
+    final Color fgSoft = isDark ? Colors.white70 : Colors.black54;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Stack(
+          children: [
+            // Background premium
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                gradient: isDark
+                    ? const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF020617),
+                          Color(0xFF0B1025),
+                          Color(0xFF1A0033),
+                        ],
+                      )
+                    : const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF1E3A2F),
+                          Color(0xFF2D5A45),
+                          Color(0xFF3A6B54),
+                        ],
+                      ),
+              ),
+            ),
+
+            // Light overlay
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(isDark ? 0.06 : 0.10),
+                        Colors.transparent,
+                        Colors.black.withOpacity(isDark ? 0.25 : 0.10),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Glass content
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(isDark ? 0.06 : 0.10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(isDark ? 0.10 : 0.18),
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header line
+                          Row(
+                            children: [
+                              Icon(Icons.access_time_rounded,
+                                  color: const Color(0xFFD4AF77), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: fg,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                dateLine,
+                                style: TextStyle(
+                                  color: fgSoft,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          // Next prayer big
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Prochaine prière',
+                                      style: TextStyle(
+                                        color: fgSoft,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          nextPrayerName,
+                                          style: TextStyle(
+                                            color: fg,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 22,
+                                            letterSpacing: -0.2,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFD4AF77)
+                                                .withOpacity(0.18),
+                                            borderRadius: BorderRadius.circular(999),
+                                            border: Border.all(
+                                              color: const Color(0xFFD4AF77)
+                                                  .withOpacity(0.30),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '- $remaining',
+                                            style: const TextStyle(
+                                              color: Color(0xFFD4AF77),
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                nextPrayerTime,
+                                style: TextStyle(
+                                  color: fg,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const Spacer(),
+
+                          // Pills row
+                          SizedBox(
+                            height: 44,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: rows.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                              itemBuilder: (context, i) {
+                                final r = rows[i];
+                                return _PrayerPill(
+                                  name: r.name,
+                                  time: r.time,
+                                  isNext: r.isNext,
+                                  isDark: isDark,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PrayerPill extends StatelessWidget {
+  final String name;
+  final String time;
+  final bool isNext;
+  final bool isDark;
+
+  const _PrayerPill({
+    required this.name,
+    required this.time,
+    required this.isNext,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color fg = isDark ? const Color(0xFFE5E7EB) : Colors.white;
+
+    final bg = isNext
+        ? const Color(0xFFD4AF77).withOpacity(0.22)
+        : Colors.white.withOpacity(isDark ? 0.08 : 0.14);
+
+    final border = isNext
+        ? const Color(0xFFD4AF77).withOpacity(0.35)
+        : Colors.white.withOpacity(isDark ? 0.12 : 0.20);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            style: TextStyle(
+              color: fg.withOpacity(isNext ? 1 : 0.85),
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            time,
+            style: TextStyle(
+              color: fg,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
