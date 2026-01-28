@@ -8,6 +8,7 @@ import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import '../services/reading_history_service.dart';
 import '../surah_name.dart';
+import '../theme/theme_service.dart';
 import 'full_player_screen.dart';
 import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
@@ -492,7 +493,53 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 6),
+
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          IconButton(
+                                            onPressed: _openMenu,
+                                            icon: Icon(
+                                              Icons.menu_rounded,
+                                              color: Theme.of(context).brightness == Brightness.dark
+                                                  ? Colors.white
+                                                  : const Color(0xFF1A0033),
+                                            ),
+                                            tooltip: 'Menu',
+                                          ),
+                                          ValueListenableBuilder<ThemeMode>(
+                                            valueListenable: ThemeService.themeMode,
+                                            builder: (context, mode, _) {
+                                              final bool isDark =
+                                                  Theme.of(context).brightness == Brightness.dark;
+                                              final IconData icon = (mode == ThemeMode.dark)
+                                                  ? Icons.light_mode_rounded
+                                                  : Icons.dark_mode_rounded;
+                                              return IconButton(
+                                                onPressed: () {
+                                                  final next = (mode == ThemeMode.dark)
+                                                      ? ThemeMode.light
+                                                      : ThemeMode.dark;
+                                                  ThemeService.setTheme(next);
+                                                },
+                                                icon: Icon(
+                                                  icon,
+                                                  color: isDark
+                                                      ? Colors.white
+                                                      : const Color(0xFF1A0033),
+                                                ),
+                                                tooltip: 'Theme',
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 8),
 
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),

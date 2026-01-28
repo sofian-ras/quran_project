@@ -48,10 +48,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _showUI = true;
   Timer? _saveTimer;
   Timer? _preloadDebounce;
+  bool _isBookmarked = false;
   
   // Cache pour les images préchargées
   final Map<int, File?> _imageCache = {};
   final int _preloadRange = 3; // Nombre de pages à précharger avant/après
+
+  Future<void> _refreshBookmarkStatus([int? page]) async {
+    final p = page ?? currentPage;
+    try {
+      final requestedPage = p;
+      final v = await BookmarkService.instance.isBookmarked(requestedPage);
+      if (!mounted) return;
+      if (currentPage != requestedPage) return; // évite un retour async sur une autre page
+      setState(() => _isBookmarked = v);
+    } catch (e) {
+      debugPrint('Erreur isBookmarked(page $p): $e');
+    }
+  }
   
   @override
   void initState() {
@@ -62,6 +76,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageController = PageController(initialPage: startPage - 1);
     _pageController.addListener(_onPageScroll);
     _initApp();
+    _refreshBookmarkStatus(currentPage);
   }
   
   void _onPageScroll() {
@@ -260,6 +275,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 itemCount: 604,
                 onPageChanged: (p) {
                   setState(() => currentPage = p + 1);
+                  _refreshBookmarkStatus(p + 1);
                   _preloadPages(p + 1);
 
                   _saveTimer?.cancel();
@@ -450,43 +466,47 @@ class _ReaderScreenState extends State<ReaderScreen> {
                               style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
                         ],
                       ),
-                      FutureBuilder<bool>(
-                        future: BookmarkService.instance.isBookmarked(currentPage),
-                        builder: (context, snapshot) {
-                          final isBookmarked = snapshot.data ?? false;
-                          return Opacity(
-                            opacity: 0.5,
-                            child: IconButton(
-                              icon: Icon(
-                                isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                                size: 24,
-                                color: isBookmarked ? Colors.amber : Colors.black54,
-                              ),
-                              onPressed: () async {
-                                if (isBookmarked) {
-                                  await BookmarkService.instance.removeBookmark(currentPage);
-                                } else {
-                                  if (fullSurahList.isEmpty) return;
-                                  final surah = fullSurahList.lastWhere(
-                                    (s) => s['page'] <= currentPage,
-                                    orElse: () => fullSurahList.first,
-                                  );
+                      Opacity(
+                        opacity: 0.5,
+                        child: IconButton(
+                          icon: Icon(
+                            _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                            size: 24,
+                            color: _isBookmarked ? Colors.amber : Colors.black54,
+                          ),
+                          onPressed: () async {
+                            try {
+                              if (_isBookmarked) {
+                                await BookmarkService.instance.removeBookmark(currentPage);
+                                if (!mounted) return;
+                                setState(() => _isBookmarked = false);
+                              } else {
+                                if (fullSurahList.isEmpty) return;
 
-                                  await BookmarkService.instance.addBookmark(
-                                    Bookmark(
-                                      page: currentPage,
-                                      surahId: surah['id'] as int,
-                                      surahName: surah['nameFr'] as String,
-                                      createdAt: DateTime.now(),
-                                    ),
-                                  );
-                                }
-                                setState(() {});
-                              },
-                            ),
-                          );
-                        },
+                                final surah = fullSurahList.lastWhere(
+                                  (s) => s['page'] <= currentPage,
+                                  orElse: () => fullSurahList.first,
+                                );
+
+                                await BookmarkService.instance.addBookmark(
+                                  Bookmark(
+                                    page: currentPage,
+                                    surahId: surah['id'] as int,
+                                    surahName: surah['nameFr'] as String,
+                                    createdAt: DateTime.now(),
+                                  ),
+                                );
+
+                                if (!mounted) return;
+                                setState(() => _isBookmarked = true);
+                              }
+                            } catch (e) {
+                              debugPrint('Erreur toggle bookmark: $e');
+                            }
+                          },
+                        ),
                       ),
+
                     ],
                   ),
                 ),

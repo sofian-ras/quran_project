@@ -4,8 +4,10 @@ import 'ui/home_screen.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ThemeService.init();
+
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -14,6 +16,7 @@ void main() {
   ]);
   runApp(const QuranApp());
 }
+
 
 class QuranApp extends StatelessWidget {
   const QuranApp({super.key});

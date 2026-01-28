@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../downloads_screen.dart';
 import '../favorites_screen.dart';
 import '../statistics_screen.dart';
+import '../../theme/theme_service.dart';
 import '../bookmarks_screen.dart';
 
 class IOSSideMenu extends StatelessWidget {
@@ -181,6 +182,66 @@ class IOSSideMenu extends StatelessWidget {
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: ValueListenableBuilder<ThemeMode>(
+                    valueListenable: ThemeService.themeMode,
+                    builder: (context, mode, _) {
+                      bool isSelected(ThemeMode m) => mode == m;
+                      
+                      Widget chip({
+                        required IconData icon,
+                        required String label,
+                        required ThemeMode value,
+                      }) {
+                        final selected = isSelected(value);
+                        final bg = selected
+                            ? (isDark ? const Color(0xFFD4AF37).withOpacity(0.18) : const Color(0xFF8A6A1F).withOpacity(0.12))
+                            : (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04));
+
+                        final fg = selected ? iconColor : (isDark ? Colors.white70 : Colors.black54);
+
+                        return Expanded(
+                          child: CupertinoButton(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            borderRadius: BorderRadius.circular(14),
+                            color: bg,
+                            onPressed: () {
+                              ThemeService.setTheme(value);
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(icon, size: 16, color: fg),
+                                const SizedBox(width: 6),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    color: fg,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          chip(icon: CupertinoIcons.sun_max_fill, label: 'Clair', value: ThemeMode.light),
+                          const SizedBox(width: 8),
+                          chip(icon: CupertinoIcons.moon_fill, label: 'Sombre', value: ThemeMode.dark),
+                          const SizedBox(width: 8),
+                          chip(icon: CupertinoIcons.device_phone_portrait, label: 'Système', value: ThemeMode.system),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+
 
                 Expanded(
                   child: Container(
@@ -189,18 +250,25 @@ class IOSSideMenu extends StatelessWidget {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.2),
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.1),
-                        ],
+                        colors: isDark
+                            ? [
+                                Colors.black.withValues(alpha: 0.2),
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.1),
+                              ]
+                            : [
+                                Colors.white.withValues(alpha: 0.65),
+                                Colors.transparent,
+                                Colors.white.withValues(alpha: 0.35),
+                              ],
                       ),
                       borderRadius: BorderRadius.circular(25),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
                         width: 1,
                       ),
                     ),
+
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(25),
                       child: BackdropFilter(

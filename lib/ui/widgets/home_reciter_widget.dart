@@ -17,29 +17,29 @@ class ReciterWidget extends StatelessWidget {
         // Container principal avec dÃ©corations
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Color(0xFF2979FF), Color(0xFF1565C0)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(40),
+            borderRadius: BorderRadius.circular(32),
             border: Border.all(
               color: const Color(0xFFFFFFFF).withOpacity(0.3),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF2979FF).withOpacity(0.3),
-                blurRadius: 20,
-                spreadRadius: 2,
-                offset: const Offset(0, 6),
+                color: const Color(0xFF2979FF).withOpacity(0.22),
+                blurRadius: 10,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
-                blurRadius: 15,
-                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -69,21 +69,25 @@ class ReciterWidget extends StatelessWidget {
                           const Icon(
                             Icons.person,
                             color: Color(0xFFFFFFFF),
-                            size: 28,
+                            size: 20,
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
 
                           // Nom du rÃ©citateur
                           Expanded(
-                            child: Text(
-                              reciterName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
+                            child: Align(
+                              alignment: const Alignment(-0.2, 0),
+                              child: Text(
+                                reciterName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
