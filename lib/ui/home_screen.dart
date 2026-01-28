@@ -453,7 +453,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                     ],
                                     stops: [0.0, 0.6, 1.0],
                                   ),
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(
