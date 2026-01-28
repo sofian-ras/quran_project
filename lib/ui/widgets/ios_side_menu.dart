@@ -19,9 +19,12 @@ class IOSSideMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color textColor = isDark ? const Color(0xFFE5E7EB) : const Color(0xFF1A1A1A);
-    final Color subTextColor = isDark ? Colors.white70 : Colors.black54;
-    final Color iconColor = isDark ? const Color(0xFFD4AF37) : const Color(0xFF8A6A1F);
+    final Color textColor = isDark ? const Color(0xFFFDFCF9) : const Color(0xFF1A0B3D);
+    final Color subTextColor = isDark ? Colors.white70 : const Color(0xFF4B3B7A);
+    final Color accentPrimary = isDark ? const Color(0xFFFFD93D) : const Color(0xFFFF6B3D);
+    final Color accentSecondary = const Color(0xFF2BB6FF);
+    final Color accentTertiary = isDark ? const Color(0xFFFF6EC7) : const Color(0xFFFFD93D);
+    final Color iconColor = accentPrimary;
     final Color tileHover = isDark
         ? Colors.white.withOpacity(0.06)
         : Colors.black.withOpacity(0.04);
@@ -31,24 +34,25 @@ class IOSSideMenu extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: Theme.of(context).brightness == Brightness.dark
             ? LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF020617).withOpacity(0.96),
-                  const Color(0xFF0B1025).withOpacity(0.94),
-                  const Color(0xFF1A0033).withOpacity(0.92),
-                  const Color(0xFF2D1B4E).withOpacity(0.92),
+                  const Color(0xFF0B0F2A).withOpacity(0.98),
+                  const Color(0xFF3A0F5C).withOpacity(0.95),
+                  const Color(0xFF0F4C6B).withOpacity(0.94),
+                  const Color(0xFF0A6F7A).withOpacity(0.92),
                 ],
               )
-            : LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFFFDFDFD),
-                  const Color(0xFFF7F2E8),
-                  const Color(0xFFEDEAE0),
+                  Color(0xFFFFF0B3),
+                  Color(0xFFFFC9D9),
+                  Color(0xFFC9F2FF),
+                  Color(0xFFD4FFB3),
                 ],
-                stops: const [0.0, 0.6, 1.0],
+                stops: [0.0, 0.35, 0.7, 1.0],
               ),
       ),
 
@@ -64,35 +68,25 @@ class IOSSideMenu extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: isDark
-                          ? [
-                              const Color(0xFFD4AF37).withOpacity(0.15),
-                              const Color(0xFFC9A65C).withOpacity(0.1),
-                              const Color(0xFF8B7355).withOpacity(0.05),
-                            ]
-                          : [
-                              const Color(0xFFFDFDFD),
-                              const Color(0xFFEDEAE0),
-                              const Color(0xFFDAD5C4),
-                            ],
+                      colors: [
+                        accentSecondary.withOpacity(isDark ? 0.25 : 0.45),
+                        accentTertiary.withOpacity(isDark ? 0.20 : 0.40),
+                        accentPrimary.withOpacity(isDark ? 0.22 : 0.35),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      width: 1.5,
-                      color: isDark
-                          ? const Color(0xFFD4AF37).withOpacity(0.3)
-                          : const Color(0xFFB0A895),
+                      width: 2,
+                      color: accentPrimary.withOpacity(isDark ? 0.45 : 0.7),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: isDark
-                            ? const Color(0xFFD4AF37).withOpacity(0.2)
-                            : const Color(0xFFB0A895).withOpacity(0.2),
-                        blurRadius: 15,
+                        color: accentPrimary.withOpacity(isDark ? 0.35 : 0.5),
+                        blurRadius: 18,
                         spreadRadius: 2,
                       ),
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withOpacity(0.12),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -109,24 +103,16 @@ class IOSSideMenu extends StatelessWidget {
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: isDark
-                                ? [
-                                    const Color(0xFFFFD700),
-                                    const Color(0xFFD4AF37),
-                                    const Color(0xFFC9A65C),
-                                  ]
-                                : [
-                                    const Color(0xFFEDEAE0),
-                                    const Color(0xFFDAD5C4),
-                                    const Color(0xFFB0A895),
-                                  ],
+                            colors: [
+                              accentPrimary,
+                              accentTertiary,
+                              accentSecondary,
+                            ],
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: isDark
-                                  ? const Color(0xFFD4AF37).withOpacity(0.5)
-                                  : const Color(0xFFB0A895).withOpacity(0.5),
-                              blurRadius: 12,
+                              color: accentPrimary.withOpacity(isDark ? 0.6 : 0.7),
+                              blurRadius: 14,
                               spreadRadius: 2,
                             ),
                           ],
@@ -162,7 +148,7 @@ class IOSSideMenu extends StatelessWidget {
                                 shadows: isDark
                                     ? [
                                         Shadow(
-                                          color: const Color(0xFFD4AF37).withOpacity(0.5),
+                                          color: accentPrimary.withOpacity(0.5),
                                           blurRadius: 8,
                                         ),
                                       ]
@@ -199,10 +185,10 @@ class IOSSideMenu extends StatelessWidget {
                       }) {
                         final selected = isSelected(value);
                         final bg = selected
-                            ? (isDark ? const Color(0xFFD4AF37).withOpacity(0.18) : const Color(0xFF8A6A1F).withOpacity(0.12))
-                            : (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04));
+                            ? accentPrimary.withOpacity(isDark ? 0.25 : 0.35)
+                            : (isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.45));
 
-                        final fg = selected ? iconColor : (isDark ? Colors.white70 : Colors.black54);
+                        final fg = selected ? textColor : (isDark ? Colors.white70 : const Color(0xFF3B2B6B));
 
                         return Expanded(
                           child: CupertinoButton(
@@ -251,24 +237,24 @@ class IOSSideMenu extends StatelessWidget {
                     margin: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                         colors: isDark
                             ? [
-                                Colors.black.withValues(alpha: 0.2),
+                                Colors.white.withValues(alpha: 0.08),
                                 Colors.transparent,
-                                Colors.black.withValues(alpha: 0.1),
+                                accentSecondary.withValues(alpha: 0.12),
                               ]
                             : [
-                                Colors.white.withValues(alpha: 0.65),
-                                Colors.transparent,
-                                Colors.white.withValues(alpha: 0.35),
+                                Colors.white.withValues(alpha: 0.75),
+                                accentSecondary.withValues(alpha: 0.15),
+                                Colors.white.withValues(alpha: 0.55),
                               ],
                       ),
                       borderRadius: BorderRadius.circular(25),
                       border: Border.all(
-                        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.10),
-                        width: 1,
+                        color: accentPrimary.withValues(alpha: isDark ? 0.25 : 0.45),
+                        width: 1.5,
                       ),
                     ),
 
@@ -384,16 +370,16 @@ class IOSSideMenu extends StatelessWidget {
                               trailing: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
+                                  gradient: LinearGradient(
                                     colors: [
-                                      Color(0xFFFFD700),
-                                      Color(0xFFD4AF37),
+                                      accentTertiary,
+                                      accentPrimary,
                                     ],
                                   ),
                                   borderRadius: BorderRadius.circular(10),
-                                  boxShadow: const [
+                                  boxShadow: [
                                     BoxShadow(
-                                      color: Color(0xFFD4AF37),
+                                      color: accentPrimary.withOpacity(0.6),
                                       blurRadius: 6,
                                     ),
                                   ],
@@ -428,20 +414,20 @@ class IOSSideMenu extends StatelessWidget {
                                     width: 3,
                                     height: 14,
                                     decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
+                                      gradient: LinearGradient(
                                         colors: [
-                                          Color(0xFFFFD700),
-                                          Color(0xFFD4AF37),
+                                          accentSecondary,
+                                          accentPrimary,
                                         ],
                                       ),
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text(
+                                  Text(
                                     'PRÉFÉRENCES',
                                     style: TextStyle(
-                                      color: Color(0xFFD4AF37),
+                                      color: accentPrimary,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 1.5,
@@ -515,20 +501,20 @@ class IOSSideMenu extends StatelessWidget {
                                     width: 3,
                                     height: 14,
                                     decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
+                                      gradient: LinearGradient(
                                         colors: [
-                                          Color(0xFFFFD700),
-                                          Color(0xFFD4AF37),
+                                          accentSecondary,
+                                          accentPrimary,
                                         ],
                                       ),
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text(
+                                  Text(
                                     'INFORMATIONS',
                                     style: TextStyle(
-                                      color: Color(0xFFD4AF37),
+                                      color: accentPrimary,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 1.5,
@@ -610,6 +596,14 @@ class _MenuSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentPrimary = isDark ? const Color(0xFFFFD93D) : const Color(0xFFFF6B3D);
+    final accentSecondary = const Color(0xFF2BB6FF);
+    final titleColor = isDark ? Colors.white : const Color(0xFF1A0B3D);
+    final subColor = isDark ? Colors.white70 : const Color(0xFF4B3B7A);
+    final tileBg = isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.75);
+    final tileBorder = accentPrimary.withOpacity(isDark ? 0.35 : 0.6);
+
     return CupertinoButton(
       padding: EdgeInsets.zero,
       onPressed: onTap,
@@ -617,13 +611,45 @@ class _MenuSection extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: tileBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: tileBorder, width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: accentSecondary.withOpacity(isDark ? 0.2 : 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
         child: Row(
           children: [
             // Icône iOS simple
-            Icon(
-              icon,
-              color: const Color(0xFFD4AF37),
-              size: 26,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    accentSecondary,
+                    accentPrimary,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: accentPrimary.withOpacity(isDark ? 0.5 : 0.6),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                icon,
+                color: isDark ? const Color(0xFF0B0F2A) : Colors.white,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -632,8 +658,8 @@ class _MenuSection extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: titleColor,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.3,
@@ -643,7 +669,7 @@ class _MenuSection extends StatelessWidget {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      color: const Color(0xFFD4AF37).withValues(alpha: 0.7),
+                      color: subColor.withValues(alpha: 0.9),
                       fontSize: 11,
                       fontWeight: FontWeight.w400,
                     ),
@@ -659,15 +685,15 @@ class _MenuSection extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFFD4AF37).withValues(alpha: 0.2),
-                      const Color(0xFFD4AF37).withValues(alpha: 0.1),
+                      accentSecondary.withValues(alpha: 0.35),
+                      accentPrimary.withValues(alpha: 0.25),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   CupertinoIcons.chevron_right,
-                  color: const Color(0xFFD4AF37).withValues(alpha: 0.8),
+                  color: accentPrimary.withValues(alpha: 0.9),
                   size: 16,
                 ),
               ),

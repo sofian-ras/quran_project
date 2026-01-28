@@ -309,10 +309,10 @@ class _TimeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color baseColor = isDark ? Colors.white : const Color(0xFF1E3A2F);
+    final Color baseColor = isDark ? Colors.white : const Color(0xFF0B3D1F);
     final Color bg = isHighlighted
-        ? (isDark ? Colors.white.withOpacity(0.2) : const Color(0xFF1E3A2F).withOpacity(0.12))
-        : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05));
+        ? (isDark ? Colors.white.withOpacity(0.2) : const Color(0xFF1F8F4A).withOpacity(0.18))
+        : (isDark ? Colors.white.withOpacity(0.1) : const Color(0xFF0F5A2A).withOpacity(0.15));
 
     return Container(
       width: 84,
@@ -439,7 +439,7 @@ class PrayerTimesHeroCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final Color fg = isDark ? const Color(0xFFE5E7EB) : const Color(0xFF0B1220);
-    final Color fgSoft = isDark ? Colors.white70 : Colors.black54;
+    final Color fgSoft = isDark ? Colors.white70 : const Color(0xFF0B1220).withOpacity(0.65);
 
     return GestureDetector(
       onTap: onTap,
@@ -452,11 +452,11 @@ class PrayerTimesHeroCard extends StatelessWidget {
               height: 230,
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: const AssetImage('assets/images/fond_widget.png'),
+                  image: const AssetImage('assets/images/fond_widget_vert.webp'),
                   fit: BoxFit.cover,
                   // assombrit pour que le texte reste lisible
                   colorFilter: ColorFilter.mode(
-                    Colors.black.withOpacity(isDark ? 0.45 : 0.25),
+                    const Color(0xFF0B3D1F).withOpacity(isDark ? 0.45 : 0.22),
                     BlendMode.darken,
                   ),
                 ),
@@ -472,9 +472,9 @@ class PrayerTimesHeroCard extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withOpacity(isDark ? 0.06 : 0.10),
-                        Colors.transparent,
-                        Colors.black.withOpacity(isDark ? 0.25 : 0.10),
+                    Colors.white.withOpacity(isDark ? 0.08 : 0.10),
+                    Colors.transparent,
+                    const Color(0xFF0B3D1F).withOpacity(isDark ? 0.35 : 0.25),
                       ],
                     ),
                   ),
@@ -493,7 +493,7 @@ class PrayerTimesHeroCard extends StatelessWidget {
                     // Header line
                     Row(
                       children: [
-                              Icon(Icons.access_time_rounded, color: const Color(0xFFFFC857), size: 18),
+                              Icon(Icons.access_time_rounded, color: const Color(0xFF1F8F4A), size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -564,11 +564,11 @@ class _PrayerPill extends StatelessWidget {
     final Color fg = isDark ? const Color(0xFFE5E7EB) : Colors.white;
 
     final bg = isNext
-        ? const Color(0xFFFFC857).withOpacity(0.22)
+        ? const Color(0xFF1F8F4A).withOpacity(0.22)
         : Colors.white.withOpacity(isDark ? 0.08 : 0.14);
 
     final border = isNext
-        ? const Color(0xFFFFC857).withOpacity(0.35)
+        ? const Color(0xFF1F8F4A).withOpacity(0.35)
         : Colors.white.withOpacity(isDark ? 0.12 : 0.20);
 
     return Container(
@@ -604,6 +604,9 @@ class _PrayerPill extends StatelessWidget {
     );
   }
 }
+
+// Dark green accent
+const Color gold = Color(0xFF1F8F4A);
 
 class _WetGlassNextPrayer extends StatelessWidget {
   final String nextPrayerName;
@@ -666,20 +669,29 @@ class _WetGlassNextPrayer extends StatelessWidget {
                       Text(
                         nextPrayerName,
                         style: TextStyle(
-                          color: fg,
+                          color: gold,
                           fontWeight: FontWeight.w900,
-                          fontSize: 24,
-                          letterSpacing: -0.3,
+                          fontSize: 22,
+                          letterSpacing: -0.2,
+                          shadows: [
+                            Shadow(color: const Color(0xFF1F8F4A).withOpacity(0.95), blurRadius: 14),
+                            Shadow(color: const Color(0xFF0B5A2A).withOpacity(0.70), blurRadius: 28),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 12),
                       Text(
                         nextPrayerTime,
                         style: TextStyle(
-                          color: fg,
+                          color: gold,
                           fontWeight: FontWeight.w900,
-                          fontSize: 22,
+                          fontSize: 20,
+                          shadows: [
+                            Shadow(color: gold.withOpacity(0.95), blurRadius: 14),
+                            Shadow(color: const Color(0xFF0B5A2A).withOpacity(0.70), blurRadius: 28),
+                          ],
                         ),
+
                       ),
                     ],
                   ),
@@ -689,18 +701,21 @@ class _WetGlassNextPrayer extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFC857).withOpacity(0.18),
+                      color: const Color(0xFF1F8F4A).withOpacity(0.18),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
-                        color: const Color(0xFFFFC857).withOpacity(0.30),
+                        color: const Color(0xFF1F8F4A).withOpacity(0.30),
                       ),
                     ),
                     child: Text(
                       '- $remaining',
-                      style: const TextStyle(
-                        color: Color(0xFFFFC857),
-                        fontWeight: FontWeight.w900,
+                      style: TextStyle(
+                        color: gold,
+                        fontWeight: FontWeight.w800,
                         fontSize: 12,
+                        shadows: [
+                          Shadow(color: gold.withOpacity(0.9), blurRadius: 12),
+                        ],
                       ),
                     ),
                   ),

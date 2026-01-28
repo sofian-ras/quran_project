@@ -26,7 +26,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    const blue = Color(0xFF2979FF); // Bleu pétant
+    const green = Color(0xFF1F8F4A); // Vert foncé
 
     return GestureDetector(
       onTap: _openFullPlayer,
@@ -38,15 +38,15 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF2979FF), Color(0xFF1565C0)],
+              colors: [Color(0xFF0F5A2A), Color(0xFF0B3D1F)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             boxShadow: [
               BoxShadow(
-                color: Colors.blueAccent.withOpacity(0.4),
-                blurRadius: 16,
+                color: const Color(0xFF1F8F4A).withOpacity(0.45),
+                blurRadius: 18,
                 offset: const Offset(0, -2),
               ),
             ],
@@ -91,10 +91,10 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                       final processingState = playerState?.processingState;
                       
                       if (processingState == ProcessingState.loading || processingState == ProcessingState.buffering) {
-                        return const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator(color: blue)));
+                        return const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator(color: green)));
                       }
                       return IconButton(
-                        icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: blue, size: 48, shadows: [Shadow(color: Colors.black38, blurRadius: 8, offset: Offset(0,2))]),
+                        icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: green, size: 48, shadows: [Shadow(color: Colors.black38, blurRadius: 8, offset: Offset(0,2))]),
                         onPressed: _audio.togglePlayPause,
                       );
                     },
@@ -129,7 +129,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   }
 
   Widget _buildProgressBar() {
-    const blue = Color(0xFF2979FF);
+    const green = Color(0xFF1F8F4A);
     return StreamBuilder<PositionData>(
       stream: _audio.positionDataStream,
       builder: (context, snapshot) {
@@ -148,7 +148,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 12.0),
                 ),
                 child: Slider(
-                  activeColor: blue,
+                  activeColor: green,
                   inactiveColor: Colors.white24,
                   max: duration.inMilliseconds.toDouble().clamp(1.0, double.infinity),
                   value: position.inMilliseconds.toDouble().clamp(0.0, duration.inMilliseconds.toDouble()),

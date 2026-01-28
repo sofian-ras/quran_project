@@ -28,26 +28,26 @@ class ResumeReadingWidget extends StatelessWidget {
         // Si rien du tout nâ€™existe, on affiche quand mÃªme un bouton â€œReprendreâ€
         // (au lieu de shrink), qui ouvre page 1 (ou ce que tu veux)
         final bool hasAnyData = lastReading != null;
-        final Color textColor = const Color(0xFF3B2A0B);
-        final Color secondaryColor = const Color(0xFF5A3E0E);
+        final Color textColor = const Color(0xFFD4AF37);
+        final Color secondaryColor = const Color(0xFFB88A2B);
         final List<Shadow> reliefShadows = const [
-          Shadow(color: Color(0xFFFFF3D6), offset: Offset(-0.6, -0.6), blurRadius: 1),
-          Shadow(color: Color(0xFF8C6A1A), offset: Offset(0.9, 0.9), blurRadius: 1.6),
+          Shadow(color: Color(0xFFFFF2C9), offset: Offset(-0.6, -0.6), blurRadius: 1),
+          Shadow(color: Color(0xFF7A5A12), offset: Offset(0.9, 0.9), blurRadius: 1.6),
         ];
 
         return Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFFFFD37A), Color(0xFFDAA520)],
+              colors: [Color(0xFF0B3D1F), Color(0xFF0F5A2A)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFFFF2C9), width: 1.5),
+            border: Border.all(color: const Color(0xFF1F8F4A), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFB8860B).withOpacity(0.3),
-                blurRadius: 12,
+                color: const Color(0xFF1F8F4A).withOpacity(0.35),
+                blurRadius: 14,
                 offset: const Offset(0, 6),
               ),
             ],

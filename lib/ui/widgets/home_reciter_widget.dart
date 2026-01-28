@@ -11,10 +11,11 @@ class ReciterWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AudioService audio = AudioService.instance;
-    final Color accentText = const Color(0xFFFFE3A6);
+    final Color accentText = const Color(0xFFD4AF37);
+    final Color accentGlow = const Color(0xFF1F8F4A);
     final List<Shadow> reliefShadows = const [
-      Shadow(color: Color(0xFF0B2D5C), offset: Offset(1, 1), blurRadius: 2),
-      Shadow(color: Color(0xFFFFFFFF), offset: Offset(-0.6, -0.6), blurRadius: 1),
+      Shadow(color: Color(0xFF0B5A2A), offset: Offset(1, 1), blurRadius: 2),
+      Shadow(color: Color(0xFFF5FFF9), offset: Offset(-0.6, -0.6), blurRadius: 1),
     ];
 
     return Stack(
@@ -25,26 +26,30 @@ class ReciterWidget extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF2979FF), Color(0xFF1565C0)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF0B3D1F),
+                Color(0xFF0F5A2A),
+                Color(0xFF137A3B),
+              ],
+              begin: Alignment.bottomRight,
+              end: Alignment.topLeft,
             ),
             borderRadius: BorderRadius.circular(32),
             border: Border.all(
-              color: const Color(0xFFFFFFFF).withOpacity(0.3),
+              color: const Color(0xFF1F8F4A).withOpacity(0.8),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF2979FF).withOpacity(0.22),
-                blurRadius: 10,
-                spreadRadius: 1,
-                offset: const Offset(0, 4),
+                color: const Color(0xFF1F8F4A).withOpacity(0.35),
+                blurRadius: 16,
+                spreadRadius: 2,
+                offset: const Offset(0, 6),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.18),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: const Color(0xFF0B5A2A).withOpacity(0.16),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -132,12 +137,12 @@ class ReciterWidget extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Color(0xFFFFD700), // Or brillant
+                          color: const Color(0xFF0F5A2A),
                           width: 2.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Color(0xFFFFD700).withOpacity(0.4),
+                            color: const Color(0xFF1F8F4A).withOpacity(0.45),
                             blurRadius: 12,
                             spreadRadius: 1,
                             offset: const Offset(0, 2),
@@ -146,10 +151,11 @@ class ReciterWidget extends StatelessWidget {
                       ),
                       child: Icon(
                         isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: Color(0xFFFFD700), // Or brillant
+                        color: const Color(0xFF1F8F4A),
                         size: 28,
                         shadows: [
-                          Shadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
+                          Shadow(color: Color(0xFF0B5A2A), blurRadius: 6, offset: Offset(0, 2)),
+                          Shadow(color: Color(0xFFEAFFEF), blurRadius: 2, offset: Offset(-1, -1)),
                         ],
                       ),
                     ),
