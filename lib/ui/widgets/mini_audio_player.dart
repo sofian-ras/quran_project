@@ -26,7 +26,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    const gold = Color(0xFFC8A165);
+    const blue = Color(0xFF2979FF); // Bleu pétant
 
     return GestureDetector(
       onTap: _openFullPlayer,
@@ -37,8 +37,19 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black54.withValues(alpha: 0.25),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF2979FF), Color(0xFF1565C0)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.blueAccent.withOpacity(0.4),
+                blurRadius: 16,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -54,20 +65,22 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                           valueListenable: _audio.currentTitleNotifier,
                           builder: (context, title, _) => Text(
                             title,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16, shadows: [
+                              Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1)),
+                            ]),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         ValueListenableBuilder<String>(
                           valueListenable: _audio.currentReciterNotifier,
-                          builder: (context, name, _) => Text(name, style: const TextStyle(color: gold, fontSize: 12)),
+                          builder: (context, name, _) => Text(name, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32),
+                    icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]),
                     onPressed: _audio.skipToPrevious,
                   ),
                   StreamBuilder<PlayerState>(
@@ -78,20 +91,20 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                       final processingState = playerState?.processingState;
                       
                       if (processingState == ProcessingState.loading || processingState == ProcessingState.buffering) {
-                        return const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator(color: gold)));
+                        return const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator(color: blue)));
                       }
                       return IconButton(
-                        icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: gold, size: 48),
+                        icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: blue, size: 48, shadows: [Shadow(color: Colors.black38, blurRadius: 8, offset: Offset(0,2))]),
                         onPressed: _audio.togglePlayPause,
                       );
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 32),
+                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 32, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]),
                     onPressed: _audio.skipToNext,
                   ),
                   IconButton(
-                    icon: const Icon(Icons.stop_circle_outlined, color: Colors.white, size: 28),
+                    icon: const Icon(Icons.stop_circle_outlined, color: Colors.white, size: 28, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]),
                     onPressed: () => _audio.stop(),
                   ),
                 ],
@@ -116,7 +129,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   }
 
   Widget _buildProgressBar() {
-    const gold = Color(0xFFC8A165);
+    const blue = Color(0xFF2979FF);
     return StreamBuilder<PositionData>(
       stream: _audio.positionDataStream,
       builder: (context, snapshot) {
@@ -135,7 +148,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 12.0),
                 ),
                 child: Slider(
-                  activeColor: gold,
+                  activeColor: blue,
                   inactiveColor: Colors.white24,
                   max: duration.inMilliseconds.toDouble().clamp(1.0, double.infinity),
                   value: position.inMilliseconds.toDouble().clamp(0.0, duration.inMilliseconds.toDouble()),

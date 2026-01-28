@@ -80,17 +80,24 @@ class _PlayerBottomSheetState extends State<PlayerBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    const gold = Color(0xFFC8A165);
+    const blue = Color(0xFF2979FF); // Bleu pétant
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF0B3D2E), Color(0xFF1B5E20)],
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2979FF), Color(0xFF1565C0)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blueAccent.withOpacity(0.4),
+            blurRadius: 16,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -107,13 +114,15 @@ class _PlayerBottomSheetState extends State<PlayerBottomSheet> {
             valueListenable: _audio.currentTitleNotifier,
             builder: (context, title, _) => Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20, shadows: [
+                Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1)),
+              ]),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           ValueListenableBuilder<String>(
             valueListenable: _audio.currentReciterNotifier,
-            builder: (context, name, _) => Text(name, style: const TextStyle(color: gold, fontSize: 14)),
+            builder: (context, name, _) => Text(name, style: const TextStyle(color: Colors.white70, fontSize: 14)),
           ),
           const SizedBox(height: 10),
           // Slider and duration
@@ -126,7 +135,7 @@ class _PlayerBottomSheetState extends State<PlayerBottomSheet> {
               return Column(
                 children: [
                   Slider(
-                    activeColor: gold,
+                    activeColor: blue,
                     inactiveColor: Colors.white24,
                     max: duration.inMilliseconds.toDouble().clamp(1.0, double.infinity),
                     value: position.inMilliseconds.toDouble().clamp(0.0, duration.inMilliseconds.toDouble()),
@@ -150,7 +159,7 @@ class _PlayerBottomSheetState extends State<PlayerBottomSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32), onPressed: _playPrevious),
+              IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]), onPressed: _playPrevious),
               StreamBuilder<PlayerState>(
                 stream: _audio.playerStateStream,
                 builder: (context, snapshot) {
@@ -159,15 +168,15 @@ class _PlayerBottomSheetState extends State<PlayerBottomSheet> {
                   final processingState = playerState?.processingState;
                   
                   if (processingState == ProcessingState.loading || processingState == ProcessingState.buffering) {
-                    return const SizedBox(width: 64, height: 64, child: Center(child: CircularProgressIndicator(color: gold)));
+                    return const SizedBox(width: 64, height: 64, child: Center(child: CircularProgressIndicator(color: blue)));
                   }
                   return IconButton(
-                    icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: gold, size: 64),
+                    icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: blue, size: 64, shadows: [Shadow(color: Colors.black38, blurRadius: 8, offset: Offset(0,2))]),
                     onPressed: _audio.togglePlayPause,
                   );
                 },
               ),
-              IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 32), onPressed: _playNext),
+              IconButton(icon: const Icon(Icons.skip_next, color: Colors.white, size: 32, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]), onPressed: _playNext),
             ],
           ),
           const SizedBox(height: 10),
