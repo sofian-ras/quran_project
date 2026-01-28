@@ -18,6 +18,7 @@ import 'widgets/home_resume_reading_widget.dart';
 import 'widgets/ios_side_menu.dart';
 import 'widgets/liste_de_sourates_widget.dart';
 import 'widgets/mini_audio_player.dart';
+import '../theme/theme_service.dart';
 import 'widgets/prayer_times_card.dart';
 
 
@@ -307,6 +308,18 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     }
   }
 
+  void _cycleTheme() {
+    final current = ThemeService.themeMode.value;
+    final next = (current == ThemeMode.system)
+        ? ThemeMode.light
+        : (current == ThemeMode.light)
+            ? ThemeMode.dark
+            : ThemeMode.system;
+
+    ThemeService.setTheme(next);
+  }
+
+
 
 
   @override
@@ -426,100 +439,62 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                               // TON CONTENU EXISTANT
                               SafeArea(
                                 top: true,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 6),
-
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          IconButton(
-                                            onPressed: _openMenu,
-                                            icon: Icon(
-                                              Icons.menu_rounded,
-                                              color: Theme.of(context).brightness == Brightness.dark
-                                                  ? Colors.white
-                                                  : const Color(0xFF1A0033),
-                                            ),
-                                            tooltip: 'Menu',
-                                          ),
-                                          ValueListenableBuilder<ThemeMode>(
-                                            valueListenable: ThemeService.themeMode,
-                                            builder: (context, mode, _) {
-                                              final bool isDark =
-                                                  Theme.of(context).brightness == Brightness.dark;
-                                              final IconData icon = (mode == ThemeMode.dark)
-                                                  ? Icons.light_mode_rounded
-                                                  : Icons.dark_mode_rounded;
-                                              return IconButton(
-                                                onPressed: () {
-                                                  final next = (mode == ThemeMode.dark)
-                                                      ? ThemeMode.light
-                                                      : ThemeMode.dark;
-                                                  ThemeService.setTheme(next);
-                                                },
-                                                icon: Icon(
-                                                  icon,
-                                                  color: isDark
-                                                      ? Colors.white
-                                                      : const Color(0xFF1A0033),
-                                                ),
-                                                tooltip: 'Theme',
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 8),
-
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      child: const PrayerTimesCard(),
-                                    ),
-
-                                    const SizedBox(height: 12),
-
-                                    const ReciterWidget(),
-
-                                    const SizedBox(height: 8),
-
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: ResumeReadingWidget(
-                                              onTap: (page, reading) => _openReader(page, reading: reading),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: FrenchQuranWidget(),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 12),
-
-                                    Expanded(
-                                      child: Align(
-                                        alignment: Alignment.topCenter,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                                          child: ListeDeSouratesWidget(
-                                            surahCount: filteredList.length,
-                                            onTap: _openSurahListScreen,
-                                          ),
+                                child: CustomScrollView(
+                                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                                  slivers: [
+                                    SliverPadding(
+                                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                                      sliver: SliverToBoxAdapter(
+                                        child: _HomeTopBar(
+                                          onMenuTap: _openMenu,
+                                          onThemeTap: _cycleTheme,
                                         ),
                                       ),
                                     ),
 
+                                    SliverPadding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      sliver: const SliverToBoxAdapter(child: PrayerTimesCard()),
+                                    ),
+
+                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                                    const SliverToBoxAdapter(child: ReciterWidget()),
+                                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+                                    SliverPadding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      sliver: SliverToBoxAdapter(
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: ResumeReadingWidget(
+                                                onTap: (page, reading) => _openReader(page, reading: reading),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            const Expanded(child: FrenchQuranWidget()),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                                    // IMPORTANT: padding bas pour ne pas être caché par MiniAudioPlayer
+                                    SliverPadding(
+                                      padding: EdgeInsets.fromLTRB(
+                                        16,
+                                        0,
+                                        16,
+                                        170 + MediaQuery.of(context).padding.bottom, // marge mini player
+                                      ),
+                                      sliver: SliverToBoxAdapter(
+                                        child: ListeDeSouratesWidget(
+                                          surahCount: filteredList.length,
+                                          onTap: _openSurahListScreen,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -583,6 +558,58 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
             ),
         ],
       ),
+    );
+  }
+}
+
+class _HomeTopBar extends StatelessWidget {
+  final VoidCallback onMenuTap;
+  final VoidCallback onThemeTap;
+
+  const _HomeTopBar({
+    required this.onMenuTap,
+    required this.onThemeTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+
+    return Row(
+      children: [
+        IconButton(
+          onPressed: onMenuTap,
+          icon: const Icon(Icons.menu_rounded),
+          color: t.colorScheme.onBackground.withOpacity(0.75),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'القرآن الكريم',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        ValueListenableBuilder<ThemeMode>(
+          valueListenable: ThemeService.themeMode,
+          builder: (context, mode, _) {
+            final icon = (mode == ThemeMode.system)
+                ? Icons.brightness_auto_rounded
+                : (mode == ThemeMode.light)
+                    ? Icons.light_mode_rounded
+                    : Icons.dark_mode_rounded;
+
+            return IconButton(
+              onPressed: onThemeTap,
+              icon: Icon(icon),
+              color: t.colorScheme.onBackground.withOpacity(0.75),
+            );
+          },
+        ),
+      ],
     );
   }
 }

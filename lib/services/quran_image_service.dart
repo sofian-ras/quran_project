@@ -68,10 +68,12 @@ class QuranImageService {
       return pageFile;
     }
 
-    // Si pas prêt, télécharger/extraire une fois
+    // Si pas prêt, on ne télécharge pas ici.
+    // Le téléchargement doit être fait via QuranLoader.
     if (!await areImagesDownloaded()) {
-      await downloadAndExtractImages();
+      throw Exception('Images non téléchargées. Passez par QuranLoader.');
     }
+
 
     if (await pageFile.exists()) {
       return pageFile;
@@ -137,9 +139,8 @@ class QuranImageService {
       await _extractZipInIsolate(
         zipPath,
         _docsPath!,
-        onExtractionProgress,
       );
-      
+
       onExtractionProgress?.call(1.0);
 
 
@@ -164,7 +165,6 @@ class QuranImageService {
   static Future<void> _extractZipInIsolate(
     String zipPath,
     String destinationPath,
-    Function(double)? onProgress,
   ) async {
     // Utiliser compute pour exécuter dans un Isolate
     await compute(_extractZipTask, {

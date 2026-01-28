@@ -74,13 +74,6 @@ class _QuranLoaderState extends State<QuranLoader> {
             _isExtracting = false;
           });
         },
-        onExtractionProgress: (progress) {
-          if (!mounted) return;
-          setState(() {
-            _isExtracting = true;
-            _downloadProgress = 1.0;
-          });
-        },
       );
 
 
@@ -204,23 +197,6 @@ class _QuranLoaderState extends State<QuranLoader> {
         ),
       );
     }
-
-    // Si chargé, naviguer vers ReaderScreen
-    if (!_isLoading && !_hasNavigated) {
-      _hasNavigated = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => ReaderScreen(
-              reading: widget.reading,
-              initialPage: widget.initialPage,
-            ),
-          ),
-        );
-      });
-    }
-
 
     // Écran de chargement élégant
     return PopScope(
