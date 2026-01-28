@@ -248,6 +248,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     // Plus d'écran de chargement ! L'app démarre immédiatement
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final mediaPadding = MediaQuery.of(context).padding;
 
     final surahNameFr = fullSurahList.isEmpty
       ? ''
@@ -442,7 +443,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               // Barre supérieure : flèche retour + Juzz/Hizb
               if (_showUI)
                 Positioned(
-                  top: 20,
+                  top: mediaPadding.top + 10,
                   left: 10,
                   right: 10,
                   child: Row(
@@ -510,7 +511,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               // Barre inférieure 
               if (_showUI)
                 Positioned(
-                  bottom: 20,
+                  bottom: mediaPadding.bottom + 12,
                   left: 20,
                   right: 20,
                   child: isLandscape

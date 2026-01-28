@@ -139,6 +139,7 @@ class _PrayerTimesCardState extends State<PrayerTimesCard> {
     setState(() => _future = _loadTimes());
   }
 
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -153,108 +154,80 @@ class _PrayerTimesCardState extends State<PrayerTimesCard> {
         final resolved = data ?? _PrayerTimesData.loading();
         final next = _nextPrayer(resolved.times);
 
-        return Container(
-          padding: EdgeInsets.fromLTRB(14, 12 + widget.topInset, 14, 14),
-          decoration: BoxDecoration(
-            gradient: isDark
-                ? const LinearGradient(
-                    colors: [Color(0xFF1A0033), Color(0xFF2D1B4E)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : LinearGradient(
-                    colors: [
-                      const Color(0xFFFDFDFD),
-                      const Color(0xFFF4F7FB),
-                      const Color(0xFFE8EEF7),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: borderColor, width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
+        final nextName = _nextPrayer(resolved.times) ?? 'Fajr';
+        final nextTime = resolved.times[nextName] ?? '--:--';
+        final remaining = _remainingTo(nextTime);
+
+        final rows = resolved.times.entries
+            .map((e) => PrayerRowData(e.key, e.value, isNext: e.key == nextName))
+            .toList();
+
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final subColor = isDark ? Colors.white70 : Colors.black54;
+
+        return Padding(
+          padding: EdgeInsets.only(top: widget.topInset),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Stack(
                 children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.access_time_rounded,
-                      color: isDark ? Colors.white : const Color(0xFF1E3A2F),
-                    ),
+                  PrayerTimesHeroCard(
+                    location: '${resolved.city}, ${resolved.country}',
+                    dateLine: _formatDateLine(DateTime.now()),
+                    nextPrayerName: nextName,
+                    nextPrayerTime: nextTime,
+                    remaining: remaining,
+                    rows: rows,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+
+                  // Boutons (edit + refresh) en haut à droite
+                  Positioned(
+                    right: 10,
+                    top: 10,
+                    child: Row(
                       children: [
-                        Text(
-                          'Horaires de prieres',
-                          style: TextStyle(
-                            color: titleColor,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(isDark ? 0.20 : 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(isDark ? 0.12 : 0.20),
+                            ),
+                          ),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(Icons.edit_location_rounded, size: 18, color: subColor),
+                            onPressed: () => _editLocation(resolved.city, resolved.country),
+                            tooltip: 'Changer ville',
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${resolved.city}, ${resolved.country}',
-                          style: TextStyle(
-                            color: subColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(isDark ? 0.20 : 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(isDark ? 0.12 : 0.20),
+                            ),
+                          ),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(Icons.refresh_rounded, size: 18, color: subColor),
+                            onPressed: () => setState(() => _future = _loadTimes()),
+                            tooltip: 'Actualiser',
                           ),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => _editLocation(resolved.city, resolved.country),
-                    icon: Icon(Icons.edit_location_rounded, color: subColor),
-                    tooltip: 'Changer ville',
-                  ),
-                  IconButton(
-                    onPressed: () => setState(() => _future = _loadTimes()),
-                    icon: Icon(Icons.refresh_rounded, color: subColor),
-                    tooltip: 'Actualiser',
-                  ),
                 ],
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 58,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: resolved.times.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final entry = resolved.times.entries.elementAt(index);
-                    final isNext = entry.key == next;
-                    return _TimeChip(
-                      label: entry.key,
-                      time: entry.value,
-                      isHighlighted: isNext,
-                      isDark: isDark,
-                    );
-                  },
-                ),
-              ),
+
               if (resolved.message != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -262,7 +235,7 @@ class _PrayerTimesCardState extends State<PrayerTimesCard> {
                   style: TextStyle(
                     color: subColor,
                     fontSize: 11,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -293,6 +266,31 @@ class _PrayerTimesCardState extends State<PrayerTimesCard> {
     if (hour == null || minute == null) return null;
     return DateTime(now.year, now.month, now.day, hour, minute);
   }
+
+  String _remainingTo(String time) {
+    final now = DateTime.now();
+    final dt = _parseToday(time, now);
+    if (dt == null) return '--:--';
+
+    var target = dt;
+    if (!target.isAfter(now)) {
+      target = target.add(const Duration(days: 1)); // ex: après Isha -> Fajr demain
+    }
+
+    final diff = target.difference(now);
+    final h = diff.inHours;
+    final m = diff.inMinutes.remainder(60);
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDateLine(DateTime now) {
+    const wd = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
+    const months = [
+      'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+      'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'
+    ];
+    return '${wd[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
+  }
 }
 
 class _TimeChip extends StatelessWidget {
@@ -307,6 +305,7 @@ class _TimeChip extends StatelessWidget {
     required this.isHighlighted,
     required this.isDark,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -450,7 +449,7 @@ class PrayerTimesHeroCard extends StatelessWidget {
           children: [
             // Background premium
             Container(
-              height: 180,
+              height: 290,
               decoration: BoxDecoration(
                 gradient: isDark
                     ? const LinearGradient(
@@ -516,8 +515,11 @@ class PrayerTimesHeroCard extends StatelessWidget {
                           // Header line
                           Row(
                             children: [
-                              Icon(Icons.access_time_rounded,
-                                  color: const Color(0xFFD4AF77), size: 18),
+                              Icon(
+                                Icons.access_time_rounded,
+                                color: const Color(0xFFD4AF77),
+                                size: 18,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -542,94 +544,16 @@ class PrayerTimesHeroCard extends StatelessWidget {
                             ],
                           ),
 
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 14),
 
-                          // Next prayer big
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Prochaine prière',
-                                      style: TextStyle(
-                                        color: fgSoft,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Text(
-                                          nextPrayerName,
-                                          style: TextStyle(
-                                            color: fg,
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 22,
-                                            letterSpacing: -0.2,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFD4AF77)
-                                                .withOpacity(0.18),
-                                            borderRadius: BorderRadius.circular(999),
-                                            border: Border.all(
-                                              color: const Color(0xFFD4AF77)
-                                                  .withOpacity(0.30),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '- $remaining',
-                                            style: const TextStyle(
-                                              color: Color(0xFFD4AF77),
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                          Expanded(
+                            child: Center(
+                              child: _WetGlassNextPrayer(
+                                nextPrayerName: nextPrayerName,
+                                nextPrayerTime: nextPrayerTime,
+                                remaining: remaining,
+                                isDark: isDark,
                               ),
-                              Text(
-                                nextPrayerTime,
-                                style: TextStyle(
-                                  color: fg,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 20,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const Spacer(),
-
-                          // Pills row
-                          SizedBox(
-                            height: 44,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: rows.length,
-                              separatorBuilder: (_, __) => const SizedBox(width: 8),
-                              itemBuilder: (context, i) {
-                                final r = rows[i];
-                                return _PrayerPill(
-                                  name: r.name,
-                                  time: r.time,
-                                  isNext: r.isNext,
-                                  isDark: isDark,
-                                );
-                              },
                             ),
                           ),
                         ],
@@ -672,10 +596,10 @@ class _PrayerPill extends StatelessWidget {
         : Colors.white.withOpacity(isDark ? 0.12 : 0.20);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: border),
       ),
       child: Column(
@@ -687,7 +611,7 @@ class _PrayerPill extends StatelessWidget {
             style: TextStyle(
               color: fg.withOpacity(isNext ? 1 : 0.85),
               fontWeight: FontWeight.w800,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
           const SizedBox(height: 3),
@@ -696,7 +620,7 @@ class _PrayerPill extends StatelessWidget {
             style: TextStyle(
               color: fg,
               fontWeight: FontWeight.w900,
-              fontSize: 12,
+              fontSize: 14,
             ),
           ),
         ],
@@ -704,3 +628,192 @@ class _PrayerPill extends StatelessWidget {
     );
   }
 }
+
+class _WetGlassNextPrayer extends StatelessWidget {
+  final String nextPrayerName;
+  final String nextPrayerTime;
+  final String remaining;
+  final bool isDark;
+
+  const _WetGlassNextPrayer({
+    required this.nextPrayerName,
+    required this.nextPrayerTime,
+    required this.remaining,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = isDark ? const Color(0xFFE5E7EB) : Colors.white;
+    final fgSoft = isDark ? Colors.white70 : Colors.white.withOpacity(0.85);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 340),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Stack(
+          children: [
+            // Fond vitre
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(isDark ? 0.08 : 0.14),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: Colors.white.withOpacity(isDark ? 0.14 : 0.22),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.35 : 0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Prochaine prière',
+                    style: TextStyle(
+                      color: fgSoft,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        nextPrayerName,
+                        style: TextStyle(
+                          color: fg,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 24,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        nextPrayerTime,
+                        style: TextStyle(
+                          color: fg,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 22,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD4AF77).withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: const Color(0xFFD4AF77).withOpacity(0.30),
+                      ),
+                    ),
+                    child: Text(
+                      '- $remaining',
+                      style: const TextStyle(
+                        color: Color(0xFFD4AF77),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Effet "vitre mouillée" (gouttes + reflets)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Stack(
+                  children: [
+                    // Reflet doux
+                    Positioned(
+                      left: -40,
+                      top: -40,
+                      child: Container(
+                        width: 160,
+                        height: 160,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.white.withOpacity(isDark ? 0.12 : 0.18),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Gouttes (simples)
+                    _drop(24, 18, 16, isDark),
+                    _drop(58, 40, 10, isDark),
+                    _drop(120, 26, 12, isDark),
+                    _drop(210, 18, 14, isDark),
+                    _drop(280, 44, 10, isDark),
+                    _drop(70, 110, 14, isDark),
+                    _drop(170, 118, 10, isDark),
+                    _drop(260, 108, 12, isDark),
+
+                    // Traînées fines
+                    Positioned(
+                      right: 26,
+                      top: 78,
+                      child: Transform.rotate(
+                        angle: 0.25,
+                        child: Container(
+                          width: 90,
+                          height: 2,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withOpacity(isDark ? 0.00 : 0.00),
+                                Colors.white.withOpacity(isDark ? 0.10 : 0.16),
+                                Colors.white.withOpacity(isDark ? 0.00 : 0.00),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _drop(double left, double top, double size, bool isDark) {
+    return Positioned(
+      left: left,
+      top: top,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withOpacity(isDark ? 0.10 : 0.14),
+          border: Border.all(
+            color: Colors.white.withOpacity(isDark ? 0.12 : 0.18),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
