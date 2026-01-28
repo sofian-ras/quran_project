@@ -25,7 +25,7 @@
 
 ### 4. Documentation
 - **`QURAN_IMAGE_SERVICE_GUIDE.md`**: Guide complet d'utilisation
-- **`MIGRATION_GUIDE.md`**: Guide de migration depuis AssetManager
+- **`MIGRATION_GUIDE.md`**: Guide de migration depuis QuranImageService
 
 ---
 

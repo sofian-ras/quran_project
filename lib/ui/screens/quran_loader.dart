@@ -68,23 +68,22 @@ class _QuranLoaderState extends State<QuranLoader> {
       // Télécharger et extraire avec progression
       await QuranImageService.downloadAndExtractImages(
         onDownloadProgress: (progress) {
-          if (mounted) {
-            setState(() {
-              _downloadProgress = progress;
-              _isExtracting = false;
-            });
-          }
+          if (!mounted) return;
+          setState(() {
+            _downloadProgress = progress;
+            _isExtracting = false;
+          });
+        },
+        onExtractionProgress: (progress) {
+          if (!mounted) return;
+          setState(() {
+            _isExtracting = true;
+            _downloadProgress = 1.0;
+          });
         },
       );
 
-      // Marquer comme extraction
-      if (mounted) {
-        setState(() => _isExtracting = true);
-      }
 
-      // Attendre que l'extraction soit vraiment terminée
-      await Future.delayed(const Duration(seconds: 2));
-      
       // Vérifier une dernière fois que tout est bien téléchargé
       final finalCheck = await QuranImageService.areImagesDownloaded();
       if (!finalCheck) {

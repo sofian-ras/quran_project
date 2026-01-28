@@ -86,8 +86,13 @@ class QuranImageService {
     Function(double)? onExtractionProgress,
   }) async {
     // Éviter les téléchargements multiples
+    // IMPORTANT: si déjà en cours, on ATTEND la fin au lieu de return,
+    // sinon getPageFile() peut throw pendant un téléchargement en cours.
     if (_isDownloading || _isExtracting) {
-      debugPrint('Téléchargement/extraction déjà en cours');
+      debugPrint('Téléchargement/extraction déjà en cours, attente...');
+      while (_isDownloading || _isExtracting) {
+        await Future.delayed(const Duration(milliseconds: 250));
+      }
       return;
     }
 
@@ -127,11 +132,16 @@ class QuranImageService {
       debugPrint('Téléchargement terminé, début de l\'extraction...');
 
       // Étape 2: Extraction dans un Isolate séparé (pour ne pas bloquer l'UI)
+      onExtractionProgress?.call(0.0);
+
       await _extractZipInIsolate(
         zipPath,
         _docsPath!,
         onExtractionProgress,
       );
+      
+      onExtractionProgress?.call(1.0);
+
 
       _isExtracting = false;
       debugPrint('Extraction terminée avec succès');

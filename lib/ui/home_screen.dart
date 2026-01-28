@@ -2,8 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../asset_manager.dart';
+import '../services/quran_image_service.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import '../services/reading_history_service.dart';
@@ -150,53 +149,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       ),
     );
   }
-  /*
-  Future<void> _maybeShowPagesDownloadInfo() async {
-    final prefs = await SharedPreferences.getInstance();
-    final alreadySeen = prefs.getBool('pages_download_info_seen') ?? false;
-    if (alreadySeen) return;
-
-    final downloaded = await AssetManager.areAssetsDownloaded();
-    if (downloaded) return;
-
-    bool dontAskAgain = false;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Téléchargement requis'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Pour lire le Coran (Hafs/Warsh), l’application doit télécharger les pages (une seule fois).',
-              ),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: dontAskAgain,
-                onChanged: (v) => setState(() => dontAskAgain = v ?? false),
-                title: const Text('Ne plus afficher'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Compris'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (dontAskAgain) {
-      await prefs.setBool('pages_download_info_seen', true);
-    }
-  }
-  */
-
 
   Future<bool> _showPagesDownloadPrompt() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -275,40 +227,24 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     return shouldDownload ?? false;
   }
 
-
   Future<void> _openReader(int page, {String? reading}) async {
     final selectedReading = reading ?? _preferredReading;
-    final downloaded = await AssetManager.areAssetsDownloaded();
 
-    if (!downloaded) {
-      final shouldDownload = await _showPagesDownloadPrompt();
-      if (!shouldDownload) return;
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => QuranLoader(
-            initialPage: page,
-            reading: selectedReading,
-          ),
-        ),
-      );
-      return;
-    }
+    // précharge la page demandée pour éviter un petit freeze
+    await QuranImageService.getPageFile(selectedReading, page);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ReaderScreen(
-            initialPage: page,
-            reading: selectedReading,
-          ),
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReaderScreen(
+          initialPage: page,
+          reading: selectedReading,
         ),
-      );
-    });
+      ),
+    );
   }
+
 
   void _openMenu() {
     if (!_isMenuOpen) {

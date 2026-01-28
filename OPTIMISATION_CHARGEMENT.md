@@ -56,7 +56,7 @@ if (!await pageFile.exists()) {
 
 ## 📁 Fichiers Modifiés
 
-### 1. `lib/asset_manager.dart`
+### 1. `lib/quran_image_service.dart`
 **Changements majeurs** :
 - ✅ Ajout de `_downloadSinglePage()` pour téléchargement unitaire
 - ✅ Modification de `getPageFile()` pour vérifier l'existence locale

@@ -14,12 +14,12 @@ Toutes les fonctionnalités proposées ont été **entièrement implémentées**
 **Problème résolu**: Les pages en lecture Warsh (et autres types) ne se chargeaient pas.
 
 **Solution**: 
-- Remplacement du système d'URL unique par un Map dynamique dans `AssetManager`
+- Remplacement du système d'URL unique par un Map dynamique dans `QuranImageService`
 - Support de 8 types de lecture: hafs, warsh, sousi, shouba, qaloon, doori, bazzi, qumbul
 - URL spécifique pour chaque type avec extension correcte (PNG pour hafs, JPG pour les autres)
 
 **Fichiers modifiés**:
-- `lib/asset_manager.dart`
+- `lib/quran_image_service.dart`
 
 ---
 
@@ -290,7 +290,7 @@ ReaderScreen
 | Statistiques | 0 | 1 | 4 | ~577 |
 | **TOTAL** | **4** | **4** | **12+** | **~2003** |
 
-**Fichiers modifiés**: 6 (asset_manager, home_screen, reader_screen, ios_side_menu, etc.)
+**Fichiers modifiés**: 6 (quran_image_service, home_screen, reader_screen, ios_side_menu, etc.)
 
 **Nouvelles dépendances**: Aucune! Tout est natif Flutter
 

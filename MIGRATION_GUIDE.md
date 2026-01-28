@@ -5,10 +5,10 @@ Remplacer le système actuel de chargement d'images par le nouveau service robus
 
 ## ⚠️ Problèmes résolus
 
-### Avant (AssetManager actuel)
+### Avant (QuranImageService actuel)
 - ❌ Unzipping bloque l'UI thread
 - ❌ Pas de pre-caching intelligent
-- ❌ Code dupliqué entre AssetManager et ReaderScreen
+- ❌ Code dupliqué entre QuranImageService et ReaderScreen
 
 ### Après (QuranImageService)
 - ✅ Unzipping dans un Isolate (pas de freeze)
@@ -23,7 +23,7 @@ Remplacer le système actuel de chargement d'images par le nouveau service robus
 
 **AVANT:**
 ```dart
-import '../asset_manager.dart';
+import '../quran_image_service.dart';
 ```
 
 **APRÈS:**
@@ -123,11 +123,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
 Si vous voulez tester d'abord sans tout casser:
 
-### Étape 1: Garder AssetManager, ajouter le nouveau service
+### Étape 1: Garder QuranImageService, ajouter le nouveau service
 
 ```dart
 // Au début de reader_screen.dart
-import '../asset_manager.dart'; // Ancien
+import '../quran_image_service.dart'; // Ancien
 import '../services/quran_image_service.dart'; // Nouveau
 ```
 
@@ -190,9 +190,9 @@ void _cleanDistantPages(int centerPage) {
 ```dart
 Future<void> _initApp() async {
   // Télécharger et extraire le ZIP
-  final assetsDownloaded = await AssetManager.areAssetsDownloaded();
+  final assetsDownloaded = await QuranImageService.areAssetsDownloaded();
   if (!assetsDownloaded) {
-    await AssetManager._downloadAndExtractZipIfNeeded();
+    await QuranImageService._downloadAndExtractZipIfNeeded();
   }
   
   // Charger les données JSON
@@ -225,7 +225,7 @@ return PageView.builder(
     }
     
     return FutureBuilder<File>(
-      future: AssetManager.getPageFile(currentReading, pageNum),
+      future: QuranImageService.getPageFile(currentReading, pageNum),
       builder: (context, snapshot) {
         // Code compliqué...
       },
@@ -262,7 +262,6 @@ QuranPageView(
 - [ ] Supprimer l'ancien code de cache (_imageCache, etc.)
 - [ ] Tester le changement de lecture (hafs/warsh)
 - [ ] Tester la navigation entre pages
-- [ ] (Optionnel) Supprimer `asset_manager.dart` si plus utilisé ailleurs
 
 ---
 

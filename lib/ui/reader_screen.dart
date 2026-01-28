@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../asset_manager.dart';
+import '../services/quran_image_service.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../services/reading_history_service.dart';
@@ -102,7 +102,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   
   Future<void> _loadPageIntoCache(int pageNum) async {
     try {
-      final file = await AssetManager.getPageFile(currentReading, pageNum);
+      final file = await QuranImageService.getPageFile(currentReading, pageNum);
       _imageCache[pageNum] = file;
     } catch (e) {
       debugPrint('Erreur préchargement page $pageNum: $e');
@@ -248,10 +248,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     // Plus d'écran de chargement ! L'app démarre immédiatement
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    // Précharger les pages autour de la page actuelle
-    if (_isReady) {
-      _preloadPages(currentPage);
-    }
 
     final surahNameFr = fullSurahList.isEmpty
       ? ''
@@ -296,7 +292,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   
                   // Sinon charger de manière asynchrone
                   return FutureBuilder<File>(
-                    future: AssetManager.getPageFile(currentReading, pageNum),
+                    future: QuranImageService.getPageFile(currentReading, pageNum),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         // Affichage élégant pendant le chargement
