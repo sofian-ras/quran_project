@@ -28,19 +28,25 @@ class ResumeReadingWidget extends StatelessWidget {
         // Si rien du tout nâ€™existe, on affiche quand mÃªme un bouton â€œReprendreâ€
         // (au lieu de shrink), qui ouvre page 1 (ou ce que tu veux)
         final bool hasAnyData = lastReading != null;
+        final Color textColor = const Color(0xFF3B2A0B);
+        final Color secondaryColor = const Color(0xFF5A3E0E);
+        final List<Shadow> reliefShadows = const [
+          Shadow(color: Color(0xFFFFF3D6), offset: Offset(-0.6, -0.6), blurRadius: 1),
+          Shadow(color: Color(0xFF8C6A1A), offset: Offset(0.9, 0.9), blurRadius: 1.6),
+        ];
 
         return Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF1a0033), Color(0xFF2d1b4e)],
+              colors: [Color(0xFFFFD37A), Color(0xFFDAA520)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFFFFFFF), width: 1.5),
+            border: Border.all(color: const Color(0xFFFFF2C9), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.12),
+                color: const Color(0xFFB8860B).withOpacity(0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -61,26 +67,29 @@ class ResumeReadingWidget extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.bookmark,
-                      color: const Color(0xFFFFFFFF),
+                      color: textColor,
                       size: 32,
+                      shadows: reliefShadows,
                     ),
                     const SizedBox(height: 10),
                     Text(
                       'Reprendre',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
-                        color: const Color(0xFFFFFFFF).withOpacity(0.9),
+                        color: textColor,
                         fontWeight: FontWeight.w700,
+                        shadows: reliefShadows,
                       ),
-                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
                     Text(
                       surahName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: textColor,
+                        shadows: reliefShadows,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -92,8 +101,9 @@ class ResumeReadingWidget extends StatelessWidget {
                         'Page $page',
                         style: TextStyle(
                           fontSize: 10,
-                          color: Colors.white.withOpacity(0.75),
+                          color: secondaryColor,
                           fontWeight: FontWeight.w500,
+                          shadows: reliefShadows,
                         ),
                       ),
                     ],

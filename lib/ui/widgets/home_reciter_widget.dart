@@ -11,6 +11,11 @@ class ReciterWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AudioService audio = AudioService.instance;
+    final Color accentText = const Color(0xFFFFE3A6);
+    final List<Shadow> reliefShadows = const [
+      Shadow(color: Color(0xFF0B2D5C), offset: Offset(1, 1), blurRadius: 2),
+      Shadow(color: Color(0xFFFFFFFF), offset: Offset(-0.6, -0.6), blurRadius: 1),
+    ];
 
     return Stack(
       children: [
@@ -66,23 +71,25 @@ class ReciterWidget extends StatelessWidget {
                       child: Row(
                         children: [
                           // Avatar du rÃ©citateur
-                          const Icon(
+                          Icon(
                             Icons.person,
-                            color: Color(0xFFFFFFFF),
+                            color: accentText,
                             size: 20,
+                            shadows: reliefShadows,
                           ),
                           const SizedBox(width: 8),
 
                           // Nom du rÃ©citateur
                           Expanded(
                             child: Align(
-                              alignment: const Alignment(-0.2, 0),
+                              alignment: const Alignment(-0.5, -0.2),
                               child: Text(
                                 reciterName,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: accentText,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
+                                  shadows: reliefShadows,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

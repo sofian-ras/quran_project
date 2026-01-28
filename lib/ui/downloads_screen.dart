@@ -3,6 +3,8 @@ import 'package:flutter/cupertino.dart';
 import '../services/download_service.dart';
 import '../theme/app_theme.dart';
 import '../surah_name.dart';
+import 'dart:async';
+import '../services/quran_image_service.dart';
 
 class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
@@ -14,18 +16,92 @@ class DownloadsScreen extends StatefulWidget {
 class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProviderStateMixin {
   final _downloadService = DownloadService.instance;
   late TabController _tabController;
+  bool _quranReady = false;
+  bool _quranDownloading = false;
+  bool _quranExtracting = false;
+  double _quranProgress = 0.0;
+  int _quranCacheBytes = 0;
+
+  Timer? _quranPollTimer;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _refreshQuranPagesState();
+    _quranPollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
+      final st = QuranImageService.getDownloadStatus();
+      final bool d = st['isDownloading'] == true;
+      final bool e = st['isExtracting'] == true;
+      final double p = (st['downloadProgress'] is double) ? st['downloadProgress'] as double : 0.0;
+
+      if (!mounted) return;
+      if (d != _quranDownloading || e != _quranExtracting || p != _quranProgress) {
+        setState(() {
+          _quranDownloading = d;
+          _quranExtracting = e;
+          _quranProgress = p;
+        });
+      }
+
+      // si fini, on refresh une fois
+      if (!d && !e && _quranProgress >= 1.0) {
+        _refreshQuranPagesState();
+      }
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+    _quranPollTimer?.cancel();
   }
+  Future<void> _refreshQuranPagesState() async {
+    final ready = await QuranImageService.areImagesDownloaded();
+    final size = ready ? await QuranImageService.getCacheSize() : 0;
+    if (!mounted) return;
+    setState(() {
+      _quranReady = ready;
+      _quranCacheBytes = size;
+    });
+  }
+
+  Future<void> _downloadQuranPages() async {
+    setState(() {
+      _quranDownloading = true;
+      _quranExtracting = false;
+      _quranProgress = 0.0;
+    });
+
+    try {
+      await QuranImageService.downloadAndExtractImages(
+        onDownloadProgress: (p) {
+          if (!mounted) return;
+          setState(() {
+            _quranProgress = p;
+            _quranDownloading = true;
+            _quranExtracting = false;
+          });
+        },
+      );
+    } catch (_) {
+      // optionnel: afficher un snack
+    } finally {
+      await _refreshQuranPagesState();
+      if (!mounted) return;
+      setState(() {
+        _quranDownloading = false;
+        _quranExtracting = false;
+      });
+    }
+  }
+
+  Future<void> _clearQuranPages() async {
+    await QuranImageService.clearCache();
+    await _refreshQuranPagesState();
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -83,12 +159,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
           );
         }
 
-        return ListView.builder(
+        return ListView(
           padding: const EdgeInsets.all(16),
-          itemCount: inProgress.length,
-          itemBuilder: (context, index) {
-            return _buildDownloadCard(inProgress[index]);
-          },
+          children: [
+            _buildQuranPagesCard(),
+            const SizedBox(height: 12),
+            ...inProgress.map((d) => _buildDownloadCard(d)),
+          ],
         );
       },
     );
@@ -126,6 +203,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _buildQuranPagesCard(),
+            const SizedBox(height: 16),
             if (pages.isNotEmpty) ...[
               _buildSectionHeader('Pages du Coran', pages.length),
               const SizedBox(height: 8),
@@ -166,6 +245,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _buildQuranPagesCard(),
+            const SizedBox(height: 12),
             _buildStorageCard(
               'Espace utilisé',
               '${totalMB.toStringAsFixed(1)} MB',
@@ -611,6 +692,101 @@ class _DownloadsScreenState extends State<DownloadsScreen> with SingleTickerProv
             child: const Text('Tout supprimer', style: TextStyle(color: Colors.red)),
           ),
         ],
+      ),
+    );
+  }
+  Widget _buildQuranPagesCard() {
+    final bool active = _quranDownloading || _quranExtracting;
+    final double mb = _quranCacheBytes / (1024 * 1024);
+
+    String status;
+    if (_quranReady) {
+      status = 'Téléchargé (${mb.toStringAsFixed(1)} MB)';
+    } else if (_quranExtracting) {
+      status = 'Extraction / installation...';
+    } else if (_quranDownloading) {
+      status = 'Téléchargement ${(100 * _quranProgress).toInt()}%';
+    } else {
+      status = 'Non téléchargé (~80 MB)';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [AppColors.primary, AppColors.primaryLight]),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(CupertinoIcons.doc_text, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Pages du Coran (Hafs + Warsh)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(status, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            const SizedBox(height: 12),
+
+            if (active) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: _quranExtracting ? null : _quranProgress,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            Row(
+              children: [
+                if (!_quranReady && !active)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _downloadQuranPages,
+                      icon: const Icon(CupertinoIcons.cloud_download),
+                      label: const Text('Télécharger'),
+                    ),
+                  ),
+                if (_quranReady && !active) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _clearQuranPages,
+                      icon: const Icon(CupertinoIcons.trash),
+                      label: const Text('Supprimer'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

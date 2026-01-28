@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'bookmarks_screen.dart';
 import 'downloads_screen.dart';
 import 'favorites_screen.dart';

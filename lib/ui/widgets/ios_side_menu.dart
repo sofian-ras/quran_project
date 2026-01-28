@@ -9,6 +9,8 @@ import '../favorites_screen.dart';
 import '../statistics_screen.dart';
 import '../../theme/theme_service.dart';
 import '../bookmarks_screen.dart';
+import '../settings_screen.dart';
+import '../reading_history_screen.dart';
 
 class IOSSideMenu extends StatelessWidget {
   const IOSSideMenu({super.key});
@@ -448,58 +450,24 @@ class IOSSideMenu extends StatelessWidget {
                             ),
                             const SizedBox(height: 12),
 
-                            // Favoris
-                            _MenuSection(
-                              icon: CupertinoIcons.heart_fill,
-                              title: 'Favoris',
-                              subtitle: 'Sourates sauvegardées',
-                              onTap: () {
-                                Navigator.pop(context);
-                                // TODO: Navigate to favorites
-                              },
-                            ),
-
                             // Historique
                             _MenuSection(
                               icon: CupertinoIcons.clock_fill,
                               title: 'Historique',
                               subtitle: 'Lectures récentes',
-                              trailing: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFFFD700),
-                                      Color(0xFFD4AF37),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
-                                      blurRadius: 6,
-                                    ),
-                                  ],
-                                ),
-                                child: const Text(
-                                  'BIENTÔT',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ),
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Fonctionnalité bientôt disponible'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
+                                Navigator.pop(context);
+                                Future.delayed(const Duration(milliseconds: 300), () {
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const ReadingHistoryScreen()),
+                                    );
+                                  }
+                                });
                               },
                             ),
+
 
                             // Téléchargements
                             _MenuSection(
@@ -522,42 +490,19 @@ class IOSSideMenu extends StatelessWidget {
                               icon: CupertinoIcons.settings,
                               title: 'Paramètres',
                               subtitle: 'Personnalisation',
-                              trailing: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFFFD700),
-                                      Color(0xFFD4AF37),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
-                                      blurRadius: 6,
-                                    ),
-                                  ],
-                                ),
-                                child: const Text(
-                                  'BIENTÔT',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ),
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Fonctionnalité bientôt disponible'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
+                                Navigator.pop(context);
+                                Future.delayed(const Duration(milliseconds: 300), () {
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                    );
+                                  }
+                                });
                               },
                             ),
+
 
                             const SizedBox(height: 12),
                             Padding(
