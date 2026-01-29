@@ -443,15 +443,79 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                   physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                                   slivers: [
                                     SliverToBoxAdapter(
-                                      child: _DribbbleHomeHeader(
+                                      child: _HeaderWithEngagement(
                                         onMenuTap: _openMenu,
                                         onThemeTap: _cycleTheme,
+                                        onContinue: _openSurahListScreen, // temporaire
                                       ),
                                     ),
 
                                     const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                                    const SliverToBoxAdapter(child: ReciterWidget()),
-                                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+                                    SliverPadding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      sliver: SliverToBoxAdapter(
+                                        child: _RecitersSection(
+                                          onSeeAll: () {},
+                                          reciters: const [
+                                            _ReciterItem(name: 'Maher', asset: 'assets/images/reciters/maher.png'),
+                                            _ReciterItem(name: 'Mishari', asset: 'assets/images/reciters/mishari.png'),
+                                            _ReciterItem(name: 'Minshawi', asset: 'assets/images/reciters/minshawi.png'),
+                                            _ReciterItem(name: 'Husary', asset: 'assets/images/reciters/husary.png'),
+                                            _ReciterItem(name: 'Sudais', asset: 'assets/images/reciters/sudais.png'),
+                                          ],
+                                          onReciterTap: (r) {
+                                            // Étape suivante: brancher ton AudioService.setReciter(...)
+                                          },
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                                    SliverPadding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      sliver: SliverToBoxAdapter(
+                                        child: _ExploreFeaturesSection(
+                                          features: const [
+                                            _FeatureChipData(label: 'Weekly Programs', icon: Icons.calendar_month_rounded),
+                                            _FeatureChipData(label: 'Donate', icon: Icons.volunteer_activism_rounded),
+                                            _FeatureChipData(label: 'Volunteers', icon: Icons.groups_rounded),
+                                          ],
+                                          onTap: (f) {
+                                            // Étape suivante: navigation vers tes écrans
+                                          },
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                                    // === ICI tu ajoutes les cards image ===
+                                    SliverPadding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      sliver: SliverToBoxAdapter(
+                                        child: _ContentCardsSection(
+                                          items: const [
+                                            _ContentCardData(
+                                              title: 'Boys Quran Class',
+                                              subtitle: 'Start at 9:00 AM',
+                                              imageAsset: 'assets/images/cards/quran_class.jpg',
+                                            ),
+                                            _ContentCardData(
+                                              title: 'Tafsir Session',
+                                              subtitle: 'Tonight • 20:30',
+                                              imageAsset: 'assets/images/cards/tafsir.jpg',
+                                            ),
+                                          ],
+                                          onTap: (item) {},
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
                                     SliverPadding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -829,6 +893,538 @@ class _DribbbleHomeHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuranEngagementCard extends StatelessWidget {
+  final int minutes;
+  final String subtitle;
+  final String buttonText;
+  final VoidCallback onPressed;
+
+  const _QuranEngagementCard({
+    required this.minutes,
+    required this.subtitle,
+    required this.buttonText,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark ? const Color(0xFF0F1734) : Colors.white,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(22),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Texte
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$minutes minutes',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF111827),
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: (isDark ? Colors.white : const Color(0xFF111827)).withOpacity(0.65),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Bouton
+            FilledButton(
+              onPressed: onPressed,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2C6CB5),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                buttonText,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderWithEngagement extends StatelessWidget {
+  final VoidCallback onMenuTap;
+  final VoidCallback onThemeTap;
+  final VoidCallback onContinue;
+
+  const _HeaderWithEngagement({
+    required this.onMenuTap,
+    required this.onThemeTap,
+    required this.onContinue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const double headerHeight = 320;
+    const double overlap = 40; // chevauchement (40 = comme l'image)
+    const double bottomSpace = 8;
+
+    return SizedBox(
+      height: headerHeight + (overlap / 2) + bottomSpace,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          SizedBox(
+            height: headerHeight,
+            child: _DribbbleHomeHeader(
+              onMenuTap: onMenuTap,
+              onThemeTap: onThemeTap,
+            ),
+          ),
+
+          Positioned(
+            left: 16,
+            right: 16,
+            top: headerHeight - overlap, // la carte "rentre" dans le header
+            child: _QuranEngagementCard(
+              minutes: 15,
+              subtitle: 'Quran engagement time',
+              buttonText: 'Continue',
+              onPressed: onContinue,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReciterItem {
+  final String name;
+  final String asset;
+  const _ReciterItem({required this.name, required this.asset});
+}
+
+class _RecitersSection extends StatelessWidget {
+  final VoidCallback onSeeAll;
+  final List<_ReciterItem> reciters;
+  final void Function(_ReciterItem) onReciterTap;
+
+  const _RecitersSection({
+    required this.onSeeAll,
+    required this.reciters,
+    required this.onReciterTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+    final linkColor = const Color(0xFF2C6CB5);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Reciters',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: titleColor,
+              ),
+            ),
+            const Spacer(),
+            TextButton(
+              onPressed: onSeeAll,
+              style: TextButton.styleFrom(
+                foregroundColor: linkColor,
+                padding: EdgeInsets.zero,
+              ),
+              child: const Text(
+                'See all',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 90,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: reciters.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final r = reciters[i];
+              return InkWell(
+                onTap: () => onReciterTap(r),
+                borderRadius: BorderRadius.circular(999),
+                child: Column(
+                  children: [
+                    // Avatar avec ring
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.35)
+                              : const Color(0xFF2C6CB5).withOpacity(0.35),
+                          width: 2,
+                        ),
+                      ),
+                      child: CircleAvatar(
+                        radius: 22,
+                        backgroundColor: isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : const Color(0xFFF3F6FF),
+                        backgroundImage: AssetImage(r.asset),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      width: 64,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          r.name,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: titleColor.withOpacity(0.8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureChipData {
+  final String label;
+  final IconData icon;
+  const _FeatureChipData({required this.label, required this.icon});
+}
+
+class _ExploreFeaturesSection extends StatelessWidget {
+  final List<_FeatureChipData> features;
+  final void Function(_FeatureChipData) onTap;
+
+  const _ExploreFeaturesSection({
+    required this.features,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+    final cardColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF2F6FF);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Explore features',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: titleColor,
+          ),
+        ),
+        const SizedBox(height: 10),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: features.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 3.2, // largeur > hauteur (comme image)
+          ),
+          itemBuilder: (context, i) {
+            final f = features[i];
+            return _FeatureGridItem(
+              label: f.label,
+              icon: f.icon,
+              onTap: () => onTap(f),
+              bgColor: cardColor,
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureGridItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color bgColor;
+
+  const _FeatureGridItem({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.bgColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF2C6CB5);
+
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: accent),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _FeatureChip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF2F6FF);
+    final fg = isDark ? Colors.white.withOpacity(0.9) : const Color(0xFF111827);
+    const accent = Color(0xFF2C6CB5);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: accent),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: fg,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContentCardData {
+  final String title;
+  final String subtitle;
+  final String imageAsset;
+
+  const _ContentCardData({
+    required this.title,
+    required this.subtitle,
+    required this.imageAsset,
+  });
+}
+
+class _ContentCardsSection extends StatelessWidget {
+  final List<_ContentCardData> items;
+  final void Function(_ContentCardData) onTap;
+
+  const _ContentCardsSection({
+    required this.items,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Programs',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: titleColor,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Column(
+          children: List.generate(items.length, (i) {
+            final item = items[i];
+            return Padding(
+              padding: EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 12),
+              child: _ContentCard(
+                item: item,
+                onTap: () => onTap(item),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
+class _ContentCard extends StatelessWidget {
+  final _ContentCardData item;
+  final VoidCallback onTap;
+
+  const _ContentCard({
+    required this.item,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF0F1734) : Colors.white;
+    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+
+    return Material(
+      color: cardColor,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Image.asset(
+                item.imageAsset,
+                fit: BoxFit.cover,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: titleColor,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: titleColor.withOpacity(0.65),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2C6CB5).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Color(0xFF2C6CB5),
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
