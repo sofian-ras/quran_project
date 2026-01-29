@@ -18,14 +18,14 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   final AudioService _audio = AudioService.instance;
 
   void _openFullPlayer() {
-    showModalBottomSheet(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const MusicPlayerFullScreen(),
-    );
-  }
+  showModalBottomSheet(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => const MusicPlayerFullScreen(),
+  );
+}
 
 
   @override
@@ -166,8 +166,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                 data: SliderTheme.of(context).copyWith(
                   trackHeight: 2.0,
                   thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                  overlayShape: SliderComponentShape.noOverlay, // important
-                  showValueIndicator: ShowValueIndicator.never, // important
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 12.0),
                 ),
                 child: Slider(
                   activeColor: green,
