@@ -18,14 +18,15 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   final AudioService _audio = AudioService.instance;
 
   void _openFullPlayer() {
-    // ✅ IMPORTANT : push via navigatorKey (évite "No Overlay widget found")
-    NavigationService.navigatorKey.currentState?.push(
-      MaterialPageRoute(
-        builder: (context) => const MusicPlayerFullScreen(),
-        fullscreenDialog: true,
-      ),
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const MusicPlayerFullScreen(),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +166,8 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                 data: SliderTheme.of(context).copyWith(
                   trackHeight: 2.0,
                   thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 12.0),
+                  overlayShape: SliderComponentShape.noOverlay, // important
+                  showValueIndicator: ShowValueIndicator.never, // important
                 ),
                 child: Slider(
                   activeColor: green,

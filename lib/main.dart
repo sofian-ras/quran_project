@@ -43,14 +43,20 @@ class QuranApp extends StatelessWidget {
           themeMode: mode,
           home: const HomeScreen(),
           builder: (context, child) {
-            return Material(
-              color: Colors.transparent,
-              child: Stack(
-                children: [
-                  if (child != null) child,
-                  const GlobalMiniPlayerOverlay(),
-                ],
-              ),
+            return Overlay(
+              initialEntries: [
+                OverlayEntry(
+                  builder: (context) => Material(
+                    color: Colors.transparent,
+                    child: Stack(
+                      children: [
+                        if (child != null) child,
+                        const GlobalMiniPlayerOverlay(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         );
