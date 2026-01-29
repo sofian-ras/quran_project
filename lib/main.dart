@@ -5,6 +5,8 @@ import 'ui/home_screen.dart';
 import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
+import '../services/navigation_service.dart'; // adapte le chemin
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +37,7 @@ class QuranApp extends StatelessWidget {
       valueListenable: ThemeService.themeMode,
       builder: (context, mode, _) {
         return MaterialApp(
+          navigatorKey: NavigationService.navigatorKey,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: mode,
