@@ -979,7 +979,7 @@ class _HeaderWithEngagement extends StatelessWidget {
     const double engagementHeightApprox = 76;
 
     // Position carte reciters (elle chevauche la carte engagement)
-    const double recitersTop = engagementTop + 36;
+    const double recitersTop = engagementTop + 60;
 
     return SizedBox(
       height: headerHeight + 180,
