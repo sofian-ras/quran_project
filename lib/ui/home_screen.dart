@@ -467,6 +467,7 @@ void initState() {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     super.build(context);
 
     return Scaffold(
@@ -815,6 +816,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     // Valeurs en dur (étape 1)
     const timeText = '3:00 PM';
     const subtitle = 'Zohr ends in 0h 17m 20s';
@@ -840,11 +842,28 @@ class _DribbbleHomeHeader extends StatelessWidget {
         children: [
           // Image de fond
           Positioned.fill(
-            child: Image.asset(
-              'assets/images/fond_widget_bleu2.png',
-              fit: BoxFit.cover,
-            ),
+            child: isDark
+                ? ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                      Colors.black.withOpacity(0.35),
+                      BlendMode.darken,
+                    ),
+                    child: Image.asset(
+                      'assets/images/fond_widget_bleu2.png',
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : Image.asset(
+                    'assets/images/fond_widget_bleu2.png',
+                    fit: BoxFit.cover,
+                  ),
           ),
+          if (isDark)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.25),
+              ),
+            ),
 
           // Overlay gradient (pour garder le style + lisibilité du texte)
           Positioned.fill(
@@ -854,9 +873,9 @@ class _DribbbleHomeHeader extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    const Color(0xFF2C6CB5).withOpacity(0.88),
-                    const Color(0xFF1F5FAE).withOpacity(0.86),
-                    const Color(0xFF174F9B).withOpacity(0.88),
+                    const Color(0xFF2C6CB5).withOpacity(isDark ? 0.92 : 0.88),
+                    const Color(0xFF1F5FAE).withOpacity(isDark ? 0.90 : 0.86),
+                    const Color(0xFF174F9B).withOpacity(isDark ? 0.92 : 0.88),
                   ],
                 ),
               ),

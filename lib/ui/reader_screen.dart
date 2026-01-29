@@ -1,33 +1,41 @@
-
-import 'dart:io';
-import 'screens/quran_loader.dart';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+
+import 'screens/quran_loader.dart';
 import '../services/quran_image_service.dart';
 import '../services/quran_page_preloader.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../services/reading_history_service.dart';
 import '../services/bookmark_service.dart';
-import 'dart:async';
-import '../theme/app_theme.dart'; // Import the file where AppTheme is defined
-
 
 class GradientText extends StatelessWidget {
   final String text;
   final TextStyle? style;
   final Gradient gradient;
 
-  const GradientText(this.text, {Key? key, this.style, required this.gradient}) : super(key: key);
+  const GradientText(
+    this.text, {
+    Key? key,
+    this.style,
+    required this.gradient,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return ShaderMask(
-      shaderCallback: (bounds) => gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
-      child: Text(text, style: (style ?? const TextStyle()).copyWith(color: Colors.white)),
+      shaderCallback: (bounds) =>
+          gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
+      child: Text(
+        text,
+        style: (style ?? const TextStyle()).copyWith(color: Colors.white),
+      ),
     );
   }
 }
@@ -36,7 +44,11 @@ class ReaderScreen extends StatefulWidget {
   final int initialPage;
   final String reading;
 
-  const ReaderScreen({super.key, this.initialPage = 1, this.reading = 'hafs'}) : super();
+  const ReaderScreen({
+    super.key,
+    this.initialPage = 1,
+    this.reading = 'hafs',
+  });
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -46,22 +58,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
   late int currentPage;
   String currentReading = 'hafs';
   late PageController _pageController;
-  bool _isReady = false;
+
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
   Timer? _saveTimer;
   Timer? _preloadDebounce;
   bool _isBookmarked = false;
+
   final QuranPagePreloader _pagePreloader = QuranPagePreloader(range: 2);
-  
-  // Cache pour les images préchargées
+
   final Map<int, File?> _imageCache = {};
-  final int _preloadRange = 3; // Nombre de pages à précharger avant/après
+  final int _preloadRange = 3;
 
   Future<File?> _safeGetPageFile(String reading, int pageNum) async {
     try {
       return await QuranImageService.getPageFile(reading, pageNum);
-    } catch (e) {
+    } catch (_) {
       return null;
     }
   }
@@ -72,25 +84,33 @@ class _ReaderScreenState extends State<ReaderScreen> {
       final requestedPage = p;
       final v = await BookmarkService.instance.isBookmarked(requestedPage);
       if (!mounted) return;
-      if (currentPage != requestedPage) return; // évite un retour async sur une autre page
+      if (currentPage != requestedPage) return;
       setState(() => _isBookmarked = v);
     } catch (e) {
       debugPrint('Erreur isBookmarked(page $p): $e');
     }
   }
-  
+
   @override
   void initState() {
     super.initState();
+
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
     currentPage = widget.initialPage;
     currentReading = widget.reading;
-    final startPage = (widget.initialPage < 1) ? 1 : (widget.initialPage > 604 ? 604 : widget.initialPage);
+
+    final startPage = (widget.initialPage < 1)
+        ? 1
+        : (widget.initialPage > 604 ? 604 : widget.initialPage);
+
     _pageController = PageController(initialPage: startPage - 1);
     _pageController.addListener(_onPageScroll);
+
     _initApp();
     _refreshBookmarkStatus(currentPage);
   }
-  
+
   void _onPageScroll() {
     _preloadDebounce?.cancel();
     _preloadDebounce = Timer(const Duration(milliseconds: 120), () {
@@ -98,20 +118,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _preloadPages(currentIndex + 1);
     });
   }
-  
+
   Future<void> _preloadPages(int centerPage) async {
-    // Précharger les pages dans une plage autour de la page actuelle
     for (int offset = -_preloadRange; offset <= _preloadRange; offset++) {
       final pageNum = centerPage + offset;
       if (pageNum >= 1 && pageNum <= 604 && !_imageCache.containsKey(pageNum)) {
         _loadPageIntoCache(pageNum);
       }
     }
-    
-    // Nettoyer le cache des pages trop éloignées
     _cleanDistantPages(centerPage);
   }
-  
+
   Future<void> _loadPageIntoCache(int pageNum) async {
     try {
       final file = await QuranImageService.getPageFile(currentReading, pageNum);
@@ -120,7 +137,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       debugPrint('Erreur préchargement page $pageNum: $e');
     }
   }
-  
+
   void _cleanDistantPages(int centerPage) {
     final pagesToRemove = <int>[];
     _imageCache.forEach((pageNum, _) {
@@ -128,7 +145,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         pagesToRemove.add(pageNum);
       }
     });
-    
+
     for (final pageNum in pagesToRemove) {
       _imageCache.remove(pageNum);
     }
@@ -141,18 +158,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     _imageCache.clear();
+
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
     super.dispose();
   }
 
   Future<void> _initApp() async {
-    // Plus besoin de télécharger tout le ZIP !
-    // Les pages seront téléchargées à la demande via getPageFile()
-    
-    // Charger uniquement les données JSON
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     final quranData = json.decode(jsonStr) as List<dynamic>;
+
     final added = <int>{};
     final List<Map<String, dynamic>> list = [];
+
     for (final v in quranData) {
       final id = v['surah'] as int;
       if (!added.contains(id)) {
@@ -165,17 +183,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
         added.add(id);
       }
     }
-    
-    // Précharger la page initiale en arrière-plan
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _pagePreloader.preloadAround(context, currentPage, currentReading);
     });
-    
-    setState(() {
-      fullSurahList = list;
-      _isReady = true; // Prêt immédiatement !
-    });
+
+    if (!mounted) return;
+    setState(() => fullSurahList = list);
   }
 
   void _jumpToPageDialog() {
@@ -184,12 +199,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Aller à la page'),
-        content: TextField(controller: ctrl, keyboardType: TextInputType.number, autofocus: true),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () {
-              int? p = int.tryParse(ctrl.text);
+              final p = int.tryParse(ctrl.text);
               if (p != null && p >= 1 && p <= 604) {
                 _pageController.jumpToPage(p - 1);
               }
@@ -214,7 +233,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             title: Text(s['nameFr']),
             trailing: Text(s['nameAr'], style: const TextStyle(fontFamily: 'Amiri')),
             onTap: () {
-              _pageController.jumpToPage(s['page'] - 1);
+              _pageController.jumpToPage((s['page'] as int) - 1);
               Navigator.pop(context);
             },
           );
@@ -240,17 +259,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
     return 'Juzz ${j['juz']}';
   }
-  
-  // Sauvegarder dans l'historique
+
   void _saveToHistory(int page) {
-    // Trouver la sourate correspondante
     if (fullSurahList.isEmpty) return;
+
     final surah = fullSurahList.firstWhere(
       (s) => s['page'] == page,
       orElse: () => fullSurahList.last,
     );
 
-    
     ReadingHistoryService.instance.saveLastReading(
       page: page,
       surahId: surah['id'] as int,
@@ -261,261 +278,99 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Plus d'écran de chargement ! L'app démarre immédiatement
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    final mediaPadding = MediaQuery.of(context).padding;
+    final viewPadding = MediaQuery.of(context).viewPadding;
 
     final surahNameFr = fullSurahList.isEmpty
-      ? ''
-      : (fullSurahList.lastWhere(
-          (s) => (s['page'] as int) <= currentPage,
-          orElse: () => fullSurahList.first,
-        )['nameFr'] as String? ?? '');
+        ? ''
+        : (fullSurahList.lastWhere(
+              (s) => (s['page'] as int) <= currentPage,
+              orElse: () => fullSurahList.first,
+            )['nameFr'] as String? ??
+            '');
 
-    return Theme(
-      data: AppTheme.lightTheme, // thème fixe pour la lecture
-      child: Scaffold(
-        body: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => setState(() => _showUI = !_showUI),
-          child: Stack(
-            children: [
-              // PageView avec chargement optimisé
-              PageView.builder(
-                controller: _pageController,
-                reverse: true,
-                itemCount: 604,
-                onPageChanged: (p) {
-                  setState(() => currentPage = p + 1);
-                  _refreshBookmarkStatus(p + 1);
-                  _preloadPages(p + 1);
-                  SchedulerBinding.instance.scheduleTask<void>(
-                    () {
-                      _pagePreloader.preloadAround(context, p + 1, currentReading);
-                      return;
-                    },
-                    Priority.idle,
-                    debugLabel: 'quran_preload_pages',
-                  );
+    return Scaffold(
+      extendBody: true,
+      extendBodyBehindAppBar: true,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => setState(() => _showUI = !_showUI),
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              reverse: true,
+              itemCount: 604,
+              onPageChanged: (p) {
+                setState(() => currentPage = p + 1);
+                _refreshBookmarkStatus(p + 1);
+                _preloadPages(p + 1);
 
-                  _saveTimer?.cancel();
-                  _saveTimer = Timer(const Duration(milliseconds: 350), () {
-                    if (!mounted) return;
-                    _saveToHistory(p + 1);
-                  });
-                },
+                SchedulerBinding.instance.scheduleTask<void>(
+                  () {
+                    _pagePreloader.preloadAround(context, p + 1, currentReading);
+                    return;
+                  },
+                  Priority.idle,
+                  debugLabel: 'quran_preload_pages',
+                );
 
-                itemBuilder: (context, i) {
-                  final pageNum = i + 1;
-                  
-                  // Utiliser le cache si disponible
-                  if (_imageCache.containsKey(pageNum) && _imageCache[pageNum] != null) {
-                    final imageFile = _imageCache[pageNum]!;
-                    return _buildPageContent(imageFile, isLandscape, context);
-                  }
-                  
-                  // Sinon charger de manière asynchrone
-                  return FutureBuilder<File?>(
-                    future: _safeGetPageFile(currentReading, pageNum),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        // Affichage élégant pendant le chargement
-                        return Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.03),
-                              ],
-                            ),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                // Indicateur circulaire animé
-                                SizedBox(
-                                  width: 80,
-                                  height: 80,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        strokeWidth: 6,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Theme.of(context).colorScheme.primary,
-                                        ),
-                                      ),
-                                      Center(
-                                        child: Icon(
-                                          Icons.menu_book_outlined,
-                                          size: 36,
-                                          color: Theme.of(context).colorScheme.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                
-                                const SizedBox(height: 24),
-                                
-                                // Numéro de page
-                                Text(
-                                  'Page $pageNum',
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                
-                                const SizedBox(height: 8),
-                                
-                                // Message de chargement
-                                Text(
-                                  'Chargement en cours...',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                
-                                const SizedBox(height: 16),
-                                
-                                // Info additionnelle
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.hourglass_bottom,
-                                        size: 16,
-                                        color: Theme.of(context).colorScheme.primary,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Première ouverture',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Theme.of(context).colorScheme.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
-                      
-                      final File? imageFile = snapshot.data;
+                _saveTimer?.cancel();
+                _saveTimer = Timer(const Duration(milliseconds: 350), () {
+                  if (!mounted) return;
+                  _saveToHistory(p + 1);
+                });
+              },
+              itemBuilder: (context, i) {
+                final pageNum = i + 1;
 
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        // ton UI de chargement actuel
-                        return Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.03),
-                              ],
-                            ),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 80,
-                                  height: 80,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        strokeWidth: 6,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Theme.of(context).colorScheme.primary,
-                                        ),
-                                      ),
-                                      Center(
-                                        child: Icon(
-                                          Icons.menu_book_outlined,
-                                          size: 36,
-                                          color: Theme.of(context).colorScheme.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                Text(
-                                  'Page $pageNum',
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Chargement en cours...',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
+                final cached = _imageCache[pageNum];
+                if (cached != null) {
+                  return _buildPageContent(cached, isLandscape);
+                }
 
-                      if (imageFile == null) {
-                        // Ici: images pas téléchargées / erreur => propose QuranLoader
-                        return Center(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final ok = await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(builder: (_) => const QuranLoader()),
-                              );
-                              if (ok == true && mounted) setState(() {});
-                            },
-                            child: const Text('Télécharger les pages'),
-                          ),
-                        );
-                      }
+                return FutureBuilder<File?>(
+                  future: _safeGetPageFile(currentReading, pageNum),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _loadingPage(context, pageNum);
+                    }
 
-                      // OK
-                      _imageCache[pageNum] = imageFile;
-                      return _buildPageContent(imageFile, isLandscape, context);
+                    final file = snapshot.data;
+                    if (file == null) {
+                      return Center(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final ok = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(builder: (_) => const QuranLoader()),
+                            );
+                            if (ok == true && mounted) setState(() {});
+                          },
+                          child: const Text('Télécharger les pages'),
+                        ),
+                      );
+                    }
 
-                    },
-                  );
-                },
-              ),
+                    _imageCache[pageNum] = file;
+                    return _buildPageContent(file, isLandscape);
+                  },
+                );
+              },
+            ),
 
-              // Barre supérieure : flèche retour + Juzz/Hizb
-              if (_showUI)
-                Positioned(
-                  top: mediaPadding.top + 10,
-                  left: 10,
-                  right: 10,
+            // TOP overlay
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              top: _showUI ? (viewPadding.top + 10) : (viewPadding.top - 80),
+              left: 10,
+              right: 10,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: _showUI ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showUI,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -526,12 +381,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           onPressed: () => Navigator.pop(context),
                         ),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('${_juzzText(currentPage)} ${_hizbText(currentPage)}',
-                              style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
-                        ],
+                      Text(
+                        '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Opacity(
                         opacity: 0.5,
@@ -573,145 +429,150 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           },
                         ),
                       ),
-
                     ],
                   ),
                 ),
+              ),
+            ),
 
-              // Barre inférieure 
-              if (_showUI)
-                Positioned(
-                  bottom: mediaPadding.bottom + 12,
-                  left: 20,
-                  right: 20,
+            // BOTTOM overlay
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              bottom: _showUI ? (viewPadding.bottom + 12) : (viewPadding.bottom - 140),
+              left: 20,
+              right: 20,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: _showUI ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showUI,
                   child: isLandscape
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // plus fin
-                              decoration: BoxDecoration(
-                                color: Colors.black54.withOpacity(0.25), // plus transparent
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  // Sourate
-                                  TextButton.icon(
-                                    onPressed: () => _showSurahSelection(),
-                                    icon: const Icon(Icons.menu_book, color: Colors.white, size: 18),
-                                    label: Text(
-                                      fullSurahList.isEmpty
-                                          ? ''
-                                          : fullSurahList.lastWhere(
-                                              (s) => s['page'] <= currentPage,
-                                              orElse: () => fullSurahList.first,
-                                            )['nameFr'],
-                                      style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-
-                                  // Numéro de page
-                                  InkWell(
-                                    onTap: () => _jumpToPageDialog(),
-                                    child: CircleAvatar(
-                                      radius: 18, // légèrement plus petit
-                                      backgroundColor: Colors.white.withOpacity(0.15),
-                                      child: Text(
-                                        '$currentPage',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Hafs/Warsh
-                                  TextButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
-                                        // Vider le cache pour recharger les images du nouveau type de lecture
-                                        _imageCache.clear();
-                                        // Précharger les pages autour de la page actuelle
-                                        _preloadPages(currentPage);
-                                      });
-                                    },
-                                    icon: Icon(Icons.auto_stories, color: Colors.brown.shade100, size: 18),
-                                    label: Text(
-                                      currentReading.toUpperCase(),
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                      
-                      : SizedBox(
-                          height: 40,
-                          child: Stack(
-                            children: [
-                              // Bouton Sourate à gauche
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () => _showSurahSelection(),
-                                  icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
-                                  label: Text(
-                                    surahNameFr,
-                                    style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ),
-
-                              // Bouton Hafs/Warsh à droite
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
-                                      // Vider le cache pour recharger les images du nouveau type de lecture
-                                      _imageCache.clear();
-                                      // Précharger les pages autour de la page actuelle
-                                      _preloadPages(currentPage);
-                                    });
-                                  },
-                                  icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
-                                  label: Text(
-                                    currentReading.toUpperCase(),
-                                    style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ),
-
-                              // Numéro de page au centre
-                              Align(
-                                alignment: Alignment.center,
-                                child: InkWell(
-                                  onTap: () => _jumpToPageDialog(),
-                                  child: CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: Colors.transparent,
-                                    child: Text(
-                                      '$currentPage',
-                                      style: const TextStyle(
-                                        color: Colors.black54,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      ? _bottomBarLandscape()
+                      : _bottomBarPortrait(surahNameFr),
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _loadingPage(BuildContext context, int pageNum) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.03),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CircularProgressIndicator(
+                    strokeWidth: 6,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  Center(
+                    child: Icon(
+                      Icons.menu_book_outlined,
+                      size: 36,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Page $pageNum',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Chargement en cours...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomBarLandscape() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black54.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton.icon(
+                onPressed: _showSurahSelection,
+                icon: const Icon(Icons.menu_book, color: Colors.white, size: 18),
+                label: Text(
+                  fullSurahList.isEmpty
+                      ? ''
+                      : fullSurahList.lastWhere(
+                          (s) => s['page'] <= currentPage,
+                          orElse: () => fullSurahList.first,
+                        )['nameFr'],
+                  style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                ),
+              ),
+              InkWell(
+                onTap: _jumpToPageDialog,
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  child: Text(
+                    '$currentPage',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
+                    _imageCache.clear();
+                    _preloadPages(currentPage);
+                  });
+                },
+                icon: Icon(Icons.auto_stories, color: Colors.brown.shade100, size: 18),
+                label: Text(
+                  currentReading.toUpperCase(),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
             ],
           ),
         ),
@@ -719,8 +580,59 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  // Méthode pour construire le contenu de la page avec optimisation
-  Widget _buildPageContent(File imageFile, bool isLandscape, BuildContext context) {
+  Widget _bottomBarPortrait(String surahNameFr) {
+    return SizedBox(
+      height: 40,
+      child: Stack(
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _showSurahSelection,
+              icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
+              label: Text(
+                surahNameFr,
+                style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
+                  _imageCache.clear();
+                  _preloadPages(currentPage);
+                });
+              },
+              icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
+              label: Text(
+                currentReading.toUpperCase(),
+                style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.center,
+            child: InkWell(
+              onTap: _jumpToPageDialog,
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.transparent,
+                child: Text(
+                  '$currentPage',
+                  style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageContent(File imageFile, bool isLandscape) {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (isLandscape) {
@@ -730,19 +642,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
               width: constraints.maxWidth,
               fit: BoxFit.fitWidth,
               filterQuality: FilterQuality.high,
-              // Pas de cache resize pour préserver la qualité maximale
-            ),
-          );
-        } else {
-          return Center(
-            child: Image.file(
-              imageFile,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
-              // Pas de cache resize pour préserver la qualité maximale
             ),
           );
         }
+        return Center(
+          child: Image.file(
+            imageFile,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
+        );
       },
     );
   }

@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import '../../services/audio_service.dart';
 import '../music_player_fullscreen.dart';
 
+
 class MiniAudioPlayer extends StatefulWidget {
   const MiniAudioPlayer({super.key});
 
@@ -15,8 +16,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   final AudioService _audio = AudioService.instance;
 
   void _openFullPlayer() {
-    Navigator.push(
-      context,
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
         builder: (context) => const MusicPlayerFullScreen(),
         fullscreenDialog: true,
@@ -165,6 +165,34 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+class GlobalMiniPlayerOverlay extends StatelessWidget {
+  const GlobalMiniPlayerOverlay({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = AudioService.instance;
+
+    return StreamBuilder<bool>(
+      stream: audio.isActiveStream,
+      builder: (context, snapshot) {
+        final isActive = snapshot.data ?? false;
+
+        return AnimatedPositioned(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          bottom: isActive ? 0 : -160,
+          left: 0,
+          right: 0,
+          child: const Material(
+            color: Colors.transparent,
+            child: MiniAudioPlayer(),
+          ),
         );
       },
     );

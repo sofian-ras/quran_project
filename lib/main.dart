@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'ui/home_screen.dart';
+import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
 
@@ -15,6 +16,7 @@ Future<void> main() async {
     SystemUiMode.manual,
     overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
   );
+
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.landscapeLeft,
@@ -33,15 +35,27 @@ class QuranApp extends StatelessWidget {
       valueListenable: ThemeService.themeMode,
       builder: (context, mode, _) {
         return MaterialApp(
-          debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: mode,
-          themeAnimationDuration: Duration.zero,
-          themeAnimationCurve: Curves.linear,
           home: const HomeScreen(),
+          builder: (context, child) {
+            return Material(
+              color: Colors.transparent,
+              child: Stack(
+                children: [
+                  if (child != null) child,
+                  const GlobalMiniPlayerOverlay(),
+                ],
+              ),
+            );
+          },
         );
       },
     );
   }
 }
+
+
+
+

@@ -27,8 +27,9 @@ class SurahListScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final appBarBg = Theme.of(context).appBarTheme.backgroundColor ??
         (isDark ? const Color(0xFF0F1734) : const Color(0xFFF7F2E8));
-    final appBarFg = Theme.of(context).appBarTheme.foregroundColor ??
-        (isDark ? const Color(0xFFF6E9D7) : const Color(0xFF1a0033));
+    final appBarFg = isDark
+        ? (Theme.of(context).appBarTheme.foregroundColor ?? const Color(0xFFF6E9D7))
+        : const Color(0xFF5B3F12);
 
     final surahsByPage = List<Map<String, dynamic>>.from(surahList)
       ..sort((a, b) => (a['page'] as int).compareTo(b['page'] as int));
@@ -36,9 +37,13 @@ class SurahListScreen extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
-          backgroundColor: appBarBg,
+          backgroundColor: Colors.transparent,
           foregroundColor: appBarFg,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent, // IMPORTANT (supprime la teinte)
           title: Text(
             'Coran',
             style: TextStyle(color: appBarFg),
@@ -54,6 +59,7 @@ class SurahListScreen extends StatelessWidget {
             ],
           ),
         ),
+
         body: TabBarView(
           children: [
             // =========================
