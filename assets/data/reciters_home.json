@@ -1,0 +1,132 @@
+[
+  {
+    "name": "Abdurashid Sufi",
+    "asset": "assets/images/reciters/abdurashid_ali_sufi_assabile.webp",
+    "server": ""
+  },
+  {
+    "name": "Abdulbaset Mjwd",
+    "asset": "assets/images/reciters/abdulbaset_abdulsamad_mujawwad.webp",
+    "server": ""
+  },
+  {
+    "name": "Shuraym",
+    "asset": "assets/images/reciters/saud_ashshuraym.webp",
+    "server": ""
+  },
+  {
+    "name": "Sudais",
+    "asset": "assets/images/reciters/abdurrahman_assudais.webp",
+    "server": ""
+  },
+  {
+    "name": "Maher Almuaiqly",
+    "asset": "assets/images/reciters/maher_almuaiqly.webp",
+    "server": ""
+  },
+  {
+    "name": "Ali Jabir",
+    "asset": "assets/images/reciters/abdullah_ali_jabir.webp",
+    "server": ""
+  },
+  {
+    "name": "As-shatri",
+    "asset": "assets/images/reciters/abu_bakr_alshatri.webp",
+    "server": ""
+  },
+  {
+    "name": "As-shatri Taraweeh",
+    "asset": "assets/images/reciters/abu_bakr_alshatri_taraweeh.webp",
+    "server": ""
+  },
+  {
+    "name": "Al Ajmy",
+    "asset": "assets/images/reciters/ahmed_ibn_ali_alajmy.webp",
+    "server": ""
+  },
+  {
+    "name": "Abdulbaset Murattal",
+    "asset": "assets/images/reciters/abdulbaset_abdulsamad_murattal.webp",
+    "server": ""
+  },
+  {
+    "name": "Abdulbaset Warsh",
+    "asset": "assets/images/reciters/abdulbaset_abdulsamad_warsh.webp",
+    "server": ""
+  },
+  {
+    "name": "Abdulbaset Translation",
+    "asset": "assets/images/reciters/abdulbaset_abdulsamad_with_ibrahim_walk_saheeh_intl_translation.webp",
+    "server": ""
+  },
+  {
+    "name": "Abdulbaset Translation",
+    "asset": "assets/images/reciters/abdulbaset_abdulsamad_with_naeem_sultan_pickthall_translation.webp",
+    "server": ""
+  },
+  {
+    "name": "Al Hudhaify",
+    "asset": "assets/images/reciters/ahmed_almuhafdhaifey.webp",
+    "server": ""
+  },
+  {
+    "name": "Al Qatami",
+    "asset": "assets/images/reciters/nasser_al_qatamie.webp",
+    "server": ""
+  },
+  {
+    "name": "Al Juhani",
+    "asset": "assets/images/reciters/ahmed_aljuhani.webp",
+    "server": ""
+  },
+  {
+    "name": "Al Khamis",
+    "asset": "assets/images/reciters/ahmed_alkhamis.webp",
+    "server": ""
+  },
+  {
+    "name": "Al Menhali",
+    "asset": "assets/images/reciters/ahmed_almenhali.webp",
+    "server": ""
+  },
+  {
+    "name": "Al Taweel",
+    "asset": "assets/images/reciters/ahmed_altaweel.webp",
+    "server": ""
+  },
+  {
+    "name": "Bandar Baleela",
+    "asset": "assets/images/reciters/bandar_baleela.webp",
+    "server": ""
+  },
+  {
+    "name": "Hani Arrifai",
+    "asset": "assets/images/reciters/hani_arrifai.webp",
+    "server": ""
+  },
+  {
+    "name": "Alhusary Doori",
+    "asset": "assets/images/reciters/mahmoud_khalil_alhusary_doori.webp",
+    "server": ""
+  },
+  {
+    "name": "Mishari Rashid Alafasy",
+    "asset": "assets/images/reciters/mishari_rashid_alafasy.webp",
+    "server": ""
+  },
+  {
+    "name": "Saad Alghamdi",
+    "asset": "assets/images/reciters/saad_alghamdi.webp",
+    "server": ""
+  },
+  {
+    "name": "Alghamdi Partial",
+    "asset": "assets/images/reciters/saad_alghamdi_partial.webp",
+    "server": ""
+  },
+  {
+    "name": "Saud Ashshuraym Old",
+    "asset": "assets/images/reciters/saud_ashshuraym_older_recitation.webp",
+    "server": ""
+  }
+]

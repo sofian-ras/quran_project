@@ -19,6 +19,9 @@ import 'widgets/liste_de_sourates_widget.dart';
 import 'widgets/mini_audio_player.dart';
 import '../theme/theme_service.dart';
 import 'widgets/prayer_times_card.dart';
+import '../models/reciter.dart';
+import 'package:dio/dio.dart';
+
 
 
 
@@ -37,34 +40,47 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   bool get wantKeepAlive => true;
 
   final AudioService _audio = AudioService.instance;
+
   List<Map<String, dynamic>> fullSurahList = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
   String _preferredReading = 'hafs';
   final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>(<int>{});
-
+  List<Reciter> _reciters = [];
+  bool _recitersLoading = true;
+  final Map<String, String> _reciterAssetsByName = {};
+  final Dio _dio = Dio();
+  final Map<String, String> _serverByName = {};
+  bool _serversLoading = false;
 
   
   late AnimationController _menuController;
   late Animation<double> _menuAnimation;
   bool _isMenuOpen = false;
   double _dragStartX = 0;
+
   
 
-  @override
-  void initState() {
-    super.initState();
-    _loadSurahData();
-    _loadPreferredReading();
-    _loadFavorites();
-    _menuController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _menuAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _menuController, curve: Curves.easeOutCubic),
-    );
-  }
+@override
+void initState() {
+  super.initState();
+  _loadSurahData();
+  _loadPreferredReading();
+  _loadFavorites();
+
+  _loadReciters();
+  _loadReciterServersIfNeeded();
+
+  _menuController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
+
+  _menuAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    CurvedAnimation(parent: _menuController, curve: Curves.easeOutCubic),
+  );
+}
+
 
   @override
   void dispose() {
@@ -135,6 +151,46 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
       _favoriteIdsNotifier.value = favs;
     });
   }
+
+  Future<void> _loadReciters() async {
+    try {
+      final jsonStr = await rootBundle.loadString('assets/data/reciters_mapping.json');
+      final List<dynamic> data = json.decode(jsonStr) as List<dynamic>;
+
+      final List<Reciter> list = [];
+      _reciterAssetsByName.clear();
+
+      for (final e in data) {
+        final m = e as Map<String, dynamic>;
+        final name = (m['name'] ?? '').toString().trim();
+        final asset = (m['asset'] ?? '').toString().trim();
+        if (name.isEmpty) continue;
+
+        // ✅ Ton JSON n’a pas id/server/letter → on crée Reciter à la main
+        list.add(Reciter(
+          id: '',
+          name: name,
+          server: '', // sera résolu via API mp3quran au tap
+          letter: '',
+        ));
+
+        if (asset.isNotEmpty) {
+          _reciterAssetsByName[name] = asset;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _reciters = list;
+        _recitersLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _recitersLoading = false);
+    }
+  }
+
+
 
 
   void _openSurahListScreen() {
@@ -319,8 +375,59 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     ThemeService.setTheme(next);
   }
 
+  String _normName(String s) => s.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  Future<void> _loadReciterServersIfNeeded() async {
+    if (_serverByName.isNotEmpty || _serversLoading) return;
+
+    _serversLoading = true;
+    try {
+      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=fr");
+      final reciters = (res.data['reciters'] as List?) ?? const [];
+
+      for (final item in reciters) {
+        final r = item as Map<String, dynamic>;
+        final name = (r['name'] ?? '').toString().trim();
+        final moshaf = (r['moshaf'] as List?) ?? const [];
+        if (name.isEmpty || moshaf.isEmpty) continue;
+
+        final first = moshaf[0] as Map<String, dynamic>;
+        final server = (first['server'] ?? '').toString().trim();
+        if (server.isEmpty) continue;
+
+        _serverByName[_normName(name)] = server;
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      _serversLoading = false;
+    }
+  }
 
 
+  Future<void> _onReciterSelected(Reciter r) async {
+    // 1) si on a déjà un server dans l’objet Reciter, on l’utilise
+    String server = r.server.trim();
+
+    // 2) sinon on résout via l’API mp3quran (comme ReciterSelectorSheet)
+    if (server.isEmpty) {
+      await _loadReciterServersIfNeeded();
+      server = _serverByName[_normName(r.name)] ?? '';
+    }
+
+    if (server.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Serveur introuvable pour ${r.name}')),
+      );
+      return;
+    }
+
+    _audio.setReciter(r.name, server);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Réciteur sélectionné: ${r.name}')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -444,11 +551,18 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                   slivers: [
                                     SliverToBoxAdapter(
                                       child: _HeaderWithEngagement(
+                                        audio: _audio,
                                         onMenuTap: _openMenu,
                                         onThemeTap: _cycleTheme,
-                                        onContinue: _openSurahListScreen, // temporaire
+                                        onContinue: _openSurahListScreen,
+                                        reciters: _reciters,
+                                        recitersLoading: _recitersLoading,
+                                        onReciterTap: _onReciterSelected,
+                                        getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
                                       ),
                                     ),
+
+
 
                                     const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
@@ -467,8 +581,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                         ),
                                       ),
                                     ),
-
-                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
                                     const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
@@ -963,12 +1075,27 @@ class _HeaderWithEngagement extends StatelessWidget {
   final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
   final VoidCallback onContinue;
+  final List<Reciter> reciters;
+  final bool recitersLoading;
+  final void Function(Reciter) onReciterTap;
+  final String Function(String name) getReciterAsset;
+  final AudioService audio;
+
+
+
+
 
   const _HeaderWithEngagement({
+    required this.audio,
     required this.onMenuTap,
     required this.onThemeTap,
     required this.onContinue,
+    required this.reciters,
+    required this.recitersLoading,
+    required this.onReciterTap,
+    required this.getReciterAsset,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -1013,17 +1140,17 @@ class _HeaderWithEngagement extends StatelessWidget {
             right: 16,
             top: recitersTop,
             child: _HomeCardShell(
-              child: _RecitersSection(
-                onSeeAll: () {},
-                reciters: const [
-                  _ReciterItem(name: 'Maher', asset: 'assets/images/reciters/maher.png'),
-                  _ReciterItem(name: 'Mishari', asset: 'assets/images/reciters/mishari.png'),
-                  _ReciterItem(name: 'Minshawi', asset: 'assets/images/reciters/minshawi.png'),
-                  _ReciterItem(name: 'Husary', asset: 'assets/images/reciters/husary.png'),
-                  _ReciterItem(name: 'Sudais', asset: 'assets/images/reciters/sudais.png'),
-                ],
-                onReciterTap: (r) {},
-              ),
+              child: recitersLoading
+                  ? const SizedBox(
+                      height: 90,
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : _RecitersSection(
+                      onSeeAll: () {},
+                      reciters: reciters,
+                      onReciterTap: onReciterTap,
+                      getAssetByName: getReciterAsset,
+                    ),
             ),
           ),
         ],
@@ -1032,21 +1159,18 @@ class _HeaderWithEngagement extends StatelessWidget {
   }
 }
 
-class _ReciterItem {
-  final String name;
-  final String asset;
-  const _ReciterItem({required this.name, required this.asset});
-}
 
 class _RecitersSection extends StatelessWidget {
   final VoidCallback onSeeAll;
-  final List<_ReciterItem> reciters;
-  final void Function(_ReciterItem) onReciterTap;
+  final List<Reciter> reciters;
+  final void Function(Reciter) onReciterTap;
+  final String Function(String name) getAssetByName;
 
   const _RecitersSection({
     required this.onSeeAll,
     required this.reciters,
     required this.onReciterTap,
+    required this.getAssetByName,
   });
 
   @override
@@ -1092,6 +1216,7 @@ class _RecitersSection extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, i) {
               final r = reciters[i];
+              final asset = getAssetByName(r.name);
               return InkWell(
                 onTap: () => onReciterTap(r),
                 borderRadius: BorderRadius.circular(999),
@@ -1114,7 +1239,8 @@ class _RecitersSection extends StatelessWidget {
                         backgroundColor: isDark
                             ? Colors.white.withOpacity(0.08)
                             : const Color(0xFFF3F6FF),
-                        backgroundImage: AssetImage(r.asset),
+                        backgroundImage: asset.isEmpty ? null : AssetImage(asset),
+                        onBackgroundImageError: (_, __) {},
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1388,6 +1514,7 @@ class _ContentCard extends StatelessWidget {
               child: Image.asset(
                 item.imageAsset,
                 fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: Colors.black12),
               ),
             ),
             Padding(
