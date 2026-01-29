@@ -442,59 +442,11 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                 child: CustomScrollView(
                                   physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                                   slivers: [
-                                    SliverAppBar(
-                                      pinned: true,
-                                      floating: true,
-                                      snap: true,
-                                      elevation: 0,
-                                      backgroundColor: Colors.transparent,
-                                      surfaceTintColor: Colors.transparent,
-                                      leading: IconButton(
-                                        onPressed: _openMenu,
-                                        icon: Icon(
-                                          Icons.menu_rounded,
-                                          color: Theme.of(context).brightness == Brightness.dark
-                                              ? Colors.white
-                                              : Colors.black87,
-                                        ),
+                                    SliverToBoxAdapter(
+                                      child: _DribbbleHomeHeader(
+                                        onMenuTap: _openMenu,
+                                        onThemeTap: _cycleTheme,
                                       ),
-                                      title: Text(
-                                        'القرآن الكريم',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          color: Theme.of(context).brightness == Brightness.dark
-                                              ? Colors.white
-                                              : Colors.black87,
-                                        ),
-                                      ),
-                                      actions: [
-                                        ValueListenableBuilder<ThemeMode>(
-                                          valueListenable: ThemeService.themeMode,
-                                          builder: (context, mode, _) {
-                                            final icon = (mode == ThemeMode.system)
-                                                ? Icons.brightness_auto_rounded
-                                                : (mode == ThemeMode.light)
-                                                    ? Icons.light_mode_rounded
-                                                    : Icons.dark_mode_rounded;
-
-                                            return IconButton(
-                                              onPressed: _cycleTheme,
-                                              icon: Icon(
-                                                icon,
-                                                color: Theme.of(context).brightness == Brightness.dark
-                                                    ? Colors.white
-                                                    : Colors.black87,
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    ),
-
-
-                                    SliverPadding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      sliver: const SliverToBoxAdapter(child: PrayerTimesCard()),
                                     ),
 
                                     const SliverToBoxAdapter(child: SizedBox(height: 12)),
@@ -650,6 +602,234 @@ class _HomeTopBar extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _DribbbleHomeHeader extends StatelessWidget {
+  final VoidCallback onMenuTap;
+  final VoidCallback onThemeTap;
+
+  const _DribbbleHomeHeader({
+    required this.onMenuTap,
+    required this.onThemeTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Valeurs en dur (étape 1)
+    const timeText = '3:00 PM';
+    const subtitle = 'Zohr ends in 0h 17m 20s';
+    const hijri = "Dhu’l-Qi’dah 5, 1446 AH";
+    const location = 'Paris, France';
+
+    final prayers = const [
+      ('Fajr', '5:53 AM'),
+      ('Sunrise', '5:15 AM'),
+      ('Zohr', '11:49 AM'),
+      ('Asr', '3:18 PM'),
+      ('Maghrib', '6:24 PM'),
+    ];
+
+    const activeIndex = 3; // Asr sélectionnée (exemple)
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        bottomLeft: Radius.circular(28),
+        bottomRight: Radius.circular(28),
+      ),
+      child: Stack(
+        children: [
+          // Image de fond
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/fond_widget_bleu2.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+
+          // Overlay gradient (pour garder le style + lisibilité du texte)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF2C6CB5).withOpacity(0.88),
+                    const Color(0xFF1F5FAE).withOpacity(0.86),
+                    const Color(0xFF174F9B).withOpacity(0.88),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Contenu
+          Padding(
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 10,
+              left: 16,
+              right: 16,
+              bottom: 18,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top row: menu + titre + theme
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: onMenuTap,
+                      icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                    ),
+                    const SizedBox(width: 6),
+                    const Expanded(
+                      child: Text(
+                        'Home',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onThemeTap,
+                      icon: const Icon(Icons.brightness_6_rounded, color: Colors.white),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                // Heure + sous-titre
+                const Text(
+                  timeText,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 44,
+                    fontWeight: FontWeight.w900,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.85),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Mini-card Hijri + location (à droite)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hijri,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.place_rounded, size: 14, color: Colors.white.withOpacity(0.9)),
+                            const SizedBox(width: 4),
+                            Text(
+                              location,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Pills prières (TOUTES visibles sans scroll)
+                SizedBox(
+                  height: 64,
+                  child: Row(
+                    children: List.generate(prayers.length, (i) {
+                      final isActive = i == activeIndex;
+                      final name = prayers[i].$1;
+                      final hour = prayers[i].$2;
+
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: i == prayers.length - 1 ? 0 : 8),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 220),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? Colors.white.withOpacity(0.22)
+                                  : Colors.white.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    name,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.92),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    hour,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
