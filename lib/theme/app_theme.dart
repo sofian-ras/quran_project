@@ -329,13 +329,11 @@ class AppTheme {
     );
   }
   static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
+    final base = AppTheme.lightTheme;
+    return base.copyWith(
       brightness: Brightness.dark,
-
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.darkBackground,
-
       colorScheme: ColorScheme.dark(
         primary: AppColors.primaryAccent,
         primaryContainer: AppColors.primary,
@@ -349,6 +347,10 @@ class AppTheme {
         onSurface: Colors.white,
         onBackground: Colors.white,
         onError: Colors.white,
+      ),
+      textTheme: base.textTheme.apply(
+        bodyColor: Colors.white,
+        displayColor: Colors.white,
       ),
     );
   }

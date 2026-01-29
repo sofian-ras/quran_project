@@ -894,9 +894,22 @@ class _DribbbleHomeHeader extends StatelessWidget {
                         ),
                       ),
                     ),
-                    IconButton(
-                      onPressed: onThemeTap,
-                      icon: const Icon(Icons.brightness_6_rounded, color: Colors.white),
+                    ValueListenableBuilder<ThemeMode>(
+                      valueListenable: ThemeService.themeMode,
+                      builder: (context, mode, _) {
+                        final IconData icon = (mode == ThemeMode.system)
+                            ? Icons.brightness_auto_rounded
+                            : (mode == ThemeMode.light)
+                                ? Icons.light_mode_rounded
+                                : Icons.dark_mode_rounded;
+                        final Color color = (mode == ThemeMode.light)
+                            ? const Color(0xFFFFD54F)
+                            : Colors.white;
+                        return IconButton(
+                          onPressed: onThemeTap,
+                          icon: Icon(icon, color: color),
+                        );
+                      },
                     ),
                   ],
                 ),
