@@ -523,14 +523,21 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                         child: Row(
                                           children: [
                                             Expanded(
-                                              child: ResumeReadingWidget(
-                                                onTap: (page, reading) => _openReader(page, reading: reading),
+                                              child: _HomeCardShell(
+                                                child: ResumeReadingWidget(
+                                                  onTap: (page, reading) => _openReader(page, reading: reading),
+                                                ),
                                               ),
                                             ),
                                             const SizedBox(width: 12),
-                                            const Expanded(child: FrenchQuranWidget()),
+                                            const Expanded(
+                                              child: _HomeCardShell(
+                                                child: FrenchQuranWidget(),
+                                              ),
+                                            ),
                                           ],
                                         ),
+
                                       ),
                                     ),
 
@@ -1174,7 +1181,7 @@ class _ExploreFeaturesSection extends StatelessWidget {
             crossAxisCount: 3,
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
-            childAspectRatio: 3.2, // largeur > hauteur (comme image)
+            childAspectRatio: 3.0, // cases larges comme l’image
           ),
           itemBuilder: (context, i) {
             final f = features[i];
@@ -1207,6 +1214,8 @@ class _FeatureGridItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const accent = Color(0xFF2C6CB5);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white.withOpacity(0.92) : const Color(0xFF111827);
 
     return Material(
       color: bgColor,
@@ -1215,7 +1224,7 @@ class _FeatureGridItem extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -1226,9 +1235,10 @@ class _FeatureGridItem extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
+                    color: textColor,
                   ),
                 ),
               ),
@@ -1239,6 +1249,7 @@ class _FeatureGridItem extends StatelessWidget {
     );
   }
 }
+
 
 class _FeatureChip extends StatelessWidget {
   final String label;
@@ -1429,3 +1440,22 @@ class _ContentCard extends StatelessWidget {
     );
   }
 }
+
+class _HomeCardShell extends StatelessWidget {
+  final Widget child;
+  const _HomeCardShell({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark ? const Color(0xFF0F1734) : Colors.white,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+  }
+}
+
