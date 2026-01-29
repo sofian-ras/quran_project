@@ -455,27 +455,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                     SliverPadding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       sliver: SliverToBoxAdapter(
-                                        child: _RecitersSection(
-                                          onSeeAll: () {},
-                                          reciters: const [
-                                            _ReciterItem(name: 'Maher', asset: 'assets/images/reciters/maher.png'),
-                                            _ReciterItem(name: 'Mishari', asset: 'assets/images/reciters/mishari.png'),
-                                            _ReciterItem(name: 'Minshawi', asset: 'assets/images/reciters/minshawi.png'),
-                                            _ReciterItem(name: 'Husary', asset: 'assets/images/reciters/husary.png'),
-                                            _ReciterItem(name: 'Sudais', asset: 'assets/images/reciters/sudais.png'),
-                                          ],
-                                          onReciterTap: (r) {
-                                            // Étape suivante: brancher ton AudioService.setReciter(...)
-                                          },
-                                        ),
-                                      ),
-                                    ),
-
-                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-                                    SliverPadding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      sliver: SliverToBoxAdapter(
                                         child: _ExploreFeaturesSection(
                                           features: const [
                                             _FeatureChipData(label: 'Weekly Programs', icon: Icons.calendar_month_rounded),
@@ -994,11 +973,16 @@ class _HeaderWithEngagement extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const double headerHeight = 320;
-    const double overlap = 40; // chevauchement (40 = comme l'image)
-    const double bottomSpace = 8;
+
+    // Position carte engagement
+    const double engagementTop = headerHeight - 40;
+    const double engagementHeightApprox = 76;
+
+    // Position carte reciters (elle chevauche la carte engagement)
+    const double recitersTop = engagementTop + 36;
 
     return SizedBox(
-      height: headerHeight + (overlap / 2) + bottomSpace,
+      height: headerHeight + 180,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -1010,15 +994,36 @@ class _HeaderWithEngagement extends StatelessWidget {
             ),
           ),
 
+          // === Carte Quran engagement ===
           Positioned(
             left: 16,
             right: 16,
-            top: headerHeight - overlap, // la carte "rentre" dans le header
+            top: engagementTop,
             child: _QuranEngagementCard(
               minutes: 15,
               subtitle: 'Quran engagement time',
               buttonText: 'Continue',
               onPressed: onContinue,
+            ),
+          ),
+
+          // === Carte Reciters (AU-DESSUS) ===
+          Positioned(
+            left: 16,
+            right: 16,
+            top: recitersTop,
+            child: _HomeCardShell(
+              child: _RecitersSection(
+                onSeeAll: () {},
+                reciters: const [
+                  _ReciterItem(name: 'Maher', asset: 'assets/images/reciters/maher.png'),
+                  _ReciterItem(name: 'Mishari', asset: 'assets/images/reciters/mishari.png'),
+                  _ReciterItem(name: 'Minshawi', asset: 'assets/images/reciters/minshawi.png'),
+                  _ReciterItem(name: 'Husary', asset: 'assets/images/reciters/husary.png'),
+                  _ReciterItem(name: 'Sudais', asset: 'assets/images/reciters/sudais.png'),
+                ],
+                onReciterTap: (r) {},
+              ),
             ),
           ),
         ],
