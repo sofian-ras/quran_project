@@ -1,184 +1,106 @@
 [
   {
-    "id": "",
     "name": "Abdurashid Sufi",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/abdurashid_ali_sufi_assabile.webp"
   },
   {
-    "id": "",
     "name": "Abdulbaset Mjwd",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/abdulbaset_abdulsamad_mujawwad.webp"
   },
   {
-    "id": "7",
-    "name": "Ahmad Saud",
-    "server": "https://server11.mp3quran.net/saud/",
-    "suras": "",
+    "name": "Shuraym",
     "asset": "assets/images/reciters/saud_ashshuraym.webp"
   },
   {
-    "id": "",
     "name": "Sudais",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/abdurrahman_assudais.webp"
   },
   {
-    "id": "102",
-    "name": "Maher Al Meaqli",
-    "server": "https://server12.mp3quran.net/maher/Almusshaf-Al-Mojawwad/",
-    "suras": "",
+    "name": "Maher Almuaiqly",
     "asset": "assets/images/reciters/maher_almuaiqly.webp"
   },
   {
-    "id": "116",
-    "name": "Mohammad Al-Abdullah",
-    "server": "https://server9.mp3quran.net/abdullah/Rewayat-AlDorai-A-n-Al-Kisa-ai/",
-    "suras": "",
+    "name": "Ali Jabir",
     "asset": "assets/images/reciters/abdullah_ali_jabir.webp"
   },
   {
-    "id": "4",
-    "name": "Shaik Abu Bakr Al Shatri",
-    "server": "https://server11.mp3quran.net/shatri/",
-    "suras": "",
+    "name": "As-shatri",
     "asset": "assets/images/reciters/abu_bakr_alshatri.webp"
   },
   {
-    "id": "4",
-    "name": "Shaik Abu Bakr Al Shatri",
-    "server": "https://server11.mp3quran.net/shatri/",
-    "suras": "",
+    "name": "As-shatri Taraweeh",
     "asset": "assets/images/reciters/abu_bakr_alshatri_taraweeh.webp"
   },
   {
-    "id": "5",
-    "name": "Ahmad Al-Ajmy",
-    "server": "https://server10.mp3quran.net/ajm/",
-    "suras": "",
+    "name": "Al Ajmy",
     "asset": "assets/images/reciters/ahmed_ibn_ali_alajmy.webp"
   },
   {
-    "id": "",
     "name": "Abdulbaset Murattal",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/abdulbaset_abdulsamad_murattal.webp"
   },
   {
-    "id": "",
     "name": "Abdulbaset Warsh",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/abdulbaset_abdulsamad_warsh.webp"
   },
   {
-    "id": "",
     "name": "Abdulbaset Translation",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/abdulbaset_abdulsamad_with_ibrahim_walk_saheeh_intl_translation.webp"
   },
   {
-    "id": "",
     "name": "Abdulbaset Translation",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/abdulbaset_abdulsamad_with_naeem_sultan_pickthall_translation.webp"
   },
   {
-    "id": "",
     "name": "Al Hudhaify",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/ahmed_almuhafdhaifey.webp"
   },
   {
-    "id": "",
     "name": "Al Qatami",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/nasser_al_qatamie.webp"
   },
   {
-    "id": "89",
-    "name": "Hani Arrifai",
-    "server": "https://server8.mp3quran.net/hani/",
-    "suras": "",
+    "name": "Al Juhani",
     "asset": "assets/images/reciters/ahmed_aljuhani.webp"
   },
   {
-    "id": "",
     "name": "Al Khamis",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/ahmed_alkhamis.webp"
   },
   {
-    "id": "",
     "name": "Al Menhali",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/ahmed_almenhali.webp"
   },
   {
-    "id": "",
     "name": "Al Taweel",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/ahmed_altaweel.webp"
   },
   {
-    "id": "",
     "name": "Bandar Baleela",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/bandar_baleela.webp"
   },
   {
-    "id": "89",
     "name": "Hani Arrifai",
-    "server": "https://server8.mp3quran.net/hani/",
-    "suras": "",
     "asset": "assets/images/reciters/hani_arrifai.webp"
   },
   {
-    "id": "",
     "name": "Alhusary Doori",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/mahmoud_khalil_alhusary_doori.webp"
   },
   {
-    "id": "",
     "name": "Mishari Rashid Alafasy",
-    "server": "",
-    "suras": "",
     "asset": "assets/images/reciters/mishari_rashid_alafasy.webp"
   },
   {
-    "id": "257",
-    "name": "Saad Almqren",
-    "server": "https://server16.mp3quran.net/saad/Rewayat-Hafs-A-n-Assem/",
-    "suras": "",
+    "name": "Saad Alghamdi",
     "asset": "assets/images/reciters/saad_alghamdi.webp"
   },
   {
-    "id": "257",
-    "name": "Saad Almqren",
-    "server": "https://server16.mp3quran.net/saad/Rewayat-Hafs-A-n-Assem/",
-    "suras": "",
+    "name": "Alghamdi Partial",
     "asset": "assets/images/reciters/saad_alghamdi_partial.webp"
   },
   {
-    "id": "7",
-    "name": "Ahmad Saud",
-    "server": "https://server11.mp3quran.net/saud/",
-    "suras": "",
+    "name": "Saud Ashshuraym Old",
     "asset": "assets/images/reciters/saud_ashshuraym_older_recitation.webp"
   }
 ]

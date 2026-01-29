@@ -406,13 +406,11 @@ void initState() {
 
 
   Future<void> _onReciterSelected(Reciter r) async {
-    // 1) si on a déjà un server dans l’objet Reciter, on l’utilise
     String server = r.server.trim();
 
-    // 2) sinon on résout via l’API mp3quran (comme ReciterSelectorSheet)
+    // Si le JSON ne contient pas le serveur → on le résout via API
     if (server.isEmpty) {
-      await _loadReciterServersIfNeeded();
-      server = _serverByName[_normName(r.name)] ?? '';
+      server = await _resolveServerForReciter(r.name) ?? '';
     }
 
     if (server.isEmpty) {
@@ -428,6 +426,28 @@ void initState() {
       SnackBar(content: Text('Réciteur sélectionné: ${r.name}')),
     );
   }
+    
+  Future<String?> _resolveServerForReciter(String reciterName) async {
+    try {
+      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=fr");
+      final reciters = (res.data['reciters'] as List?) ?? [];
+
+      for (final item in reciters) {
+        final r = item as Map<String, dynamic>;
+        final name = (r['name'] ?? '').toString();
+
+        if (_normName(name) == _normName(reciterName)) {
+          final moshaf = (r['moshaf'] as List?) ?? [];
+          if (moshaf.isNotEmpty) {
+            final server = (moshaf[0]['server'] ?? '').toString();
+            if (server.isNotEmpty) return server;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
 
   @override
   Widget build(BuildContext context) {
