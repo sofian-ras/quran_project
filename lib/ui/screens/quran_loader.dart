@@ -26,6 +26,10 @@ class _QuranLoaderState extends State<QuranLoader> {
   void _goToReaderOnce() {
     if (_hasNavigated) return;
     _hasNavigated = true;
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(true);
+      return;
+    }
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -205,7 +209,7 @@ class _QuranLoaderState extends State<QuranLoader> {
         if (didPop) return;
         final shouldPop = await _onWillPop();
         if (shouldPop && context.mounted) {
-          Navigator.of(context).pop();
+          Navigator.of(context).pop(false);
         }
       },
       child: Scaffold(

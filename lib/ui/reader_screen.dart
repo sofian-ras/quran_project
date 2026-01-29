@@ -1,10 +1,13 @@
 
 import 'dart:io';
+import 'screens/quran_loader.dart';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import '../services/quran_image_service.dart';
+import '../services/quran_page_preloader.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../services/reading_history_service.dart';
@@ -49,10 +52,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Timer? _saveTimer;
   Timer? _preloadDebounce;
   bool _isBookmarked = false;
+  final QuranPagePreloader _pagePreloader = QuranPagePreloader(range: 2);
   
   // Cache pour les images préchargées
   final Map<int, File?> _imageCache = {};
   final int _preloadRange = 3; // Nombre de pages à précharger avant/après
+
+  Future<File?> _safeGetPageFile(String reading, int pageNum) async {
+    try {
+      return await QuranImageService.getPageFile(reading, pageNum);
+    } catch (e) {
+      return null;
+    }
+  }
 
   Future<void> _refreshBookmarkStatus([int? page]) async {
     final p = page ?? currentPage;
@@ -155,7 +167,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
     
     // Précharger la page initiale en arrière-plan
-    _preloadPages(currentPage);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _pagePreloader.preloadAround(context, currentPage, currentReading);
+    });
     
     setState(() {
       fullSurahList = list;
@@ -274,6 +289,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   setState(() => currentPage = p + 1);
                   _refreshBookmarkStatus(p + 1);
                   _preloadPages(p + 1);
+                  SchedulerBinding.instance.scheduleTask<void>(
+                    () {
+                      _pagePreloader.preloadAround(context, p + 1, currentReading);
+                      return;
+                    },
+                    Priority.idle,
+                    debugLabel: 'quran_preload_pages',
+                  );
 
                   _saveTimer?.cancel();
                   _saveTimer = Timer(const Duration(milliseconds: 350), () {
@@ -292,8 +315,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   }
                   
                   // Sinon charger de manière asynchrone
-                  return FutureBuilder<File>(
-                    future: QuranImageService.getPageFile(currentReading, pageNum),
+                  return FutureBuilder<File?>(
+                    future: _safeGetPageFile(currentReading, pageNum),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         // Affichage élégant pendant le chargement
@@ -397,44 +420,91 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         );
                       }
                       
-                      if (!snapshot.hasData || snapshot.hasError) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.cloud_off_outlined, size: 48, color: Colors.orange),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Erreur de téléchargement',
-                                style: const TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Vérifiez votre connexion Internet',
-                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: () => setState(() {
-                                  // Force le rechargement
-                                  _imageCache.remove(pageNum);
-                                }),
-                                icon: const Icon(Icons.refresh, size: 18),
-                                label: const Text('Réessayer'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  foregroundColor: Colors.white,
+                      final File? imageFile = snapshot.data;
+
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        // ton UI de chargement actuel
+                        return Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.03),
+                              ],
+                            ),
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 80,
+                                  height: 80,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        strokeWidth: 6,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Theme.of(context).colorScheme.primary,
+                                        ),
+                                      ),
+                                      Center(
+                                        child: Icon(
+                                          Icons.menu_book_outlined,
+                                          size: 36,
+                                          color: Theme.of(context).colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 24),
+                                Text(
+                                  'Page $pageNum',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Chargement en cours...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       }
-                      
-                      final imageFile = snapshot.data!;
-                      // Mettre en cache après chargement
+
+                      if (imageFile == null) {
+                        // Ici: images pas téléchargées / erreur => propose QuranLoader
+                        return Center(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final ok = await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(builder: (_) => const QuranLoader()),
+                              );
+                              if (ok == true && mounted) setState(() {});
+                            },
+                            child: const Text('Télécharger les pages'),
+                          ),
+                        );
+                      }
+
+                      // OK
                       _imageCache[pageNum] = imageFile;
                       return _buildPageContent(imageFile, isLandscape, context);
+
                     },
                   );
                 },

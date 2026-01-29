@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -287,19 +288,34 @@ void initState() {
   Future<void> _openReader(int page, {String? reading}) async {
     final selectedReading = reading ?? _preferredReading;
 
-    // précharge la page demandée pour éviter un petit freeze
-    await QuranImageService.getPageFile(selectedReading, page);
+    try {
+      // précharge la page demandée pour éviter un petit freeze
+      final File firstFile = await QuranImageService.getPageFile(selectedReading, page);
+      if (!mounted) return;
+      await precacheImage(FileImage(firstFile), context);
 
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ReaderScreen(
-          initialPage: page,
-          reading: selectedReading,
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReaderScreen(
+            initialPage: page,
+            reading: selectedReading,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      final ok = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const QuranLoader()),
+      );
+
+      if (ok == true && mounted) {
+        await _openReader(page, reading: selectedReading);
+      }
+    }
   }
 
 

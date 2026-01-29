@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'ui/home_screen.dart';
 import 'package:quran/theme/app_theme.dart';
@@ -6,6 +7,8 @@ import 'package:quran/theme/theme_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 150 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 200;
   await ThemeService.init();
 
   SystemChrome.setEnabledSystemUIMode(
