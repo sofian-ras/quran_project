@@ -101,7 +101,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       DeviceOrientation.landscapeRight,
     ]);
 
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
+
 
     currentPage = widget.initialPage;
     currentReading = widget.reading;
@@ -169,7 +173,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       DeviceOrientation.portraitUp,
     ]);
 
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
+
 
     super.dispose();
   }

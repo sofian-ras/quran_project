@@ -621,16 +621,21 @@ void initState() {
                                           onTap: (f) {
                                             final ctx = NavigationService.navigatorKey.currentContext ?? context;
                                             if (f.label == 'Player') {
+                                              _audio.isFullPlayerOpenNotifier.value = true;
+
                                               showModalBottomSheet(
                                                 context: ctx,
+                                                useSafeArea: true,
                                                 useRootNavigator: true,
                                                 isScrollControlled: true,
                                                 backgroundColor: Colors.transparent,
                                                 builder: (_) => const FullPlayerScreen(),
-                                              );
+                                              ).whenComplete(() {
+                                                _audio.isFullPlayerOpenNotifier.value = false;
+                                              });
+
                                               return;
                                             }
-
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               SnackBar(content: Text('${f.label} bientôt')),
                                             );
