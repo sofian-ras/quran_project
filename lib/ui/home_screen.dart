@@ -1104,9 +1104,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
 
         final activeIndex = activeIndexFromTimes(prayers);
 
-        final subtitle = (snap.connectionState != ConnectionState.done)
-            ? 'Chargement...'
-            : 'Prochaine prière: ${prayers[activeIndex].$1} à ${prayers[activeIndex].$2}';
+        
 
         return ClipRRect(
           borderRadius: const BorderRadius.only(
@@ -1124,12 +1122,12 @@ class _DribbbleHomeHeader extends StatelessWidget {
                           BlendMode.darken,
                         ),
                         child: Image.asset(
-                          'assets/images/fond_widget_bleu2.png',
+                          'assets/images/fond_widget_vert.webp',
                           fit: BoxFit.cover,
                         ),
                       )
                     : Image.asset(
-                        'assets/images/fond_widget_bleu2.png',
+                        'assets/images/fond_widget_vert.webp',
                         fit: BoxFit.cover,
                       ),
               ),
@@ -1221,14 +1219,36 @@ class _DribbbleHomeHeader extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    if (snap.connectionState != ConnectionState.done || data == null)
+                      Text(
+                        'Chargement...',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    else
+                      StreamBuilder<int>(
+                        stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
+                        builder: (context, _) {
+                          final safeIndex = (activeIndex < 0 || activeIndex >= prayers.length) ? 0 : activeIndex;
+                          final remaining = _DribbbleHomeHeader._remainingToNextPrayer(prayers, safeIndex);
+                          final nextName = prayers[safeIndex].$1;
+
+                          return Text(
+                            '$nextName dans ${_DribbbleHomeHeader._fmt(remaining)}',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
                       ),
-                    ),
+
 
                     const SizedBox(height: 1),
 
@@ -1341,6 +1361,36 @@ class _DribbbleHomeHeader extends StatelessWidget {
       },
     );
   }
+  static Duration _remainingToNextPrayer(List<(String, String)> prayers, int activeIndex) {
+    final now = DateTime.now();
+    final hhmm = prayers[activeIndex].$2;
+
+    if (!hhmm.contains(':') || hhmm.contains('-')) return Duration.zero;
+
+    final parts = hhmm.split(':');
+    final hh = int.tryParse(parts[0]) ?? 0;
+    final mm = int.tryParse(parts[1]) ?? 0;
+
+    var next = DateTime(now.year, now.month, now.day, hh, mm);
+    if (!next.isAfter(now)) next = next.add(const Duration(days: 1));
+
+    return next.difference(now);
+  }
+
+  static String _fmt(Duration d) {
+    if (d.isNegative) d = Duration.zero;
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}h '
+          '${m.toString().padLeft(2, '0')}m '
+          '${s.toString().padLeft(2, '0')}s';
+    }
+    return '${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s';
+  }
+
 }
 
 class _QuranEngagementCard extends StatelessWidget {
@@ -1649,11 +1699,12 @@ class _ExploreFeaturesSection extends StatelessWidget {
     required this.onTap,
   });
 
+
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF111827);
-    final cardColor = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF2F6FF);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1668,7 +1719,7 @@ class _ExploreFeaturesSection extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 104,
+          height: 132,
           child: ListView.separated(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1677,71 +1728,34 @@ class _ExploreFeaturesSection extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 18),
             itemBuilder: (context, i) {
               final f = features[i];
-              return _FeatureIconItem(
-                label: f.label,
-                icon: f.icon,
-                onTap: () => onTap(f),
-                isDark: isDark,
+
+              final pastel = <Color>[
+                const Color(0xFFFFF4CC), // jaune pâle
+                const Color(0xFFDFF7E9), // vert pâle
+                const Color(0xFFE3F0FF), // bleu pâle
+                const Color(0xFFFFE3E6), // rouge/rose pâle
+                const Color(0xFFEDE7FF), // violet pâle
+                const Color(0xFFE7FFF7), // menthe pâle
+              ];
+
+              return SizedBox(
+                width: 200,
+                child: _FeatureSquareItem(
+                  label: f.label,
+                  icon: f.icon,
+                  onTap: () => onTap(f),
+                  isDark: isDark,
+                  bgColor: pastel[i % pastel.length],
+                ),
               );
             },
+
           ),
         ),
-
       ],
     );
   }
 }
-
-class _FeatureIconItem extends StatelessWidget {
-  final String label;
-  final PhosphorIconData icon;
-  final VoidCallback onTap;
-  final bool isDark;
-
-  const _FeatureIconItem({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = isDark ? Colors.white : const Color(0xFF111827);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        width: 86,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            PhosphorIcon(
-              icon,
-              size: 32,
-              color: textColor,
-              duotoneSecondaryOpacity: 0.28,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 
 
 class _FeatureChip extends StatelessWidget {
@@ -1864,82 +1878,125 @@ class _ContentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF0F1734) : Colors.white;
-    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+    final t = Theme.of(context);
+    final isDark = t.brightness == Brightness.dark;
+
+    // Bande et texte lisibles en dark/light
+    final Color bannerColor = isDark
+        ? Colors.black.withOpacity(0.35)
+        : Colors.white.withOpacity(0.55);
+
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color subTextColor = isDark ? Colors.white.withOpacity(0.85) : Colors.black.withOpacity(0.65);
 
     return Material(
-      color: cardColor,
-      elevation: 2,
-      borderRadius: BorderRadius.circular(22),
+      color: Colors.transparent,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Image.asset(
+        child: AspectRatio(
+          aspectRatio: 16 / 10, // ressemble plus au style "tuile" que 16/9
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
                 item.imageAsset,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(color: Colors.black12),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: titleColor,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: titleColor.withOpacity(0.65),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 34,
-                    height: 34,
+
+              // Léger voile (tu peux le supprimer si tu veux l'image plus "crue")
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2C6CB5).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Color(0xFF2C6CB5),
-                      size: 20,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(isDark ? 0.03 : 0.06),
+                          Colors.transparent,
+                          Colors.black.withOpacity(isDark ? 0.18 : 0.10),
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+
+              // Bande diagonale translucide
+              Align(
+                alignment: Alignment.bottomLeft,
+                child: ClipPath(
+                  clipper: _DiagonalBannerClipper(),
+                  child: Container(color: bannerColor),
+                ),
+              ),
+
+              // Textes (en bas à gauche)
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 14,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: textColor,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.textTheme.bodySmall?.copyWith(
+                        color: subTextColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _DiagonalBannerClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final p = Path();
+    p.moveTo(0, size.height);
+    p.lineTo(0, size.height * 0.55);
+
+    p.quadraticBezierTo(
+      size.width * 0.22,
+      size.height * 0.62,
+      size.width * 0.56,
+      size.height * 0.80,
+    );
+
+    p.lineTo(size.width, size.height * 0.60);
+    p.lineTo(size.width, size.height);
+    p.close();
+    return p;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 class _HomeCardShell extends StatelessWidget {
@@ -1996,4 +2053,142 @@ class _PrayerHeaderData {
       times: const {},
     );
   }
+}
+
+class _FeatureSquareItem extends StatelessWidget {
+  final String label;
+  final PhosphorIconData icon;
+  final VoidCallback onTap;
+  final bool isDark;
+  final Color bgColor;
+
+  const _FeatureSquareItem({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.isDark,
+    required this.bgColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final Color fg = isDark ? Colors.white : const Color(0xFF111827);
+
+    final Color bannerColor = isDark
+        ? Colors.black.withOpacity(0.35)
+        : Colors.white.withOpacity(0.55);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          height: 120, // <-- taille inchangée
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withOpacity(0.08) : bgColor,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Stack(
+              children: [
+                // Voile léger (comme tes cards Programs)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withOpacity(isDark ? 0.03 : 0.06),
+                            Colors.transparent,
+                            Colors.black.withOpacity(isDark ? 0.18 : 0.10),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Bande diagonale (même style)
+                Align(
+                  alignment: Alignment.bottomLeft,
+                  child: ClipPath(
+                    clipper: _DiagonalBannerClipper(),
+                    child: Container(color: bannerColor),
+                  ),
+                ),
+
+                // Contenu centré (icône + label) comme avant
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        PhosphorIcon(icon, size: 32, color: fg),
+                        const SizedBox(height: 10),
+                        Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: fg,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            height: 1.0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+}
+
+class _WavesPainter extends CustomPainter {
+  final Color color;
+  const _WavesPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    Path wave(double y, double amp) {
+      final p = Path()..moveTo(-size.width * 0.2, y);
+      p.cubicTo(
+        size.width * 0.15, y - amp,
+        size.width * 0.35, y + amp,
+        size.width * 0.55, y,
+      );
+      p.cubicTo(
+        size.width * 0.75, y - amp,
+        size.width * 0.95, y + amp,
+        size.width * 1.2, y,
+      );
+      return p;
+    }
+
+    canvas.drawPath(wave(size.height * 0.32, 10), paint);
+    canvas.drawPath(wave(size.height * 0.55, 12), paint);
+    canvas.drawPath(wave(size.height * 0.78, 9), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _WavesPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
