@@ -9,10 +9,33 @@ import '../services/quran_translation_pack_service.dart';
 import '../services/verse_favorites_service.dart';
 import 'package:sqflite/sqflite.dart';
 
-class TranslatedQuranScreen extends StatelessWidget {
+class TranslatedQuranScreen extends StatefulWidget {
   final bool preferOffline; // si true: on essaie le pack, sinon online
 
   const TranslatedQuranScreen({super.key, required this.preferOffline});
+
+  @override
+  State<TranslatedQuranScreen> createState() => _TranslatedQuranScreenState();
+}
+
+class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,8 +70,8 @@ class TranslatedQuranScreen extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            _SurahTab(preferOffline: preferOffline),
-            _JuzTab(preferOffline: preferOffline),
+            _SurahTab(preferOffline: widget.preferOffline),
+            _JuzTab(preferOffline: widget.preferOffline),
           ],
         ),
       ),

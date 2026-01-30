@@ -80,28 +80,125 @@ class FrenchQuranWidget extends StatelessWidget {
                       return;
                     }
 
+                    final isDark = Theme.of(context).brightness == Brightness.dark;
+                    final titleColor = isDark ? Colors.white : const Color(0xFF1B1205);
+                    final subtitleColor = isDark ? Colors.white70 : const Color(0xFF5B4A2F);
+                    final iconColor = isDark ? Colors.white : const Color(0xFF1B1205);
+
                     final mode = await showModalBottomSheet<_FrenchMode>(
                       context: context,
                       showDragHandle: true,
+                      backgroundColor: isDark ? const Color(0xFF0F1734) : const Color(0xFFFFFFFF),
                       builder: (ctx) {
+                        final optionBg = isDark ? const Color(0xFF141B3A) : const Color(0xFFFFF7EA);
+                        final optionBorder =
+                            isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
+                        final accent = isDark ? const Color(0xFFE3C880) : const Color(0xFF1E3A2F);
+
+                        Widget optionTile({
+                          required IconData icon,
+                          required String title,
+                          required String subtitle,
+                          required _FrenchMode mode,
+                        }) {
+                          return Material(
+                            color: optionBg,
+                            borderRadius: BorderRadius.circular(16),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () => Navigator.pop(ctx, mode),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: optionBorder),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(isDark ? 0.25 : 0.08),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: accent.withOpacity(isDark ? 0.2 : 0.12),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(icon, color: accent),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            title,
+                                            style: TextStyle(
+                                              color: titleColor,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            subtitle,
+                                            style: TextStyle(color: subtitleColor, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(Icons.chevron_right_rounded, color: subtitleColor),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
                         return SafeArea(
                           child: Padding(
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                ListTile(
-                                  title: const Text('Lire en ligne'),
-                                  subtitle: const Text('Pas de telechargement, rapide'),
-                                  leading: const Icon(Icons.wifi_rounded),
-                                  onTap: () => Navigator.pop(ctx, _FrenchMode.online),
+                                Row(
+                                  children: [
+                                    Icon(Icons.menu_book_rounded, color: iconColor),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Coran traduction',
+                                      style: TextStyle(
+                                        color: titleColor,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 8),
-                                ListTile(
-                                  title: const Text('Lire hors-ligne'),
-                                  subtitle: const Text('Telecharger traduction + tafsir une seule fois'),
-                                  leading: const Icon(Icons.download_rounded),
-                                  onTap: () => Navigator.pop(ctx, _FrenchMode.offline),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Choisis le mode de lecture',
+                                  style: TextStyle(color: subtitleColor),
+                                ),
+                                const SizedBox(height: 14),
+                                optionTile(
+                                  icon: Icons.wifi_rounded,
+                                  title: 'Lire en ligne',
+                                  subtitle: 'Pas de telechargement, rapide',
+                                  mode: _FrenchMode.online,
+                                ),
+                                const SizedBox(height: 10),
+                                optionTile(
+                                  icon: Icons.download_rounded,
+                                  title: 'Lire hors-ligne',
+                                  subtitle: 'Telecharger traduction + tafsir une seule fois',
+                                  mode: _FrenchMode.offline,
                                 ),
                               ],
                             ),
@@ -226,27 +323,110 @@ class FrenchQuranWidget extends StatelessWidget {
                     );
                     return;
                   }
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
+                  final titleColor = isDark ? Colors.white : const Color(0xFF1B1205);
+                  final subtitleColor = isDark ? Colors.white70 : const Color(0xFF5B4A2F);
+                  final iconColor = isDark ? Colors.white : const Color(0xFF1B1205);
+
                   final mode = await showModalBottomSheet<_FrenchMode>(
                     context: context,
                     showDragHandle: true,
+                    backgroundColor: isDark ? const Color(0xFF0F1734) : const Color(0xFFFFFFFF),
                     builder: (ctx) {
+                      final optionBg = isDark ? const Color(0xFF141B3A) : const Color(0xFFFFF7EA);
+                      final optionBorder =
+                          isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
+                      final accent = isDark ? const Color(0xFFE3C880) : const Color(0xFF1E3A2F);
+
+                      Widget optionTile({
+                        required IconData icon,
+                        required String title,
+                        required String subtitle,
+                        required _FrenchMode mode,
+                      }) {
+                        return Material(
+                          color: optionBg,
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => Navigator.pop(ctx, mode),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: optionBorder),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(isDark ? 0.25 : 0.08),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: accent.withOpacity(isDark ? 0.2 : 0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(icon, color: accent),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          title,
+                                          style: TextStyle(
+                                            color: titleColor,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          subtitle,
+                                          style: TextStyle(color: subtitleColor, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right_rounded, color: subtitleColor),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
                       return SafeArea(
+
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               ListTile(
-                                title: const Text('Lire en ligne'),
+                                title: Text(
+                                  'Lire en ligne',
+                                  style: TextStyle(color: titleColor, fontWeight: FontWeight.w700),
+                                ),
                                 subtitle: const Text('Pas de tÃ©lÃ©chargement, rapide'),
-                                leading: const Icon(Icons.wifi_rounded),
+                                leading: Icon(Icons.wifi_rounded, color: iconColor),
                                 onTap: () => Navigator.pop(ctx, _FrenchMode.online),
                               ),
                               const SizedBox(height: 8),
                               ListTile(
-                                title: const Text('Lire hors-ligne'),
+                                title: Text(
+                                  'Lire hors-ligne',
+                                  style: TextStyle(color: titleColor, fontWeight: FontWeight.w700),
+                                ),
                                 subtitle: const Text('TÃ©lÃ©charger traduction + tafsir une seule fois'),
-                                leading: const Icon(Icons.download_rounded),
+                                leading: Icon(Icons.download_rounded, color: iconColor),
                                 onTap: () => Navigator.pop(ctx, _FrenchMode.offline),
                               ),
                             ],

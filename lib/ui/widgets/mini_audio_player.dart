@@ -18,49 +18,52 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   final AudioService _audio = AudioService.instance;
 
   void _openFullPlayer() {
-  showModalBottomSheet(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => const MusicPlayerFullScreen(),
-  );
-}
+    final ctx = NavigationService.navigatorKey.currentContext ?? context;
+
+    showModalBottomSheet(
+      context: ctx,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const MusicPlayerFullScreen(),
+    );
+  }
+
 
 
   @override
   Widget build(BuildContext context) {
     const green = Color(0xFF38C172);
 
-    return GestureDetector(
-      onTap: _openFullPlayer,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0B3D1F), Color(0xFF0F5A2A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF0B3D1F).withOpacity(0.45),
-                  blurRadius: 12,
-                  offset: const Offset(0, -2),
-                ),
-              ],
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0B3D1F), Color(0xFF0F5A2A)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0B3D1F).withOpacity(0.45),
+                blurRadius: 12,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: _openFullPlayer,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -87,52 +90,52 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32),
-                      onPressed: _audio.skipToPrevious,
-                    ),
-                    StreamBuilder<PlayerState>(
-                      stream: _audio.playerStateStream,
-                      builder: (context, snapshot) {
-                        final playerState = snapshot.data;
-                        final isPlaying = playerState?.playing ?? false;
-                        final processingState = playerState?.processingState;
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32),
+                    onPressed: _audio.skipToPrevious,
+                  ),
+                  StreamBuilder<PlayerState>(
+                    stream: _audio.playerStateStream,
+                    builder: (context, snapshot) {
+                      final playerState = snapshot.data;
+                      final isPlaying = playerState?.playing ?? false;
+                      final processingState = playerState?.processingState;
 
-                        if (processingState == ProcessingState.loading ||
-                            processingState == ProcessingState.buffering) {
-                          return const SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: Center(
-                              child: CircularProgressIndicator(color: green),
-                            ),
-                          );
-                        }
-                        return IconButton(
-                          icon: Icon(
-                            isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                            color: Colors.white,
-                            size: 48,
+                      if (processingState == ProcessingState.loading ||
+                          processingState == ProcessingState.buffering) {
+                        return const SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Center(
+                            child: CircularProgressIndicator(color: green),
                           ),
-                          onPressed: _audio.togglePlayPause,
                         );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.skip_next, color: Colors.white, size: 32),
-                      onPressed: _audio.skipToNext,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.stop_circle_outlined, color: Colors.white, size: 28),
-                      onPressed: () => _audio.stop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                _buildProgressBar(),
-              ],
-            ),
+                      }
+                      return IconButton(
+                        icon: Icon(
+                          isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                        onPressed: _audio.togglePlayPause,
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 32),
+                    onPressed: _audio.skipToNext,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.stop_circle_outlined, color: Colors.white, size: 28),
+                    onPressed: () => _audio.stop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              _buildProgressBar(),
+            ],
           ),
         ),
       ),

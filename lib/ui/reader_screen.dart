@@ -95,6 +95,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void initState() {
     super.initState();
 
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
     currentPage = widget.initialPage;
@@ -158,6 +164,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     _imageCache.clear();
+
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
@@ -290,6 +300,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             '');
 
     return Scaffold(
+      backgroundColor: Colors.white,
       extendBody: true,
       extendBodyBehindAppBar: true,
       body: GestureDetector(
@@ -297,67 +308,73 @@ class _ReaderScreenState extends State<ReaderScreen> {
         onTap: () => setState(() => _showUI = !_showUI),
         child: Stack(
           children: [
-            PageView.builder(
-              controller: _pageController,
-              reverse: true,
-              itemCount: 604,
-              onPageChanged: (p) {
-                setState(() => currentPage = p + 1);
-                _refreshBookmarkStatus(p + 1);
-                _preloadPages(p + 1);
+           Positioned.fill(
+            child: ColoredBox(
+              color: Colors.white, // fond fixe, ne suit pas le thème
+              child: PageView.builder(
+                controller: _pageController,
+                reverse: true,
+                itemCount: 604,
+                onPageChanged: (p) {
+                  setState(() => currentPage = p + 1);
+                  _refreshBookmarkStatus(p + 1);
+                  _preloadPages(p + 1);
 
-                SchedulerBinding.instance.scheduleTask<void>(
-                  () {
-                    _pagePreloader.preloadAround(context, p + 1, currentReading);
-                    return;
-                  },
-                  Priority.idle,
-                  debugLabel: 'quran_preload_pages',
-                );
+                  SchedulerBinding.instance.scheduleTask<void>(
+                    () {
+                      _pagePreloader.preloadAround(context, p + 1, currentReading);
+                      return;
+                    },
+                    Priority.idle,
+                    debugLabel: 'quran_preload_pages',
+                  );
 
-                _saveTimer?.cancel();
-                _saveTimer = Timer(const Duration(milliseconds: 350), () {
-                  if (!mounted) return;
-                  _saveToHistory(p + 1);
-                });
-              },
-              itemBuilder: (context, i) {
-                final pageNum = i + 1;
+                  _saveTimer?.cancel();
+                  _saveTimer = Timer(const Duration(milliseconds: 350), () {
+                    if (!mounted) return;
+                    _saveToHistory(p + 1);
+                  });
+                },
+                itemBuilder: (context, i) {
+                  final pageNum = i + 1;
 
-                final cached = _imageCache[pageNum];
-                if (cached != null) {
-                  return _buildPageContent(cached, isLandscape);
-                }
+                  final cached = _imageCache[pageNum];
+                  if (cached != null) {
+                    return _buildPageContent(cached, isLandscape);
+                  }
 
-                return FutureBuilder<File?>(
-                  future: _safeGetPageFile(currentReading, pageNum),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _loadingPage(context, pageNum);
-                    }
+                  return FutureBuilder<File?>(
+                    future: _safeGetPageFile(currentReading, pageNum),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return _loadingPage(context, pageNum);
+                      }
 
-                    final file = snapshot.data;
-                    if (file == null) {
-                      return Center(
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final ok = await Navigator.push<bool>(
-                              context,
-                              MaterialPageRoute(builder: (_) => const QuranLoader()),
-                            );
-                            if (ok == true && mounted) setState(() {});
-                          },
-                          child: const Text('Télécharger les pages'),
-                        ),
-                      );
-                    }
+                      final file = snapshot.data;
+                      if (file == null) {
+                        return Center(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final ok = await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(builder: (_) => const QuranLoader()),
+                              );
+                              if (ok == true && mounted) setState(() {});
+                            },
+                            child: const Text('Télécharger les pages'),
+                          ),
+                        );
+                      }
 
-                    _imageCache[pageNum] = file;
-                    return _buildPageContent(file, isLandscape);
-                  },
-                );
-              },
+                      _imageCache[pageNum] = file;
+                      return _buildPageContent(file, isLandscape);
+                    },
+                  );
+                },
+              ),
             ),
+          ),
+
 
             // TOP overlay
             AnimatedPositioned(
@@ -461,16 +478,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Widget _loadingPage(BuildContext context, int pageNum) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.03),
-          ],
-        ),
-      ),
+      color: Colors.white,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
