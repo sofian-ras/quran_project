@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import '../services/navigation_service.dart';
 import 'package:flutter/material.dart';
@@ -40,6 +42,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
+  static const String _prefCity = 'prayer_city';
+  static const String _prefCountry = 'prayer_country';
+  static const String _defaultCity = 'Paris';
+  static const String _defaultCountry = 'France';
 
   String _prettyMoshafName(String raw) {
     final s = raw.toLowerCase();
@@ -83,6 +89,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   final Dio _dio = Dio();
   bool _serversLoading = false;
 
+  late Future<_PrayerHeaderData> _prayerFuture;
+
   
   late AnimationController _menuController;
   late Animation<double> _menuAnimation;
@@ -94,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 @override
 void initState() {
   super.initState();
+  _prayerFuture = _loadPrayerHeader();
   _loadSurahData();
   _loadPreferredReading();
   _loadFavorites();
@@ -218,6 +227,91 @@ void initState() {
       if (!mounted) return;
       setState(() => _recitersLoading = false);
     }
+  }
+
+  Future<_PrayerHeaderData> _loadPrayerHeader() async {
+    final prefs = await SharedPreferences.getInstance();
+    final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
+    final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
+
+    final uri = Uri.https('api.aladhan.com', '/v1/timingsByCity', {
+      'city': city,
+      'country': country,
+      'method': '2',
+    });
+
+    final res = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) {
+      return _PrayerHeaderData.error(city: city, country: country);
+    }
+
+    final payload = jsonDecode(res.body) as Map<String, dynamic>;
+    final data = (payload['data'] as Map<String, dynamic>?) ?? {};
+
+    final timings = (data['timings'] as Map<String, dynamic>?) ?? {};
+    final date = (data['date'] as Map<String, dynamic>?) ?? {};
+    final hijri = (date['hijri'] as Map<String, dynamic>?) ?? {};
+
+    final hijriLine = _formatHijri(hijri);
+    final times = _extractTimes(timings);
+
+    return _PrayerHeaderData(
+      city: city,
+      country: country,
+      hijriLine: hijriLine,
+      times: times,
+    );
+  }
+
+  Map<String, String> _extractTimes(Map<String, dynamic> timings) {
+    String clean(dynamic raw) {
+      if (raw == null) return '--:--';
+      final v = raw.toString().trim();
+      if (v.isEmpty) return '--:--';
+      return v.split(' ').first;
+    }
+
+    return {
+      'Fajr': clean(timings['Fajr']),
+      'Sunrise': clean(timings['Sunrise']),
+      'Zohr': clean(timings['Dhuhr']), // tu l’appelles Zohr dans ton UI
+      'Asr': clean(timings['Asr']),
+      'Maghrib': clean(timings['Maghrib']),
+      'Isha': clean(timings['Isha']),
+    };
+  }
+
+  String _formatHijri(Map<String, dynamic> hijri) {
+    final day = hijri['day']?.toString() ?? '';
+    final month = (hijri['month'] as Map<String, dynamic>?)?['en']?.toString() ?? '';
+    final year = hijri['year']?.toString() ?? '';
+    if (day.isEmpty || month.isEmpty || year.isEmpty) return '';
+    return "$month $day, $year AH";
+  }
+
+  int _activeIndexFromTimes(List<(String, String)> prayers) {
+    final now = DateTime.now();
+    DateTime? parseToday(String t) {
+      final parts = t.split(':');
+      if (parts.length < 2) return null;
+      final h = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      if (h == null || m == null) return null;
+      return DateTime(now.year, now.month, now.day, h, m);
+    }
+
+    for (int i = 0; i < prayers.length; i++) {
+      final dt = parseToday(prayers[i].$2);
+      if (dt != null && dt.isAfter(now)) return i;
+    }
+    return 0;
+  }
+
+  String _formatClockNow() {
+    final n = DateTime.now();
+    final hh = n.hour.toString().padLeft(2, '0');
+    final mm = n.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
   }
 
 
@@ -734,6 +828,9 @@ void initState() {
                                         onMenuTap: _openMenu,
                                         onThemeTap: _cycleTheme,
                                         onContinue: _openSurahListScreen,
+                                        prayerFuture: _prayerFuture,
+                                        formatClockNow: _formatClockNow,
+                                        activeIndexFromTimes: _activeIndexFromTimes,
                                         reciters: _reciters,
                                         recitersLoading: _recitersLoading,
                                         onReciterTap: _onReciterSelected,
@@ -952,10 +1049,16 @@ class _HomeTopBar extends StatelessWidget {
 class _DribbbleHomeHeader extends StatelessWidget {
   final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
+  final Future<_PrayerHeaderData> prayerFuture;
+  final String Function() formatClockNow;
+  final int Function(List<(String, String)>) activeIndexFromTimes;
 
   const _DribbbleHomeHeader({
     required this.onMenuTap,
     required this.onThemeTap,
+    required this.prayerFuture,
+    required this.formatClockNow,
+    required this.activeIndexFromTimes,
   });
 
   IconData _prayerIcon(String name) {
@@ -981,253 +1084,261 @@ class _DribbbleHomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Valeurs en dur (étape 1)
-    const timeText = '3:00 PM';
-    const subtitle = 'Zohr ends in 0h 17m 20s';
-    const hijri = "Dhu’l-Qi’dah 5, 1446 AH";
-    const location = 'Paris, France';
+    return FutureBuilder<_PrayerHeaderData>(
+      future: prayerFuture,
+      builder: (context, snap) {
+        final data = snap.data;
 
-    final prayers = const [
-      ('Fajr', '5:53 AM'),
-      ('Sunrise', '5:15 AM'),
-      ('Zohr', '11:49 AM'),
-      ('Asr', '3:18 PM'),
-      ('Maghrib', '6:24 PM'),
-      ('Isha', '7:45 PM'),
-    ];
+        final location = data == null ? 'Paris, France' : '${data.city}, ${data.country}';
+        final hijri = (data?.hijriLine.isNotEmpty == true) ? data!.hijriLine : "—";
+        final timeText = formatClockNow();
 
-    const activeIndex = 3; // Asr sélectionnée (exemple)
+        final prayers = <(String, String)>[
+          ('Fajr', data?.times['Fajr'] ?? '--:--'),
+          ('Sunrise', data?.times['Sunrise'] ?? '--:--'),
+          ('Zohr', data?.times['Zohr'] ?? '--:--'),
+          ('Asr', data?.times['Asr'] ?? '--:--'),
+          ('Maghrib', data?.times['Maghrib'] ?? '--:--'),
+          ('Isha', data?.times['Isha'] ?? '--:--'),
+        ];
 
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        bottomLeft: Radius.circular(28),
-        bottomRight: Radius.circular(28),
-      ),
-      child: Stack(
-        children: [
-          // Image de fond
-          Positioned.fill(
-            child: isDark
-                ? ColorFiltered(
-                    colorFilter: ColorFilter.mode(
-                      Colors.black.withOpacity(0.35),
-                      BlendMode.darken,
-                    ),
-                    child: Image.asset(
-                      'assets/images/fond_widget_bleu2.png',
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : Image.asset(
-                    'assets/images/fond_widget_bleu2.png',
-                    fit: BoxFit.cover,
-                  ),
+        final activeIndex = activeIndexFromTimes(prayers);
+
+        final subtitle = (snap.connectionState != ConnectionState.done)
+            ? 'Chargement...'
+            : 'Prochaine prière: ${prayers[activeIndex].$1} à ${prayers[activeIndex].$2}';
+
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(28),
+            bottomRight: Radius.circular(28),
           ),
-          if (isDark)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.25),
-              ),
-            ),
-
-          // Overlay gradient (pour garder le style + lisibilité du texte)
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF2C6CB5).withOpacity(isDark ? 0.92 : 0.88),
-                    const Color(0xFF1F5FAE).withOpacity(isDark ? 0.90 : 0.86),
-                    const Color(0xFF174F9B).withOpacity(isDark ? 0.92 : 0.88),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Contenu
-          Padding(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 2,
-              left: 16,
-              right: 16,
-              bottom: 18,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top row: menu + titre + theme
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: onMenuTap,
-                      icon: const Icon(Icons.menu_rounded, color: Colors.white),
-                    ),
-                    const SizedBox(width: 6),
-                    const Expanded(
-                      child: Text(
-                        'Home',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
+          child: Stack(
+            children: [
+              // Image de fond
+              Positioned.fill(
+                child: isDark
+                    ? ColorFiltered(
+                        colorFilter: ColorFilter.mode(
+                          Colors.black.withOpacity(0.35),
+                          BlendMode.darken,
                         ),
+                        child: Image.asset(
+                          'assets/images/fond_widget_bleu2.png',
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    : Image.asset(
+                        'assets/images/fond_widget_bleu2.png',
+                        fit: BoxFit.cover,
                       ),
-                    ),
-                    ValueListenableBuilder<ThemeMode>(
-                      valueListenable: ThemeService.themeMode,
-                      builder: (context, mode, _) {
-                        final IconData icon = (mode == ThemeMode.system)
-                            ? Icons.brightness_auto_rounded
-                            : (mode == ThemeMode.light)
-                                ? Icons.light_mode_rounded
-                                : Icons.dark_mode_rounded;
-                        final Color color = (mode == ThemeMode.light)
-                            ? const Color(0xFFFFD54F)
-                            : Colors.white;
-                        return IconButton(
-                          onPressed: onThemeTap,
-                          icon: Icon(icon, color: color),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 6),
-
-                // Heure + sous-titre
-                const Text(
-                  timeText,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 44,
-                    fontWeight: FontWeight.w900,
-                    height: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+              ),
+              if (isDark)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.25),
                   ),
                 ),
 
-                const SizedBox(height: 1),
-
-                // Mini-card Hijri + location (à droite)
-                Transform.translate(
-                  offset: const Offset(0, -10),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          hijri,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.place_rounded, size: 14, color: Colors.white.withOpacity(0.9)),
-                            const SizedBox(width: 4),
-                            Text(
-                              location,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+              // Overlay gradient (pour garder le style + lisibilité du texte)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF2C6CB5).withOpacity(isDark ? 0.92 : 0.88),
+                        const Color(0xFF1F5FAE).withOpacity(isDark ? 0.90 : 0.86),
+                        const Color(0xFF174F9B).withOpacity(isDark ? 0.92 : 0.88),
                       ],
                     ),
                   ),
                 ),
+              ),
 
+              // Contenu
+              Padding(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 2,
+                  left: 16,
+                  right: 16,
+                  bottom: 18,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top row: menu + titre + theme
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: onMenuTap,
+                          icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                        ),
+                        const SizedBox(width: 6),
+                        const Expanded(
+                          child: Text(
+                            'Home',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        ValueListenableBuilder<ThemeMode>(
+                          valueListenable: ThemeService.themeMode,
+                          builder: (context, mode, _) {
+                            final IconData icon = (mode == ThemeMode.system)
+                                ? Icons.brightness_auto_rounded
+                                : (mode == ThemeMode.light)
+                                    ? Icons.light_mode_rounded
+                                    : Icons.dark_mode_rounded;
+                            final Color color = (mode == ThemeMode.light)
+                                ? const Color(0xFFFFD54F)
+                                : Colors.white;
+                            return IconButton(
+                              onPressed: onThemeTap,
+                              icon: Icon(icon, color: color),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
 
-                const SizedBox(height: 8),
+                    const SizedBox(height: 6),
 
-                // Pills prières (TOUTES visibles sans scroll)
-                SizedBox(
-                  height: 80,
-                  child: Row(
-                    children: List.generate(prayers.length, (i) {
-                      final isActive = i == activeIndex;
-                      final name = prayers[i].$1;
-                      final hour = prayers[i].$2;
+                    // Heure + sous-titre
+                    Text(
+                      timeText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 44,
+                        fontWeight: FontWeight.w900,
+                        height: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
 
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(right: i == prayers.length - 1 ? 0 : 6),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 220),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                    const SizedBox(height: 1),
+
+                    // Mini-card Hijri + location (à droite)
+                    Transform.translate(
+                      offset: const Offset(0, -10),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              hijri,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    name,
-                                    maxLines: 1,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.92),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      height: 1.0,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                // ✅ ICI l’icône entre le nom et l’heure
-                                Icon(
-                                  _prayerIcon(name),
-                                  size: 20,
-                                  color: Colors.white.withOpacity(0.92),
-                                ),
-                                const SizedBox(height: 6),
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    hour,
-                                    maxLines: 1,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w900,
-                                      height: 1.0,
-                                    ),
+                                Icon(Icons.place_rounded, size: 14, color: Colors.white.withOpacity(0.9)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  location,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
+                          ],
                         ),
-                      );
-                    }),
-                  ),
-                ),
+                      ),
+                    ),
 
-              ],
-            ),
+                    const SizedBox(height: 8),
+
+                    // Pills prières (TOUTES visibles sans scroll)
+                    SizedBox(
+                      height: 80,
+                      child: Row(
+                        children: List.generate(prayers.length, (i) {
+                          final isActive = i == activeIndex;
+                          final name = prayers[i].$1;
+                          final hour = prayers[i].$2;
+
+                          return Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(right: i == prayers.length - 1 ? 0 : 6),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 220),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        name,
+                                        maxLines: 1,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.92),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    // ✅ ICI l’icône entre le nom et l’heure
+                                    Icon(
+                                      _prayerIcon(name),
+                                      size: 20,
+                                      color: Colors.white.withOpacity(0.92),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        hour,
+                                        maxLines: 1,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 30,
+                                          fontWeight: FontWeight.w900,
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1311,6 +1422,9 @@ class _HeaderWithEngagement extends StatelessWidget {
   final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
   final VoidCallback onContinue;
+  final Future<_PrayerHeaderData> prayerFuture;
+  final String Function() formatClockNow;
+  final int Function(List<(String, String)>) activeIndexFromTimes;
   final List<Reciter> reciters;
   final bool recitersLoading;
   final void Function(Reciter) onReciterTap;
@@ -1326,6 +1440,9 @@ class _HeaderWithEngagement extends StatelessWidget {
     required this.onMenuTap,
     required this.onThemeTap,
     required this.onContinue,
+    required this.prayerFuture,
+    required this.formatClockNow,
+    required this.activeIndexFromTimes,
     required this.reciters,
     required this.recitersLoading,
     required this.onReciterTap,
@@ -1354,6 +1471,9 @@ class _HeaderWithEngagement extends StatelessWidget {
             child: _DribbbleHomeHeader(
               onMenuTap: onMenuTap,
               onThemeTap: onThemeTap,
+              prayerFuture: prayerFuture,
+              formatClockNow: formatClockNow,
+              activeIndexFromTimes: activeIndexFromTimes,
             ),
           ),
 
@@ -1855,3 +1975,25 @@ class _MoshafOption {
 }
 
 
+class _PrayerHeaderData {
+  final String city;
+  final String country;
+  final String hijriLine;
+  final Map<String, String> times;
+
+  const _PrayerHeaderData({
+    required this.city,
+    required this.country,
+    required this.hijriLine,
+    required this.times,
+  });
+
+  factory _PrayerHeaderData.error({required String city, required String country}) {
+    return _PrayerHeaderData(
+      city: city,
+      country: country,
+      hijriLine: '',
+      times: const {},
+    );
+  }
+}
