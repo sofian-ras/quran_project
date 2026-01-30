@@ -25,6 +25,8 @@ import 'widgets/prayer_times_card.dart';
 import '../models/reciter.dart';
 import 'package:dio/dio.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'widgets/location_picker_dialog.dart';
+import '/services/location_service.dart';
 
 
 
@@ -102,11 +104,14 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 @override
 void initState() {
   super.initState();
+  
+  // Vérifie si c'est la première fois
+  _checkFirstLaunch();
+  
   _prayerFuture = _loadPrayerHeader();
   _loadSurahData();
   _loadPreferredReading();
   _loadFavorites();
-
   _loadReciters();
   _loadReciterServersIfNeeded();
 
@@ -120,6 +125,15 @@ void initState() {
   );
 }
 
+Future<void> _checkFirstLaunch() async {
+  final isFirst = await LocationService.isFirstTime();
+  if (isFirst && mounted) {
+    // Attends que le widget soit construit
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showLocationPicker();
+    });
+  }
+}
 
   @override
   void dispose() {
@@ -230,38 +244,73 @@ void initState() {
   }
 
   Future<_PrayerHeaderData> _loadPrayerHeader() async {
-    final prefs = await SharedPreferences.getInstance();
-    final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
-    final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
+    final location = await LocationService.getSavedOrCurrentLocation();
 
-    final uri = Uri.https('api.aladhan.com', '/v1/timingsByCity', {
-      'city': city,
-      'country': country,
-      'method': '2',
-    });
-
-    final res = await http.get(uri).timeout(const Duration(seconds: 10));
-    if (res.statusCode != 200) {
-      return _PrayerHeaderData.error(city: city, country: country);
+    // Utilise les coordonnées si disponibles, sinon l'API par ville
+    Uri uri;
+    if (!location.isManual && location.latitude != 0 && location.longitude != 0) {
+      // Précision GPS avec coordonnées
+      uri = Uri.https('api.aladhan.com', '/v1/timings/${DateTime.now().millisecondsSinceEpoch ~/ 1000}', {
+        'latitude': location.latitude.toString(),
+        'longitude': location.longitude.toString(),
+        'method': '2',
+      });
+    } else {
+      // Fallback par nom de ville
+      uri = Uri.https('api.aladhan.com', '/v1/timingsByCity', {
+        'city': location.city,
+        'country': location.country,
+        'method': '2',
+      });
     }
 
-    final payload = jsonDecode(res.body) as Map<String, dynamic>;
-    final data = (payload['data'] as Map<String, dynamic>?) ?? {};
+    try {
+      final res = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) {
+        return _PrayerHeaderData.error(city: location.city, country: location.country);
+      }
 
-    final timings = (data['timings'] as Map<String, dynamic>?) ?? {};
-    final date = (data['date'] as Map<String, dynamic>?) ?? {};
-    final hijri = (date['hijri'] as Map<String, dynamic>?) ?? {};
+      final payload = jsonDecode(res.body) as Map<String, dynamic>;
+      final data = (payload['data'] as Map<String, dynamic>?) ?? {};
 
-    final hijriLine = _formatHijri(hijri);
-    final times = _extractTimes(timings);
+      final timings = (data['timings'] as Map<String, dynamic>?) ?? {};
+      final date = (data['date'] as Map<String, dynamic>?) ?? {};
+      final hijri = (date['hijri'] as Map<String, dynamic>?) ?? {};
 
-    return _PrayerHeaderData(
-      city: city,
-      country: country,
-      hijriLine: hijriLine,
-      times: times,
+      final hijriLine = _formatHijri(hijri);
+      final times = _extractTimes(timings);
+
+      return _PrayerHeaderData(
+        city: location.city,      // ← Affiche seulement la ville
+        country: location.country,
+        hijriLine: hijriLine,
+        times: times,
+      );
+    } catch (e) {
+      return _PrayerHeaderData.error(city: location.city, country: location.country);
+    }
+  }
+
+  Future<void> _showLocationPicker() async {
+  final result = await showDialog<LocationData>(
+    context: context,
+    builder: (_) => const LocationPickerDialog(),
+  );
+
+  if (result != null && mounted) {
+    // Recharge les horaires avec la nouvelle localisation
+    setState(() {
+      _prayerFuture = _loadPrayerHeader();
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Localisation : ${result.displayLocation}'),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
+}
 
   Map<String, String> _extractTimes(Map<String, dynamic> timings) {
     String clean(dynamic raw) {
@@ -1252,7 +1301,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
 
                     const SizedBox(height: 1),
 
-                    // Mini-card Hijri + location (à droite)
+                    // Mini-card Hijri + location (? droite)
                     Transform.translate(
                       offset: const Offset(0, -10),
                       child: Align(
@@ -1269,20 +1318,37 @@ class _DribbbleHomeHeader extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.place_rounded, size: 14, color: Colors.white.withOpacity(0.9)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  location,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                            // Dans le build de _DribbbleHomeHeader, remplace la Row de location par :
+                            InkWell(
+                              onTap: () {
+                                // Appelle la méthode du parent pour changer la localisation
+                                (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.place_rounded, size: 14, color: Colors.white.withOpacity(0.9)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      location,  // ← Juste "Ville, Pays", pas de coordonnées
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.edit_location_alt_rounded,
+                                      size: 12,
+                                      color: Colors.white.withOpacity(0.7),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
