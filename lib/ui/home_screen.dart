@@ -1273,7 +1273,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
 
                     // Pills prières (TOUTES visibles sans scroll)
                     SizedBox(
-                      height: 80,
+                      height: 100,
                       child: Row(
                         children: List.generate(prayers.length, (i) {
                           final isActive = i == activeIndex;
