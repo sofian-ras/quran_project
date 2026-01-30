@@ -12,6 +12,7 @@ class PositionData {
 }
 
 class AudioService {
+  final ValueNotifier<bool> isFullPlayerOpenNotifier = ValueNotifier<bool>(false);
   AudioService._() {
     _player.setLoopMode(loopModeNotifier.value);
     _player.processingStateStream.listen((state) {

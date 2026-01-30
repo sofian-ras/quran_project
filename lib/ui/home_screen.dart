@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-
+import '../services/navigation_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/quran_image_service.dart';
@@ -22,6 +22,9 @@ import '../theme/theme_service.dart';
 import 'widgets/prayer_times_card.dart';
 import '../models/reciter.dart';
 import 'package:dio/dio.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+
 
 
 
@@ -608,12 +611,29 @@ void initState() {
                                       sliver: SliverToBoxAdapter(
                                         child: _ExploreFeaturesSection(
                                           features: const [
-                                            _FeatureChipData(label: 'Weekly Programs', icon: Icons.calendar_month_rounded),
-                                            _FeatureChipData(label: 'Donate', icon: Icons.volunteer_activism_rounded),
-                                            _FeatureChipData(label: 'Volunteers', icon: Icons.groups_rounded),
+                                            _FeatureChipData(label: 'Player', icon: PhosphorIconsDuotone.playCircle),
+                                            _FeatureChipData(label: 'Duʿa', icon: PhosphorIconsDuotone.handsPraying),
+                                            _FeatureChipData(label: 'Hadith', icon: PhosphorIconsDuotone.bookOpenText),
+                                            _FeatureChipData(label: 'Qibla', icon: PhosphorIconsDuotone.compassRose),
+                                            _FeatureChipData(label: 'Adhkar', icon: PhosphorIconsDuotone.moonStars),
+                                            _FeatureChipData(label: 'Bookmarks', icon: PhosphorIconsDuotone.bookmarkSimple),
                                           ],
                                           onTap: (f) {
-                                            // Étape suivante: navigation vers tes écrans
+                                            final ctx = NavigationService.navigatorKey.currentContext ?? context;
+                                            if (f.label == 'Player') {
+                                              showModalBottomSheet(
+                                                context: ctx,
+                                                useRootNavigator: true,
+                                                isScrollControlled: true,
+                                                backgroundColor: Colors.transparent,
+                                                builder: (_) => const FullPlayerScreen(),
+                                              );
+                                              return;
+                                            }
+
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('${f.label} bientôt')),
+                                            );
                                           },
                                         ),
                                       ),
@@ -696,30 +716,7 @@ void initState() {
 
 
                         // Mini lecteur audio
-                        StreamBuilder<bool>(
-                          stream: _audio.isActiveStream,
-                          builder: (context, snapshot) {
-                            final bool isActive = snapshot.data ?? false;
-                            return AnimatedPositioned(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                              bottom: isActive ? 0 : -150,
-                              left: 0,
-                              right: 0,
-                              child: GestureDetector(
-                                onTap: () {
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (_) => const FullPlayerScreen(),
-                                  );
-                                },
-                                child: const MiniAudioPlayer(),
-                              ),
-                            );
-                          },
-                        ),
+                        
                       ],
                     ),
             ),
@@ -1341,7 +1338,8 @@ class _RecitersSection extends StatelessWidget {
 
 class _FeatureChipData {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
+
   const _FeatureChipData({required this.label, required this.icon});
 }
 
@@ -1372,77 +1370,75 @@ class _ExploreFeaturesSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: features.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 3.0, // cases larges comme l’image
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            scrollDirection: Axis.horizontal,
+            itemCount: features.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 18),
+            itemBuilder: (context, i) {
+              final f = features[i];
+              return _FeatureIconItem(
+                label: f.label,
+                icon: f.icon,
+                onTap: () => onTap(f),
+                isDark: isDark,
+              );
+            },
           ),
-          itemBuilder: (context, i) {
-            final f = features[i];
-            return _FeatureGridItem(
-              label: f.label,
-              icon: f.icon,
-              onTap: () => onTap(f),
-              bgColor: cardColor,
-            );
-          },
         ),
+
       ],
     );
   }
 }
 
-class _FeatureGridItem extends StatelessWidget {
+class _FeatureIconItem extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final VoidCallback onTap;
-  final Color bgColor;
+  final bool isDark;
 
-  const _FeatureGridItem({
+  const _FeatureIconItem({
     required this.label,
     required this.icon,
     required this.onTap,
-    required this.bgColor,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFF2C6CB5);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white.withOpacity(0.92) : const Color(0xFF111827);
+    final textColor = isDark ? Colors.white : const Color(0xFF111827);
 
-    return Material(
-      color: bgColor,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: accent),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                    color: textColor,
-                  ),
-                ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 86,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            PhosphorIcon(
+              icon,
+              size: 32,
+              color: textColor,
+              duotoneSecondaryOpacity: 0.28,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: textColor,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1450,9 +1446,11 @@ class _FeatureGridItem extends StatelessWidget {
 }
 
 
+
 class _FeatureChip extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
+
   final VoidCallback onTap;
 
   const _FeatureChip({
@@ -1480,7 +1478,13 @@ class _FeatureChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: accent),
+            PhosphorIcon(
+              icon,
+              size: 18,
+              color: accent,
+              duotoneSecondaryOpacity: 0.28,
+            ),
+
             const SizedBox(width: 8),
             Text(
               label,
