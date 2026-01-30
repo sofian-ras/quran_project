@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
 import '../surah_name.dart';
 import 'widgets/reciter_selector.dart';
+import 'package:dio/dio.dart';
 
 class FullPlayerScreen extends StatefulWidget {
   const FullPlayerScreen({super.key});
@@ -14,6 +15,181 @@ class FullPlayerScreen extends StatefulWidget {
 
 class _FullPlayerScreenState extends State<FullPlayerScreen> {
   final AudioService _audio = AudioService.instance;
+
+  final Dio _dio = Dio();
+
+  String _normName(String s) => s
+    .toLowerCase()
+    .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+  String _baseReciterName(String s) {
+    // si tu as "Nom (Hafs • Murattal)" -> garde juste "Nom"
+    final i = s.indexOf('(');
+    return (i == -1 ? s : s.substring(0, i)).trim();
+  }
+
+  String _prettyMoshafName(String raw) {
+    final s = raw.toLowerCase();
+
+    String riwaya;
+    if (s.contains('hafs')) riwaya = 'Hafs';
+    else if (s.contains('warsh')) riwaya = 'Warsh';
+    else if (s.contains('khalaf')) riwaya = 'Khalaf';
+    else if (s.contains('assosi') || s.contains('soosi') || s.contains('soussi')) riwaya = 'As-Soosi';
+    else riwaya = raw;
+
+    String type = '';
+    if (s.contains('murattal')) type = 'Murattal';
+    else if (s.contains('mujawwad') || s.contains('mujawad')) type = 'Mujawwad';
+
+    return type.isEmpty ? riwaya : '$riwaya • $type';
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchMoshafOptions(String reciterName) async {
+    final base = _baseReciterName(reciterName);
+
+    final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=fr");
+    final reciters = (res.data['reciters'] as List?) ?? const [];
+
+    for (final item in reciters) {
+      final r = item as Map<String, dynamic>;
+      final name = (r['name'] ?? '').toString().trim();
+      final nn = _normName(name);
+      final bb = _normName(base);
+      if (nn != bb && !nn.contains(bb) && !bb.contains(nn)) continue;
+
+
+      final moshaf = (r['moshaf'] as List?) ?? const [];
+      final List<Map<String, dynamic>> options = [];
+
+      for (final m in moshaf) {
+        final mm = m as Map<String, dynamic>;
+        final server = (mm['server'] ?? '').toString().trim();
+        if (server.isEmpty) continue;
+
+        final mName = (mm['name'] ?? '').toString().trim();
+        final total = (mm['surah_total'] is int)
+            ? (mm['surah_total'] as int)
+            : int.tryParse('${mm['surah_total']}') ?? 114;
+
+        options.add({
+          'name': mName,
+          'server': server.endsWith('/') ? server : '$server/',
+          'surah_total': total,
+        });
+      }
+      return options;
+    }
+
+    return const [];
+  }
+
+  Future<void> _openRiwayaPicker(AudioService audio) async {
+    final currentReciter = audio.currentReciterNotifier.value;
+    final base = _baseReciterName(currentReciter);
+    if (_normName(base).isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choisis d’abord un réciteur')),
+      );
+      return;
+    }
+
+
+    final options = await _fetchMoshafOptions(base);
+
+    if (!mounted) return;
+
+    if (options.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Aucune riwāya trouvée pour $base')),
+      );
+      return;
+    }
+
+    final picked = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF0F1734)
+          : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetCtx) {
+        final titleColor = Theme.of(sheetCtx).brightness == Brightness.dark
+            ? Colors.white
+            : const Color(0xFF111827);
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(base, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: titleColor)),
+                const SizedBox(height: 6),
+                Text('Choisir la riwāya',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: titleColor.withOpacity(0.65))),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: titleColor.withOpacity(0.10)),
+                    itemBuilder: (_, i) {
+                      final o = options[i];
+                      final raw = (o['name'] ?? '').toString();
+                      final pretty = _prettyMoshafName(raw);
+
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(pretty, style: TextStyle(fontWeight: FontWeight.w800, color: titleColor)),
+                        subtitle: Text(
+                          raw,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: titleColor.withOpacity(0.55), fontWeight: FontWeight.w600),
+                        ),
+                        trailing: Text(
+                          '${o['surah_total'] ?? 114} sourates',
+                          style: TextStyle(color: titleColor.withOpacity(0.55), fontWeight: FontWeight.w700, fontSize: 12),
+                        ),
+                        onTap: () => Navigator.pop(sheetCtx, o),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked == null) return;
+
+    final raw = (picked['name'] ?? '').toString();
+    final server = (picked['server'] ?? '').toString();
+
+    final displayName = '$base (${_prettyMoshafName(raw)})';
+    audio.setReciter(displayName, server);
+
+    // ✅ recharge la sourate courante avec le nouveau server
+    final id = audio.currentSurahId;
+    if (id != null) audio.loadPlaylistAndPlay(id);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Réciteur: $displayName')),
+    );
+
+  }
+
 
   @override
   void initState() {
@@ -181,57 +357,107 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   // ---- Widgets réutilisables ----
-  Row _buildControlsRow(Color gold) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        ValueListenableBuilder<LoopMode>(
-          valueListenable: _audio.loopModeNotifier,
-          builder: (context, loopMode, _) {
-            return IconButton(
-              icon: Icon(loopMode == LoopMode.one ? Icons.repeat_one : Icons.repeat, color: loopMode == LoopMode.off ? Colors.white70 : gold),
-              iconSize: 28,
-              onPressed: _audio.cycleLoopMode,
-            );
-          },
-        ),
-        IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white), iconSize: 42, onPressed: _audio.skipToPrevious),
-        StreamBuilder<PlayerState>(
-          stream: _audio.playerStateStream,
-          builder: (context, snapshot) {
-            final playerState = snapshot.data;
-            final isPlaying = playerState?.playing ?? false;
-            final processingState = playerState?.processingState;
-            if (processingState == ProcessingState.loading || processingState == ProcessingState.buffering) {
-              return const SizedBox(width: 70, height: 70, child: Center(child: CircularProgressIndicator(color: Colors.white)));
-            }
-            return IconButton(
-              icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.white),
-              iconSize: 70,
-              onPressed: _audio.togglePlayPause,
-            );
-          },
-        ),
-        IconButton(icon: const Icon(Icons.skip_next, color: Colors.white), iconSize: 42, onPressed: _audio.skipToNext),
-        IconButton(
-          icon: const Icon(Icons.person_search, color: Colors.white70),
-          iconSize: 28,
-          onPressed: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (sheetContext) => ReciterSelectorSheet(onSelected: (name, server) {
-                _audio.setReciter(name, server);
-                final id = _audio.currentSurahId;
-                if (id != null) _audio.loadPlaylistAndPlay(id);
-              }),
-            );
-          },
-        ),
-      ],
+  Widget _buildControlsRow(Color gold) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.skip_previous, color: Colors.white),
+                iconSize: 42,
+                onPressed: _audio.skipToPrevious,
+              ),
+              const SizedBox(width: 8),
+              StreamBuilder<PlayerState>(
+                stream: _audio.playerStateStream,
+                builder: (context, snapshot) {
+                  final playerState = snapshot.data;
+                  final isPlaying = playerState?.playing ?? false;
+                  final processingState = playerState?.processingState;
+
+                  if (processingState == ProcessingState.loading ||
+                      processingState == ProcessingState.buffering) {
+                    return const SizedBox(
+                      width: 70,
+                      height: 70,
+                      child: Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      ),
+                    );
+                  }
+
+                  return IconButton(
+                    icon: Icon(
+                      isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                      color: Colors.white,
+                    ),
+                    iconSize: 70,
+                    onPressed: _audio.togglePlayPause,
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.skip_next, color: Colors.white),
+                iconSize: 42,
+                onPressed: _audio.skipToNext,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ValueListenableBuilder<LoopMode>(
+                valueListenable: _audio.loopModeNotifier,
+                builder: (context, loopMode, _) {
+                  return IconButton(
+                    icon: Icon(
+                      loopMode == LoopMode.one ? Icons.repeat_one : Icons.repeat,
+                      color: loopMode == LoopMode.off ? Colors.white70 : gold,
+                    ),
+                    iconSize: 28,
+                    onPressed: _audio.cycleLoopMode,
+                  );
+                },
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.tune_rounded, color: Colors.white70),
+                iconSize: 28,
+                onPressed: () => _openRiwayaPicker(_audio),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.person_search, color: Colors.white70),
+                iconSize: 28,
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    useRootNavigator: true,
+                    useSafeArea: true,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (sheetContext) => ReciterSelectorSheet(
+                      onSelected: (name, server) {
+                        _audio.setReciter(name, server);
+                        final id = _audio.currentSurahId;
+                        if (id != null) _audio.loadPlaylistAndPlay(id);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
+
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, "0");

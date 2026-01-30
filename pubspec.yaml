@@ -36,9 +36,9 @@ dev_dependencies:
 flutter_icons:
   android: true
   ios: false
-  image_path: "assets/icon/logo_coran.png"  # chemin vers logo 512x512
+  image_path: "assets/icon/logo_quranv2.webp"  # chemin vers logo 512x512
   adaptive_icon_background: "#FFFFFF"  # fond pour adaptive icon Android
-  adaptive_icon_foreground: "assets/icon/logo_coran.png"  # même image pour foreground
+  adaptive_icon_foreground: "assets/icon/logo_quranv2.webp"  # même image pour foreground
 
 
 flutter:

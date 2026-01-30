@@ -40,12 +40,39 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
+
+  String _prettyMoshafName(String raw) {
+    final s = raw.toLowerCase();
+
+    String riwaya;
+    if (s.contains('hafs')) riwaya = 'Hafs';
+    else if (s.contains('warsh')) riwaya = 'Warsh';
+    else if (s.contains('khalaf')) riwaya = 'Khalaf';
+    else if (s.contains('assosi') || s.contains('soosi') || s.contains('soussi')) riwaya = 'As-Soosi';
+    else riwaya = raw;
+
+    String type = '';
+    if (s.contains('murattal')) type = 'Murattal';
+    else if (s.contains('mujawwad') || s.contains('mujawad')) type = 'Mujawwad';
+
+    return type.isEmpty ? riwaya : '$riwaya • $type';
+  }
+
+  String? _pickDefaultServer(List<_MoshafOption> list) {
+    // Priorité: Hafs, sinon 1er
+    final hafs = list.where((o) => o.name.toLowerCase().contains('hafs')).toList();
+    if (hafs.isNotEmpty) return hafs.first.server;
+    return list.first.server;
+  }
+
   @override
   bool get wantKeepAlive => true;
 
   final AudioService _audio = AudioService.instance;
 
   List<Map<String, dynamic>> fullSurahList = [];
+  final Map<String, String> _serverByName = {};
+  final Map<String, List<_MoshafOption>> _moshafByName = {};
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
   String _preferredReading = 'hafs';
@@ -54,7 +81,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   bool _recitersLoading = true;
   final Map<String, String> _reciterAssetsByName = {};
   final Dio _dio = Dio();
-  final Map<String, String> _serverByName = {};
   bool _serversLoading = false;
 
   
@@ -396,8 +422,94 @@ void initState() {
 
   String _normName(String s) => s.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
 
+  Future<_MoshafOption?> _pickMoshaf(String reciterName, List<_MoshafOption> options) async {
+    final ctx = NavigationService.navigatorKey.currentContext ?? context;
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF0F1734) : Colors.white;
+    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+
+    return showModalBottomSheet<_MoshafOption>(
+      context: ctx,
+      useRootNavigator: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  reciterName,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: titleColor),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Choisir la riwāya',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: titleColor.withOpacity(0.65),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      color: titleColor.withOpacity(0.10),
+                    ),
+                    itemBuilder: (_, i) {
+                      final o = options[i];
+                      final pretty = _prettyMoshafName(o.name);
+
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          pretty,
+                          style: TextStyle(fontWeight: FontWeight.w800, color: titleColor),
+                        ),
+                        subtitle: Text(
+                          o.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: titleColor.withOpacity(0.55),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        trailing: Text(
+                          '${o.surahTotal} sourates',
+                          style: TextStyle(
+                            color: titleColor.withOpacity(0.55),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onTap: () => Navigator.pop(sheetCtx, o),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+
   Future<void> _loadReciterServersIfNeeded() async {
-    if (_serverByName.isNotEmpty || _serversLoading) return;
+    if (_moshafByName.isNotEmpty || _serversLoading) return;
 
     _serversLoading = true;
     try {
@@ -410,11 +522,29 @@ void initState() {
         final moshaf = (r['moshaf'] as List?) ?? const [];
         if (name.isEmpty || moshaf.isEmpty) continue;
 
-        final first = moshaf[0] as Map<String, dynamic>;
-        final server = (first['server'] ?? '').toString().trim();
-        if (server.isEmpty) continue;
+        final List<_MoshafOption> options = [];
 
-        _serverByName[_normName(name)] = server;
+        for (final m in moshaf) {
+          final mm = m as Map<String, dynamic>;
+          final server = (mm['server'] ?? '').toString().trim();
+          if (server.isEmpty) continue;
+
+          final id = (mm['id'] is int) ? (mm['id'] as int) : int.tryParse('${mm['id']}') ?? 0;
+          final mName = (mm['name'] ?? '').toString().trim();
+          final total = (mm['surah_total'] is int) ? (mm['surah_total'] as int) : int.tryParse('${mm['surah_total']}') ?? 114;
+
+          options.add(_MoshafOption(
+            id: id,
+            name: mName,
+            server: server.endsWith('/') ? server : '$server/',
+            surahTotal: total,
+          ));
+        }
+
+        if (options.isNotEmpty) {
+          _moshafByName[_normName(name)] = options;
+        }
+
       }
     } catch (_) {
       // ignore
@@ -425,26 +555,35 @@ void initState() {
 
 
   Future<void> _onReciterSelected(Reciter r) async {
-    String server = r.server.trim();
+    await _loadReciterServersIfNeeded();
 
-    // Si le JSON ne contient pas le serveur → on le résout via API
-    if (server.isEmpty) {
-      server = await _resolveServerForReciter(r.name) ?? '';
-    }
+    final options = _moshafByName[_normName(r.name)] ?? const [];
 
-    if (server.isEmpty) {
+    if (options.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Serveur introuvable pour ${r.name}')),
+        SnackBar(content: Text('Aucune riwāya trouvée pour ${r.name}')),
       );
       return;
     }
 
-    _audio.setReciter(r.name, server);
+    _MoshafOption? selected;
+    if (options.length == 1) {
+      selected = options.first;
+    } else {
+      selected = await _pickMoshaf(r.name, options);
+    }
+
+    if (selected == null) return;
+
+    final displayName = '${r.name} (${_prettyMoshafName(selected.name)})';
+    _audio.setReciter(displayName, selected.server);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Réciteur sélectionné: ${r.name}')),
+      SnackBar(content: Text('Réciteur: $displayName')),
     );
   }
+
+
     
   Future<String?> _resolveServerForReciter(String reciterName) async {
     try {
@@ -604,42 +743,45 @@ void initState() {
 
 
 
-                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                                    const SliverToBoxAdapter(child: SizedBox(height: 0)),
 
                                     SliverPadding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       sliver: SliverToBoxAdapter(
-                                        child: _ExploreFeaturesSection(
-                                          features: const [
-                                            _FeatureChipData(label: 'Player', icon: PhosphorIconsDuotone.playCircle),
-                                            _FeatureChipData(label: 'Duʿa', icon: PhosphorIconsDuotone.handsPraying),
-                                            _FeatureChipData(label: 'Hadith', icon: PhosphorIconsDuotone.bookOpenText),
-                                            _FeatureChipData(label: 'Qibla', icon: PhosphorIconsDuotone.compassRose),
-                                            _FeatureChipData(label: 'Adhkar', icon: PhosphorIconsDuotone.moonStars),
-                                            _FeatureChipData(label: 'Bookmarks', icon: PhosphorIconsDuotone.bookmarkSimple),
-                                          ],
-                                          onTap: (f) {
-                                            final ctx = NavigationService.navigatorKey.currentContext ?? context;
-                                            if (f.label == 'Player') {
-                                              _audio.isFullPlayerOpenNotifier.value = true;
+                                        child: Transform.translate(
+                                          offset: const Offset(0, -40),
+                                          child: _ExploreFeaturesSection(
+                                            features: const [
+                                              _FeatureChipData(label: 'Player', icon: PhosphorIconsDuotone.playCircle),
+                                              _FeatureChipData(label: 'Duʿa', icon: PhosphorIconsDuotone.handsPraying),
+                                              _FeatureChipData(label: 'Hadith', icon: PhosphorIconsDuotone.bookOpenText),
+                                              _FeatureChipData(label: 'Qibla', icon: PhosphorIconsDuotone.compassRose),
+                                              _FeatureChipData(label: 'Adhkar', icon: PhosphorIconsDuotone.moonStars),
+                                              _FeatureChipData(label: 'Bookmarks', icon: PhosphorIconsDuotone.bookmarkSimple),
+                                            ],
+                                            onTap: (f) {
+                                              final ctx = NavigationService.navigatorKey.currentContext ?? context;
+                                              if (f.label == 'Player') {
+                                                _audio.isFullPlayerOpenNotifier.value = true;
 
-                                              showModalBottomSheet(
-                                                context: ctx,
-                                                useSafeArea: true,
-                                                useRootNavigator: true,
-                                                isScrollControlled: true,
-                                                backgroundColor: Colors.transparent,
-                                                builder: (_) => const FullPlayerScreen(),
-                                              ).whenComplete(() {
-                                                _audio.isFullPlayerOpenNotifier.value = false;
-                                              });
+                                                showModalBottomSheet(
+                                                  context: ctx,
+                                                  useSafeArea: true,
+                                                  useRootNavigator: true,
+                                                  isScrollControlled: true,
+                                                  backgroundColor: Colors.transparent,
+                                                  builder: (_) => const FullPlayerScreen(),
+                                                ).whenComplete(() {
+                                                  _audio.isFullPlayerOpenNotifier.value = false;
+                                                });
 
-                                              return;
-                                            }
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text('${f.label} bientôt')),
-                                            );
-                                          },
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('${f.label} bientôt')),
+                                              );
+                                            },
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -816,6 +958,26 @@ class _DribbbleHomeHeader extends StatelessWidget {
     required this.onThemeTap,
   });
 
+  IconData _prayerIcon(String name) {
+    switch (name.toLowerCase()) {
+      case 'fajr':
+        return Icons.wb_twilight_rounded; // lever de soleil
+      case 'sunrise':
+        return Icons.wb_sunny_rounded;
+      case 'zohr':
+      case 'dhuhr':
+        return Icons.wb_sunny_outlined;
+      case 'asr':
+        return Icons.wb_sunny_rounded;
+      case 'maghrib':
+        return Icons.nights_stay_rounded; // coucher / nuit
+      case 'isha':
+        return Icons.nightlight_round;
+      default:
+        return Icons.access_time_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -831,6 +993,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
       ('Zohr', '11:49 AM'),
       ('Asr', '3:18 PM'),
       ('Maghrib', '6:24 PM'),
+      ('Isha', '7:45 PM'),
     ];
 
     const activeIndex = 3; // Asr sélectionnée (exemple)
@@ -887,7 +1050,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
           // Contenu
           Padding(
             padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 10,
+              top: MediaQuery.of(context).padding.top + 2,
               left: 16,
               right: 16,
               bottom: 18,
@@ -957,19 +1120,15 @@ class _DribbbleHomeHeader extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 1),
 
                 // Mini-card Hijri + location (à droite)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.16),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                Transform.translate(
+                  offset: const Offset(0, -10),
+                  child: Align(
+                    alignment: Alignment.centerRight,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
                           hijri,
@@ -1000,11 +1159,12 @@ class _DribbbleHomeHeader extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 14),
+
+                const SizedBox(height: 8),
 
                 // Pills prières (TOUTES visibles sans scroll)
                 SizedBox(
-                  height: 64,
+                  height: 80,
                   child: Row(
                     children: List.generate(prayers.length, (i) {
                       final isActive = i == activeIndex;
@@ -1013,16 +1173,10 @@ class _DribbbleHomeHeader extends StatelessWidget {
 
                       return Expanded(
                         child: Padding(
-                          padding: EdgeInsets.only(right: i == prayers.length - 1 ? 0 : 8),
+                          padding: EdgeInsets.only(right: i == prayers.length - 1 ? 0 : 6),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 220),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isActive
-                                  ? Colors.white.withOpacity(0.22)
-                                  : Colors.white.withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -1030,22 +1184,33 @@ class _DribbbleHomeHeader extends StatelessWidget {
                                   fit: BoxFit.scaleDown,
                                   child: Text(
                                     name,
+                                    maxLines: 1,
                                     style: TextStyle(
                                       color: Colors.white.withOpacity(0.92),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.0,
                                     ),
                                   ),
+                                ),
+                                const SizedBox(height: 8),
+                                // ✅ ICI l’icône entre le nom et l’heure
+                                Icon(
+                                  _prayerIcon(name),
+                                  size: 20,
+                                  color: Colors.white.withOpacity(0.92),
                                 ),
                                 const SizedBox(height: 6),
                                 FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: Text(
                                     hour,
+                                    maxLines: 1,
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1.0,
                                     ),
                                   ),
                                 ),
@@ -1057,6 +1222,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                     }),
                   ),
                 ),
+
               ],
             ),
           ),
@@ -1212,7 +1378,7 @@ class _HeaderWithEngagement extends StatelessWidget {
             child: _HomeCardShell(
               child: recitersLoading
                   ? const SizedBox(
-                      height: 90,
+                      height: 64,
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : _RecitersSection(
@@ -1249,94 +1415,100 @@ class _RecitersSection extends StatelessWidget {
     final titleColor = isDark ? Colors.white : const Color(0xFF111827);
     final linkColor = const Color(0xFF2C6CB5);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              'Reciters',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: titleColor,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Reciters',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: titleColor,
+                ),
               ),
-            ),
-            const Spacer(),
+              const Spacer(),
             TextButton(
               onPressed: onSeeAll,
               style: TextButton.styleFrom(
                 foregroundColor: linkColor,
                 padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
               ),
               child: const Text(
                 'See all',
-                style: TextStyle(fontWeight: FontWeight.w800),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 90,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: reciters.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, i) {
-              final r = reciters[i];
-              final asset = getAssetByName(r.name);
-              return InkWell(
-                onTap: () => onReciterTap(r),
-                borderRadius: BorderRadius.circular(999),
-                child: Column(
-                  children: [
-                    // Avatar avec ring
-                    Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.35)
-                              : const Color(0xFF2C6CB5).withOpacity(0.35),
-                          width: 2,
+          ),
+          const SizedBox(height: 0),
+          SizedBox(
+            height: 64,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: reciters.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, i) {
+                final r = reciters[i];
+                final asset = getAssetByName(r.name);
+                return InkWell(
+                  onTap: () => onReciterTap(r),
+                  borderRadius: BorderRadius.circular(999),
+                  child: Column(
+                    children: [
+                      // Avatar avec ring
+                      Container(
+                        padding: const EdgeInsets.all(1.5),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.35)
+                                : const Color(0xFF2C6CB5).withOpacity(0.35),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: isDark
+                              ? Colors.white.withOpacity(0.08)
+                              : const Color(0xFFF3F6FF),
+                          backgroundImage: asset.isEmpty ? null : AssetImage(asset),
+                          onBackgroundImageError: (_, __) {},
                         ),
                       ),
-                      child: CircleAvatar(
-                        radius: 22,
-                        backgroundColor: isDark
-                            ? Colors.white.withOpacity(0.08)
-                            : const Color(0xFFF3F6FF),
-                        backgroundImage: asset.isEmpty ? null : AssetImage(asset),
-                        onBackgroundImageError: (_, __) {},
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    SizedBox(
-                      width: 64,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          r.name,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: titleColor.withOpacity(0.8),
+                      const SizedBox(height: 4),
+                      SizedBox(
+                        width: 60,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            r.name,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: titleColor.withOpacity(0.8),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1667,4 +1839,19 @@ class _HomeCardShell extends StatelessWidget {
     );
   }
 }
+
+class _MoshafOption {
+  final int id;
+  final String name;
+  final String server;
+  final int surahTotal;
+
+  const _MoshafOption({
+    required this.id,
+    required this.name,
+    required this.server,
+    required this.surahTotal,
+  });
+}
+
 

@@ -37,7 +37,7 @@ class AudioService {
   final ValueNotifier<int?> currentPlayingSurahIdNotifier = ValueNotifier<int?>(null);
   StreamSubscription<int?>? _currentIndexSub;
   final ValueNotifier<String> currentTitleNotifier = ValueNotifier("Aucune lecture");
-  final ValueNotifier<String> currentReciterNotifier = ValueNotifier("Mishari Alafasy");
+  final ValueNotifier<String> currentReciterNotifier = ValueNotifier("Abdelrashid as-Soufy");
   final ValueNotifier<bool> isBuffering = ValueNotifier(false);
   final ValueNotifier<LoopMode> loopModeNotifier = ValueNotifier(LoopMode.off);
 
@@ -58,7 +58,7 @@ class AudioService {
   }
 
   // Serveur par défaut de mp3quran.net (Mishary Rashid Alafasy)
-  String currentServer = "https://server8.mp3quran.net/afs";
+  String currentServer = "https://server16.mp3quran.net/download/soufi/Rewayat-Hafs-A-n-Assem";
 
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
   Stream<bool> get isActiveStream => _player.processingStateStream.map((state) => state != ProcessingState.idle);
