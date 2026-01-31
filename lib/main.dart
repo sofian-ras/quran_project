@@ -5,7 +5,7 @@ import 'ui/home_screen.dart';
 import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
-import '../services/navigation_service.dart'; // adapte le chemin
+import 'services/navigation_service.dart';
 
 
 Future<void> main() async {

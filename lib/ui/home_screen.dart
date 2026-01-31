@@ -26,14 +26,7 @@ import '../models/reciter.dart';
 import 'package:dio/dio.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'widgets/location_picker_dialog.dart';
-import '/services/location_service.dart';
-
-
-
-
-
-
-
+import '../services/location_service.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -93,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   late Future<_PrayerHeaderData> _prayerFuture;
 
-  
+  int _prayerRefreshSeed = 0;
   late AnimationController _menuController;
   late Animation<double> _menuAnimation;
   bool _isMenuOpen = false;
@@ -124,6 +117,12 @@ void initState() {
     CurvedAnimation(parent: _menuController, curve: Curves.easeOutCubic),
   );
 }
+
+  void _refreshPrayerHeader() {
+    setState(() {
+      _prayerFuture = _loadPrayerHeader();
+    });
+  }
 
 Future<void> _checkFirstLaunch() async {
   final isFirst = await LocationService.isFirstTime();
@@ -1030,8 +1029,10 @@ Future<void> _checkFirstLaunch() async {
                       -screenWidth + (screenWidth * _menuAnimation.value),
                       0,
                     ),
-                    child: const RepaintBoundary(
-                      child: IOSSideMenu(),
+                    child: RepaintBoundary(
+                      child: IOSSideMenu(
+                        onSettingsClosed: _refreshPrayerHeader,
+                      ),
                     ),
                   ),
                 );

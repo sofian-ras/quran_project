@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '/services/location_service.dart';
+import '../../services/location_service.dart';
 
 class LocationPickerDialog extends StatefulWidget {
   const LocationPickerDialog({super.key});

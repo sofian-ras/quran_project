@@ -9,8 +9,9 @@ const String _defaultCountry = 'France';
 
 class PrayerTimesCard extends StatefulWidget {
   final double topInset;
+  final int refreshSeed;
 
-  const PrayerTimesCard({super.key, this.topInset = 0});
+  const PrayerTimesCard({super.key, this.topInset = 0, this.refreshSeed = 0});
 
   @override
   State<PrayerTimesCard> createState() => _PrayerTimesCardState();
@@ -19,6 +20,9 @@ class PrayerTimesCard extends StatefulWidget {
 class _PrayerTimesCardState extends State<PrayerTimesCard> {
   static const String _prefCity = 'prayer_city';
   static const String _prefCountry = 'prayer_country';
+  static const String _prefMethod = 'prayer_method'; // ex: 2, 3, 4...
+  static const String _defaultMethod = '2';
+
 
   late Future<_PrayerTimesData> _future;
 
@@ -28,16 +32,30 @@ class _PrayerTimesCardState extends State<PrayerTimesCard> {
     _future = _loadTimes();
   }
 
+  @override
+  void didUpdateWidget(covariant PrayerTimesCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshSeed != widget.refreshSeed) {
+      setState(() {
+        _future = _loadTimes();
+      });
+    }
+  }
+
   Future<_PrayerTimesData> _loadTimes() async {
     final prefs = await SharedPreferences.getInstance();
     final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
     final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
+    final methodRaw = (prefs.getString(_prefMethod) ?? _defaultMethod).trim();
+    final method = methodRaw.isEmpty ? _defaultMethod : methodRaw;
+
 
     final uri = Uri.https('api.aladhan.com', '/v1/timingsByCity', {
       'city': city,
       'country': country,
-      'method': '2',
+      'method': method,
     });
+
 
     try {
       final response = await http.get(uri).timeout(const Duration(seconds: 10));

@@ -12,7 +12,9 @@ import '../settings_screen.dart';
 import '../reading_history_screen.dart';
 
 class IOSSideMenu extends StatelessWidget {
-  const IOSSideMenu({super.key});
+  final VoidCallback? onSettingsClosed;
+
+  const IOSSideMenu({super.key, this.onSettingsClosed});
 
   @override
   Widget build(BuildContext context) {
@@ -412,7 +414,10 @@ class IOSSideMenu extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                                );
+                                ).then((_) {
+                                  if (!context.mounted) return;
+                                  onSettingsClosed?.call();
+                                });
                               }
                             });
                           },
