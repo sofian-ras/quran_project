@@ -391,16 +391,6 @@ Future<void> _checkFirstLaunch() async {
     return 0;
   }
 
-  String _formatClockNow() {
-    final n = DateTime.now();
-    final hh = n.hour.toString().padLeft(2, '0');
-    final mm = n.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
-  }
-
-
-
-
   void _openSurahListScreen() {
     Navigator.push(
       context,
@@ -913,7 +903,6 @@ Future<void> _checkFirstLaunch() async {
                                         onThemeTap: _cycleTheme,
                                         onContinue: _openSurahListScreen,
                                         prayerFuture: _prayerFuture,
-                                        formatClockNow: _formatClockNow,
                                         activeIndexFromTimes: _activeIndexFromTimes,
                                         reciters: _reciters,
                                         recitersLoading: _recitersLoading,
@@ -1099,14 +1088,12 @@ class _DribbbleHomeHeader extends StatelessWidget {
   final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
   final Future<_PrayerHeaderData> prayerFuture;
-  final String Function() formatClockNow;
   final int Function(List<(String, String)>) activeIndexFromTimes;
 
   const _DribbbleHomeHeader({
     required this.onMenuTap,
     required this.onThemeTap,
     required this.prayerFuture,
-    required this.formatClockNow,
     required this.activeIndexFromTimes,
   });
 
@@ -1140,9 +1127,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
 
         final location = data == null ? 'Paris, France' : '${data.city}, ${data.country}';
         final hijri = (data?.hijriLine.isNotEmpty == true) ? data!.hijriLine : "—";
-        final methodText = (data?.methodLabel.isNotEmpty == true) ? data!.methodLabel : "—";
-        final timeText = formatClockNow();
-
         final prayers = <(String, String)>[
           ('Fajr', data?.times['Fajr'] ?? '--:--'),
           ('Sunrise', data?.times['Sunrise'] ?? '--:--'),
@@ -1257,18 +1241,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 6),
-
-                    // Heure + sous-titre
-                    Text(
-                      timeText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 44,
-                        fontWeight: FontWeight.w900,
-                        height: 1.0,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
                     if (snap.connectionState != ConnectionState.done || data == null)
                       Text(
                         'Chargement...',
@@ -1286,15 +1258,32 @@ class _DribbbleHomeHeader extends StatelessWidget {
                           final remaining = _DribbbleHomeHeader._remainingToNextPrayer(prayers, safeIndex);
                           final nextName = prayers[safeIndex].$1;
 
-                          return Text(
-                            '$nextName dans ${_DribbbleHomeHeader._fmt(remaining)}',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.85),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                nextName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'dans ${_DribbbleHomeHeader._fmt(remaining)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.85),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           );
                         },
                       ),
@@ -1320,15 +1309,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             // Dans le build de _DribbbleHomeHeader, remplace la Row de location par :
-                            Text(
-                              methodText,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.85),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
                             InkWell(
                               onTap: () {
                                 // Appelle la méthode du parent pour changer la localisation
@@ -1346,7 +1326,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                                       location,  // ← Juste "Ville, Pays", pas de coordonnées
                                       style: TextStyle(
                                         color: Colors.white.withOpacity(0.9),
-                                        fontSize: 12,
+                                        fontSize: 10,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -1549,7 +1529,6 @@ class _HeaderWithEngagement extends StatelessWidget {
   final VoidCallback onThemeTap;
   final VoidCallback onContinue;
   final Future<_PrayerHeaderData> prayerFuture;
-  final String Function() formatClockNow;
   final int Function(List<(String, String)>) activeIndexFromTimes;
   final List<Reciter> reciters;
   final bool recitersLoading;
@@ -1567,7 +1546,6 @@ class _HeaderWithEngagement extends StatelessWidget {
     required this.onThemeTap,
     required this.onContinue,
     required this.prayerFuture,
-    required this.formatClockNow,
     required this.activeIndexFromTimes,
     required this.reciters,
     required this.recitersLoading,
@@ -1598,7 +1576,6 @@ class _HeaderWithEngagement extends StatelessWidget {
               onMenuTap: onMenuTap,
               onThemeTap: onThemeTap,
               prayerFuture: prayerFuture,
-              formatClockNow: formatClockNow,
               activeIndexFromTimes: activeIndexFromTimes,
             ),
           ),
