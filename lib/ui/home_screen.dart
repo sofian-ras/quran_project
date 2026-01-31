@@ -1268,7 +1268,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 24,
+                                  fontSize: 28,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
@@ -1293,7 +1293,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
 
                     // Mini-card Hijri + location (? droite)
                     Transform.translate(
-                      offset: const Offset(0, -10),
+                      offset: const Offset(0, -45),
                       child: Align(
                         alignment: Alignment.centerRight,
                         child: Column(

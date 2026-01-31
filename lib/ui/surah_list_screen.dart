@@ -5,7 +5,7 @@ import 'widgets/surah_card.dart';
 import '../hizb_juzz.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
-
+import 'translated_quran_screen.dart';
 
 class SurahListScreen extends StatelessWidget {
   final List<Map<String, dynamic>> surahList;
@@ -25,8 +25,6 @@ class SurahListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const gold = Color(0xFFD4AF37);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final appBarBg = Theme.of(context).appBarTheme.backgroundColor ??
-        (isDark ? const Color(0xFF0F1734) : const Color(0xFFF7F2E8));
     final appBarFg = isDark
         ? (Theme.of(context).appBarTheme.foregroundColor ?? const Color(0xFFF6E9D7))
         : const Color(0xFF5B3F12);
@@ -43,12 +41,29 @@ class SurahListScreen extends StatelessWidget {
           foregroundColor: appBarFg,
           elevation: 0,
           scrolledUnderElevation: 0,
-          surfaceTintColor: Colors.transparent, // IMPORTANT (supprime la teinte)
+          surfaceTintColor: Colors.transparent,
           title: Text(
             'Coran',
             style: TextStyle(color: appBarFg),
           ),
           centerTitle: true,
+
+          // ✅ AJOUT : bouton pour ouvrir l’écran Traduction
+          actions: [
+            IconButton(
+              tooltip: 'Traduction',
+              icon: const Icon(Icons.translate_rounded),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                  ),
+                );
+              },
+            ),
+          ],
+
           bottom: TabBar(
             labelColor: isDark ? Colors.white : const Color(0xFF1a0033),
             unselectedLabelColor: isDark ? Colors.white70 : Colors.black54,
@@ -59,7 +74,6 @@ class SurahListScreen extends StatelessWidget {
             ],
           ),
         ),
-
         body: TabBarView(
           children: [
             // =========================
@@ -111,8 +125,7 @@ class SurahListScreen extends StatelessWidget {
 
                           return _SurahPlayingTileWidget(
                             surahId: surahId,
-                            childBuilder: (isPlaying) =>
-                                ValueListenableBuilder<Set<int>>(
+                            childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
                               valueListenable: favoriteIdsNotifier,
                               builder: (context, favoriteIds, _) {
                                 return SurahCard(
@@ -125,11 +138,9 @@ class SurahListScreen extends StatelessWidget {
                                   onTap: () => onOpenReader(s['page'] as int),
                                   onPlay: () => onPlaySurah(s),
                                   onToggleFavorite: () async {
-                                    await FavoritesService.instance
-                                        .toggleFavorite(surahId);
+                                    await FavoritesService.instance.toggleFavorite(surahId);
                                     favoriteIdsNotifier.value =
-                                        await FavoritesService.instance
-                                            .getFavorites();
+                                        await FavoritesService.instance.getFavorites();
                                   },
                                 );
                               },
@@ -180,7 +191,6 @@ class SurahListScreen extends StatelessWidget {
 
                     final juzData = snap.data!;
 
-                    // map id -> surah (pour récupérer nomFr/nomAr rapidement)
                     final Map<int, Map<String, dynamic>> surahById = {
                       for (final s in surahList) (s['id'] as int): s,
                     };
@@ -194,12 +204,10 @@ class SurahListScreen extends StatelessWidget {
                         final meta = juzData[juzNumber] as Map<String, dynamic>;
 
                         final String firstVerseKey = meta['first_verse_key'] as String;
-                        final Map<String, dynamic> verseMapping = meta['verse_mapping'] as Map<String, dynamic>;
+                        final Map<String, dynamic> verseMapping =
+                            meta['verse_mapping'] as Map<String, dynamic>;
 
-                        // page de début (tu gardes ta logique existante)
                         final startPage = juzzMap[juzNumber - 1]['start_page']!;
-
-                        // sourates présentes dans ce juz
                         final surahIds = verseMapping.keys.map(int.parse).toList()..sort();
 
                         return Padding(
@@ -218,7 +226,6 @@ class SurahListScreen extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Header Juz (tap => ouvre la page du juz)
                                   InkWell(
                                     onTap: () => onOpenReader(startPage),
                                     child: Padding(
@@ -254,8 +261,6 @@ class SurahListScreen extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-
-                                  // Liste des sourates dans ce juz (tap => ouvre page)
                                   ...surahIds.map((sid) {
                                     final s = surahById[sid];
                                     final String rangeStr = (verseMapping['$sid'] as String);
@@ -265,10 +270,8 @@ class SurahListScreen extends StatelessWidget {
                                     final nameFr = (s?['nameFr'] ?? 'Sourate $sid').toString();
                                     final nameAr = (s?['nameAr'] ?? '').toString();
 
-                                    // IMPORTANT:
-                                    // - si la plage commence à 1, on peut ouvrir la sourate à son début (page de la sourate)
-                                    // - sinon on ouvre le début du juz (plus logique, car la sourate est “en cours”)
-                                    final int openPage = (from == 1 && s != null) ? (s['page'] as int) : startPage;
+                                    final int openPage =
+                                        (from == 1 && s != null) ? (s['page'] as int) : startPage;
 
                                     return ListTile(
                                       dense: true,
@@ -287,7 +290,6 @@ class SurahListScreen extends StatelessWidget {
                     );
                   },
                 ),
-
               ),
             ),
           ],
@@ -341,6 +343,7 @@ class _SurahPlayingTileWidgetState extends State<_SurahPlayingTileWidget> {
     return widget.childBuilder(_isPlaying);
   }
 }
+
 Future<Map<int, dynamic>> loadJuzMetadata() async {
   final raw = await rootBundle.loadString('assets/data/quran-metadata-juz.json');
   final Map<String, dynamic> decoded = jsonDecode(raw);
