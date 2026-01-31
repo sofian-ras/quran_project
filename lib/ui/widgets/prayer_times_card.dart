@@ -480,11 +480,6 @@ class PrayerTimesHeroCard extends StatelessWidget {
                 image: DecorationImage(
                   image: const AssetImage('assets/images/fond_widget_vert.webp'),
                   fit: BoxFit.cover,
-                  // assombrit pour que le texte reste lisible
-                  colorFilter: ColorFilter.mode(
-                    const Color(0xFF0B3D1F).withOpacity(isDark ? 0.45 : 0.22),
-                    BlendMode.darken,
-                  ),
                 ),
               ),
             ),
@@ -498,9 +493,9 @@ class PrayerTimesHeroCard extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(isDark ? 0.45 : 0.30),
-                        Colors.black.withOpacity(isDark ? 0.25 : 0.15),
-                        Colors.black.withOpacity(isDark ? 0.55 : 0.35),
+                        Colors.black.withOpacity(isDark ? 0.18 : 0.08),
+                        Colors.black.withOpacity(isDark ? 0.08 : 0.04),
+                        Colors.black.withOpacity(isDark ? 0.20 : 0.10),
                       ],
                     ),
                   ),

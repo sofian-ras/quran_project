@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../surah_name.dart';
 import 'package:flutter/services.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
@@ -18,6 +19,41 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
 
   late Future<List<Map<String, dynamic>>> _surahFuture;
   final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>({});
+
+  Future<List<Map<String, dynamic>>> _loadSurahList() async {
+    final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
+    final quranData = json.decode(jsonStr) as List<dynamic>;
+
+    final Map<int, int> ayahCounts = {};
+    final Map<int, int> startPage = {};
+
+    for (final v in quranData) {
+      final surahRaw = v['surah'];
+      final pageRaw = v['page'];
+
+      final int? id = (surahRaw is int) ? surahRaw : int.tryParse('$surahRaw');
+      if (id == null) continue;
+
+      final int page = (pageRaw is int) ? pageRaw : (int.tryParse('$pageRaw') ?? 1);
+
+      ayahCounts[id] = (ayahCounts[id] ?? 0) + 1;
+      startPage[id] = startPage[id] ?? page;
+    }
+
+    final List<Map<String, dynamic>> list = [];
+    for (int id = 1; id <= 114; id++) {
+      list.add({
+        'id': id,
+        'nameAr': 'Sourate $id',
+        'nameFr': surahFr[id] ?? 'Sourate $id',
+        'page': startPage[id] ?? 1,
+        'ayahCount': ayahCounts[id] ?? 0,
+      });
+    }
+
+    return list;
+  }
+
 
   @override
   void initState() {
@@ -69,15 +105,43 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _surahFuture,
+      future: _loadSurahList(),
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snap.hasData) {
+          return const Center(child: Text('Erreur chargement sourates'));
         }
 
-        final list = snap.data ?? const <Map<String, dynamic>>[];
+        final list = snap.data!;
+        if (list.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Liste des sourates vide.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Vérifie assets/data/quran_data.json et pubspec.yaml',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => setState(() {}),
+                    child: const Text('Recharger'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
         return SurahListScreen(
           surahList: list,
@@ -87,5 +151,6 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
         );
       },
     );
+
   }
 }
