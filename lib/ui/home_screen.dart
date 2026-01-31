@@ -242,9 +242,47 @@ Future<void> _checkFirstLaunch() async {
     }
   }
 
+  String _prayerMethodLabel(String id) {
+    switch (id) {
+      case '2':
+        return 'ISNA (2)';
+      case '3':
+        return 'Muslim World League (3)';
+      case '4':
+        return 'Umm al-Qura (4)';
+      case '5':
+        return 'Egyptian Authority (5)';
+      case '8':
+        return 'Gulf Region (8)';
+      case '9':
+        return 'Kuwait (9)';
+      case '10':
+        return 'Qatar (10)';
+      case '12':
+        return 'Turkey (12)';
+      case '13':
+        return 'Morocco (13)';
+      case '15':
+        return 'Moon Sighting Committee (15)';
+      case '16':
+        return 'Karachi (16)';
+      case '18':
+        return 'France (18)';
+      case '20':
+        return 'Tunisia (20)';
+      case '21':
+        return 'Algeria (21)';
+      default:
+        return 'Méthode ($id)';
+    }
+  }
+
   Future<_PrayerHeaderData> _loadPrayerHeader() async {
     final location = await LocationService.getSavedOrCurrentLocation();
-
+    final prefs = await SharedPreferences.getInstance();
+    final methodRaw = (prefs.getString('prayer_method') ?? '2').trim();
+    final method = methodRaw.isEmpty ? '2' : methodRaw;
+    final methodLabel = _prayerMethodLabel(method);
     // Utilise les coordonnées si disponibles, sinon l'API par ville
     Uri uri;
     if (!location.isManual && location.latitude != 0 && location.longitude != 0) {
@@ -252,14 +290,14 @@ Future<void> _checkFirstLaunch() async {
       uri = Uri.https('api.aladhan.com', '/v1/timings/${DateTime.now().millisecondsSinceEpoch ~/ 1000}', {
         'latitude': location.latitude.toString(),
         'longitude': location.longitude.toString(),
-        'method': '2',
+        'method': method,
       });
     } else {
       // Fallback par nom de ville
       uri = Uri.https('api.aladhan.com', '/v1/timingsByCity', {
         'city': location.city,
         'country': location.country,
-        'method': '2',
+        'method': method,
       });
     }
 
@@ -284,6 +322,7 @@ Future<void> _checkFirstLaunch() async {
         country: location.country,
         hijriLine: hijriLine,
         times: times,
+        methodLabel: methodLabel,
       );
     } catch (e) {
       return _PrayerHeaderData.error(city: location.city, country: location.country);
@@ -1141,6 +1180,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
 
         final location = data == null ? 'Paris, France' : '${data.city}, ${data.country}';
         final hijri = (data?.hijriLine.isNotEmpty == true) ? data!.hijriLine : "—";
+        final methodText = (data?.methodLabel.isNotEmpty == true) ? data!.methodLabel : "—";
         final timeText = formatClockNow();
 
         final prayers = <(String, String)>[
@@ -1320,6 +1360,15 @@ class _DribbbleHomeHeader extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             // Dans le build de _DribbbleHomeHeader, remplace la Row de location par :
+                            Text(
+                              methodText,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
                             InkWell(
                               onTap: () {
                                 // Appelle la méthode du parent pour changer la localisation
@@ -2104,12 +2153,14 @@ class _PrayerHeaderData {
   final String country;
   final String hijriLine;
   final Map<String, String> times;
+  final String methodLabel;
 
   const _PrayerHeaderData({
     required this.city,
     required this.country,
     required this.hijriLine,
     required this.times,
+    required this.methodLabel,
   });
 
   factory _PrayerHeaderData.error({required String city, required String country}) {
@@ -2118,9 +2169,11 @@ class _PrayerHeaderData {
       country: country,
       hijriLine: '',
       times: const {},
+      methodLabel: '',
     );
   }
 }
+
 
 class _FeatureSquareItem extends StatelessWidget {
   final String label;
