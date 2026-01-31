@@ -233,7 +233,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
               fontWeight: FontWeight.w700,
             ),
           ),
-          backgroundColor: isDark ? const Color(0xFF0D132F) : const Color(0xFFF7EEDB),
+          backgroundColor: isDark ? const Color(0xFF0D132F) : const Color(0xFFFFF4E6),
           foregroundColor: isDark ? const Color(0xFFF6E7C5) : const Color(0xFF3B2A0B),
           actions: [
             IconButton(
@@ -362,7 +362,7 @@ class _SurahTabState extends State<_SurahTab> {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF0D132F) : const Color(0xFFFFF7EA);
+    final bg = isDark ? const Color(0xFF0D132F) : const Color(0xFFFFFCF5);
     final tileBg = isDark ? const Color(0xFF141B3A) : Colors.white;
 
     return Container(
@@ -898,7 +898,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
             fontWeight: FontWeight.w700,
           ),
         ),
-        backgroundColor: isDark ? const Color(0xFF0D132F) : const Color(0xFFF7EEDB),
+        backgroundColor: isDark ? const Color(0xFF0D132F) : const Color(0xFFFFF4E6),
         foregroundColor: isDark ? const Color(0xFFF6E7C5) : const Color(0xFF3B2A0B),
         actions: [
           IconButton(
@@ -923,9 +923,9 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFFFFFBF5),
-                    Color(0xFFF6F0E4),
-                    Color(0xFFEDE2D1),
+                    Color(0xFFFFFEFA),
+                    Color(0xFFFBF6ED),
+                    Color(0xFFF4EADB),
                   ],
                 ),
         ),
@@ -943,7 +943,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(18),
-                            color: isDark ? const Color(0xFF0B1025).withOpacity(0.55) : Colors.white.withOpacity(0.85),
+                            color: isDark ? const Color(0xFF0B1025).withOpacity(0.55) : Colors.white.withOpacity(0.92),
                             border: Border.all(
                               color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
                               width: 1,
@@ -1019,7 +1019,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                                   decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF0B1025).withOpacity(0.45) : Colors.white.withOpacity(0.75),
+                                    color: isDark ? const Color(0xFF0B1025).withOpacity(0.45) : Colors.white.withOpacity(0.88),
                                     border: Border.all(
                                       color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
                                       width: 1,
