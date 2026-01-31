@@ -14,11 +14,8 @@ import 'full_player_screen.dart';
 import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
 import 'surah_list_screen.dart';
-import 'widgets/home_french_quran_widget.dart';
 import 'widgets/home_reciter_widget.dart';
-import 'widgets/home_resume_reading_widget.dart';
 import 'widgets/ios_side_menu.dart';
-import 'widgets/liste_de_sourates_widget.dart';
 import 'widgets/mini_audio_player.dart';
 import '../theme/theme_service.dart';
 import 'widgets/prayer_times_card.dart';
@@ -995,46 +992,9 @@ Future<void> _checkFirstLaunch() async {
                                     ),
 
                                     const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-                                    SliverPadding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      sliver: SliverToBoxAdapter(
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: _HomeCardShell(
-                                                child: ResumeReadingWidget(
-                                                  onTap: (page, reading) => _openReader(page, reading: reading),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            const Expanded(
-                                              child: _HomeCardShell(
-                                                child: FrenchQuranWidget(),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-
-                                      ),
-                                    ),
-
-                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-                                    // IMPORTANT: padding bas pour ne pas être caché par MiniAudioPlayer
-                                    SliverPadding(
-                                      padding: EdgeInsets.fromLTRB(
-                                        16,
-                                        0,
-                                        16,
-                                        170 + MediaQuery.of(context).padding.bottom, // marge mini player
-                                      ),
-                                      sliver: SliverToBoxAdapter(
-                                        child: ListeDeSouratesWidget(
-                                          surahCount: filteredList.length,
-                                          onTap: _openSurahListScreen,
-                                        ),
+                                    SliverToBoxAdapter(
+                                      child: SizedBox(
+                                        height: 170 + MediaQuery.of(context).padding.bottom,
                                       ),
                                     ),
                                   ],

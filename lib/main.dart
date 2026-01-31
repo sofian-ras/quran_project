@@ -6,6 +6,8 @@ import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
 import 'services/navigation_service.dart';
+import 'ui/bottom_nav_shell.dart';
+
 
 
 Future<void> main() async {
@@ -39,7 +41,7 @@ class QuranApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: mode,
-          home: const HomeScreen(),
+          home: const BottomNavShell(),
           builder: (context, child) {
             return Overlay(
               initialEntries: [
