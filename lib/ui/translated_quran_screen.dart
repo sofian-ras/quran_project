@@ -478,7 +478,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   bool _loadedOnce = false;
   bool _showArabic = true;
   bool _showTranslation = true;
-  double _fontArabic = 36;
+  double _fontArabic = 28;
   double _fontTranslation = 16;
   double _fontTafsir = 14;
   Set<String> _favoriteKeys = <String>{};
@@ -541,21 +541,33 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
         _translation = rows.map((r) => (r['fr'] as String?) ?? '').toList();
         _tafsir = rows.map((r) => (r['tafsir'] as String?) ?? '').toList();
       } else {
-        final arRes = await _dio.get('$_alquranBase/surah/${widget.surahNumber}/quran-uthmani');
+        // ONLINE: on récupère arabe + traduction + tafsir en parallèle
+        final results = await Future.wait([
+          _dio.get('$_alquranBase/surah/${widget.surahNumber}/quran-uthmani'),
+          _dio.get('$_quranEncBase/translation/sura/$_translationKey/${widget.surahNumber}'),
+          _dio.get('$_quranEncBase/translation/sura/$_tafsirKey/${widget.surahNumber}'),
+        ]);
+
+        final arRes = results[0] as Response;
+        final trRes = results[1] as Response;
+        final tafRes = results[2] as Response;
+
+        // 1) Arabe
         final arAyahs = (arRes.data['data']['ayahs'] as List);
         _arabic = arAyahs.map((e) => (e['text'] ?? '').toString()).toList();
 
-        final trRes = await _dio.get('$_quranEncBase/translation/sura/$_translationKey/${widget.surahNumber}');
+        // 2) Traduction (QuranEnc)
         final trAyahs = _extractQuranEncList(trRes.data);
         _translation = trAyahs
             .map((e) => _stripHtml((e['translation'] ?? '').toString()))
             .toList();
 
-        final tafRes = await _dio.get('$_quranEncBase/translation/sura/$_tafsirKey/${widget.surahNumber}');
+        // 3) Tafsir (QuranEnc)
         final tafAyahs = _extractQuranEncList(tafRes.data);
         _tafsir = tafAyahs
             .map((e) => _stripHtml((e['translation'] ?? '').toString()))
             .toList();
+
       }
 
       if (!mounted) return;
@@ -636,7 +648,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                         const Text('Taille arabe'),
                         Expanded(
                           child: Slider(
-                            min: 28,
+                            min: 15,
                             max: 56,
                             value: _fontArabic,
                             activeColor: accent,
