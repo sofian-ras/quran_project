@@ -49,7 +49,6 @@ flutter:
   # Gestion des images et fichiers de données
   assets:
     - assets/data/reciters_mapping.json
-    - assets/data/reciters_home.json
     - assets/images/
     - assets/images/reciters/
     - assets/data/quran-metadata-juz.json

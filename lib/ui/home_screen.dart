@@ -56,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
     if (s.contains('murattal')) type = 'Murattal';
     else if (s.contains('mujawwad') || s.contains('mujawad')) type = 'Mujawwad';
 
-    return type.isEmpty ? riwaya : '$riwaya • $type';
+    return type.isEmpty ? riwaya : '$riwaya â€¢ $type';
   }
 
   String? _pickDefaultServer(List<_MoshafOption> list) {
@@ -74,6 +74,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   List<Map<String, dynamic>> fullSurahList = [];
   final Map<String, String> _serverByName = {};
   final Map<String, List<_MoshafOption>> _moshafByName = {};
+  final Map<int, List<_MoshafOption>> _moshafById = {}; // Ajout pour indexation par reciterId
   bool _isLoading = true;
   List<Map<String, dynamic>> filteredList = [];
   String _preferredReading = 'hafs';
@@ -218,12 +219,15 @@ Future<void> _checkFirstLaunch() async {
         final asset = (m['asset'] ?? '').toString().trim();
         if (name.isEmpty) continue;
 
-        // ✅ Ton JSON n’a pas id/server/letter → on crée Reciter à la main
+        final reciterId = m['reciterId'] as int?;
+
         list.add(Reciter(
           id: '',
           name: name,
-          server: '', // sera résolu via API mp3quran au tap
+          server: '',
           letter: '',
+          reciterId: reciterId,
+          moshafId: null,
         ));
 
         if (asset.isNotEmpty) {
@@ -318,7 +322,7 @@ Future<void> _checkFirstLaunch() async {
       final times = _extractTimes(timings);
 
       return _PrayerHeaderData(
-        city: location.city,      // ← Affiche seulement la ville
+        city: location.city,      // â† Affiche seulement la ville
         country: location.country,
         hijriLine: hijriLine,
         times: times,
@@ -361,7 +365,7 @@ Future<void> _checkFirstLaunch() async {
     return {
       'Fajr': clean(timings['Fajr']),
       'Sunrise': clean(timings['Sunrise']),
-      'Zohr': clean(timings['Dhuhr']), // tu l’appelles Zohr dans ton UI
+      'Zohr': clean(timings['Dhuhr']), // tu lâ€™appelles Zohr dans ton UI
       'Asr': clean(timings['Asr']),
       'Maghrib': clean(timings['Maghrib']),
       'Isha': clean(timings['Isha']),
@@ -622,7 +626,7 @@ Future<void> _checkFirstLaunch() async {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Choisir la riwāya',
+                  'Choisir la riwāya',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -684,11 +688,12 @@ Future<void> _checkFirstLaunch() async {
 
     _serversLoading = true;
     try {
-      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=fr");
+      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
       final reciters = (res.data['reciters'] as List?) ?? const [];
 
       for (final item in reciters) {
         final r = item as Map<String, dynamic>;
+        final reciterId = (r['id'] is int) ? (r['id'] as int) : int.tryParse('${r['id']}') ?? 0;
         final name = (r['name'] ?? '').toString().trim();
         final moshaf = (r['moshaf'] as List?) ?? const [];
         if (name.isEmpty || moshaf.isEmpty) continue;
@@ -714,6 +719,9 @@ Future<void> _checkFirstLaunch() async {
 
         if (options.isNotEmpty) {
           _moshafByName[_normName(name)] = options;
+          if (reciterId > 0) {
+            _moshafById[reciterId] = options; // Indexer aussi par reciterId
+          }
         }
 
       }
@@ -726,31 +734,44 @@ Future<void> _checkFirstLaunch() async {
 
 
   Future<void> _onReciterSelected(Reciter r) async {
-    await _loadReciterServersIfNeeded();
-
-    final options = _moshafByName[_normName(r.name)] ?? const [];
-
-    if (options.isEmpty) {
+    // Charger le serveur depuis l'API MP3Quran
+    String? server;
+    
+    if (r.reciterId != null) {
+      // Utiliser reciterId pour trouver le serveur
+      await _loadReciterServersIfNeeded();
+      final options = _moshafById[r.reciterId] ?? [];
+      
+      if (options.isNotEmpty) {
+        // Prendre simplement le premier moshaf disponible (généralement Hafs)
+        server = options.first.server;
+      }
+    }
+    
+    // Si pas de serveur trouvé via reciterId, essayer de résoudre par nom
+    if (server == null || server.isEmpty) {
+      server = await _resolveServerForReciter(r.name);
+    }
+    
+    // Si toujours pas de serveur, afficher une erreur
+    if (server == null || server.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Aucune riwāya trouvée pour ${r.name}')),
+        SnackBar(content: Text('Impossible de charger ${r.name}')),
       );
       return;
     }
 
-    _MoshafOption? selected;
-    if (options.length == 1) {
-      selected = options.first;
-    } else {
-      selected = await _pickMoshaf(r.name, options);
-    }
+    // Lancer le lecteur audio avec le récitateur
+    _audio.setReciter(r.name, server);
 
-    if (selected == null) return;
-
-    final displayName = '${r.name} (${_prettyMoshafName(selected.name)})';
-    _audio.setReciter(displayName, selected.server);
+    // Lancer automatiquement la première sourate (Al-Fatiha)
+    await _audio.loadPlaylistAndPlay(1);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Réciteur: $displayName')),
+      SnackBar(
+        content: Text('▶ ${r.name} - Al-Fatiha'),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
@@ -758,7 +779,7 @@ Future<void> _checkFirstLaunch() async {
     
   Future<String?> _resolveServerForReciter(String reciterName) async {
     try {
-      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=fr");
+      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
       final reciters = (res.data['reciters'] as List?) ?? [];
 
       for (final item in reciters) {
@@ -874,7 +895,7 @@ Future<void> _checkFirstLaunch() async {
                           ),
                           child: Stack(
                             children: [
-                              // ✨ effet lumière subtil
+                              //  effet lumière subtil
                               Positioned.fill(
                                 child: IgnorePointer(
                                   child: Container(
@@ -931,7 +952,7 @@ Future<void> _checkFirstLaunch() async {
                                           child: _ExploreFeaturesSection(
                                             features: const [
                                               _FeatureChipData(label: 'Player', icon: PhosphorIconsDuotone.playCircle),
-                                              _FeatureChipData(label: 'Duʿa', icon: PhosphorIconsDuotone.handsPraying),
+                                              _FeatureChipData(label: 'DuÊ¿a', icon: PhosphorIconsDuotone.handsPraying),
                                               _FeatureChipData(label: 'Hadith', icon: PhosphorIconsDuotone.bookOpenText),
                                               _FeatureChipData(label: 'Qibla', icon: PhosphorIconsDuotone.compassRose),
                                               _FeatureChipData(label: 'Adhkar', icon: PhosphorIconsDuotone.moonStars),
@@ -979,7 +1000,7 @@ Future<void> _checkFirstLaunch() async {
                                             ),
                                             _ContentCardData(
                                               title: 'Tafsir Session',
-                                              subtitle: 'Tonight • 20:30',
+                                              subtitle: 'Tonight â€¢ 20:30',
                                               imageAsset: 'assets/images/cards/tafsir.jpg',
                                             ),
                                           ],
@@ -1072,7 +1093,7 @@ class _HomeTopBar extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            'القرآن الكريم',
+            'Ø§Ù„Ù‚Ø±Ø¢Ù† Ø§Ù„ÙƒØ±ÙŠÙ…',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: t.textTheme.titleLarge?.copyWith(
@@ -1122,7 +1143,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
         final data = snap.data;
 
         final location = data == null ? 'Paris, France' : '${data.city}, ${data.country}';
-        final hijri = (data?.hijriLine.isNotEmpty == true) ? data!.hijriLine : "—";
+        final hijri = (data?.hijriLine.isNotEmpty == true) ? data!.hijriLine : "â€”";
         final prayers = <(String, String)>[
           ('Fajr', data?.times['Fajr'] ?? '--:--'),
           ('Sunrise', data?.times['Sunrise'] ?? '--:--'),

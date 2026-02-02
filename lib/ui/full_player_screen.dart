@@ -103,7 +103,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
     if (options.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Aucune riwāya trouvée pour $base')),
+        SnackBar(content: Text('Aucune riwāya e pour $base')),
       );
       return;
     }
