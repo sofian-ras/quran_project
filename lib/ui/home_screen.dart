@@ -217,6 +217,7 @@ Future<void> _checkFirstLaunch() async {
         final m = e as Map<String, dynamic>;
         final name = (m['name'] ?? '').toString().trim();
         final asset = (m['asset'] ?? '').toString().trim();
+        final baseUrl = (m['baseUrl'] ?? '').toString().trim();
         if (name.isEmpty) continue;
 
         final reciterId = m['reciterId'] as int?;
@@ -228,6 +229,7 @@ Future<void> _checkFirstLaunch() async {
           letter: '',
           reciterId: reciterId,
           moshafId: null,
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : null,
         ));
 
         if (asset.isNotEmpty) {
@@ -734,11 +736,13 @@ Future<void> _checkFirstLaunch() async {
 
 
   Future<void> _onReciterSelected(Reciter r) async {
-    // Charger le serveur depuis l'API MP3Quran
+    // Si le réciteur a une baseUrl configurée, l'utiliser directement
     String? server;
     
-    if (r.reciterId != null) {
-      // Utiliser reciterId pour trouver le serveur
+    if (r.baseUrl != null && r.baseUrl!.isNotEmpty) {
+      server = r.baseUrl;
+    } else if (r.reciterId != null) {
+      // Fallback: Utiliser reciterId pour trouver le serveur
       await _loadReciterServersIfNeeded();
       final options = _moshafById[r.reciterId] ?? [];
       
@@ -748,7 +752,7 @@ Future<void> _checkFirstLaunch() async {
       }
     }
     
-    // Si pas de serveur trouvé via reciterId, essayer de résoudre par nom
+    // Si pas de serveur trouvé via baseUrl ou reciterId, essayer de résoudre par nom
     if (server == null || server.isEmpty) {
       server = await _resolveServerForReciter(r.name);
     }

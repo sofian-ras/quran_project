@@ -2,81 +2,97 @@
   {
     "name": "Abdurashid Sufi",
     "reciterId": 91,
-    "asset": "assets/images/reciters/abdurashid_ali_sufi_assabile.webp"
+    "asset": "assets/images/reciters/abdurashid_ali_sufi_assabile.webp",
+    "baseUrl": "https://server16.mp3quran.net/download/soufi/Rewayat-Hafs-A-n-Assem"
   },
   {
     "name": "Abdulbaset",
     "reciterId": 60,
-    "asset": "assets/images/reciters/abdulbaset_abdulsamad_murattal.webp"
+    "asset": "assets/images/reciters/abdulbaset_abdulsamad_murattal.webp",
+    "baseUrl": "https://server7.mp3quran.net/download/basit"
   },
   {
     "name": "Shuraym",
     "reciterId": 257,
-    "asset": "assets/images/reciters/saud_ashshuraym.webp"
+    "asset": "assets/images/reciters/saud_ashshuraym.webp",
+    "baseUrl": "https://server7.mp3quran.net/download/shur"
   },
   {
     "name": "Sudais",
     "reciterId": 89,
-    "asset": "assets/images/reciters/abdurrahman_assudais.webp"
+    "asset": "assets/images/reciters/abdurrahman_assudais.webp",
+    "baseUrl": "https://server11.mp3quran.net/download/sds"
   },
   {
     "name": "Maher Almuaiqly",
     "reciterId": 173,
-    "asset": "assets/images/reciters/maher_almuaiqly.webp"
+    "asset": "assets/images/reciters/maher_almuaiqly.webp",
+    "baseUrl": "https://server12.mp3quran.net/download/maher"
   },
   {
     "name": "Ali Jabir",
     "reciterId": 120,
-    "asset": "assets/images/reciters/abdullah_ali_jabir.webp"
+    "asset": "assets/images/reciters/abdullah_ali_jabir.webp",
+    "baseUrl": "https://server11.mp3quran.net/download/a_jbr"
   },
   {
     "name": "As-shatri",
     "reciterId": 261,
-    "asset": "assets/images/reciters/abu_bakr_alshatri.webp"
+    "asset": "assets/images/reciters/abu_bakr_alshatri.webp",
+    "baseUrl": "https://server11.mp3quran.net/download/shatri"
   },
   {
     "name": "Al Ajmy",
     "reciterId": 98,
-    "asset": "assets/images/reciters/ahmed_ibn_ali_alajmy.webp"
+    "asset": "assets/images/reciters/ahmed_ibn_ali_alajmy.webp",
+    "baseUrl": "https://server10.mp3quran.net/download/ajm"
   },
   {
     "name": "Al Hudhaify",
     "reciterId": 118,
-    "asset": "assets/images/reciters/ahmed_almuhafdhaifey.webp"
+    "asset": "assets/images/reciters/ahmed_almuhafdhaifey.webp",
+    "baseUrl": "https://server9.mp3quran.net/download/hthfi"
   },
   {
     "name": "Al Qatami",
     "reciterId": 223,
-    "asset": "assets/images/reciters/nasser_al_qatamie.webp"
+    "asset": "assets/images/reciters/nasser_al_qatamie.webp",
+    "baseUrl": "https://server6.mp3quran.net/download/qtm"
   },
   {
     "name": "Al Juhani",
     "reciterId": 67,
-    "asset": "assets/images/reciters/ahmed_aljuhani.webp"
+    "asset": "assets/images/reciters/ahmed_aljuhani.webp",
+    "baseUrl": "https://server13.mp3quran.net/download/jhn"
   },
   {
     "name": "Bandar Baleela",
     "reciterId": 126,
-    "asset": "assets/images/reciters/bandar_baleela.webp"
+    "asset": "assets/images/reciters/bandar_baleela.webp",
+    "baseUrl": "https://server6.mp3quran.net/download/balilah"
   },
   {
     "name": "Hani Arrifai",
     "reciterId": 137,
-    "asset": "assets/images/reciters/hani_arrifai.webp"
+    "asset": "assets/images/reciters/hani_arrifai.webp",
+    "baseUrl": "https://server8.mp3quran.net/download/hani"
   },
   {
     "name": "Alhusary",
     "reciterId": 179,
-    "asset": "assets/images/reciters/mahmoud_khalil_alhusary_doori.webp"
+    "asset": "assets/images/reciters/mahmoud_khalil_alhusary_doori.webp",
+    "baseUrl": "https://server13.mp3quran.net/download/husr"
   },
   {
     "name": "Mishari Alafasy",
     "reciterId": 185,
-    "asset": "assets/images/reciters/mishari_rashid_alafasy.webp"
+    "asset": "assets/images/reciters/mishari_rashid_alafasy.webp",
+    "baseUrl": "https://server8.mp3quran.net/download/afs"
   },
   {
     "name": "Saad Alghamdi",
     "reciterId": 239,
-    "asset": "assets/images/reciters/saad_alghamdi.webp"
+    "asset": "assets/images/reciters/saad_alghamdi.webp",
+    "baseUrl": "https://server7.mp3quran.net/download/s_gmd"
   }
 ]
