@@ -52,6 +52,7 @@ flutter:
     - assets/data/reciters_mapping.json
     - assets/images/
     - assets/images/reciters/
+    - assets/images/prieres/
     - assets/data/quran-metadata-juz.json
     - assets/data/
     - assets/data/ayahinfo_1120.db

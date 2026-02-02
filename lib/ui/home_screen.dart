@@ -1337,9 +1337,12 @@ class _DribbbleHomeHeader extends StatelessWidget {
                             } else if (mins < 15) {
                               // 5-15 min avant
                               return 'assets/images/prieres/5min_avant_course.webp';
-                            } else {
-                              // 15-20 min avant et plus
+                            } else if (mins < 20) {
+                              // 15-20 min avant
                               return 'assets/images/prieres/15min_avant_marche.webp';
+                            } else {
+                              // Plus de 20 min avant (par défaut)
+                              return 'assets/images/prieres/mosquee.png';
                             }
                           }
 
