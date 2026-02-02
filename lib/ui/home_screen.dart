@@ -1315,6 +1315,33 @@ class _DribbbleHomeHeader extends StatelessWidget {
                           final remaining = _DribbbleHomeHeader._remainingToNextPrayer(prayers, safeIndex);
                           final nextName = prayers[safeIndex].$1;
                           final nextTime = prayers[safeIndex].$2;
+                          
+                          // Déterminer l'image à afficher en fonction du temps restant
+                          String getPrayerImage() {
+                            final mins = remaining.inMinutes;
+                            if (mins <= -20) {
+                              // Plus de 20 min après
+                              return 'assets/images/prieres/mosquee.png';
+                            } else if (mins <= -15) {
+                              // 15-20 min après
+                              return 'assets/images/prieres/mosquee.png';
+                            } else if (mins <= -5) {
+                              // 5-15 min après
+                              return 'assets/images/prieres/15min_apres_sortie.webp';
+                            } else if (mins < 0) {
+                              // 0-5 min après
+                              return 'assets/images/prieres/5min_apres_priere.webp';
+                            } else if (mins < 5) {
+                              // 0-5 min avant
+                              return 'assets/images/prieres/heure_priere_entree.webp';
+                            } else if (mins < 15) {
+                              // 5-15 min avant
+                              return 'assets/images/prieres/5min_avant_course.webp';
+                            } else {
+                              // 15-20 min avant et plus
+                              return 'assets/images/prieres/15min_avant_marche.webp';
+                            }
+                          }
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1377,7 +1404,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                                         ],
                                       ),
                                       child: Image.asset(
-                                        'assets/icon/mosquee.png',
+                                        getPrayerImage(),
                                         width: 200,
                                         height: 200,
                                         fit: BoxFit.contain,

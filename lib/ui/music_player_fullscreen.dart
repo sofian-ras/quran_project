@@ -9,7 +9,9 @@ import 'widgets/reciter_selector.dart';
 import 'package:dio/dio.dart';
 
 class MusicPlayerFullScreen extends StatefulWidget {
-  const MusicPlayerFullScreen({super.key});
+  final ScrollController? scrollController;
+  
+  const MusicPlayerFullScreen({super.key, this.scrollController});
 
   @override
   State<MusicPlayerFullScreen> createState() => _MusicPlayerFullScreenState();
@@ -420,35 +422,35 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       body: Stack(
-        children: [
-          // Image de La Mecque en fond
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/la_mecque_portrait.webp',
-              fit: BoxFit.cover,
+          children: [
+            // Image de La Mecque en fond
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/la_mecque_portrait.webp',
+                fit: BoxFit.cover,
+              ),
             ),
-          ),
-          
-          // Dégradé noir en bas pour la lisibilité
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.3),
-                    Colors.black.withOpacity(0.7),
-                    Colors.black.withOpacity(0.9),
-                  ],
-                  stops: const [0.0, 0.4, 0.7, 1.0],
+            
+            // Dégradé noir en bas pour la lisibilité
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.3),
+                      Colors.black.withOpacity(0.7),
+                      Colors.black.withOpacity(0.9),
+                    ],
+                    stops: const [0.0, 0.4, 0.7, 1.0],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          SafeArea(
+            SafeArea(
             child: Column(
               children: [
                 // AppBar personnalisée
@@ -457,29 +459,7 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => Navigator.pop(context),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: const Icon(
-                              CupertinoIcons.chevron_down,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                          ),
-                        ),
-                      ),
+                      const SizedBox(width: 48),
                       const Text(
                         'Lecteur Audio',
                         style: TextStyle(
@@ -517,6 +497,7 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
 
                 Expanded(
                   child: SingleChildScrollView(
+                    controller: widget.scrollController,
                     physics: const BouncingScrollPhysics(),
                     child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -605,8 +586,8 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
                 ], // Fermeture children de Column SafeArea
             ), // Fermeture Column SafeArea
           ), // Fermeture SafeArea
-        ], // Fermeture children de Stack
-      ), // Fermeture Stack body
+          ], // Fermeture children de Stack
+        ), // Fermeture Stack
     ); // Fermeture Scaffold
   }
 

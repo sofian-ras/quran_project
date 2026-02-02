@@ -28,7 +28,14 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const MusicPlayerFullScreen(),
+      isDismissible: true,
+      enableDrag: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 1.0,
+        minChildSize: 0.5,
+        maxChildSize: 1.0,
+        builder: (_, controller) => MusicPlayerFullScreen(scrollController: controller),
+      ),
     ).whenComplete(() {
       _audio.isFullPlayerOpenNotifier.value = false;
     });
