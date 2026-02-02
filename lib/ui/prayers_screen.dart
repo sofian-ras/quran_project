@@ -69,64 +69,73 @@ class _PrayersScreenState extends State<PrayersScreen> {
   }
 
   Future<_PrayersData> _loadPrayers() async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final prefs = await SharedPreferences.getInstance();
 
-    final methodRaw = (prefs.getString(_prefMethod) ?? _defaultMethod).trim();
-    final method = methodRaw.isEmpty ? _defaultMethod : methodRaw;
+      final methodRaw = (prefs.getString(_prefMethod) ?? _defaultMethod).trim();
+      final method = methodRaw.isEmpty ? _defaultMethod : methodRaw;
 
-    final location = await LocationService.getSavedOrCurrentLocation();
+      final location = await LocationService.getSavedOrCurrentLocation();
 
-    Uri uri;
-    if (!location.isManual && location.latitude != 0 && location.longitude != 0) {
-      uri = Uri.https('api.aladhan.com', '/v1/timings', {
-        'latitude': location.latitude.toString(),
-        'longitude': location.longitude.toString(),
-        'method': method,
-      });
-    } else {
+      Uri uri;
+      if (!location.isManual && location.latitude != 0 && location.longitude != 0) {
+        uri = Uri.https('api.aladhan.com', '/v1/timings', {
+          'latitude': location.latitude.toString(),
+          'longitude': location.longitude.toString(),
+          'method': method,
+        });
+      } else {
+        final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
+        final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
+
+        uri = Uri.https('api.aladhan.com', '/v1/timingsByCity', {
+          'city': city,
+          'country': country,
+          'method': method,
+        });
+      }
+
+      final res = await http.get(uri);
+      if (res.statusCode != 200) {
+        final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
+        final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
+        return _PrayersData.error(city: city, country: country, method: method);
+      }
+
+      final jsonBody = json.decode(res.body) as Map<String, dynamic>;
+      final data = jsonBody['data'] as Map<String, dynamic>;
+      final timings = data['timings'] as Map<String, dynamic>;
+
+      final map = <String, String>{
+        'Fajr': (timings['Fajr'] ?? '').toString(),
+        'Dhuhr': (timings['Dhuhr'] ?? '').toString(),
+        'Asr': (timings['Asr'] ?? '').toString(),
+        'Maghrib': (timings['Maghrib'] ?? '').toString(),
+        'Isha': (timings['Isha'] ?? '').toString(),
+      };
+
+      // Header: priorise la ville/pays de LocationService si dispo
+      final headerCity = (location.city.isNotEmpty)
+          ? location.city
+          : (prefs.getString(_prefCity) ?? _defaultCity).trim();
+      final headerCountry = (location.country.isNotEmpty)
+          ? location.country
+          : (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
+
+      return _PrayersData(
+        city: headerCity,
+        country: headerCountry,
+        method: method,
+        times: map,
+      );
+    } catch (e) {
+      // En cas d'erreur réseau ou de parsing
+      final prefs = await SharedPreferences.getInstance();
       final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
       final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
-
-      uri = Uri.https('api.aladhan.com', '/v1/timingsByCity', {
-        'city': city,
-        'country': country,
-        'method': method,
-      });
-    }
-
-    final res = await http.get(uri);
-    if (res.statusCode != 200) {
-      final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
-      final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
+      final method = (prefs.getString(_prefMethod) ?? _defaultMethod).trim();
       return _PrayersData.error(city: city, country: country, method: method);
     }
-
-    final jsonBody = json.decode(res.body) as Map<String, dynamic>;
-    final data = jsonBody['data'] as Map<String, dynamic>;
-    final timings = data['timings'] as Map<String, dynamic>;
-
-    final map = <String, String>{
-      'Fajr': (timings['Fajr'] ?? '').toString(),
-      'Dhuhr': (timings['Dhuhr'] ?? '').toString(),
-      'Asr': (timings['Asr'] ?? '').toString(),
-      'Maghrib': (timings['Maghrib'] ?? '').toString(),
-      'Isha': (timings['Isha'] ?? '').toString(),
-    };
-
-    // Header: priorise la ville/pays de LocationService si dispo
-    final headerCity = (location.city.isNotEmpty)
-        ? location.city
-        : (prefs.getString(_prefCity) ?? _defaultCity).trim();
-    final headerCountry = (location.country.isNotEmpty)
-        ? location.country
-        : (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
-
-    return _PrayersData(
-      city: headerCity,
-      country: headerCountry,
-      method: method,
-      times: map,
-    );
   }
 
 

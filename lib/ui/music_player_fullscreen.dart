@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
+import '../services/favorites_service.dart';
 import '../surah_name.dart';
 import 'widgets/reciter_selector.dart';
 import 'package:dio/dio.dart';
@@ -295,6 +296,122 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
     );
   }
 
+  void _showPlaylist(BuildContext context) {
+    const gold = Color(0xFFC8A165);
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Favoris',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              // Liste des favoris
+              Expanded(
+                child: FutureBuilder<Set<int>>(
+                  future: FavoritesService.instance.getFavorites(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator(color: Colors.white));
+                    }
+
+                    final favorites = snapshot.data!.toList()..sort();
+                    if (favorites.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.favorite_border, size: 64, color: Colors.white30),
+                            const SizedBox(height: 16),
+                            const Text(
+                              "Aucun favori pour le moment.",
+                              style: TextStyle(color: Colors.white60, fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return StreamBuilder<int?>(
+                      stream: _audio.currentIndexStream,
+                      builder: (context, indexSnapshot) {
+                        final currentIndex = indexSnapshot.data;
+                        final currentSurahId = currentIndex != null ? currentIndex + 1 : null;
+                        
+                        return ListView.builder(
+                          itemCount: favorites.length,
+                          itemBuilder: (context, index) {
+                            final surahId = favorites[index];
+                            final surahName = surahFr[surahId] ?? 'Sourate $surahId';
+                            final isPlaying = currentSurahId == surahId;
+                            
+                            return ListTile(
+                              leading: isPlaying
+                                  ? Icon(Icons.volume_up, color: gold)
+                                  : Text(
+                                      '$surahId',
+                                      style: const TextStyle(color: Colors.white60, fontSize: 16),
+                                    ),
+                              title: Text(
+                                surahName,
+                                style: TextStyle(
+                                  color: isPlaying ? gold : Colors.white,
+                                  fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.white38),
+                                onPressed: () async {
+                                  await FavoritesService.instance.removeFavorite(surahId);
+                                  // Rafraîchir l'écran parent pour mettre à jour le bouton favori
+                                  if (mounted) setState(() {});
+                                  // Rafraîchir en fermant et réouvrant
+                                  Navigator.pop(context);
+                                  _showPlaylist(context);
+                                },
+                              ),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _audio.loadPlaylistAndPlay(surahId);
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const gold = Color(0xFFC8A165);
@@ -371,7 +488,29 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 48), // Espace pour équilibrer la mise en page
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showPlaylist(context),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: const Icon(
+                              CupertinoIcons.heart_fill,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -720,11 +859,57 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
           },
         ),
 
+        // Favori
+        FutureBuilder<bool>(
+          future: _audio.currentSurahId != null 
+              ? FavoritesService.instance.isFavorite(_audio.currentSurahId!)
+              : Future.value(false),
+          builder: (context, snapshot) {
+            final isFavorite = snapshot.data ?? false;
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () async {
+                  final surahId = _audio.currentSurahId;
+                  if (surahId != null) {
+                    await FavoritesService.instance.toggleFavorite(surahId);
+                    setState(() {}); // Rafraîchir l'icône
+                  }
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isFavorite
+                        ? const Color(0xFFFF6B6B).withOpacity(0.2)
+                        : Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isFavorite
+                          ? const Color(0xFFFF6B6B).withOpacity(0.5)
+                          : Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                    color: isFavorite ? const Color(0xFFFF6B6B) : Colors.white.withOpacity(0.6),
+                    size: 24,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+
         // Stop
         Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () => _audio.stop(),
+            onTap: () {
+              _audio.stop();
+              Navigator.pop(context);
+            },
             borderRadius: BorderRadius.circular(12),
             child: Container(
               padding: const EdgeInsets.all(12),

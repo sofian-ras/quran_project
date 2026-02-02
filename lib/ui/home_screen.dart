@@ -19,7 +19,7 @@ import 'widgets/home_reciter_widget.dart';
 import 'widgets/ios_side_menu.dart';
 import 'widgets/mini_audio_player.dart';
 import 'widgets/continue_reading_card.dart';
-import 'widgets/daily_verse_card.dart';
+import 'widgets/youtube_video_card.dart';
 import '../theme/theme_service.dart';
 import '../models/reciter.dart';
 import 'package:dio/dio.dart';
@@ -968,9 +968,12 @@ Future<void> _checkFirstLaunch() async {
 
                                     const SliverToBoxAdapter(child: SizedBox(height: 0)),
 
-                                    // Carte "Verset du jour"
-                                    const SliverToBoxAdapter(
-                                      child: DailyVerseCard(),
+                                    // Vidéo du jour
+                                    SliverToBoxAdapter(
+                                      child: Transform.translate(
+                                        offset: const Offset(0, -30),
+                                        child: const YoutubeVideoCard(mode: QuranVideoMode.sufi),
+                                      ),
                                     ),
 
                                     SliverPadding(
@@ -1363,11 +1366,22 @@ class _DribbbleHomeHeader extends StatelessWidget {
                                   Positioned(
                                     right: -10,
                                     top: -20,
-                                    child: Image.asset(
-                                      'assets/icon/mosquee.png',
-                                      width: 200,
-                                      height: 200,
-                                      fit: BoxFit.contain,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.white.withOpacity(0.3),
+                                            blurRadius: 40,
+                                            spreadRadius: 10,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Image.asset(
+                                        'assets/icon/mosquee.png',
+                                        width: 200,
+                                        height: 200,
+                                        fit: BoxFit.contain,
+                                      ),
                                     ),
                                   ),
                                   // Contenu au premier plan
@@ -1597,12 +1611,12 @@ class _HeaderWithEngagement extends StatelessWidget {
   Widget build(BuildContext context) {
     const double headerHeight = 320;
 
-    // Position carte engagement
-    const double engagementTop = headerHeight - 60;
+    // Position carte engagement (plus haut)
+    const double engagementTop = headerHeight - 80;
     const double engagementHeightApprox = 76;
 
-    // Position carte reciters (elle chevauche la carte engagement)
-    const double recitersTop = engagementTop + 60;
+    // Position carte reciters (plus bas pour compenser)
+    const double recitersTop = engagementTop + 80;
 
     return SizedBox(
       height: headerHeight + 180,
