@@ -40,6 +40,7 @@ class AudioService {
   final ValueNotifier<String> currentReciterNotifier = ValueNotifier("Abdelrashid as-Soufy");
   final ValueNotifier<bool> isBuffering = ValueNotifier(false);
   final ValueNotifier<LoopMode> loopModeNotifier = ValueNotifier(LoopMode.off);
+  final ValueNotifier<bool> isShuffleEnabled = ValueNotifier(false);
 
   String get currentTitle => currentTitleNotifier.value;
   String get currentReciterName => currentReciterNotifier.value;
@@ -152,5 +153,11 @@ class AudioService {
     }
     loopModeNotifier.value = newMode;
     _player.setLoopMode(newMode);
+  }
+
+  Future<void> toggleShuffle() async {
+    final newShuffleState = !isShuffleEnabled.value;
+    isShuffleEnabled.value = newShuffleState;
+    await _player.setShuffleModeEnabled(newShuffleState);
   }
 }

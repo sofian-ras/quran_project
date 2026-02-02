@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
+import '../services/favorites_service.dart';
 import '../surah_name.dart';
 import 'widgets/reciter_selector.dart';
 import 'package:dio/dio.dart';
@@ -190,6 +191,244 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
   }
 
+  void _showSurahPicker(BuildContext context) {
+    int selectedSurahId = _audio.currentSurahId ?? 1;
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          height: 300,
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Annuler', style: TextStyle(color: Colors.white70)),
+                    ),
+                    const Text(
+                      'Choisir une sourate',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _audio.loadPlaylistAndPlay(selectedSurahId);
+                      },
+                      child: const Text('OK', style: TextStyle(color: Color(0xFFC8A165), fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+              // Picker
+              Expanded(
+                child: Stack(
+                  children: [
+                    ListWheelScrollView.useDelegate(
+                      itemExtent: 50,
+                      diameterRatio: 1.5,
+                      perspective: 0.003,
+                      physics: const FixedExtentScrollPhysics(),
+                      controller: FixedExtentScrollController(initialItem: selectedSurahId - 1),
+                      onSelectedItemChanged: (index) {
+                        selectedSurahId = index + 1;
+                      },
+                      childDelegate: ListWheelChildBuilderDelegate(
+                        childCount: 114,
+                        builder: (context, index) {
+                          final surahId = index + 1;
+                          final surahName = surahFr[surahId] ?? 'Sourate $surahId';
+                          return Center(
+                            child: Text(
+                              '$surahId. $surahName',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    // Lignes de sélection
+                    Center(
+                      child: Container(
+                        height: 50,
+                        decoration: BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
+                            bottom: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showReciterPicker(BuildContext context) async {
+    // Charger la liste des récitateurs depuis l'API
+    List<Map<String, dynamic>> reciters = [];
+    try {
+      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
+      reciters = ((res.data['reciters'] as List?) ?? []).cast<Map<String, dynamic>>();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erreur de chargement des récitateurs')),
+      );
+      return;
+    }
+
+    if (reciters.isEmpty || !mounted) return;
+
+    // Trouver l'index du récitateur actuel
+    final currentReciter = _audio.currentReciterNotifier.value;
+    final currentBase = _baseReciterName(currentReciter);
+    int initialIndex = 0;
+    for (int i = 0; i < reciters.length; i++) {
+      final name = (reciters[i]['name'] ?? '').toString();
+      if (_normName(name) == _normName(currentBase)) {
+        initialIndex = i;
+        break;
+      }
+    }
+
+    int selectedIndex = initialIndex;
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          height: 350,
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Annuler', style: TextStyle(color: Colors.white70)),
+                    ),
+                    const Text(
+                      'Choisir un récitateur',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        // Récupérer le récitateur sélectionné
+                        final selected = reciters[selectedIndex];
+                        final name = (selected['name'] ?? '').toString();
+                        final moshafs = (selected['moshaf'] as List?) ?? [];
+                        
+                        if (moshafs.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Aucun moshaf disponible pour $name')),
+                          );
+                          return;
+                        }
+
+                        // Choisir le premier moshaf (ou Hafs si disponible)
+                        Map<String, dynamic>? selectedMoshaf;
+                        for (final m in moshafs) {
+                          final moshafName = (m['name'] ?? '').toString().toLowerCase();
+                          if (moshafName.contains('hafs')) {
+                            selectedMoshaf = m as Map<String, dynamic>;
+                            break;
+                          }
+                        }
+                        selectedMoshaf ??= moshafs.first as Map<String, dynamic>;
+
+                        final server = (selectedMoshaf['server'] ?? '').toString();
+                        final moshafName = (selectedMoshaf['name'] ?? '').toString();
+                        final displayName = '$name (${_prettyMoshafName(moshafName)})';
+
+                        _audio.setReciter(displayName, server);
+                        final id = _audio.currentSurahId;
+                        if (id != null) _audio.loadPlaylistAndPlay(id);
+                      },
+                      child: const Text('OK', style: TextStyle(color: Color(0xFFC8A165), fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+              // Picker
+              Expanded(
+                child: Stack(
+                  children: [
+                    ListWheelScrollView.useDelegate(
+                      itemExtent: 50,
+                      diameterRatio: 1.5,
+                      perspective: 0.003,
+                      physics: const FixedExtentScrollPhysics(),
+                      controller: FixedExtentScrollController(initialItem: initialIndex),
+                      onSelectedItemChanged: (index) {
+                        selectedIndex = index;
+                      },
+                      childDelegate: ListWheelChildBuilderDelegate(
+                        childCount: reciters.length,
+                        builder: (context, index) {
+                          final reciterName = (reciters[index]['name'] ?? '').toString();
+                          return Center(
+                            child: Text(
+                              reciterName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    // Lignes de sélection
+                    Center(
+                      child: Container(
+                        height: 50,
+                        decoration: BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
+                            bottom: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
 
   @override
   void initState() {
@@ -226,7 +465,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                   unselectedLabelColor: Colors.white60,
                   tabs: const [
                     Tab(text: 'Lecteur'),
-                    Tab(text: "File d'attente"),
+                    Tab(text: 'Favoris'),
                   ],
                 ),
               ),
@@ -275,7 +514,17 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
                   valueListenable: _audio.currentTitleNotifier,
 
-                  builder: (_, title, __) => Text(title, style: const TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  builder: (_, title, __) => GestureDetector(
+                    onTap: () => _showSurahPicker(context),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(title, style: const TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_drop_down, color: Colors.white70, size: 28),
+                      ],
+                    ),
+                  ),
 
                 ),
 
@@ -285,7 +534,17 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
                   valueListenable: _audio.currentReciterNotifier,
 
-                  builder: (_, reciter, __) => Text(reciter, style: TextStyle(fontSize: 15, color: gold), textAlign: TextAlign.center),
+                  builder: (_, reciter, __) => GestureDetector(
+                    onTap: () => _showReciterPicker(context),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(reciter, style: TextStyle(fontSize: 15, color: gold), textAlign: TextAlign.center),
+                        const SizedBox(width: 6),
+                        Icon(Icons.arrow_drop_down, color: gold.withOpacity(0.7), size: 24),
+                      ],
+                    ),
+                  ),
 
                 ),
 
@@ -323,31 +582,65 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
     }
   
-  // ---- Vue de la liste de lecture (File d'attente) ----
+  // ---- Vue des favoris ----
   Widget _buildPlaylistView(BuildContext context, Color gold) {
-    final playlist = _audio.playlistSources;
-    if (playlist.isEmpty) {
-      return const Center(child: Text("Aucune liste de lecture chargée.", style: TextStyle(color: Colors.white60)));
-    }
-
-    return StreamBuilder<int?>(
-      stream: _audio.currentIndexStream,
+    return FutureBuilder<Set<int>>(
+      future: FavoritesService.instance.getFavorites(),
       builder: (context, snapshot) {
-        final currentIndex = snapshot.data ?? 0;
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: Colors.white));
+        }
+
+        final favorites = snapshot.data!.toList()..sort();
+        if (favorites.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.favorite_border, size: 64, color: Colors.white30),
+                const SizedBox(height: 16),
+                const Text(
+                  "Aucun favori pour le moment.",
+                  style: TextStyle(color: Colors.white60, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Ajoutez des sourates en cliquant sur ❤️",
+                  style: TextStyle(color: Colors.white38, fontSize: 14),
+                ),
+              ],
+            ),
+          );
+        }
+
         return ListView.builder(
-          itemCount: playlist.length,
+          itemCount: favorites.length,
           itemBuilder: (context, index) {
-            final surahId = (playlist[index] as UriAudioSource).tag as int;
+            final surahId = favorites[index];
             final surahName = surahFr[surahId] ?? "Sourate $surahId";
-            final bool isPlaying = index == currentIndex;
+            final currentSurahId = _audio.currentSurahId;
+            final bool isPlaying = currentSurahId == surahId;
 
             return ListTile(
               leading: isPlaying
                   ? Icon(Icons.volume_up, color: gold)
-                  : Text("${index + 1}", style: TextStyle(color: Colors.white60, fontSize: 16)),
-              title: Text(surahName, style: TextStyle(color: isPlaying ? gold : Colors.white, fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal)),
+                  : Text("$surahId", style: const TextStyle(color: Colors.white60, fontSize: 16)),
+              title: Text(
+                surahName,
+                style: TextStyle(
+                  color: isPlaying ? gold : Colors.white,
+                  fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.white38),
+                onPressed: () async {
+                  await FavoritesService.instance.removeFavorite(surahId);
+                  setState(() {}); // Rafraîchir la liste
+                },
+              ),
               onTap: () {
-                _audio.seekToIndex(index);
+                _audio.loadPlaylistAndPlay(surahId);
               },
             );
           },
@@ -425,31 +718,33 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 },
               ),
               const SizedBox(width: 4),
+              FutureBuilder<bool>(
+                future: _audio.currentSurahId != null 
+                    ? FavoritesService.instance.isFavorite(_audio.currentSurahId!)
+                    : Future.value(false),
+                builder: (context, snapshot) {
+                  final isFavorite = snapshot.data ?? false;
+                  return IconButton(
+                    icon: Icon(
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: isFavorite ? Colors.red : Colors.white70,
+                    ),
+                    iconSize: 28,
+                    onPressed: () async {
+                      final surahId = _audio.currentSurahId;
+                      if (surahId != null) {
+                        await FavoritesService.instance.toggleFavorite(surahId);
+                        setState(() {}); // Rafraîchir l'icône
+                      }
+                    },
+                  );
+                },
+              ),
+              const SizedBox(width: 4),
               IconButton(
                 icon: const Icon(Icons.tune_rounded, color: Colors.white70),
                 iconSize: 28,
                 onPressed: () => _openRiwayaPicker(_audio),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(Icons.person_search, color: Colors.white70),
-                iconSize: 28,
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    useRootNavigator: true,
-                    useSafeArea: true,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (sheetContext) => ReciterSelectorSheet(
-                      onSelected: (name, server) {
-                        _audio.setReciter(name, server);
-                        final id = _audio.currentSurahId;
-                        if (id != null) _audio.loadPlaylistAndPlay(id);
-                      },
-                    ),
-                  );
-                },
               ),
             ],
           ),
