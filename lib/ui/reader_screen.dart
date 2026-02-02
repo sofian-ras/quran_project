@@ -14,6 +14,7 @@ import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../services/reading_history_service.dart';
 import '../services/bookmark_service.dart';
+import '../services/last_reading_service.dart';
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -291,6 +292,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
       surahId: surah['id'] as int,
       surahName: surah['nameFr'] as String,
       reading: currentReading,
+    );
+
+    // Sauvegarder aussi la dernière position de lecture
+    LastReadingService.saveLastReading(
+      surahNumber: surah['id'] as int,
+      pageNumber: page,
     );
   }
 

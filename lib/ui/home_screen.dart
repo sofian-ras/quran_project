@@ -14,16 +14,19 @@ import 'full_player_screen.dart';
 import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
 import 'surah_list_screen.dart';
+import 'translated_quran_screen.dart';
 import 'widgets/home_reciter_widget.dart';
 import 'widgets/ios_side_menu.dart';
 import 'widgets/mini_audio_player.dart';
+import 'widgets/continue_reading_card.dart';
+import 'widgets/daily_verse_card.dart';
 import '../theme/theme_service.dart';
-import 'widgets/prayer_times_card.dart';
 import '../models/reciter.dart';
 import 'package:dio/dio.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'widgets/location_picker_dialog.dart';
 import '../services/location_service.dart';
+import 'prayers_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -915,6 +918,11 @@ Future<void> _checkFirstLaunch() async {
 
                                     const SliverToBoxAdapter(child: SizedBox(height: 0)),
 
+                                    // Carte "Verset du jour"
+                                    const SliverToBoxAdapter(
+                                      child: DailyVerseCard(),
+                                    ),
+
                                     SliverPadding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       sliver: SliverToBoxAdapter(
@@ -965,8 +973,8 @@ Future<void> _checkFirstLaunch() async {
                                         child: _ContentCardsSection(
                                           items: const [
                                             _ContentCardData(
-                                              title: 'Boys Quran Class',
-                                              subtitle: 'Start at 9:00 AM',
+                                              title: 'Coran en français',
+                                              subtitle: 'Lire avec traduction',
                                               imageAsset: 'assets/images/cards/quran_class.jpg',
                                             ),
                                             _ContentCardData(
@@ -975,7 +983,16 @@ Future<void> _checkFirstLaunch() async {
                                               imageAsset: 'assets/images/cards/tafsir.jpg',
                                             ),
                                           ],
-                                          onTap: (item) {},
+                                          onTap: (item) {
+                                            if (item.title == 'Coran en français') {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                                                ),
+                                              );
+                                            }
+                                          },
                                         ),
                                       ),
                                     ),
@@ -1096,27 +1113,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
     required this.prayerFuture,
     required this.activeIndexFromTimes,
   });
-
-  IconData _prayerIcon(String name) {
-    switch (name.toLowerCase()) {
-      case 'fajr':
-        return Icons.wb_twilight_rounded; // lever de soleil
-      case 'sunrise':
-        return Icons.wb_sunny_rounded;
-      case 'zohr':
-      case 'dhuhr':
-        return Icons.wb_sunny_outlined;
-      case 'asr':
-        return Icons.wb_sunny_rounded;
-      case 'maghrib':
-        return Icons.nights_stay_rounded; // coucher / nuit
-      case 'isha':
-        return Icons.nightlight_round;
-      default:
-        return Icons.access_time_rounded;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1240,14 +1236,22 @@ class _DribbbleHomeHeader extends StatelessWidget {
                       ],
                     ),
 
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 16),
                     if (snap.connectionState != ConnectionState.done || data == null)
-                      Text(
-                        'Chargement...',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.85),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                        ),
+                        child: Text(
+                          'Chargement des horaires...',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       )
                     else
@@ -1257,26 +1261,110 @@ class _DribbbleHomeHeader extends StatelessWidget {
                           final safeIndex = (activeIndex < 0 || activeIndex >= prayers.length) ? 0 : activeIndex;
                           final remaining = _DribbbleHomeHeader._remainingToNextPrayer(prayers, safeIndex);
                           final nextName = prayers[safeIndex].$1;
+                          final nextTime = prayers[safeIndex].$2;
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                nextName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                              // Ligne du haut : Hijri à gauche, localisation à droite
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    hijri,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () {
+                                      (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
+                                    },
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.place_rounded, size: 12, color: Colors.white.withOpacity(0.85)),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            location,
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(0.85),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 12),
+                              // Nom de la prière avec icône ET image mosquée en arrière-plan
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  // Image mosquée en arrière-plan à droite
+                                  Positioned(
+                                    right: -10,
+                                    top: -20,
+                                    child: Image.asset(
+                                      'assets/icon/mosquee.png',
+                                      width: 200,
+                                      height: 200,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                  // Contenu au premier plan
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            nextName,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              height: 1.0,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Icon(
+                                            _getPrayerIcon(nextName),
+                                            size: 20,
+                                            color: Colors.white,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      // L'heure grande
+                                      Text(
+                                        nextTime,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 56,
+                                          fontWeight: FontWeight.w900,
+                                          height: 0.95,
+                                          letterSpacing: -1,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // Temps restant
                               Text(
-                                'dans ${_DribbbleHomeHeader._fmt(remaining)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                remaining.isNegative 
+                                  ? 'La prière a commencé'
+                                  : 'dans ${_DribbbleHomeHeader._fmt(remaining)}',
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.85),
                                   fontSize: 13,
@@ -1288,126 +1376,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
                         },
                       ),
 
-
-                    const SizedBox(height: 1),
-
-                    // Mini-card Hijri + location (? droite)
-                    Transform.translate(
-                      offset: const Offset(0, -45),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              hijri,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            // Dans le build de _DribbbleHomeHeader, remplace la Row de location par :
-                            InkWell(
-                              onTap: () {
-                                // Appelle la méthode du parent pour changer la localisation
-                                (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.place_rounded, size: 14, color: Colors.white.withOpacity(0.9)),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      location,  // ← Juste "Ville, Pays", pas de coordonnées
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.9),
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Icon(
-                                      Icons.edit_location_alt_rounded,
-                                      size: 12,
-                                      color: Colors.white.withOpacity(0.7),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Pills prières (TOUTES visibles sans scroll)
-                    SizedBox(
-                      height: 100,
-                      child: Row(
-                        children: List.generate(prayers.length, (i) {
-                          final isActive = i == activeIndex;
-                          final name = prayers[i].$1;
-                          final hour = prayers[i].$2;
-
-                          return Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.only(right: i == prayers.length - 1 ? 0 : 6),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 220),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        name,
-                                        maxLines: 1,
-                                        style: TextStyle(
-                                          color: Colors.white.withOpacity(0.92),
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                          height: 1.0,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    // ✅ ICI l’icône entre le nom et l’heure
-                                    Icon(
-                                      _prayerIcon(name),
-                                      size: 20,
-                                      color: Colors.white.withOpacity(0.92),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        hour,
-                                        maxLines: 1,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 30,
-                                          fontWeight: FontWeight.w900,
-                                          height: 1.0,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-
                   ],
                 ),
               ),
@@ -1417,6 +1385,27 @@ class _DribbbleHomeHeader extends StatelessWidget {
       },
     );
   }
+
+  static IconData _getPrayerIcon(String name) {
+    switch (name.toLowerCase()) {
+      case 'fajr':
+        return Icons.wb_twilight_rounded;
+      case 'sunrise':
+        return Icons.wb_sunny_rounded;
+      case 'zohr':
+      case 'dhuhr':
+        return Icons.wb_sunny_outlined;
+      case 'asr':
+        return Icons.wb_sunny;
+      case 'maghrib':
+        return Icons.nights_stay_rounded;
+      case 'isha':
+        return Icons.nightlight_round;
+      default:
+        return Icons.access_time_rounded;
+    }
+  }
+  
   static Duration _remainingToNextPrayer(List<(String, String)> prayers, int activeIndex) {
     final now = DateTime.now();
     final hhmm = prayers[activeIndex].$2;
@@ -1559,7 +1548,7 @@ class _HeaderWithEngagement extends StatelessWidget {
     const double headerHeight = 320;
 
     // Position carte engagement
-    const double engagementTop = headerHeight - 40;
+    const double engagementTop = headerHeight - 60;
     const double engagementHeightApprox = 76;
 
     // Position carte reciters (elle chevauche la carte engagement)
@@ -1580,17 +1569,12 @@ class _HeaderWithEngagement extends StatelessWidget {
             ),
           ),
 
-          // === Carte Quran engagement ===
+          // === Carte Reprendre la lecture ===
           Positioned(
             left: 16,
             right: 16,
             top: engagementTop,
-            child: _QuranEngagementCard(
-              minutes: 15,
-              subtitle: 'Quran engagement time',
-              buttonText: 'Continue',
-              onPressed: onContinue,
-            ),
+            child: const ContinueReadingCard(),
           ),
 
           // === Carte Reciters (AU-DESSUS) ===
