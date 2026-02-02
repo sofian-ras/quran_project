@@ -323,10 +323,12 @@ class _PrayersScreenState extends State<PrayersScreen> {
                     children: [
                       Text(
                         'Notifications',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF0EA5E9),
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? Colors.white 
+                              : const Color(0xFF0EA5E9),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -518,7 +520,7 @@ class _PrayerCardState extends State<_PrayerCard> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: widget.isNext ? prayerColor : Colors.grey[800],
+                    color: widget.isNext ? prayerColor : Theme.of(context).textTheme.bodyLarge?.color,
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -542,7 +544,7 @@ class _PrayerCardState extends State<_PrayerCard> {
             style: TextStyle(
               fontSize: widget.isNext ? 22 : 18,
               fontWeight: FontWeight.w900,
-              color: widget.isNext ? prayerColor : Colors.grey[700],
+              color: widget.isNext ? prayerColor : Theme.of(context).textTheme.bodyLarge?.color,
               letterSpacing: -0.5,
             ),
           ),
@@ -628,7 +630,10 @@ class _NotificationToggleState extends State<_NotificationToggle> {
         ),
         subtitle: Text(
           widget.subtitle,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          style: TextStyle(
+            fontSize: 12, 
+            color: Theme.of(context).textTheme.bodySmall?.color,
+          ),
         ),
         value: _value,
         onChanged: _setValue,
@@ -722,7 +727,10 @@ class _MuezzinSelectorState extends State<_MuezzinSelector> {
           ),
           subtitle: Text(
             _muezzins[_selected] ?? _selected,
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            style: TextStyle(
+              fontSize: 12, 
+              color: Theme.of(context).textTheme.bodySmall?.color,
+            ),
           ),
           trailing: Icon(
             Icons.arrow_forward_ios_rounded,
@@ -757,7 +765,7 @@ class _MuezzinSelectorState extends State<_MuezzinSelector> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: Colors.grey[800],
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
                   ),
@@ -779,7 +787,9 @@ class _MuezzinSelectorState extends State<_MuezzinSelector> {
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                            color: isSelected ? const Color(0xFF0EA5E9) : Colors.grey[800],
+                            color: isSelected 
+                                ? const Color(0xFF0EA5E9) 
+                                : Theme.of(context).textTheme.bodyLarge?.color,
                           ),
                         ),
                         trailing: IconButton(

@@ -155,7 +155,9 @@ class _DownloadProgressWidgetState extends State<DownloadProgressWidget>
                             builder: (context, value, child) {
                               return LinearProgressIndicator(
                                 value: value,
-                                backgroundColor: Colors.grey[300],
+                                backgroundColor: theme.brightness == Brightness.dark
+                                    ? Colors.white.withOpacity(0.2)
+                                    : Colors.grey[300],
                                 valueColor: AlwaysStoppedAnimation<Color>(
                                   theme.colorScheme.primary,
                                 ),
@@ -172,7 +174,9 @@ class _DownloadProgressWidgetState extends State<DownloadProgressWidget>
                         Text(
                           _getDownloadedSize(widget.progress),
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
+                            color: theme.brightness == Brightness.dark
+                                ? Colors.white.withOpacity(0.7)
+                                : Colors.grey[600],
                           ),
                         ),
                     ],
@@ -190,7 +194,9 @@ class _DownloadProgressWidgetState extends State<DownloadProgressWidget>
                 Text(
                   'Extraction des fichiers en cours...',
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey[700],
+                    color: theme.brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.7)
+                        : Colors.grey[700],
                   ),
                 ),
               ],
@@ -236,7 +242,9 @@ class _DownloadProgressWidgetState extends State<DownloadProgressWidget>
                     Icon(
                       Icons.hourglass_bottom,
                       size: 16,
-                      color: Colors.grey[600],
+                      color: theme.brightness == Brightness.dark
+                          ? Colors.white.withOpacity(0.6)
+                          : Colors.grey[600],
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -244,7 +252,9 @@ class _DownloadProgressWidgetState extends State<DownloadProgressWidget>
                           ? 'Cela peut prendre quelques minutes...'
                           : 'Première installation - Téléchargement unique',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[600],
+                        color: theme.brightness == Brightness.dark
+                            ? Colors.white.withOpacity(0.6)
+                            : Colors.grey[600],
                       ),
                     ),
                   ],
@@ -298,7 +308,9 @@ class CompactDownloadProgress extends StatelessWidget {
                   CircularProgressIndicator(
                     value: progress,
                     strokeWidth: 8,
-                    backgroundColor: Colors.grey[300],
+                    backgroundColor: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.2)
+                        : Colors.grey[300],
                   ),
                   Center(
                     child: Text(
@@ -330,7 +342,9 @@ class CompactDownloadProgress extends StatelessWidget {
               'Veuillez patienter',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[600],
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.6)
+                    : Colors.grey[600],
               ),
             ),
           ],

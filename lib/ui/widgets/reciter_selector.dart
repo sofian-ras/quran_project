@@ -24,7 +24,7 @@ class _ReciterSelectorSheetState extends State<ReciterSelectorSheet> {
 
   void _fetchReciters() async {
     try {
-      final res = await Dio().get("https://mp3quran.net/api/v3/reciters?language=fr");
+      final res = await Dio().get("https://mp3quran.net/api/v3/reciters?language=eng");
       if (mounted) {
         // Trier pour mettre Abdul Rashid Sofy en premier
         final reciters = res.data['reciters'] as List;

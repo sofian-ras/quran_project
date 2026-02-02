@@ -27,6 +27,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'widgets/location_picker_dialog.dart';
 import '../services/location_service.dart';
 import 'prayers_screen.dart';
+import '../services/mp3quran_api.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -82,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   List<Reciter> _reciters = [];
   bool _recitersLoading = true;
   final Map<String, String> _reciterAssetsByName = {};
+  final Map<int, String> _baseUrlById = {}; // Cache des baseUrl préchargées
   final Dio _dio = Dio();
   bool _serversLoading = false;
 
@@ -211,16 +213,19 @@ Future<void> _checkFirstLaunch() async {
       final List<dynamic> data = json.decode(jsonStr) as List<dynamic>;
 
       final List<Reciter> list = [];
+      final List<int> reciterIds = [];
       _reciterAssetsByName.clear();
 
       for (final e in data) {
         final m = e as Map<String, dynamic>;
         final name = (m['name'] ?? '').toString().trim();
         final asset = (m['asset'] ?? '').toString().trim();
-        final baseUrl = (m['baseUrl'] ?? '').toString().trim();
         if (name.isEmpty) continue;
 
         final reciterId = m['reciterId'] as int?;
+        if (reciterId != null) {
+          reciterIds.add(reciterId);
+        }
 
         list.add(Reciter(
           id: '',
@@ -229,7 +234,7 @@ Future<void> _checkFirstLaunch() async {
           letter: '',
           reciterId: reciterId,
           moshafId: null,
-          baseUrl: baseUrl.isNotEmpty ? baseUrl : null,
+          baseUrl: null, // Sera récupéré dynamiquement
         ));
 
         if (asset.isNotEmpty) {
@@ -242,9 +247,26 @@ Future<void> _checkFirstLaunch() async {
         _reciters = list;
         _recitersLoading = false;
       });
+
+      // Précharger les baseUrl en arrière-plan
+      if (reciterIds.isNotEmpty) {
+        _preloadBaseUrls(reciterIds);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _recitersLoading = false);
+    }
+  }
+
+  Future<void> _preloadBaseUrls(List<int> reciterIds) async {
+    try {
+      final baseUrls = await Mp3QuranApi.instance.preloadBaseUrls(reciterIds);
+      if (!mounted) return;
+      setState(() {
+        _baseUrlById.addAll(baseUrls);
+      });
+    } catch (e) {
+      print('Erreur lors du préchargement des baseUrl: $e');
     }
   }
 
@@ -714,7 +736,8 @@ Future<void> _checkFirstLaunch() async {
           options.add(_MoshafOption(
             id: id,
             name: mName,
-            server: server.endsWith('/') ? server : '$server/',
+            server: server.endsWith('/') ? server.substring(0, server.length - 1) : server,
+
             surahTotal: total,
           ));
         }
@@ -736,33 +759,34 @@ Future<void> _checkFirstLaunch() async {
 
 
   Future<void> _onReciterSelected(Reciter r) async {
-    // Si le réciteur a une baseUrl configurée, l'utiliser directement
     String? server;
     
-    if (r.baseUrl != null && r.baseUrl!.isNotEmpty) {
-      server = r.baseUrl;
-    } else if (r.reciterId != null) {
-      // Fallback: Utiliser reciterId pour trouver le serveur
-      await _loadReciterServersIfNeeded();
-      final options = _moshafById[r.reciterId] ?? [];
-      
-      if (options.isNotEmpty) {
-        // Prendre simplement le premier moshaf disponible (généralement Hafs)
-        server = options.first.server;
-      }
+    // Résolution par NOM (plus fiable que reciterId pour les featured reciters)
+    await _loadReciterServersIfNeeded();
+    final options = _moshafByName[_normName(r.name)] ?? [];
+    
+    if (options.isNotEmpty) {
+      server = _pickDefaultServer(options);
     }
     
-    // Si pas de serveur trouvé via baseUrl ou reciterId, essayer de résoudre par nom
+    // Fallback: résoudre par nom via API
     if (server == null || server.isEmpty) {
       server = await _resolveServerForReciter(r.name);
     }
     
     // Si toujours pas de serveur, afficher une erreur
     if (server == null || server.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Impossible de charger ${r.name}')),
       );
       return;
+    }
+
+    // Normalisation: trim et enlever slash final
+    server = server.trim();
+    if (server.endsWith('/')) {
+      server = server.substring(0, server.length - 1);
     }
 
     // Lancer le lecteur audio avec le récitateur
@@ -771,6 +795,7 @@ Future<void> _checkFirstLaunch() async {
     // Lancer automatiquement la première sourate (Al-Fatiha)
     await _audio.loadPlaylistAndPlay(1);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('▶ ${r.name} - Al-Fatiha'),

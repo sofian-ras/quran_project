@@ -50,7 +50,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   Future<List<Map<String, dynamic>>> _fetchMoshafOptions(String reciterName) async {
     final base = _baseReciterName(reciterName);
 
-    final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=fr");
+    final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
     final reciters = (res.data['reciters'] as List?) ?? const [];
 
     for (final item in reciters) {
