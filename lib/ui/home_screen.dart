@@ -977,6 +977,19 @@ Future<void> _checkFirstLaunch() async {
 
                                     const SliverToBoxAdapter(child: SizedBox(height: 0)),
 
+                                    // Verset du jour
+                                    SliverToBoxAdapter(
+                                      child: Transform.translate(
+                                        offset: const Offset(0, -20),
+                                        child: const Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: 16),
+                                          child: _VerseOfTheDayCard(),
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
                                     // Vidéo du jour
                                     SliverToBoxAdapter(
                                       child: Transform.translate(
@@ -2139,6 +2152,364 @@ class _DiagonalBannerClipper extends CustomClipper<Path> {
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
+class _VerseOfTheDayCard extends StatefulWidget {
+  const _VerseOfTheDayCard();
+
+  @override
+  State<_VerseOfTheDayCard> createState() => _VerseOfTheDayCardState();
+}
+
+class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
+  String _arabicText = '';
+  String _translationText = '';
+  int _surahNumber = 1;
+  int _verseNumber = 1;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRandomVerse();
+  }
+
+  Future<void> _loadRandomVerse() async {
+    try {
+      // Générer un verset aléatoire basé sur la date du jour
+      final today = DateTime.now();
+      final seed = today.year * 10000 + today.month * 100 + today.day;
+      final random = math.Random(seed);
+      
+      // Sourate aléatoire (1-114)
+      _surahNumber = 1 + random.nextInt(114);
+      
+      // Charger les métadonnées pour connaître le nombre de versets
+      final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
+      final List<dynamic> quranData = json.decode(jsonStr);
+      
+      // Compter les versets de cette sourate
+      final versesInSurah = quranData.where((v) => v['surah'] == _surahNumber).length;
+      if (versesInSurah == 0) {
+        _surahNumber = 2;
+        _verseNumber = 286; // Fallback sur le verset célèbre
+      } else {
+        _verseNumber = 1 + random.nextInt(versesInSurah);
+      }
+      
+      // Récupérer le verset spécifique
+      final verse = quranData.firstWhere(
+        (v) => v['surah'] == _surahNumber && v['verse'] == _verseNumber,
+        orElse: () => quranData.firstWhere((v) => v['surah'] == 2 && v['verse'] == 286),
+      );
+      
+      _arabicText = verse['text']?.toString() ?? '';
+      _translationText = verse['translation']?.toString() ?? '';
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    } catch (e) {
+      // Fallback sur un verset par défaut
+      _surahNumber = 2;
+      _verseNumber = 286;
+      _arabicText = 'لَا يُكَلِّفُ ٱللَّهُ نَفْسًا إِلَّا وُسْعَهَا';
+      _translationText = 'Allah n\'impose à aucune âme une charge supérieure à sa capacité.';
+      
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    if (_isLoading) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F1734) : const Color(0xFFE8DCC8),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final surahName = surahFr[_surahNumber] ?? 'Sourate $_surahNumber';
+    
+    // Couleurs style manuscrit Coran exactement comme l'image
+    final bgColor = isDark ? const Color(0xFF0F1734) : const Color(0xFFE8DCC8);
+    final arabicColor = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF3D2817);
+    final translationColor = isDark ? const Color(0xFFD4C5B0) : const Color(0xFF6B5744);
+    final goldColor = const Color(0xFFA67C52);
+    final borderColor = goldColor.withOpacity(isDark ? 0.3 : 0.4);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: borderColor,
+          width: 2.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Bandeau décoratif supérieur (comme dans l'image)
+          Container(
+            height: 50,
+            decoration: BoxDecoration(
+              color: isDark ? goldColor.withOpacity(0.15) : Colors.white.withOpacity(0.6),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              border: Border(
+                bottom: BorderSide(color: borderColor, width: 2),
+              ),
+            ),
+            child: CustomPaint(
+              painter: _QuranHeaderBannerPainter(color: goldColor, isDark: isDark),
+              child: Center(
+                child: Text(
+                  'Verset du jour',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: arabicColor,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Contenu du verset
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+            child: Column(
+              children: [
+                // Bismillah stylisé
+                Text(
+                  'بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيْمِ',
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily: 'UthmanicHafs',
+                    fontSize: 18,
+                    color: goldColor,
+                    height: 2.0,
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+
+                // Verset en arabe
+                Text(
+                  _arabicText,
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily: 'UthmanicHafs',
+                    fontSize: 22,
+                    color: arabicColor,
+                    height: 2.2,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Séparateur ornemental
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 1.5,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            goldColor.withOpacity(0.5),
+                            goldColor,
+                            goldColor.withOpacity(0.5),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                // Traduction française
+                Text(
+                  _translationText,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: translationColor,
+                    height: 1.65,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Référence avec ornement
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: goldColor.withOpacity(isDark ? 0.15 : 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: goldColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.bookmark_rounded,
+                        size: 12,
+                        color: goldColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$surahName $_surahNumber:$_verseNumber',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: goldColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrnamentLine(Color color, double width) {
+    return Container(
+      width: width,
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.transparent, color.withOpacity(0.4), Colors.transparent],
+        ),
+      ),
+    );
+  }
+}
+
+// Painter pour le bandeau décoratif supérieur (style image Coran)
+class _QuranHeaderBannerPainter extends CustomPainter {
+  final Color color;
+  final bool isDark;
+
+  _QuranHeaderBannerPainter({required this.color, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withOpacity(isDark ? 0.25 : 0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final fillPaint = Paint()
+      ..color = color.withOpacity(isDark ? 0.1 : 0.15)
+      ..style = PaintingStyle.fill;
+
+    // Ornements circulaires à gauche
+    _drawCircularOrnament(canvas, paint, fillPaint, Offset(size.width * 0.08, size.height * 0.5), 16);
+    _drawCircularOrnament(canvas, paint, fillPaint, Offset(size.width * 0.18, size.height * 0.5), 12);
+
+    // Ornements circulaires à droite
+    _drawCircularOrnament(canvas, paint, fillPaint, Offset(size.width * 0.92, size.height * 0.5), 16);
+    _drawCircularOrnament(canvas, paint, fillPaint, Offset(size.width * 0.82, size.height * 0.5), 12);
+  }
+
+  void _drawCircularOrnament(Canvas canvas, Paint strokePaint, Paint fillPaint, Offset center, double radius) {
+    // Cercle extérieur
+    canvas.drawCircle(center, radius, strokePaint);
+    
+    // Cercle intérieur rempli
+    canvas.drawCircle(center, radius * 0.6, fillPaint);
+    
+    // Motif floral/étoile au centre
+    final innerPaint = Paint()
+      ..color = strokePaint.color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    
+    for (int i = 0; i < 8; i++) {
+      final angle = (i * math.pi / 4);
+      final x1 = center.dx + (radius * 0.3) * math.cos(angle);
+      final y1 = center.dy + (radius * 0.3) * math.sin(angle);
+      final x2 = center.dx + (radius * 0.5) * math.cos(angle);
+      final y2 = center.dy + (radius * 0.5) * math.sin(angle);
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), innerPaint);
+    }
+    
+    // Point central
+    canvas.drawCircle(center, 2, Paint()..color = strokePaint.color..style = PaintingStyle.fill);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Painter pour les ornements d'angle style manuscrit islamique
+class _CornerOrnamentPainter extends CustomPainter {
+  final Color color;
+  final bool isDark;
+
+  _CornerOrnamentPainter({required this.color, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withOpacity(isDark ? 0.15 : 0.12)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final path = Path();
+    
+    // Arc en coin
+    path.moveTo(8, 0);
+    path.lineTo(8, 20);
+    path.quadraticBezierTo(8, 8, 20, 8);
+    path.lineTo(0, 8);
+    
+    canvas.drawPath(path, paint);
+    
+    // Petites courbes décoratives
+    final decorPath = Path();
+    decorPath.moveTo(12, 12);
+    decorPath.quadraticBezierTo(16, 14, 14, 18);
+    canvas.drawPath(decorPath, paint);
+    
+    // Point décoratif
+    final dotPaint = Paint()
+      ..color = color.withOpacity(isDark ? 0.2 : 0.15)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(const Offset(15, 15), 2, dotPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _HomeCardShell extends StatelessWidget {
   final Widget child;
   const _HomeCardShell({required this.child});
@@ -2268,191 +2639,72 @@ class _FeatureSquareItem extends StatelessWidget {
 
 }
 
-// Painter élégant avec motifs islamiques et dorures sophistiquées
+// Painter minimaliste et élégant - juste quelques touches dorées subtiles
 class _GoldenDecorPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final goldColor = const Color(0xFFC8A165);
-    final accentGold = const Color(0xFFD4AF37);
     
     // ═══════════════════════════════════════════════════
-    // 1. GRANDES COURBES ÉLÉGANTES EN FOND
+    // Juste 2-3 éléments discrets et raffinés
     // ═══════════════════════════════════════════════════
-    final curvePaint = Paint()
+    
+    // 1. Fine ligne dorée en haut (très subtile)
+    final topLinePaint = Paint()
       ..shader = LinearGradient(
         colors: [
-          goldColor.withOpacity(0.08),
-          accentGold.withOpacity(0.15),
-          goldColor.withOpacity(0.06),
+          Colors.transparent,
+          goldColor.withOpacity(0.15),
+          goldColor.withOpacity(0.20),
+          goldColor.withOpacity(0.15),
+          Colors.transparent,
         ],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.fill;
+      ).createShader(Rect.fromLTWH(0, 0, size.width, 1))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    
+    canvas.drawLine(
+      Offset(0, size.height * 0.15),
+      Offset(size.width, size.height * 0.15),
+      topLinePaint,
+    );
 
-    // Courbe gauche élégante
-    final leftCurve = Path();
-    leftCurve.moveTo(0, 0);
-    leftCurve.quadraticBezierTo(
-      size.width * 0.15, size.height * 0.25,
-      size.width * 0.08, size.height * 0.5,
+    // 2. Une seule petite étoile élégante coin supérieur droit
+    final starPaint = Paint()
+      ..color = goldColor.withOpacity(0.12)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    
+    _drawSimpleStar(
+      canvas,
+      starPaint,
+      Offset(size.width * 0.88, size.height * 0.08),
+      20,
     );
-    leftCurve.quadraticBezierTo(
-      size.width * 0.02, size.height * 0.7,
-      0, size.height,
-    );
-    leftCurve.lineTo(0, 0);
-    leftCurve.close();
-    canvas.drawPath(leftCurve, curvePaint);
 
-    // Courbe droite élégante
-    final rightCurve = Path();
-    rightCurve.moveTo(size.width, 0);
-    rightCurve.quadraticBezierTo(
-      size.width * 0.88, size.height * 0.3,
-      size.width * 0.94, size.height * 0.55,
-    );
-    rightCurve.quadraticBezierTo(
-      size.width * 0.97, size.height * 0.75,
-      size.width, size.height,
-    );
-    rightCurve.lineTo(size.width, 0);
-    rightCurve.close();
-    canvas.drawPath(rightCurve, curvePaint);
-
-    // ═══════════════════════════════════════════════════
-    // 2. MOTIFS GÉOMÉTRIQUES ISLAMIQUES
-    // ═══════════════════════════════════════════════════
-    final patternPaint = Paint()
-      ..color = goldColor.withOpacity(0.15)
+    // 3. Petite arabesque discrète coin inférieur
+    final arabPaint = Paint()
+      ..color = goldColor.withOpacity(0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    // Étoiles géométriques dispersées
-    _drawIslamicStar(canvas, patternPaint, Offset(size.width * 0.15, size.height * 0.2), 28);
-    _drawIslamicStar(canvas, patternPaint, Offset(size.width * 0.82, size.height * 0.35), 32);
-    _drawIslamicStar(canvas, patternPaint, Offset(size.width * 0.25, size.height * 0.65), 25);
-    _drawIslamicStar(canvas, patternPaint, Offset(size.width * 0.88, size.height * 0.75), 30);
-
-    // Petites étoiles subtiles
-    final smallStarPaint = Paint()
-      ..color = goldColor.withOpacity(0.10)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
-    
-    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.35, size.height * 0.15), 15);
-    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.70, size.height * 0.18), 18);
-    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.12, size.height * 0.45), 16);
-    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.65, size.height * 0.58), 17);
-    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.42, size.height * 0.82), 19);
-
-    // ═══════════════════════════════════════════════════
-    // 3. LIGNES DÉCORATIVES ONDULÉES
-    // ═══════════════════════════════════════════════════
-    final wavePaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          goldColor.withOpacity(0.0),
-          goldColor.withOpacity(0.25),
-          accentGold.withOpacity(0.30),
-          goldColor.withOpacity(0.25),
-          goldColor.withOpacity(0.0),
-        ],
-        stops: const [0.0, 0.2, 0.5, 0.8, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // Vague haute
-    final topWave = Path();
-    topWave.moveTo(0, size.height * 0.25);
-    for (double x = 0; x <= size.width; x += 10) {
-      final y = size.height * 0.25 + 15 * math.sin(x / 80);
-      topWave.lineTo(x, y);
-    }
-    canvas.drawPath(topWave, wavePaint);
-
-    // Vague centrale
-    final midWave = Path();
-    midWave.moveTo(0, size.height * 0.52);
-    for (double x = 0; x <= size.width; x += 10) {
-      final y = size.height * 0.52 + 12 * math.sin(x / 70 + math.pi / 4);
-      midWave.lineTo(x, y);
-    }
-    canvas.drawPath(midWave, wavePaint);
-
-    // ═══════════════════════════════════════════════════
-    // 4. POINTS LUMINEUX DISPERSÉS
-    // ═══════════════════════════════════════════════════
-    final dotPaint = Paint()
-      ..color = accentGold.withOpacity(0.20)
-      ..style = PaintingStyle.fill;
-
-    final positions = [
-      Offset(size.width * 0.20, size.height * 0.12),
-      Offset(size.width * 0.45, size.height * 0.28),
-      Offset(size.width * 0.75, size.height * 0.22),
-      Offset(size.width * 0.30, size.height * 0.48),
-      Offset(size.width * 0.85, size.height * 0.62),
-      Offset(size.width * 0.18, size.height * 0.78),
-      Offset(size.width * 0.55, size.height * 0.72),
-      Offset(size.width * 0.72, size.height * 0.88),
-    ];
-
-    for (final pos in positions) {
-      canvas.drawCircle(pos, 2.5, dotPaint);
-      
-      // Halo autour de chaque point
-      final haloPaint = Paint()
-        ..color = goldColor.withOpacity(0.08)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(pos, 6, haloPaint);
-    }
-
-    // ═══════════════════════════════════════════════════
-    // 5. ARABESQUES COINS
-    // ═══════════════════════════════════════════════════
-    final arabPaint = Paint()
-      ..color = goldColor.withOpacity(0.12)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    // Coin supérieur droit
-    final topRightArab = Path();
-    topRightArab.moveTo(size.width, 0);
-    topRightArab.quadraticBezierTo(
-      size.width * 0.92, size.height * 0.05,
-      size.width * 0.88, size.height * 0.08,
+    final decorPath = Path();
+    decorPath.moveTo(size.width * 0.85, size.height * 0.92);
+    decorPath.quadraticBezierTo(
+      size.width * 0.90, size.height * 0.94,
+      size.width * 0.95, size.height * 0.93,
     );
-    topRightArab.quadraticBezierTo(
-      size.width * 0.92, size.height * 0.10,
-      size.width * 0.95, size.height * 0.12,
-    );
-    canvas.drawPath(topRightArab, arabPaint);
-
-    // Coin inférieur gauche
-    final bottomLeftArab = Path();
-    bottomLeftArab.moveTo(0, size.height);
-    bottomLeftArab.quadraticBezierTo(
-      size.width * 0.08, size.height * 0.95,
-      size.width * 0.12, size.height * 0.92,
-    );
-    bottomLeftArab.quadraticBezierTo(
-      size.width * 0.08, size.height * 0.90,
-      size.width * 0.05, size.height * 0.88,
-    );
-    canvas.drawPath(bottomLeftArab, arabPaint);
+    canvas.drawPath(decorPath, arabPaint);
   }
 
-  // Dessiner une étoile islamique à 8 branches
-  void _drawIslamicStar(Canvas canvas, Paint paint, Offset center, double radius) {
+  // Étoile simple et épurée
+  void _drawSimpleStar(Canvas canvas, Paint paint, Offset center, double radius) {
     final path = Path();
-    const branches = 8;
-    const innerRadiusRatio = 0.5;
+    const points = 8;
     
-    for (int i = 0; i < branches * 2; i++) {
-      final angle = (i * math.pi / branches) - math.pi / 2;
-      final r = (i % 2 == 0) ? radius : radius * innerRadiusRatio;
+    for (int i = 0; i < points * 2; i++) {
+      final angle = (i * math.pi / points) - math.pi / 2;
+      final r = (i % 2 == 0) ? radius : radius * 0.5;
       final x = center.dx + r * math.cos(angle);
       final y = center.dy + r * math.sin(angle);
       
@@ -2464,9 +2716,6 @@ class _GoldenDecorPainter extends CustomPainter {
     }
     path.close();
     canvas.drawPath(path, paint);
-    
-    // Cercle central
-    canvas.drawCircle(center, radius * 0.2, paint);
   }
 
   @override
