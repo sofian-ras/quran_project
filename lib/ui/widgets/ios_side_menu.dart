@@ -70,81 +70,57 @@ class IOSSideMenu extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header (glass)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: Container(
-                  margin: const EdgeInsets.all(12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: glass2,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(width: 1.2, color: border),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: baseBlue,
-                          boxShadow: [
-                            BoxShadow(
-                              color: baseBlue.withOpacity(0.35),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
+            // Header (sans encadré, juste halo de lumière)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: baseBlue.withOpacity(0.3),
+                          blurRadius: 20,
+                          spreadRadius: 5,
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.asset(
-                            'assets/icon/logo_coran.png',
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                CupertinoIcons.book_fill,
-                                color: Colors.white,
-                                size: 28,
-                              );
-                            },
-                          ),
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.1),
+                          blurRadius: 10,
+                          spreadRadius: 2,
                         ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/icon/logo_quranv2.webp',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            CupertinoIcons.book_fill,
+                            color: Colors.white,
+                            size: 28,
+                          );
+                        },
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'القرآن الكريم',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: text,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Amiri',
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Coran Premium',
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: textMuted,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Quran',
+                      style: TextStyle(
+                        fontSize: 22,
+                        color: text,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 

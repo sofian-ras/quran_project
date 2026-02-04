@@ -2207,83 +2207,41 @@ class _FeatureSquareItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final Color fg = isDark ? Colors.white : const Color(0xFF111827);
-
-    final Color bannerColor = isDark
-        ? Colors.black.withOpacity(0.35)
-        : Colors.white.withOpacity(0.55);
+    final Color iconColor = isDark ? Colors.white.withOpacity(0.9) : const Color(0xFF111827);
+    final Color labelColor = isDark ? Colors.white.withOpacity(0.8) : const Color(0xFF374151);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
+        splashColor: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+        highlightColor: (isDark ? Colors.white : Colors.black).withOpacity(0.05),
         child: Container(
-          height: 120, // <-- taille inchangée
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.08) : bgColor,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Stack(
-              children: [
-                // Voile léger (comme tes cards Programs)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.white.withOpacity(isDark ? 0.03 : 0.06),
-                            Colors.transparent,
-                            Colors.black.withOpacity(isDark ? 0.18 : 0.10),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PhosphorIcon(
+                icon,
+                size: 36,
+                color: iconColor,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: labelColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
                 ),
-
-                // Bande diagonale (même style)
-                Align(
-                  alignment: Alignment.bottomLeft,
-                  child: ClipPath(
-                    clipper: _DiagonalBannerClipper(),
-                    child: Container(color: bannerColor),
-                  ),
-                ),
-
-                // Contenu centré (icône + label) comme avant
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        PhosphorIcon(icon, size: 32, color: fg),
-                        const SizedBox(height: 10),
-                        Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: fg,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            height: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
