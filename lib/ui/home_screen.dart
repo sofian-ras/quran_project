@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
@@ -902,15 +903,13 @@ Future<void> _checkFirstLaunch() async {
                                     ],
                                   )
                                 : const LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Color(0xFFFFFFFF), // blanc lumineux
-                                      Color(0xFFF9FBFF), // blanc bleuté léger
-                                      Color(0xFFF2F6FF), // blanc froid doux
-                                    ],
-                                    stops: [0.0, 0.6, 1.0],
-                                  ),
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Color(0xFFFFFDF8),
+                                    Color(0xFFF7F3EA),
+                                  ],
+                                ),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(
@@ -924,6 +923,16 @@ Future<void> _checkFirstLaunch() async {
                           ),
                           child: Stack(
                             children: [
+                              // Traits dorés décoratifs (Option D personnalisée)
+                              if (Theme.of(context).brightness == Brightness.light)
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: CustomPaint(
+                                      painter: _GoldenDecorPainter(),
+                                    ),
+                                  ),
+                                ),
+                              
                               //  effet lumière subtil
                               Positioned.fill(
                                 child: IgnorePointer(
@@ -983,12 +992,12 @@ Future<void> _checkFirstLaunch() async {
                                           offset: const Offset(0, -40),
                                           child: _ExploreFeaturesSection(
                                             features: const [
-                                              _FeatureChipData(label: 'Player', icon: PhosphorIconsDuotone.playCircle),
-                                              _FeatureChipData(label: 'DuÊ¿a', icon: PhosphorIconsDuotone.handsPraying),
-                                              _FeatureChipData(label: 'Hadith', icon: PhosphorIconsDuotone.bookOpenText),
-                                              _FeatureChipData(label: 'Qibla', icon: PhosphorIconsDuotone.compassRose),
-                                              _FeatureChipData(label: 'Adhkar', icon: PhosphorIconsDuotone.moonStars),
-                                              _FeatureChipData(label: 'Bookmarks', icon: PhosphorIconsDuotone.bookmarkSimple),
+                                              _FeatureChipData(label: 'Player', imagePath: 'assets/images/Features/player.webp'),
+                                              _FeatureChipData(label: 'Duʿa', imagePath: 'assets/images/Features/dua.webp'),
+                                              _FeatureChipData(label: 'Hadith', imagePath: 'assets/images/Features/hadith.webp'),
+                                              _FeatureChipData(label: 'Qibla', imagePath: 'assets/images/Features/qibla.webp'),
+                                              _FeatureChipData(label: 'Adhkar', imagePath: 'assets/images/Features/adhkar.webp'),
+                                              _FeatureChipData(label: 'Bookmarks', imagePath: 'assets/images/Features/bookmarks.webp'),
                                             ],
                                             onTap: (f) {
                                               final ctx = NavigationService.navigatorKey.currentContext ?? context;
@@ -1028,12 +1037,12 @@ Future<void> _checkFirstLaunch() async {
                                             _ContentCardData(
                                               title: 'Coran en français',
                                               subtitle: 'Lire avec traduction',
-                                              imageAsset: 'assets/images/cards/quran_class.jpg',
+                                              imageAsset: 'assets/images/Programmes/coran_fr_thumbnail.webp',
                                             ),
                                             _ContentCardData(
                                               title: 'Tafsir Session',
-                                              subtitle: 'Tonight â€¢ 20:30',
-                                              imageAsset: 'assets/images/cards/tafsir.jpg',
+                                              subtitle: 'Tonight • 20:30',
+                                              imageAsset: 'assets/images/Programmes/tafsir.webp',
                                             ),
                                           ],
                                           onTap: (item) {
@@ -1816,9 +1825,9 @@ class _RecitersSection extends StatelessWidget {
 
 class _FeatureChipData {
   final String label;
-  final PhosphorIconData icon;
+  final String imagePath;
 
-  const _FeatureChipData({required this.label, required this.icon});
+  const _FeatureChipData({required this.label, required this.imagePath});
 }
 
 class _ExploreFeaturesSection extends StatelessWidget {
@@ -1856,7 +1865,7 @@ class _ExploreFeaturesSection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             scrollDirection: Axis.horizontal,
             itemCount: features.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 18),
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, i) {
               final f = features[i];
 
@@ -1870,10 +1879,10 @@ class _ExploreFeaturesSection extends StatelessWidget {
               ];
 
               return SizedBox(
-                width: 200,
+                width: 90,
                 child: _FeatureSquareItem(
                   label: f.label,
-                  icon: f.icon,
+                  imagePath: f.imagePath,
                   onTap: () => onTap(f),
                   isDark: isDark,
                   bgColor: pastel[i % pastel.length],
@@ -2192,14 +2201,14 @@ class _PrayerHeaderData {
 
 class _FeatureSquareItem extends StatelessWidget {
   final String label;
-  final PhosphorIconData icon;
+  final String imagePath;
   final VoidCallback onTap;
   final bool isDark;
   final Color bgColor;
 
   const _FeatureSquareItem({
     required this.label,
-    required this.icon,
+    required this.imagePath,
     required this.onTap,
     required this.isDark,
     required this.bgColor,
@@ -2207,7 +2216,6 @@ class _FeatureSquareItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color iconColor = isDark ? Colors.white.withOpacity(0.9) : const Color(0xFF111827);
     final Color labelColor = isDark ? Colors.white.withOpacity(0.8) : const Color(0xFF374151);
 
     return Material(
@@ -2215,18 +2223,28 @@ class _FeatureSquareItem extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        splashColor: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
-        highlightColor: (isDark ? Colors.white : Colors.black).withOpacity(0.05),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withOpacity(0.08) : bgColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              PhosphorIcon(
-                icon,
-                size: 36,
-                color: iconColor,
+              Image.asset(
+                imagePath,
+                width: 56,
+                height: 56,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    Icons.image_not_supported,
+                    size: 56,
+                    color: labelColor,
+                  );
+                },
               ),
               const SizedBox(height: 8),
               Text(
@@ -2250,38 +2268,207 @@ class _FeatureSquareItem extends StatelessWidget {
 
 }
 
-class _WavesPainter extends CustomPainter {
-  final Color color;
-  const _WavesPainter({required this.color});
-
+// Painter élégant avec motifs islamiques et dorures sophistiquées
+class _GoldenDecorPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
+    final goldColor = const Color(0xFFC8A165);
+    final accentGold = const Color(0xFFD4AF37);
+    
+    // ═══════════════════════════════════════════════════
+    // 1. GRANDES COURBES ÉLÉGANTES EN FOND
+    // ═══════════════════════════════════════════════════
+    final curvePaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          goldColor.withOpacity(0.08),
+          accentGold.withOpacity(0.15),
+          goldColor.withOpacity(0.06),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    // Courbe gauche élégante
+    final leftCurve = Path();
+    leftCurve.moveTo(0, 0);
+    leftCurve.quadraticBezierTo(
+      size.width * 0.15, size.height * 0.25,
+      size.width * 0.08, size.height * 0.5,
+    );
+    leftCurve.quadraticBezierTo(
+      size.width * 0.02, size.height * 0.7,
+      0, size.height,
+    );
+    leftCurve.lineTo(0, 0);
+    leftCurve.close();
+    canvas.drawPath(leftCurve, curvePaint);
+
+    // Courbe droite élégante
+    final rightCurve = Path();
+    rightCurve.moveTo(size.width, 0);
+    rightCurve.quadraticBezierTo(
+      size.width * 0.88, size.height * 0.3,
+      size.width * 0.94, size.height * 0.55,
+    );
+    rightCurve.quadraticBezierTo(
+      size.width * 0.97, size.height * 0.75,
+      size.width, size.height,
+    );
+    rightCurve.lineTo(size.width, 0);
+    rightCurve.close();
+    canvas.drawPath(rightCurve, curvePaint);
+
+    // ═══════════════════════════════════════════════════
+    // 2. MOTIFS GÉOMÉTRIQUES ISLAMIQUES
+    // ═══════════════════════════════════════════════════
+    final patternPaint = Paint()
+      ..color = goldColor.withOpacity(0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    // Étoiles géométriques dispersées
+    _drawIslamicStar(canvas, patternPaint, Offset(size.width * 0.15, size.height * 0.2), 28);
+    _drawIslamicStar(canvas, patternPaint, Offset(size.width * 0.82, size.height * 0.35), 32);
+    _drawIslamicStar(canvas, patternPaint, Offset(size.width * 0.25, size.height * 0.65), 25);
+    _drawIslamicStar(canvas, patternPaint, Offset(size.width * 0.88, size.height * 0.75), 30);
+
+    // Petites étoiles subtiles
+    final smallStarPaint = Paint()
+      ..color = goldColor.withOpacity(0.10)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+    
+    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.35, size.height * 0.15), 15);
+    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.70, size.height * 0.18), 18);
+    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.12, size.height * 0.45), 16);
+    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.65, size.height * 0.58), 17);
+    _drawIslamicStar(canvas, smallStarPaint, Offset(size.width * 0.42, size.height * 0.82), 19);
+
+    // ═══════════════════════════════════════════════════
+    // 3. LIGNES DÉCORATIVES ONDULÉES
+    // ═══════════════════════════════════════════════════
+    final wavePaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          goldColor.withOpacity(0.0),
+          goldColor.withOpacity(0.25),
+          accentGold.withOpacity(0.30),
+          goldColor.withOpacity(0.25),
+          goldColor.withOpacity(0.0),
+        ],
+        stops: const [0.0, 0.2, 0.5, 0.8, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
-    Path wave(double y, double amp) {
-      final p = Path()..moveTo(-size.width * 0.2, y);
-      p.cubicTo(
-        size.width * 0.15, y - amp,
-        size.width * 0.35, y + amp,
-        size.width * 0.55, y,
-      );
-      p.cubicTo(
-        size.width * 0.75, y - amp,
-        size.width * 0.95, y + amp,
-        size.width * 1.2, y,
-      );
-      return p;
+    // Vague haute
+    final topWave = Path();
+    topWave.moveTo(0, size.height * 0.25);
+    for (double x = 0; x <= size.width; x += 10) {
+      final y = size.height * 0.25 + 15 * math.sin(x / 80);
+      topWave.lineTo(x, y);
+    }
+    canvas.drawPath(topWave, wavePaint);
+
+    // Vague centrale
+    final midWave = Path();
+    midWave.moveTo(0, size.height * 0.52);
+    for (double x = 0; x <= size.width; x += 10) {
+      final y = size.height * 0.52 + 12 * math.sin(x / 70 + math.pi / 4);
+      midWave.lineTo(x, y);
+    }
+    canvas.drawPath(midWave, wavePaint);
+
+    // ═══════════════════════════════════════════════════
+    // 4. POINTS LUMINEUX DISPERSÉS
+    // ═══════════════════════════════════════════════════
+    final dotPaint = Paint()
+      ..color = accentGold.withOpacity(0.20)
+      ..style = PaintingStyle.fill;
+
+    final positions = [
+      Offset(size.width * 0.20, size.height * 0.12),
+      Offset(size.width * 0.45, size.height * 0.28),
+      Offset(size.width * 0.75, size.height * 0.22),
+      Offset(size.width * 0.30, size.height * 0.48),
+      Offset(size.width * 0.85, size.height * 0.62),
+      Offset(size.width * 0.18, size.height * 0.78),
+      Offset(size.width * 0.55, size.height * 0.72),
+      Offset(size.width * 0.72, size.height * 0.88),
+    ];
+
+    for (final pos in positions) {
+      canvas.drawCircle(pos, 2.5, dotPaint);
+      
+      // Halo autour de chaque point
+      final haloPaint = Paint()
+        ..color = goldColor.withOpacity(0.08)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(pos, 6, haloPaint);
     }
 
-    canvas.drawPath(wave(size.height * 0.32, 10), paint);
-    canvas.drawPath(wave(size.height * 0.55, 12), paint);
-    canvas.drawPath(wave(size.height * 0.78, 9), paint);
+    // ═══════════════════════════════════════════════════
+    // 5. ARABESQUES COINS
+    // ═══════════════════════════════════════════════════
+    final arabPaint = Paint()
+      ..color = goldColor.withOpacity(0.12)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    // Coin supérieur droit
+    final topRightArab = Path();
+    topRightArab.moveTo(size.width, 0);
+    topRightArab.quadraticBezierTo(
+      size.width * 0.92, size.height * 0.05,
+      size.width * 0.88, size.height * 0.08,
+    );
+    topRightArab.quadraticBezierTo(
+      size.width * 0.92, size.height * 0.10,
+      size.width * 0.95, size.height * 0.12,
+    );
+    canvas.drawPath(topRightArab, arabPaint);
+
+    // Coin inférieur gauche
+    final bottomLeftArab = Path();
+    bottomLeftArab.moveTo(0, size.height);
+    bottomLeftArab.quadraticBezierTo(
+      size.width * 0.08, size.height * 0.95,
+      size.width * 0.12, size.height * 0.92,
+    );
+    bottomLeftArab.quadraticBezierTo(
+      size.width * 0.08, size.height * 0.90,
+      size.width * 0.05, size.height * 0.88,
+    );
+    canvas.drawPath(bottomLeftArab, arabPaint);
+  }
+
+  // Dessiner une étoile islamique à 8 branches
+  void _drawIslamicStar(Canvas canvas, Paint paint, Offset center, double radius) {
+    final path = Path();
+    const branches = 8;
+    const innerRadiusRatio = 0.5;
+    
+    for (int i = 0; i < branches * 2; i++) {
+      final angle = (i * math.pi / branches) - math.pi / 2;
+      final r = (i % 2 == 0) ? radius : radius * innerRadiusRatio;
+      final x = center.dx + r * math.cos(angle);
+      final y = center.dy + r * math.sin(angle);
+      
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+    
+    // Cercle central
+    canvas.drawCircle(center, radius * 0.2, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _WavesPainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
