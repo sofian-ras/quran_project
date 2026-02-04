@@ -65,6 +65,9 @@ flutter:
 
   # Configuration des polices de caractères
   fonts:
+    - family: UthmanTahaNaskh
+      fonts:
+        - asset: assets/fonts/UthmanTN_v2-0.ttf
     - family: UthmanicHafs
       fonts:
         - asset: assets/fonts/hafs.ttf

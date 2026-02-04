@@ -822,7 +822,10 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   }
 
   String _stripTrailingAyahNumber(String input) {
-    return input.replaceAll(RegExp(r'[\s\u0660-\u0669\u06F0-\u06F9]+$'), '');
+    return input
+        .replaceAll('\u200F', '')  // Remove RLM (Right-to-Left Mark)
+        .replaceAll('\u200E', '')  // Remove LRM (Left-to-Right Mark)
+        .replaceAll(RegExp(r'[\s\u0660-\u0669\u06F0-\u06F9]+$'), '');
   }
 
   List<InlineSpan> _parseTajweedSpans(String input, Color fallback) {

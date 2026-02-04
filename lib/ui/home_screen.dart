@@ -10,6 +10,8 @@ import '../services/quran_image_service.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import '../services/reading_history_service.dart';
+import '../services/quran_translation_pack_service.dart';
+import 'package:sqflite/sqflite.dart';
 import '../surah_name.dart';
 import 'full_player_screen.dart';
 import 'reader_screen.dart';
@@ -973,22 +975,18 @@ Future<void> _checkFirstLaunch() async {
                                       ),
                                     ),
 
-
-
-                                    const SliverToBoxAdapter(child: SizedBox(height: 0)),
-
-                                    // Verset du jour
+                                    // Verset du jour (tout en haut)
                                     SliverToBoxAdapter(
                                       child: Transform.translate(
-                                        offset: const Offset(0, -20),
+                                        offset: const Offset(0, -80),
                                         child: const Padding(
-                                          padding: EdgeInsets.symmetric(horizontal: 16),
+                                          padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
                                           child: _VerseOfTheDayCard(),
                                         ),
                                       ),
                                     ),
 
-                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                                    const SliverToBoxAdapter(child: SizedBox(height: 0)),
 
                                     // Vidéo du jour
                                     SliverToBoxAdapter(
@@ -2182,27 +2180,68 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
       // Sourate aléatoire (1-114)
       _surahNumber = 1 + random.nextInt(114);
       
-      // Charger les métadonnées pour connaître le nombre de versets
-      final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
-      final List<dynamic> quranData = json.decode(jsonStr);
-      
-      // Compter les versets de cette sourate
-      final versesInSurah = quranData.where((v) => v['surah'] == _surahNumber).length;
-      if (versesInSurah == 0) {
-        _surahNumber = 2;
-        _verseNumber = 286; // Fallback sur le verset célèbre
-      } else {
-        _verseNumber = 1 + random.nextInt(versesInSurah);
+      // Essayer d'abord avec le pack offline français
+      final isReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
+      if (isReady) {
+        final dbPath = await QuranTranslationPackService.getDbPath(AppLang.fr);
+        final db = await openDatabase(dbPath, readOnly: true);
+        
+        try {
+          // Compter les versets de cette sourate
+          final countResult = await db.rawQuery(
+            'SELECT COUNT(*) as cnt FROM verses WHERE sura = ?',
+            [_surahNumber],
+          );
+          final versesInSurah = (countResult.first['cnt'] as int?) ?? 0;
+          
+          if (versesInSurah > 0) {
+            _verseNumber = 1 + random.nextInt(versesInSurah);
+            
+            // Récupérer le verset
+            final rows = await db.rawQuery(
+              'SELECT ar, fr FROM verses WHERE sura = ? AND aya = ?',
+              [_surahNumber, _verseNumber],
+            );
+            
+            if (rows.isNotEmpty) {
+              final row = rows.first;
+              _arabicText = ((row['ar'] as String?) ?? '')
+                  .replaceAll('\u200F', '')
+                  .replaceAll('\u200E', '')
+                  .trim();
+              _translationText = (row['fr'] as String?) ?? '';
+              
+              await db.close();
+              if (!mounted) return;
+              setState(() => _isLoading = false);
+              return;
+            }
+          }
+        } finally {
+          await db.close();
+        }
       }
       
-      // Récupérer le verset spécifique
-      final verse = quranData.firstWhere(
-        (v) => v['surah'] == _surahNumber && v['verse'] == _verseNumber,
-        orElse: () => quranData.firstWhere((v) => v['surah'] == 2 && v['verse'] == 286),
-      );
+      // Fallback: utiliser l'API en ligne si le pack offline n'est pas disponible
+      final dio = Dio();
+      final arRes = await dio.get('https://api.alquran.cloud/v1/surah/$_surahNumber/quran-uthmani');
+      final frRes = await dio.get('https://quranenc.com/api/v1/translation/sura/french_hameedullah/$_surahNumber');
       
-      _arabicText = verse['text']?.toString() ?? '';
-      _translationText = verse['translation']?.toString() ?? '';
+      final arAyahs = (arRes.data['data']['ayahs'] as List);
+      final frData = (frRes.data['result'] as List);
+      
+      if (arAyahs.isNotEmpty && frData.isNotEmpty) {
+        _verseNumber = 1 + random.nextInt(arAyahs.length);
+        
+        final arText = arAyahs[_verseNumber - 1]['text']?.toString() ?? '';
+        final frText = frData[_verseNumber - 1]['translation']?.toString() ?? '';
+        
+        _arabicText = arText
+            .replaceAll('\u200F', '')
+            .replaceAll('\u200E', '')
+            .trim();
+        _translationText = frText.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+      }
 
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -2210,7 +2249,7 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
       // Fallback sur un verset par défaut
       _surahNumber = 2;
       _verseNumber = 286;
-      _arabicText = 'لَا يُكَلِّفُ ٱللَّهُ نَفْسًا إِلَّا وُسْعَهَا';
+      _arabicText = 'لَا يُكَلِّفُ ٱللَّهُ نَفۡسًا إِلَّا وُسۡعَهَاۚ';
       _translationText = 'Allah n\'impose à aucune âme une charge supérieure à sa capacité.';
       
       if (!mounted) return;
@@ -2224,7 +2263,7 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
     
     if (_isLoading) {
       return Container(
-        height: 200,
+        height: 80,
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF0F1734) : const Color(0xFFE8DCC8),
           borderRadius: BorderRadius.circular(12),
@@ -2235,279 +2274,63 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
 
     final surahName = surahFr[_surahNumber] ?? 'Sourate $_surahNumber';
     
-    // Couleurs style manuscrit Coran exactement comme l'image
     final bgColor = isDark ? const Color(0xFF0F1734) : const Color(0xFFE8DCC8);
     final arabicColor = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF3D2817);
     final translationColor = isDark ? const Color(0xFFD4C5B0) : const Color(0xFF6B5744);
     final goldColor = const Color(0xFFA67C52);
-    final borderColor = goldColor.withOpacity(isDark ? 0.3 : 0.4);
 
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: borderColor,
-          width: 2.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         children: [
-          // Bandeau décoratif supérieur (comme dans l'image)
-          Container(
-            height: 50,
-            decoration: BoxDecoration(
-              color: isDark ? goldColor.withOpacity(0.15) : Colors.white.withOpacity(0.6),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-              border: Border(
-                bottom: BorderSide(color: borderColor, width: 2),
-              ),
-            ),
-            child: CustomPaint(
-              painter: _QuranHeaderBannerPainter(color: goldColor, isDark: isDark),
-              child: Center(
-                child: Text(
-                  'Verset du jour',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: arabicColor,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
+          // Verset en arabe
+          Text(
+            _arabicText,
+            textAlign: TextAlign.center,
+            textDirection: TextDirection.rtl,
+            style: TextStyle(
+              fontFamily: 'ScheherazadeNew',
+              fontSize: 18,
+              color: arabicColor,
+              height: 1.8,
             ),
           ),
 
-          // Contenu du verset
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-            child: Column(
-              children: [
-                // Bismillah stylisé
-                Text(
-                  'بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيْمِ',
-                  textDirection: TextDirection.rtl,
-                  style: TextStyle(
-                    fontFamily: 'UthmanicHafs',
-                    fontSize: 18,
-                    color: goldColor,
-                    height: 2.0,
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
-                // Verset en arabe
-                Text(
-                  _arabicText,
-                  textAlign: TextAlign.center,
-                  textDirection: TextDirection.rtl,
-                  style: TextStyle(
-                    fontFamily: 'UthmanicHafs',
-                    fontSize: 22,
-                    color: arabicColor,
-                    height: 2.2,
-                  ),
-                ),
+          // Traduction française
+          Text(
+            _translationText,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: translationColor,
+              height: 1.5,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
 
-                const SizedBox(height: 16),
+          const SizedBox(height: 8),
 
-                // Séparateur ornemental
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 1.5,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            goldColor.withOpacity(0.5),
-                            goldColor,
-                            goldColor.withOpacity(0.5),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 14),
-
-                // Traduction française
-                Text(
-                  _translationText,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: translationColor,
-                    height: 1.65,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                // Référence avec ornement
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: goldColor.withOpacity(isDark ? 0.15 : 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: goldColor.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.bookmark_rounded,
-                        size: 12,
-                        color: goldColor,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$surahName $_surahNumber:$_verseNumber',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: goldColor,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          // Référence simple
+          Text(
+            '$surahName $_surahNumber:$_verseNumber',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: goldColor,
+              letterSpacing: 0.3,
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildOrnamentLine(Color color, double width) {
-    return Container(
-      width: width,
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.transparent, color.withOpacity(0.4), Colors.transparent],
-        ),
-      ),
-    );
-  }
-}
-
-// Painter pour le bandeau décoratif supérieur (style image Coran)
-class _QuranHeaderBannerPainter extends CustomPainter {
-  final Color color;
-  final bool isDark;
-
-  _QuranHeaderBannerPainter({required this.color, required this.isDark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withOpacity(isDark ? 0.25 : 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    final fillPaint = Paint()
-      ..color = color.withOpacity(isDark ? 0.1 : 0.15)
-      ..style = PaintingStyle.fill;
-
-    // Ornements circulaires à gauche
-    _drawCircularOrnament(canvas, paint, fillPaint, Offset(size.width * 0.08, size.height * 0.5), 16);
-    _drawCircularOrnament(canvas, paint, fillPaint, Offset(size.width * 0.18, size.height * 0.5), 12);
-
-    // Ornements circulaires à droite
-    _drawCircularOrnament(canvas, paint, fillPaint, Offset(size.width * 0.92, size.height * 0.5), 16);
-    _drawCircularOrnament(canvas, paint, fillPaint, Offset(size.width * 0.82, size.height * 0.5), 12);
-  }
-
-  void _drawCircularOrnament(Canvas canvas, Paint strokePaint, Paint fillPaint, Offset center, double radius) {
-    // Cercle extérieur
-    canvas.drawCircle(center, radius, strokePaint);
-    
-    // Cercle intérieur rempli
-    canvas.drawCircle(center, radius * 0.6, fillPaint);
-    
-    // Motif floral/étoile au centre
-    final innerPaint = Paint()
-      ..color = strokePaint.color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    
-    for (int i = 0; i < 8; i++) {
-      final angle = (i * math.pi / 4);
-      final x1 = center.dx + (radius * 0.3) * math.cos(angle);
-      final y1 = center.dy + (radius * 0.3) * math.sin(angle);
-      final x2 = center.dx + (radius * 0.5) * math.cos(angle);
-      final y2 = center.dy + (radius * 0.5) * math.sin(angle);
-      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), innerPaint);
-    }
-    
-    // Point central
-    canvas.drawCircle(center, 2, Paint()..color = strokePaint.color..style = PaintingStyle.fill);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// Painter pour les ornements d'angle style manuscrit islamique
-class _CornerOrnamentPainter extends CustomPainter {
-  final Color color;
-  final bool isDark;
-
-  _CornerOrnamentPainter({required this.color, required this.isDark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withOpacity(isDark ? 0.15 : 0.12)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    final path = Path();
-    
-    // Arc en coin
-    path.moveTo(8, 0);
-    path.lineTo(8, 20);
-    path.quadraticBezierTo(8, 8, 20, 8);
-    path.lineTo(0, 8);
-    
-    canvas.drawPath(path, paint);
-    
-    // Petites courbes décoratives
-    final decorPath = Path();
-    decorPath.moveTo(12, 12);
-    decorPath.quadraticBezierTo(16, 14, 14, 18);
-    canvas.drawPath(decorPath, paint);
-    
-    // Point décoratif
-    final dotPaint = Paint()
-      ..color = color.withOpacity(isDark ? 0.2 : 0.15)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(const Offset(15, 15), 2, dotPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _HomeCardShell extends StatelessWidget {
