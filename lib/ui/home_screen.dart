@@ -392,7 +392,7 @@ Future<void> _checkFirstLaunch() async {
     return {
       'Fajr': clean(timings['Fajr']),
       'Sunrise': clean(timings['Sunrise']),
-      'Zohr': clean(timings['Dhuhr']), // tu lâ€™appelles Zohr dans ton UI
+      'Dhohr': clean(timings['Dhuhr']),
       'Asr': clean(timings['Asr']),
       'Maghrib': clean(timings['Maghrib']),
       'Isha': clean(timings['Isha']),
@@ -958,7 +958,7 @@ Future<void> _checkFirstLaunch() async {
                               SafeArea(
                                 top: true,
                                 child: CustomScrollView(
-                                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                                  physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                                   slivers: [
                                     SliverToBoxAdapter(
                                       child: _HeaderWithEngagement(
@@ -1199,7 +1199,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
         final prayers = <(String, String)>[
           ('Fajr', data?.times['Fajr'] ?? '--:--'),
           ('Sunrise', data?.times['Sunrise'] ?? '--:--'),
-          ('Zohr', data?.times['Zohr'] ?? '--:--'),
+          ('Dhohr', data?.times['Dhohr'] ?? '--:--'),
           ('Asr', data?.times['Asr'] ?? '--:--'),
           ('Maghrib', data?.times['Maghrib'] ?? '--:--'),
           ('Isha', data?.times['Isha'] ?? '--:--'),
@@ -1506,7 +1506,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
         return Icons.wb_twilight_rounded;
       case 'sunrise':
         return Icons.wb_sunny_rounded;
-      case 'zohr':
+      case 'dhohr':
       case 'dhuhr':
         return Icons.wb_sunny_outlined;
       case 'asr':
