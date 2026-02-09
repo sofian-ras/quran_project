@@ -18,11 +18,11 @@ import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
 import 'surah_list_screen.dart';
 import 'translated_quran_screen.dart';
-import 'widgets/home_reciter_widget.dart';
 import 'widgets/ios_side_menu.dart';
-import 'widgets/mini_audio_player.dart';
 import 'widgets/continue_reading_card.dart';
 import 'widgets/youtube_video_card.dart';
+import 'widgets/prayer_times_card_v2.dart';
+import 'widgets/popular_clips_carousel.dart';
 import '../theme/theme_service.dart';
 import '../models/reciter.dart';
 import 'package:dio/dio.dart';
@@ -41,10 +41,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
-  static const String _prefCity = 'prayer_city';
-  static const String _prefCountry = 'prayer_country';
-  static const String _defaultCity = 'Paris';
-  static const String _defaultCountry = 'France';
 
   String _prettyMoshafName(String raw) {
     final s = raw.toLowerCase();
@@ -76,7 +72,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   final AudioService _audio = AudioService.instance;
 
   List<Map<String, dynamic>> fullSurahList = [];
-  final Map<String, String> _serverByName = {};
   final Map<String, List<_MoshafOption>> _moshafByName = {};
   final Map<int, List<_MoshafOption>> _moshafById = {}; // Ajout pour indexation par reciterId
   bool _isLoading = true;
@@ -92,7 +87,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   late Future<_PrayerHeaderData> _prayerFuture;
 
-  int _prayerRefreshSeed = 0;
   late AnimationController _menuController;
   late Animation<double> _menuAnimation;
   bool _isMenuOpen = false;
@@ -833,7 +827,6 @@ Future<void> _checkFirstLaunch() async {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     super.build(context);
 
     return Scaffold(
@@ -864,30 +857,7 @@ Future<void> _checkFirstLaunch() async {
                     )
                   : Stack(
                       children: [
-                        // FOND DÉGRADÉ EN BAS (AJOUT)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          height: 180,
-                          child: IgnorePointer(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(30),
-                                ),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.white.withOpacity(0.0),
-                                    const Color(0xFF4169E1).withOpacity(0.25), // bleu roi
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                        // FOND DÉGRADÉ EN BAS SUPPRIMÉ
                         // Contenu principal
                        Positioned.fill(
                         top: 0,
@@ -919,7 +889,7 @@ Future<void> _checkFirstLaunch() async {
                                 ),
                                 blurRadius: 28,
                                 offset: const Offset(0, -8),
-                                spreadRadius: 8,
+                                // spreadRadius supprimé pour éviter le cadre crème
                               ),
                             ],
                           ),
@@ -1189,26 +1159,16 @@ class _DribbbleHomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color fg = isDark ? Colors.white : const Color(0xFF0F172A);
+    final Color muted = fg.withOpacity(isDark ? 0.72 : 0.60);
+    final Color pillBg = isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.92);
+    final Color pillBorder = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
     return FutureBuilder<_PrayerHeaderData>(
       future: prayerFuture,
       builder: (context, snap) {
         final data = snap.data;
 
         final location = data == null ? 'Paris, France' : '${data.city}, ${data.country}';
-        final hijri = (data?.hijriLine.isNotEmpty == true) ? data!.hijriLine : "â€”";
-        final prayers = <(String, String)>[
-          ('Fajr', data?.times['Fajr'] ?? '--:--'),
-          ('Sunrise', data?.times['Sunrise'] ?? '--:--'),
-          ('Dhohr', data?.times['Dhohr'] ?? '--:--'),
-          ('Asr', data?.times['Asr'] ?? '--:--'),
-          ('Maghrib', data?.times['Maghrib'] ?? '--:--'),
-          ('Isha', data?.times['Isha'] ?? '--:--'),
-        ];
-
-        final activeIndex = activeIndexFromTimes(prayers);
-
-        
-
         return ClipRRect(
           borderRadius: const BorderRadius.only(
             bottomLeft: Radius.circular(28),
@@ -1216,44 +1176,28 @@ class _DribbbleHomeHeader extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              // Image de fond
+              // Fond neutre (on retire le bleu)
               Positioned.fill(
-                child: isDark
-                    ? ColorFiltered(
-                        colorFilter: ColorFilter.mode(
-                          Colors.black.withOpacity(0.35),
-                          BlendMode.darken,
-                        ),
-                        child: Image.asset(
-                          'assets/images/fond_widget_vert.webp',
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    : Image.asset(
-                        'assets/images/fond_widget_vert.webp',
-                        fit: BoxFit.cover,
-                      ),
-              ),
-              if (isDark)
-                Positioned.fill(
-                  child: Container(
-                    color: Colors.black.withOpacity(0.25),
-                  ),
-                ),
-
-              // Overlay gradient (pour garder le style + lisibilité du texte)
-              Positioned.fill(
-                child: Container(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF2C6CB5).withOpacity(isDark ? 0.92 : 0.88),
-                        const Color(0xFF1F5FAE).withOpacity(isDark ? 0.90 : 0.86),
-                        const Color(0xFF174F9B).withOpacity(isDark ? 0.92 : 0.88),
-                      ],
-                    ),
+                    gradient: isDark
+                        ? const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0xFF020617),
+                              Color(0xFF0B1025),
+                              Color(0xFF111827),
+                            ],
+                          )
+                        : const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0xFFFFFFFF),
+                              Color(0xFFF3F4F6),
+                            ],
+                          ),
                   ),
                 ),
               ),
@@ -1269,26 +1213,48 @@ class _DribbbleHomeHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Top row: menu + titre + theme
+                                        // Top row: menu + recherche + thème + notifications
                     Row(
                       children: [
                         IconButton(
                           onPressed: onMenuTap,
-                          icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                          icon: Icon(Icons.menu_rounded, color: fg),
                         ),
-                        const SizedBox(width: 6),
-                        const Expanded(
-                          child: Text(
-                            'Home',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Recherche bientôt')),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              height: 40,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: pillBg,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: pillBorder, width: 1),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.search_rounded, color: muted, size: 20),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Rechercher',
+                                    style: TextStyle(
+                                      color: muted,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
+                        const SizedBox(width: 10),
                         ValueListenableBuilder<ThemeMode>(
                           valueListenable: ThemeService.themeMode,
                           builder: (context, mode, _) {
@@ -1297,32 +1263,107 @@ class _DribbbleHomeHeader extends StatelessWidget {
                                 : (mode == ThemeMode.light)
                                     ? Icons.light_mode_rounded
                                     : Icons.dark_mode_rounded;
-                            final Color color = (mode == ThemeMode.light)
-                                ? const Color(0xFFFFD54F)
-                                : Colors.white;
+                            final Color color = isDark
+                                ? ((mode == ThemeMode.light) ? const Color(0xFFFFD54F) : Colors.white)
+                                : const Color(0xFF0F172A);
                             return IconButton(
                               onPressed: onThemeTap,
                               icon: Icon(icon, color: color),
+                              tooltip: 'Thème',
+                            );
+                          },
+                        ),
+                        _NotificationBellButton(
+                          count: 3,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Notifications bientôt')),
                             );
                           },
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Clips populaires',
+                      style: TextStyle(
+                        color: fg,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    PopularClipsCarousel(
+                      clips: [
+
+                              PopularClip(
+                                title: 'Beauté de la Kaaba',
+                                icon: Icons.crop_square,
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Clip bientôt')),
+                                  );
+                                },
+                              ),
+                              PopularClip(
+                                title: 'Merveilles du Coran',
+                                icon: Icons.menu_book,
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Clip bientôt')),
+                                  );
+                                },
+                              ),
+                              PopularClip(
+                                title: 'Paisible nuit',
+                                icon: Icons.nightlight_round,
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Clip bientôt')),
+                                  );
+                                },
+                              ),
+                              PopularClip(
+                                title: 'Duas & dhikr',
+                                icon: Icons.favorite,
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Clip bientôt')),
+                                  );
+                                },
+                              ),
+                              PopularClip(
+                                title: 'Histoires des prophètes',
+                                icon: Icons.auto_stories,
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Clip bientôt')),
+                                  );
+                                },
+                              ),
+                      ],
+                      height: 94,
+                      viewportFraction: 0.46,
+                      activeDotColor: const Color(0xFF1FA36A),
+                      dotColor: isDark
+                          ? Colors.white.withOpacity(0.28)
+                          : Colors.black.withOpacity(0.18),
+                    ),
+                    const SizedBox(height: 12),
                     if (snap.connectionState != ConnectionState.done || data == null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
+                          color: pillBg,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                          border: Border.all(color: pillBorder, width: 1),
                         ),
                         child: Text(
                           'Chargement des horaires...',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
-                            fontSize: 13,
+                            color: (isDark ? Colors.white : Colors.black).withOpacity(0.75),
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1331,161 +1372,52 @@ class _DribbbleHomeHeader extends StatelessWidget {
                       StreamBuilder<int>(
                         stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
                         builder: (context, _) {
-                          final safeIndex = (activeIndex < 0 || activeIndex >= prayers.length) ? 0 : activeIndex;
-                          final remaining = _DribbbleHomeHeader._remainingToNextPrayer(prayers, safeIndex);
-                          final nextName = prayers[safeIndex].$1;
-                          final nextTime = prayers[safeIndex].$2;
-                          
-                          // Déterminer l'image à afficher en fonction du temps restant
-                          String getPrayerImage() {
-                            final mins = remaining.inMinutes;
-                            if (mins <= -20) {
-                              // Plus de 20 min après
-                              return 'assets/images/prieres/mosquee.png';
-                            } else if (mins <= -15) {
-                              // 15-20 min après
-                              return 'assets/images/prieres/mosquee.png';
-                            } else if (mins <= -5) {
-                              // 5-15 min après
-                              return 'assets/images/prieres/15min_apres_sortie.webp';
-                            } else if (mins < 0) {
-                              // 0-5 min après
-                              return 'assets/images/prieres/5min_apres_priere.webp';
-                            } else if (mins < 5) {
-                              // 0-5 min avant
-                              return 'assets/images/prieres/heure_priere_entree.webp';
-                            } else if (mins < 15) {
-                              // 5-15 min avant
-                              return 'assets/images/prieres/5min_avant_course.webp';
-                            } else if (mins < 20) {
-                              // 15-20 min avant
-                              return 'assets/images/prieres/15min_avant_marche.webp';
-                            } else {
-                              // Plus de 20 min avant (par défaut)
-                              return 'assets/images/prieres/mosquee.png';
+                          final prayers5 = <(String, String)>[
+                            ('Fajr', data.times['Fajr'] ?? '--:--'),
+                            ('Dhuhr', data.times['Dhohr'] ?? '--:--'),
+                            ('Asr', data.times['Asr'] ?? '--:--'),
+                            ('Maghrib', data.times['Maghrib'] ?? '--:--'),
+                            ('Isha', data.times['Isha'] ?? '--:--'),
+                          ];
+
+                          int nextIndex5 = 0;
+                          final now = DateTime.now();
+                          DateTime? parseToday(String t) {
+                            final parts = t.split(':');
+                            if (parts.length < 2) return null;
+                            final h = int.tryParse(parts[0]);
+                            final m = int.tryParse(parts[1]);
+                            if (h == null || m == null) return null;
+                            return DateTime(now.year, now.month, now.day, h, m);
+                          }
+                          for (int i = 0; i < prayers5.length; i++) {
+                            final dt = parseToday(prayers5[i].$2);
+                            if (dt != null && dt.isAfter(now)) {
+                              nextIndex5 = i;
+                              break;
                             }
                           }
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Ligne du haut : Hijri à gauche, localisation à droite
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    hijri,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.9),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  InkWell(
-                                    onTap: () {
-                                      (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
-                                    },
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.place_rounded, size: 12, color: Colors.white.withOpacity(0.85)),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            location,
-                                            style: TextStyle(
-                                              color: Colors.white.withOpacity(0.85),
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              // Nom de la prière avec icône ET image mosquée en arrière-plan
-                              Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  // Image mosquée en arrière-plan à droite
-                                  Positioned(
-                                    right: -10,
-                                    top: -20,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.white.withOpacity(0.3),
-                                            blurRadius: 40,
-                                            spreadRadius: 10,
-                                          ),
-                                        ],
-                                      ),
-                                      child: Image.asset(
-                                        getPrayerImage(),
-                                        width: 200,
-                                        height: 200,
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ),
-                                  ),
-                                  // Contenu au premier plan
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text(
-                                            nextName,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
-                                              height: 1.0,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Icon(
-                                            _getPrayerIcon(nextName),
-                                            size: 20,
-                                            color: Colors.white,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      // L'heure grande
-                                      Text(
-                                        nextTime,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 56,
-                                          fontWeight: FontWeight.w900,
-                                          height: 0.95,
-                                          letterSpacing: -1,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              // Temps restant
-                              Text(
-                                remaining.isNegative 
-                                  ? 'La prière a commencé'
-                                  : 'dans ${_DribbbleHomeHeader._fmt(remaining)}',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.85),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          final remaining5 = _DribbbleHomeHeader._remainingToNextPrayer(prayers5, nextIndex5);
+                          final nextName = prayers5[nextIndex5].$1;
+                          final nextTime = prayers5[nextIndex5].$2;
+
+                          return PrayerTimesCardV2(
+                            nextPrayerName: nextName,
+                            nextPrayerTime: nextTime,
+                            remaining: remaining5,
+                            prayers: prayers5,
+                            activeIndex: nextIndex5,
+                            location: location,
+                            onLocationTap: () {
+                              (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
+                            },
+                            onExpandTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const PrayersScreen()),
+                              );
+                            },
                           );
                         },
                       ),
@@ -1550,6 +1482,55 @@ class _DribbbleHomeHeader extends StatelessWidget {
     return '${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s';
   }
 
+}
+
+
+class _NotificationBellButton extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _NotificationBellButton({
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black.withOpacity(0.78);
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          onPressed: onTap,
+          icon: Icon(Icons.notifications_none_rounded, color: iconColor),
+        ),
+        if (count > 0)
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE53935),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withOpacity(0.9), width: 1),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  height: 1.0,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _QuranEngagementCard extends StatelessWidget {
@@ -1659,17 +1640,16 @@ class _HeaderWithEngagement extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double headerHeight = 320;
+    const double headerHeight = 470;
 
-    // Position carte engagement (plus haut)
-    const double engagementTop = headerHeight - 80;
-    const double engagementHeightApprox = 76;
+    // on place les cartes sous le header (évite de masquer la carte des prières)
+    const double engagementTop = headerHeight + 12;
 
-    // Position carte reciters (plus bas pour compenser)
-    const double recitersTop = engagementTop + 80;
+    // espace après la carte "reprendre"
+    const double recitersTop = engagementTop + 92;
 
     return SizedBox(
-      height: headerHeight + 180,
+      height: recitersTop + 170,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
