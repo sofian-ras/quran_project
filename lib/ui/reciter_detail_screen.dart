@@ -11,32 +11,6 @@ class ReciterDetailScreen extends StatelessWidget {
   final Reciter reciter;
   const ReciterDetailScreen({super.key, required this.reciter});
 
-  String _resolveServer(Map<String, dynamic>? bioEntry) {
-    String? candidate;
-    if (bioEntry != null && (bioEntry['server'] ?? '').toString().isNotEmpty) {
-      candidate = bioEntry['server'].toString();
-    } else if (reciter.baseUrl != null && reciter.baseUrl!.isNotEmpty) {
-      candidate = reciter.baseUrl!;
-    } else if (reciter.server.isNotEmpty) {
-      candidate = reciter.server;
-    }
-
-    if (candidate == null || candidate.trim().isEmpty) {
-      return AudioService.instance.currentServer;
-    }
-
-    candidate = candidate.trim();
-    // If it looks like a relative path (starts with /), it's invalid -> fallback
-    if (candidate.startsWith('/')) return AudioService.instance.currentServer;
-
-    if (!candidate.startsWith('http')) {
-      candidate = 'https://$candidate';
-    }
-
-    // remove trailing spaces
-    return candidate;
-  }
-
   Future<Map<String, dynamic>?> _loadBioEntry() async {
     try {
       final jsonStr = await rootBundle.loadString('assets/data/reciters_bio.json');
@@ -88,8 +62,8 @@ class ReciterDetailScreen extends StatelessWidget {
                     : Container(color: Colors.grey[300])),
           );
 
-          final bioText = bioEntry != null && (bioEntry['bioFr'] ?? '').toString().isNotEmpty
-              ? bioEntry['bioFr'].toString()
+            final bioText = bioEntry != null && ((bioEntry['bioFrLong'] ?? '') != '' || (bioEntry['bioFr'] ?? '') != '')
+              ? (bioEntry['bioFrLong'] ?? bioEntry['bioFr']).toString()
               : 'Aucune biographie disponible pour ce récitant.';
 
           final height = MediaQuery.of(context).size.height;
@@ -145,50 +119,84 @@ class ReciterDetailScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            reciter.name,
-                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  reciter.name,
+                                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                                ),
+                              ),
+                              if (reciter.reciterId != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8.0),
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFF5EBDD),
+                                      foregroundColor: Colors.black87,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        side: BorderSide(color: Colors.black.withOpacity(0.08)),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.play_arrow, size: 16),
+                                    label: const Text('Écouter'),
+                                    onPressed: () async {
+                                      final audio = AudioService.instance;
+                                      final server = (bioEntry != null && (bioEntry['server'] ?? '').toString().isNotEmpty)
+                                          ? bioEntry['server'].toString()
+                                          : (reciter.baseUrl != null && reciter.baseUrl!.isNotEmpty ? reciter.baseUrl! : reciter.server);
+                                      audio.setReciter(reciter.name, server);
+                                      await audio.loadPlaylistAndPlay(1);
+                                    },
+                                  ),
+                                ),
+                            ],
                           ),
+                          const SizedBox(height: 6),
+                          // Arabic name / country from bio when available
+                          if (bioEntry != null && (bioEntry['arabicName'] ?? '').toString().isNotEmpty)
+                            Text(
+                              bioEntry!['arabicName'].toString(),
+                              style: const TextStyle(fontSize: 16, color: Colors.black54, fontWeight: FontWeight.w500),
+                            ),
+                          if (bioEntry != null && (bioEntry['country'] ?? '').toString().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6.0),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.location_on, size: 14, color: Colors.black54),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    bioEntry!['country'].toString(),
+                                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
                           const SizedBox(height: 8),
                           Wrap(
-                            spacing: 12,
-                            runSpacing: 6,
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
                               if (reciter.letter.isNotEmpty) Chip(label: Text('Code: ${reciter.letter}')),
                               if (reciter.server.isNotEmpty) Chip(label: Text('Serveur: ${reciter.server}')),
-                              if (reciter.reciterId != null)
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFF5EBDD),
-                                    foregroundColor: Colors.black87,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(24),
-                                      side: BorderSide(color: Colors.black.withOpacity(0.08)),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.play_arrow, size: 16),
-                                  label: const Text('Écouter'),
-                                  onPressed: () async {
-                                    final scaffold = ScaffoldMessenger.of(context);
-                                    final audio = AudioService.instance;
-                                    final server = _resolveServer(bioEntry);
 
-                                    try {
-                                      scaffold.showSnackBar(const SnackBar(content: Text('Chargement de la lecture...')));
-                                      audio.setReciter(reciter.name, server);
-                                      await audio.loadPlaylistAndPlay(1);
-                                      scaffold.hideCurrentSnackBar();
-                                      scaffold.showSnackBar(const SnackBar(content: Text('Lecture démarrée')));
-                                    } catch (e) {
-                                      scaffold.hideCurrentSnackBar();
-                                      scaffold.showSnackBar(SnackBar(content: Text('Erreur lecture: $e')));
-                                    }
-                                    // Do not open full player here; starting playback will show the mini player overlay
-                                  },
-                                ),
+                              // Roles from bio
+                              if (bioEntry != null && bioEntry['roles'] is List && (bioEntry['roles'] as List).isNotEmpty)
+                                for (final rname in (bioEntry['roles'] as List))
+                                  Chip(label: Text(rname.toString())),
+
+                              // Style tags
+                              if (bioEntry != null && bioEntry['styleTags'] is List && (bioEntry['styleTags'] as List).isNotEmpty)
+                                for (final tag in (bioEntry['styleTags'] as List))
+                                  Chip(label: Text(tag.toString())),
+
+                              // ...existing code...
                             ],
                           ),
                           const SizedBox(height: 14),
@@ -245,7 +253,9 @@ String _friendlyLinkLabel(String key) {
       return 'YouTube';
     case 'facebook':
       return 'Facebook';
+    case 'officialwebsite':
     case 'website':
+    case 'official_website':
       return 'Site web';
     default:
       return key[0].toUpperCase() + key.substring(1);
@@ -262,7 +272,9 @@ Widget _linkIcon(String key) {
       return const FaIcon(FontAwesomeIcons.instagram, color: Color(0xFFC13584));
     case 'facebook':
       return const FaIcon(FontAwesomeIcons.facebook, color: Color(0xFF1877F2));
+    case 'officialwebsite':
     case 'website':
+    case 'official_website':
       return const FaIcon(FontAwesomeIcons.globe, color: Colors.green);
     default:
       return const FaIcon(FontAwesomeIcons.link);
