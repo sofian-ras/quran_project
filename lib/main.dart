@@ -11,6 +11,15 @@ import 'ui/bottom_nav_shell.dart';
 
 
 Future<void> main() async {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.transparent, // rend la barre du bas transparente
+        systemNavigationBarIconBrightness: Brightness.light, // adapte la couleur des icônes
+      ),
+    );
   WidgetsFlutterBinding.ensureInitialized();
   PaintingBinding.instance.imageCache.maximumSizeBytes = 150 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 200;

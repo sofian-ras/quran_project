@@ -861,114 +861,96 @@ Future<void> _checkFirstLaunch() async {
                         // Contenu principal
                        Positioned.fill(
                         top: 0,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: Theme.of(context).brightness == Brightness.dark
-                                ? const LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Color(0xFF020617),
-                                      Color(0xFF0B1025),
-                                      Color(0xFF1A0033),
-                                      Color(0xFF2D1B4E),
-                                    ],
-                                  )
-                                : const LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Color(0xFFFFFDF8),
-                                    Color(0xFFF7F3EA),
-                                  ],
-                                ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(
-                                  Theme.of(context).brightness == Brightness.dark ? 0.55 : 0.15,
-                                ),
-                                blurRadius: 28,
-                                offset: const Offset(0, -8),
-                                // spreadRadius supprimé pour éviter le cadre crème
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            children: [
-                              // Traits dorés décoratifs (Option D personnalisée)
-                              if (Theme.of(context).brightness == Brightness.light)
+                        child: MediaQuery.removePadding(
+                          context: context,
+                          removeLeft: true,
+                          removeRight: true,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: Theme.of(context).brightness == Brightness.dark
+                                  ? const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Color(0xFF020617),
+                                        Color(0xFF0B1025),
+                                        Color(0xFF1A0033),
+                                        Color(0xFF2D1B4E),
+                                      ],
+                                    )
+                                  : const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Color(0xFFFFFDF8),
+                                        Color(0xFFF7F3EA),
+                                      ],
+                                    ),
+                            ),
+                            child: Stack(
+                              children: [
+                                // effet lumière subtil
                                 Positioned.fill(
                                   child: IgnorePointer(
-                                    child: CustomPaint(
-                                      painter: _GoldenDecorPainter(),
-                                    ),
-                                  ),
-                                ),
-                              
-                              //  effet lumière subtil
-                              Positioned.fill(
-                                child: IgnorePointer(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          Colors.white.withOpacity(0.04),
-                                          Colors.transparent,
-                                          const Color(0xFFFFFFFF).withOpacity(0.02),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              // TON CONTENU EXISTANT
-                              SafeArea(
-                                top: true,
-                                child: CustomScrollView(
-                                  physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                                  slivers: [
-                                    SliverToBoxAdapter(
-                                      child: _HeaderWithEngagement(
-                                        audio: _audio,
-                                        onMenuTap: _openMenu,
-                                        onThemeTap: _cycleTheme,
-                                        onContinue: _openSurahListScreen,
-                                        prayerFuture: _prayerFuture,
-                                        activeIndexFromTimes: _activeIndexFromTimes,
-                                        reciters: _reciters,
-                                        recitersLoading: _recitersLoading,
-                                        onReciterTap: _onReciterSelected,
-                                        getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
-                                      ),
-                                    ),
-
-                                    // Verset du jour (tout en haut)
-                                    SliverToBoxAdapter(
-                                      child: Transform.translate(
-                                        offset: const Offset(0, -80),
-                                        child: const Padding(
-                                          padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
-                                          child: _VerseOfTheDayCard(),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            Colors.white.withOpacity(0.04),
+                                            Colors.transparent,
+                                            const Color(0xFFFFFFFF).withOpacity(0.02),
+                                          ],
                                         ),
                                       ),
                                     ),
+                                  ),
+                                ),
 
-                                    const SliverToBoxAdapter(child: SizedBox(height: 0)),
-
-                                    // Vidéo du jour
-                                    SliverToBoxAdapter(
-                                      child: Transform.translate(
-                                        offset: const Offset(0, -30),
-                                        child: const YoutubeVideoCard(mode: QuranVideoMode.sufi),
+                                // contenu
+                                SafeArea(
+                                  top: true,
+                                  left: false,
+                                  right: false,
+                                  child: CustomScrollView(
+                                    physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                                    slivers: [
+                                      SliverToBoxAdapter(
+                                        child: _HeaderWithEngagement(
+                                          audio: _audio,
+                                          onMenuTap: _openMenu,
+                                          onThemeTap: _cycleTheme,
+                                          onContinue: _openSurahListScreen,
+                                          prayerFuture: _prayerFuture,
+                                          activeIndexFromTimes: _activeIndexFromTimes,
+                                          reciters: _reciters,
+                                          recitersLoading: _recitersLoading,
+                                          onReciterTap: _onReciterSelected,
+                                          getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
+                                        ),
                                       ),
-                                    ),
 
-                                    SliverPadding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      sliver: SliverToBoxAdapter(
+                                      // Verset du jour (bord à bord)
+                                      SliverToBoxAdapter(
+                                        child: Transform.translate(
+                                          offset: const Offset(0, -80),
+                                          child: const _VerseOfTheDayCard(),
+                                        ),
+                                      ),
+
+                                      const SliverToBoxAdapter(child: SizedBox(height: 0)),
+
+                                      // Vidéo du jour
+                                      SliverToBoxAdapter(
+                                        child: Transform.translate(
+                                          offset: const Offset(0, -30),
+                                          child: const YoutubeVideoCard(mode: QuranVideoMode.sufi),
+                                        ),
+                                      ),
+
+                                      // Explore (bord à bord) — suppression du SliverPadding horizontal
+                                      SliverToBoxAdapter(
                                         child: Transform.translate(
                                           offset: const Offset(0, -40),
                                           child: _ExploreFeaturesSection(
@@ -1005,58 +987,55 @@ Future<void> _checkFirstLaunch() async {
                                           ),
                                         ),
                                       ),
-                                    ),
 
-                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                                      const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-                                    // === ICI tu ajoutes les cards image ===
-                                    SliverPadding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      sliver: SliverToBoxAdapter(
-                                        child: _ContentCardsSection(
-                                          items: const [
-                                            _ContentCardData(
-                                              title: 'Coran en français',
-                                              subtitle: 'Lire avec traduction',
-                                              imageAsset: 'assets/images/Programmes/coran_fr_thumbnail.webp',
-                                            ),
-                                            _ContentCardData(
-                                              title: 'Tafsir Session',
-                                              subtitle: 'Tonight • 20:30',
-                                              imageAsset: 'assets/images/Programmes/tafsir.webp',
-                                            ),
-                                          ],
-                                          onTap: (item) {
-                                            if (item.title == 'Coran en français') {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) => const TranslatedQuranScreen(preferOffline: true),
-                                                ),
-                                              );
-                                            }
-                                          },
+                                      // cards image (déjà bord à bord chez toi)
+                                      SliverToBoxAdapter(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                                          child: _ContentCardsSection(
+                                            items: const [
+                                              _ContentCardData(
+                                                title: 'Coran en français',
+                                                subtitle: 'Lire avec traduction',
+                                                imageAsset: 'assets/images/Programmes/coran_fr_thumbnail.webp',
+                                              ),
+                                              _ContentCardData(
+                                                title: 'Tafsir Session',
+                                                subtitle: 'Tonight • 20:30',
+                                                imageAsset: 'assets/images/Programmes/tafsir.webp',
+                                              ),
+                                            ],
+                                            onTap: (item) {
+                                              if (item.title == 'Coran en français') {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                          ),
                                         ),
                                       ),
-                                    ),
 
-                                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                                    SliverToBoxAdapter(
-                                      child: SizedBox(
-                                        height: 170 + MediaQuery.of(context).padding.bottom,
+                                      const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                                      SliverToBoxAdapter(
+                                        child: SizedBox(
+                                          height: 170 + MediaQuery.of(context).padding.bottom,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-
-
-                        // Mini lecteur audio
-                        
+                        ),
+                        // Mini lecteur audio                       
                       ],
                     ),
             ),
@@ -1235,7 +1214,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: pillBg,
                                 borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: pillBorder, width: 1),
                               ),
                               child: Row(
                                 children: [
@@ -1357,7 +1335,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: pillBg,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: pillBorder, width: 1),
                         ),
                         child: Text(
                           'Chargement des horaires...',

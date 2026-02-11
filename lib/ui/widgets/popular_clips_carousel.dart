@@ -86,7 +86,7 @@ class _PopularClipsCarouselState extends State<PopularClipsCarousel> {
                 scale: scale,
                 alignment: Alignment.centerLeft,
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: _ClipCard(clip: clips[index]),
                 ),
               );

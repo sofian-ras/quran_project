@@ -36,8 +36,8 @@ class PrayerTimesCardV2 extends StatelessWidget {
         final itemLabelSize = (w * 0.033).clamp(9.0, 12.0);
         final itemTimeSize = (w * 0.038).clamp(10.0, 13.5);
 
-        return SizedBox(
-          height: cardH,
+        return ConstrainedBox(
+          constraints: BoxConstraints(minHeight: cardH),
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
@@ -53,7 +53,15 @@ class PrayerTimesCardV2 extends StatelessWidget {
               borderRadius: BorderRadius.circular(22),
               child: Stack(
                 children: [
-                  // fond
+                  // image de fond mosquée
+                  Positioned.fill(
+                    child: Image.asset(
+                      'assets/images/prieres/mosquee_fond_widget.webp',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+
+                  // fond dégradé par-dessus (pour lisibilité)
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -61,9 +69,9 @@ class PrayerTimesCardV2 extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            const Color(0xFF0E6B63),
-                            const Color(0xFF0B4F4A),
-                            const Color(0xFF083B37),
+                            const Color(0xCC0E6B63),
+                            const Color(0xCC0B4F4A),
+                            const Color(0xCC083B37),
                           ],
                         ),
                       ),
@@ -79,51 +87,11 @@ class PrayerTimesCardV2 extends StatelessWidget {
                     ),
                   ),
 
-                  // halo "soleil" au centre
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: cardH * 0.18,
-                    child: Center(
-                      child: Container(
-                        width: w * 0.42,
-                        height: w * 0.42,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              Color(0xFFFFD37A),
-                              Color(0x88FFD37A),
-                              Color(0x00FFD37A),
-                            ],
-                            stops: [0.0, 0.55, 1.0],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // silhouette mosquée (si l'asset existe)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: Opacity(
-                          opacity: 0.28,
-                          child: Image.asset(
-                            'assets/images/prieres/mosquee.png',
-                            fit: BoxFit.contain,
-                            width: w * 0.82,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // contenu
+                  // contenu (sans scroll interne)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                    padding: EdgeInsets.zero,
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Row(
                           children: [
@@ -188,7 +156,7 @@ class PrayerTimesCardV2 extends StatelessWidget {
                             ),
                           ),
 
-                        const Spacer(),
+                        const SizedBox(height: 10),
 
                         Text(
                           nextPrayerTime,
@@ -210,9 +178,9 @@ class PrayerTimesCardV2 extends StatelessWidget {
                           ),
                         ),
 
-                        const Spacer(),
+                        const SizedBox(height: 8),
 
-                        // barre du bas
+                        // barre du bas (toujours affichée)
                         _BottomTimesBar(
                           prayers: prayers,
                           activeIndex: activeIndex,
@@ -342,19 +310,6 @@ class _BottomTimesBar extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                if (isActive)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 2,
-                    child: Center(
-                      child: CustomPaint(
-                        size: const Size(18, 9),
-                        painter: _TrianglePainter(const Color(0xFFFFD37A)),
-                      ),
-                    ),
-                  ),
               ],
             ),
           );
