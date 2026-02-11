@@ -36,31 +36,27 @@ class ModernBottomNavBar extends StatelessWidget {
           onTap: () => onChanged(i),
           radius: 28,
           child: Padding(
-            // avant: top 14 / bottom 10 (trop haut -> overflow)
             padding: const EdgeInsets.only(top: 10, bottom: 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // avant: 26
                 Icon(icon, size: 24, color: color),
-                const SizedBox(height: 2), // avant: 4
+                const SizedBox(height: 2),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    // avant: 11
                     fontSize: 10,
                     fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
                     color: color,
                   ),
                 ),
-                const SizedBox(height: 4), // avant: 6
+                const SizedBox(height: 4),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  // avant: 3
                   height: 2,
-                  width: isActive ? 20 : 0, // avant: 22
+                  width: isActive ? 20 : 0,
                   decoration: BoxDecoration(
                     color: active,
                     borderRadius: BorderRadius.circular(2),
@@ -113,7 +109,7 @@ class ModernBottomNavBar extends StatelessWidget {
                     child: Row(
                       children: [
                         navItem(0, Icons.home_rounded, 'Accueil'),
-                        navItem(1, Icons.play_arrow_rounded, 'Lectures'),
+                        navItem(1, Icons.mosque_rounded, 'Prières'),
                         const SizedBox(width: centerSize),
                         navItem(2, Icons.favorite_rounded, 'Favoris'),
                         navItem(3, Icons.more_horiz_rounded, 'Plus'),

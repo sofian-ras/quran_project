@@ -4,6 +4,8 @@ import 'home_screen.dart';
 import 'quran_tab_screen.dart';
 import 'favorites_screen.dart';
 import 'settings_screen.dart';
+
+import 'prayers_screen.dart';
 import 'reader_screen.dart';
 
 import '../services/last_reading_service.dart';
@@ -22,7 +24,7 @@ class _BottomNavShellState extends State<BottomNavShell> {
 
   late final List<Widget> _pages = <Widget>[
     const HomeScreen(),
-    const QuranTabScreen(),
+    const PrayersScreen(),
     const FavoritesScreen(),
     const SettingsScreen(),
   ];

@@ -933,9 +933,12 @@ Future<void> _checkFirstLaunch() async {
 
                                       // Verset du jour (bord à bord)
                                       SliverToBoxAdapter(
-                                        child: Transform.translate(
-                                          offset: const Offset(0, -80),
-                                          child: const _VerseOfTheDayCard(),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                                          child: Transform.translate(
+                                            offset: const Offset(0, -80),
+                                            child: const _VerseOfTheDayCard(),
+                                          ),
                                         ),
                                       ),
 
