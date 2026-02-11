@@ -11,6 +11,32 @@ class ReciterDetailScreen extends StatelessWidget {
   final Reciter reciter;
   const ReciterDetailScreen({super.key, required this.reciter});
 
+  String _resolveServer(Map<String, dynamic>? bioEntry) {
+    String? candidate;
+    if (bioEntry != null && (bioEntry['server'] ?? '').toString().isNotEmpty) {
+      candidate = bioEntry['server'].toString();
+    } else if (reciter.baseUrl != null && reciter.baseUrl!.isNotEmpty) {
+      candidate = reciter.baseUrl!;
+    } else if (reciter.server.isNotEmpty) {
+      candidate = reciter.server;
+    }
+
+    if (candidate == null || candidate.trim().isEmpty) {
+      return AudioService.instance.currentServer;
+    }
+
+    candidate = candidate.trim();
+    // If it looks like a relative path (starts with /), it's invalid -> fallback
+    if (candidate.startsWith('/')) return AudioService.instance.currentServer;
+
+    if (!candidate.startsWith('http')) {
+      candidate = 'https://$candidate';
+    }
+
+    // remove trailing spaces
+    return candidate;
+  }
+
   Future<Map<String, dynamic>?> _loadBioEntry() async {
     try {
       final jsonStr = await rootBundle.loadString('assets/data/reciters_bio.json');
@@ -77,34 +103,41 @@ class ReciterDetailScreen extends StatelessWidget {
                 left: 0,
                 right: 0,
                 height: imageHeight,
-                child: imageWidget,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                  child: imageWidget,
+                ),
               ),
 
               // Dégradé beige léger sur la partie basse de l'image
               Positioned(
-                top: imageHeight - 60,
+                top: imageHeight - 100,
                 left: 0,
                 right: 0,
-                height: 120,
+                height: 180,
                 child: Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Color(0x00F5EBDA), Color(0xFFF5EBDD)],
+                      colors: [Color(0x00F5EBDA), Color(0x80F5EBDD)],
                     ),
                   ),
                 ),
               ),
 
-              // Contenu dans un fond beige en bas
+              // Contenu dans un fond beige en bas (arrondi + ombre pour transition douce)
               Positioned(
                 left: 0,
                 right: 0,
-                top: imageHeight - 20,
+                top: imageHeight - 40,
                 bottom: 0,
                 child: Container(
-                  color: const Color(0xFFF5EBDD),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5EBDD),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 14, offset: Offset(0, -6))],
+                  ),
                   child: SafeArea(
                     top: false,
                     child: SingleChildScrollView(
@@ -139,13 +172,20 @@ class ReciterDetailScreen extends StatelessWidget {
                                   icon: const Icon(Icons.play_arrow, size: 16),
                                   label: const Text('Écouter'),
                                   onPressed: () async {
+                                    final scaffold = ScaffoldMessenger.of(context);
                                     final audio = AudioService.instance;
-                                    final server = (bioEntry != null && (bioEntry['server'] ?? '').toString().isNotEmpty)
-                                        ? bioEntry['server'].toString()
-                                        : (reciter.baseUrl != null && reciter.baseUrl!.isNotEmpty ? reciter.baseUrl! : reciter.server);
+                                    final server = _resolveServer(bioEntry);
 
-                                    audio.setReciter(reciter.name, server);
-                                    await audio.loadPlaylistAndPlay(1);
+                                    try {
+                                      scaffold.showSnackBar(const SnackBar(content: Text('Chargement de la lecture...')));
+                                      audio.setReciter(reciter.name, server);
+                                      await audio.loadPlaylistAndPlay(1);
+                                      scaffold.hideCurrentSnackBar();
+                                      scaffold.showSnackBar(const SnackBar(content: Text('Lecture démarrée')));
+                                    } catch (e) {
+                                      scaffold.hideCurrentSnackBar();
+                                      scaffold.showSnackBar(SnackBar(content: Text('Erreur lecture: $e')));
+                                    }
                                     // Do not open full player here; starting playback will show the mini player overlay
                                   },
                                 ),

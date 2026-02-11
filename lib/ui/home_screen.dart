@@ -793,13 +793,7 @@ Future<void> _checkFirstLaunch() async {
     // Lancer automatiquement la première sourate (Al-Fatiha)
     await _audio.loadPlaylistAndPlay(1);
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('▶ ${r.name} - Al-Fatiha'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    // Notification visuelle supprimée (Snackbar enlevée)
   }
 
 
