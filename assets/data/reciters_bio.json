@@ -1,0 +1,388 @@
+[
+  {
+    "reciterId": 64,
+    "name": "Abdulrasheed Soufi",
+    "arabicName": "",
+    "country": "",
+    "birth": { "year": null, "place": "" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Qari (récitant)"],
+    "education": [],
+    "knownFor": [
+      "Récitation claire, adaptée à l’écoute continue et à la révision",
+      "Style généralement classé Murattal"
+    ],
+    "bioFr": "Récitant connu sous le nom d’Abdulrasheed Soufi. Sa récitation est appréciée pour sa clarté et sa régularité, souvent choisie pour l’écoute quotidienne et la révision. (À compléter : informations biographiques publiques fiables limitées selon les sources disponibles.)",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/Abdurashid Sufi.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 53,
+    "name": "Abdulbasit Abdulsamad",
+    "arabicName": "عبد الباسط عبد الصمد",
+    "country": "Égypte",
+    "birth": { "year": 1927, "place": "Égypte" },
+    "death": { "year": 1988, "place": "" },
+    "roles": ["Qari (récitant)", "Hafiz"],
+    "education": [],
+    "knownFor": [
+      "Voix très puissante et mélodieuse, souffle remarquable",
+      "Figure majeure des qurra’ du XXe siècle",
+      "A exercé des responsabilités au sein du milieu des récitants en Égypte"
+    ],
+    "bioFr": "Abdulbasit Abdulsamad (عبد الباسط عبد الصمد) est l’un des récitateurs égyptiens les plus connus du XXe siècle. Il est particulièrement célèbre pour la puissance de sa voix, la maîtrise du souffle et un rendu très mélodieux, avec des enregistrements largement diffusés dans le monde musulman. Il fait partie des grandes références modernes de la récitation, souvent citée aux côtés d’autres maîtres égyptiens de la même époque.",
+    "styleTags": ["Mujawwad", "Murattal"],
+    "imageAsset": "assets/images/reciters/Abdulbaset.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "https://en.wikipedia.org/wiki/Abdul_Basit_%27Abd_us-Samad",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 31,
+    "name": "Saud Al-Shuraim",
+    "arabicName": "سعود الشريم",
+    "country": "Arabie Saoudite",
+    "birth": { "year": 1966, "place": "Riyad" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Qari (récitant)", "Savant", "Ancien imam et khatib de Masjid al-Haram"],
+    "education": ["PhD (fiqh / sharia)"],
+    "knownFor": [
+      "Imamat et khutbah à Masjid al-Haram (longue période)",
+      "Style sobre, posé, très reconnaissable en prière"
+    ],
+    "bioFr": "Saud Al-Shuraim est un récitant et savant saoudien, connu pour avoir été imam et khatib de la Grande Mosquée de La Mecque (Masjid al-Haram). Il est également identifié comme universitaire/savant, avec un parcours d’études avancées en sciences islamiques. Sa récitation est réputée pour sa sobriété, sa clarté et un rythme très stable, souvent associée aux prières et tarawih à La Mecque.",
+    "styleTags": ["Murattal", "Haram"],
+    "imageAsset": "assets/images/reciters/Shuraym.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "https://en.wikipedia.org/wiki/Saud_Al-Shuraim",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 54,
+    "name": "Abdulrahman Alsudaes",
+    "arabicName": "عبد الرحمن السديس",
+    "country": "Arabie Saoudite",
+    "birth": { "year": 1960, "place": "Riyad" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Qari (récitant)", "Imam (Masjid al-Haram)", "Responsable religieux (Deux Saintes Mosquées)"],
+    "education": ["Études en sharia", "Doctorat (selon sources institutionnelles)"],
+    "knownFor": [
+      "Imam très connu à Masjid al-Haram",
+      "Récitation claire et solennelle, très associée aux prières à La Mecque"
+    ],
+    "bioFr": "Abdulrahman Alsudaes est une figure religieuse saoudienne connue mondialement comme imam de la Grande Mosquée de La Mecque. Il est également présenté par des sources institutionnelles saoudiennes comme ayant un parcours académique en sharia et des responsabilités officielles liées à l’administration des Deux Saintes Mosquées. Sa récitation est appréciée pour la clarté de la diction, un ton solennel et un rythme régulier, très entendu pendant les prières et le hajj.",
+    "styleTags": ["Murattal", "Haram"],
+    "imageAsset": "assets/images/reciters/Sudais.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "https://en.wikipedia.org/wiki/Abdul-Rahman_Al-Sudais",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 102,
+    "name": "Maher Al Meaqli",
+    "arabicName": "ماهر المعيقلي",
+    "country": "Arabie Saoudite",
+    "birth": { "year": 1969, "place": "Médine" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Imam et prêcheur (Masjid al-Haram)", "Qari (récitant)"],
+    "education": ["Master (fiqh)", "Doctorat (tafsir)", "Doctorat (fiqh)"],
+    "knownFor": [
+      "Imam à Masjid al-Haram",
+      "Voix douce et régulière, très utilisée pour la mémorisation"
+    ],
+    "bioFr": "Maher Al Meaqli (Maher al-Mu’aiqly) est un imam et récitant saoudien, associé à Masjid al-Haram. Les sources institutionnelles et biographiques le décrivent comme ayant un parcours universitaire avancé (fiqh/tafsir). Sa récitation est particulièrement appréciée pour son équilibre, sa douceur et sa régularité, ce qui la rend populaire pour l’écoute quotidienne et la mémorisation.",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/Maher Almuaiqly.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "https://en.wikipedia.org/wiki/Maher_al-Mu%27aiqly",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 76,
+    "name": "Ali Jaber",
+    "arabicName": "علي جابر",
+    "country": "Arabie Saoudite",
+    "birth": { "year": 1953, "place": "Arabie Saoudite" },
+    "death": { "year": 2005, "place": "Jeddah" },
+    "roles": ["Imam (Masjid al-Haram)", "Qari (récitant)"],
+    "education": ["Études islamiques (selon biographies)"],
+    "knownFor": [
+      "Connu pour avoir dirigé tarawih à Masjid al-Haram",
+      "Style très apprécié, souvent décrit comme émouvant"
+    ],
+    "bioFr": "Ali Jaber (Ali Abdullah Jaber) est un récitant saoudien connu pour son imamat à Masjid al-Haram, notamment pendant Ramadan. Des biographies le présentent comme ayant mémorisé le Coran jeune et ayant occupé divers postes d’imam avant d’être appelé à diriger la prière à La Mecque. Sa récitation est souvent citée pour son rendu très touchant et distinctif, resté populaire via des enregistrements largement diffusés.",
+    "styleTags": ["Murattal", "Haram"],
+    "imageAsset": "assets/images/reciters/Ali Jabir.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "https://en.wikipedia.org/wiki/Ali_Abdullah_Jaber",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 4,
+    "name": "Shaik Abu Bakr Al Shatri",
+    "arabicName": "أبو بكر الشاطري",
+    "country": "Arabie Saoudite",
+    "birth": { "year": 1970, "place": "Jeddah" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Imam", "Qari (récitant)"],
+    "education": ["Études coraniques (ijaza rapportée selon biographies)"],
+    "knownFor": [
+      "Récitation fluide, claire, très populaire en audio",
+      "Invité dans de nombreux événements internationaux"
+    ],
+    "bioFr": "Shaik Abu Bakr Al Shatri est un récitant saoudien né à Jeddah, connu pour une récitation fluide et très accessible. Des sources biographiques indiquent une formation en études coraniques (avec transmission/ijaza mentionnée selon certaines biographies) et une activité d’imam, avec une présence dans divers événements et invitations internationales. Sa récitation est largement diffusée sous forme d’enregistrements complets.",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/As-shatri.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "https://en.wikipedia.org/wiki/Abu_Bakr_ash-Shatry",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 5,
+    "name": "Ahmad Al-Ajmy",
+    "arabicName": "أحمد العجمي",
+    "country": "Arabie Saoudite",
+    "birth": { "year": null, "place": "" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Qari (récitant)"],
+    "education": [],
+    "knownFor": [
+      "Voix grave, récitation très diffusée en audio",
+      "Présence active sur les réseaux (selon comptes publics)"
+    ],
+    "bioFr": "Ahmad Al-Ajmy est un récitant contemporain largement diffusé via des enregistrements audio et des plateformes en ligne. Il est particulièrement apprécié pour une voix grave et une récitation claire. Des comptes publics à son nom existent sur les réseaux ; à utiliser idéalement après vérification (compte officiel/validé).",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/Al Ajmy.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "",
+      "youtube": "",
+      "x": "https://x.com/AlAjmyAhmad",
+      "instagram": "",
+      "facebook": "http://www.facebook.com/AHMAD.ALAJMY"
+    }
+  },
+  {
+    "reciterId": 205,
+    "name": "Ahmad Alhuthaifi",
+    "arabicName": "أحمد بن علي الحذيفي",
+    "country": "Arabie Saoudite",
+    "birth": { "year": null, "place": "" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Imam", "Qari (récitant)"],
+    "education": [],
+    "knownFor": [
+      "Connu comme imam (notamment tarawih selon sources biographiques en ligne)",
+      "Appartenance familiale (fils de الشيخ علي الحذيفي, selon sources)"
+    ],
+    "bioFr": "Ahmad Alhuthaifi (souvent présenté comme Ahmed bin Ali Al-Hudhaify) est un imam et récitant saoudien. Des sources biographiques en ligne indiquent qu’il est le fils de Sheikh Ali bin Abdulrahman Al-Hudhaify et qu’il a été présent dans des fonctions d’imamat (notamment pendant Ramadan selon certaines notices).",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/Al Hudhaify.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 86,
+    "name": "Nasser Alqatami",
+    "arabicName": "ناصر القطامي",
+    "country": "Arabie Saoudite",
+    "birth": { "year": null, "place": "" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Imam", "Qari (récitant)"],
+    "education": [],
+    "knownFor": [
+      "Récitation expressive, très populaire en tarawih/qiâm",
+      "Chaînes officielles et comptes sociaux indiqués dans des descriptions de vidéos"
+    ],
+    "bioFr": "Nasser Alqatami est un récitant contemporain très écouté, particulièrement connu pour des récitations expressives diffusées pendant Ramadan (tarawih/qiâm). Ses publications et chaînes en ligne listent des comptes officiels (X/Instagram/YouTube) qu’il est possible d’utiliser pour des liens cliquables dans l’app.",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/Al Qatami.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "",
+      "youtube": "http://bit.ly/2u0ACR5",
+      "x": "https://twitter.com/nasseralqtami",
+      "instagram": "https://www.instagram.com/alqtaminasser"
+    }
+  },
+  {
+    "reciterId": 62,
+    "name": "Abdullah Al-Johany",
+    "arabicName": "عبد الله الجهني",
+    "country": "Arabie Saoudite",
+    "birth": { "year": 1976, "place": "Médine" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Imam (Masjid al-Haram)", "Qari (récitant)"],
+    "education": [],
+    "knownFor": [
+      "Imam à Masjid al-Haram",
+      "Style clair et posé, très adapté à la lecture continue"
+    ],
+    "bioFr": "Abdullah Al-Johany (Abdullah Awad Al-Juhany) est un récitant saoudien connu comme imam à Masjid al-Haram. Des notices biographiques indiquent une naissance à Médine et un parcours religieux lié à l’enseignement et à la récitation. Sa récitation est appréciée pour sa clarté et sa sobriété.",
+    "styleTags": ["Murattal", "Haram"],
+    "imageAsset": "assets/images/reciters/Al Juhani.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "https://en.wikipedia.org/wiki/Abdullah_Awad_Al_Juhany",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 217,
+    "name": "Bandar Balilah",
+    "arabicName": "بندر بليلة",
+    "country": "Arabie Saoudite",
+    "birth": { "year": 1975, "place": "La Mecque" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Imam et khatib (Masjid al-Haram)", "Universitaire (sharia)"],
+    "education": ["Doctorat (sciences islamiques / sharia)"],
+    "knownFor": [
+      "Imam à Masjid al-Haram (nomination officielle en 2013 selon sources institutionnelles)",
+      "A prononcé le sermon de ‘Arafah (selon sources institutionnelles)"
+    ],
+    "bioFr": "Bandar Balilah est un imam et khatib saoudien associé à Masjid al-Haram, également décrit comme universitaire en sharia. Des sources institutionnelles indiquent qu’il a exercé dans l’enseignement (fiqh/sharia) et qu’il a été officiellement désigné pour diriger des prières à la Grande Mosquée de La Mecque, avec des responsabilités marquantes lors de certaines saisons du hajj.",
+    "styleTags": ["Murattal", "Haram"],
+    "imageAsset": "assets/images/reciters/Bandar Baleela.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "https://en.wikipedia.org/wiki/Bandar_Baleela",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 89,
+    "name": "Hani Arrifai",
+    "arabicName": "هاني الرفاعي",
+    "country": "Arabie Saoudite",
+    "birth": { "year": 1974, "place": "Jeddah" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Qari (récitant)"],
+    "education": [],
+    "knownFor": [
+      "Récitation douce, méditative",
+      "Présence dans de nombreuses compilations audio (murattal)"
+    ],
+    "bioFr": "Hani Arrifai est un récitant connu pour une récitation douce et méditative, souvent diffusée dans des compilations audio de type murattal. Certaines notices biographiques indiquent une naissance à Jeddah en 1974 et une mémorisation précoce du Coran.",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/Hani Arrifai.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 118,
+    "name": "Mahmoud Khalil Al-Hussary",
+    "arabicName": "محمود خليل الحصري",
+    "country": "Égypte",
+    "birth": { "year": null, "place": "Égypte" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Qari (récitant)"],
+    "education": [],
+    "knownFor": [
+      "Référence de précision en tajwid",
+      "Très recommandé pour la mémorisation"
+    ],
+    "bioFr": "Mahmoud Khalil Al-Hussary est une référence majeure de la récitation, souvent recommandée pour l’apprentissage du tajwid grâce à une articulation très précise et un rythme méthodique. Ses enregistrements sont largement utilisés comme base de mémorisation et d’étude.",
+    "styleTags": ["Murattal", "Tajwid"],
+    "imageAsset": "assets/images/reciters/Alhusary.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 123,
+    "name": "Mishary Alafasi",
+    "arabicName": "مشاري راشد العفاسي",
+    "country": "Koweït",
+    "birth": { "year": 1976, "place": "Koweït" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Qari (récitant)", "Imam", "Prédicateur", "Nasheed artist"],
+    "education": ["Études à l’Université islamique de Médine (qira’at/tafsir selon sources)"],
+    "knownFor": [
+      "Très grande diffusion mondiale (audio/YouTube)",
+      "Récitation claire, accessible, très populaire"
+    ],
+    "bioFr": "Mishary Alafasi est un récitant et imam koweïtien très connu, largement diffusé via des enregistrements et plateformes en ligne. Il est également reconnu pour des productions de nasheeds. Des sources biographiques indiquent un parcours d’études lié aux sciences du Coran (dont qira’at). Son style est souvent apprécié pour sa clarté et son accessibilité.",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/Mishari Alafasy.webp",
+    "links": {
+      "website": "https://alafasy.co",
+      "wikipedia": "https://en.wikipedia.org/wiki/Mishari_bin_Rashid_Alafasy",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  },
+  {
+    "reciterId": 30,
+    "name": "Saad Al-Ghamdi",
+    "arabicName": "سعد الغامدي",
+    "country": "Arabie Saoudite",
+    "birth": { "year": null, "place": "" },
+    "death": { "year": null, "place": "" },
+    "roles": ["Qari (récitant)"],
+    "education": [],
+    "knownFor": [
+      "Récitation calme, régulière, très utilisée en écoute quotidienne",
+      "Présence de comptes publics à son nom (à vérifier si officiels)"
+    ],
+    "bioFr": "Saad Al-Ghamdi est un récitant contemporain apprécié pour une récitation calme, fluide et régulière. De nombreux enregistrements complets circulent et sont utilisés pour l’écoute quotidienne et la révision. Des comptes publics existent sur les réseaux ; idéalement, ne lier que des comptes vérifiés/officiels.",
+    "styleTags": ["Murattal"],
+    "imageAsset": "assets/images/reciters/Saad Alghamdi.webp",
+    "links": {
+      "website": "",
+      "wikipedia": "",
+      "youtube": "",
+      "x": "",
+      "instagram": ""
+    }
+  }
+]

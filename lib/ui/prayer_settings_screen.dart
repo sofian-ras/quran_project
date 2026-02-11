@@ -209,44 +209,61 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
           ),
           const SizedBox(height: 8),
           Card(
-            child: ListTile(
-              leading: const Icon(Icons.calculate_rounded),
-              title: const Text('Méthode de calcul'),
-              subtitle: SizedBox(
-                width: 180,
-                child: Text(
-                  _methodLabel(_method),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                ),
-              ),
-              trailing: DropdownButtonHideUnderline(
-                child: SizedBox(
-                  width: 220,
-                  child: DropdownButton<String>(
-                    value: _method,
-                    isExpanded: true,
-                    items: _methods
-                        .map((m) => DropdownMenuItem<String>(
-                              value: m['id'],
-                              child: Text(
-                                m['label']!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                softWrap: false,
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      _saveMethod(v);
-                    },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.calculate_rounded),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Méthode de calcul',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _methodLabel(_method),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _method,
+                      isExpanded: true,
+                      items: _methods
+                          .map((m) => DropdownMenuItem<String>(
+                                value: m['id'],
+                                child: Text(
+                                  m['label']!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: false,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        _saveMethod(v);
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+
+
           const SizedBox(height: 16),
 
           const Text(

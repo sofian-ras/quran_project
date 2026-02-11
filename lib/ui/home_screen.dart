@@ -31,6 +31,7 @@ import 'widgets/location_picker_dialog.dart';
 import '../services/location_service.dart';
 import 'prayers_screen.dart';
 import '../services/mp3quran_api.dart';
+import 'reciters_gallery_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -1663,7 +1664,14 @@ class _HeaderWithEngagement extends StatelessWidget {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : _RecitersSection(
-                      onSeeAll: () {},
+                      onSeeAll: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RecitersGalleryScreen(reciters: reciters),
+                          ),
+                        );
+                      },
                       reciters: reciters,
                       onReciterTap: onReciterTap,
                       getAssetByName: getReciterAsset,
