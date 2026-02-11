@@ -1820,47 +1820,58 @@ class _ExploreFeaturesSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Explore features',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            color: titleColor,
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Explore features',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: titleColor,
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
           ),
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 132,
-          child: ListView.separated(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            scrollDirection: Axis.horizontal,
-            itemCount: features.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              final f = features[i];
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: SizedBox(
+            height: 112,
+            child: ListView.separated(
+              physics: const BouncingScrollPhysics(),
+              scrollDirection: Axis.horizontal,
+              itemCount: features.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final f = features[i];
 
-              final pastel = <Color>[
-                const Color(0xFFFFF4CC), // jaune pâle
-                const Color(0xFFDFF7E9), // vert pâle
-                const Color(0xFFE3F0FF), // bleu pâle
-                const Color(0xFFFFE3E6), // rouge/rose pâle
-                const Color(0xFFEDE7FF), // violet pâle
-                const Color(0xFFE7FFF7), // menthe pâle
-              ];
+                final pastel = <Color>[
+                  const Color(0xFFFFF4CC), // jaune pâle
+                  const Color(0xFFDFF7E9), // vert pâle
+                  const Color(0xFFE3F0FF), // bleu pâle
+                  const Color(0xFFFFE3E6), // rouge/rose pâle
+                  const Color(0xFFEDE7FF), // violet pâle
+                  const Color(0xFFE7FFF7), // menthe pâle
+                ];
 
-              return SizedBox(
-                width: 90,
-                child: _FeatureSquareItem(
-                  label: f.label,
-                  imagePath: f.imagePath,
-                  onTap: () => onTap(f),
-                  isDark: isDark,
-                  bgColor: pastel[i % pastel.length],
-                ),
-              );
-            },
-
+                return SizedBox(
+                  width: 180, // même largeur que Programs
+                  height: 112, // même hauteur que Programs
+                  child: _FeatureSquareItem(
+                    label: f.label,
+                    imagePath: f.imagePath,
+                    onTap: () => onTap(f),
+                    isDark: isDark,
+                    bgColor: pastel[i % pastel.length],
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -2377,40 +2388,84 @@ class _FeatureSquareItem extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.08) : bgColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+        child: AspectRatio(
+          aspectRatio: 16 / 10,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Image.asset(
-                imagePath,
-                width: 56,
-                height: 56,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.image_not_supported,
-                    size: 56,
-                    color: labelColor,
-                  );
-                },
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  imagePath,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.black12,
+                      child: Icon(
+                        Icons.image_not_supported,
+                        size: 40,
+                        color: labelColor,
+                      ),
+                    );
+                  },
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: labelColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
+              // Voile léger comme Programs
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(isDark ? 0.03 : 0.06),
+                          Colors.transparent,
+                          Colors.black.withOpacity(isDark ? 0.18 : 0.10),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Bande diagonale translucide en bas à gauche (collée en bas)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: ClipPath(
+                  clipper: _DiagonalBannerClipper(),
+                  child: Container(
+                    height: 60, // bande encore plus large
+                    color: isDark
+                        ? Colors.black.withOpacity(0.35)
+                        : Colors.white.withOpacity(0.55),
+                  ),
+                ),
+              ),
+              // Titre bien en bas à gauche sur la bande
+              Positioned(
+                left: 14,
+                bottom: 4,
+                right: 16,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: labelColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withOpacity(0.18),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],

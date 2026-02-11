@@ -26,18 +26,18 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
   Future<void> _loadData() async {
     try {
       final position = await LastReadingService.getLastReading();
-      
+
       if (position != null) {
         // Charger le nom de la sourate
         final jsonString = await rootBundle.loadString('assets/data/quran-metadata-juz.json');
         final data = jsonDecode(jsonString) as Map<String, dynamic>;
         final surahs = data['surahs'] as List;
-        
+
         final surahData = surahs.firstWhere(
           (s) => s['id'] == position.surahNumber,
           orElse: () => surahs.first,
         ) as Map<String, dynamic>;
-        
+
         setState(() {
           _position = position;
           _surahName = surahData['nameFr'] as String;
@@ -59,8 +59,6 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -76,23 +74,10 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
       child: Container(
         margin: EdgeInsets.zero,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [
-                    const Color(0xFF1F4D2C),
-                    const Color(0xFF0F3D1F),
-                  ]
-                : [
-                    const Color(0xFF2ECC71),
-                    const Color(0xFF27AE60),
-                  ],
-          ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: (isDark ? Colors.green.shade900 : Colors.green).withOpacity(0.3),
+              color: Colors.black.withOpacity(0.18),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -102,52 +87,39 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
           borderRadius: BorderRadius.circular(20),
           child: Stack(
             children: [
-              // Pattern décoratif
-              Positioned(
-                right: -20,
-                top: -20,
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+              // image de fond
+              Positioned.fill(
+                child: Image.asset(
+                  'assets/images/reprendre_lecture/reprendre_lecture.webp',
+                  fit: BoxFit.cover,
+                ),
+              ),
+
+              // voile léger pour lisibilité (supprime si tu veux l'image "pure")
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.10),
+                          Colors.black.withOpacity(0.45),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-              Positioned(
-                right: 40,
-                bottom: -30,
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.08),
-                  ),
-                ),
-              ),
-              
-              // Contenu
+
+              // Contenu (sans logo / sans fond coloré)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Row(
                   children: [
-                    // Icône du livre
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _position == null ? Icons.auto_stories_rounded : Icons.menu_book_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    
+                    // ✅ icône supprimée
+
                     // Texte
                     Expanded(
                       child: Column(
@@ -209,7 +181,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                         ],
                       ),
                     ),
-                    
+
                     // Flèche
                     Icon(
                       Icons.arrow_forward_ios_rounded,

@@ -212,20 +212,37 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
             child: ListTile(
               leading: const Icon(Icons.calculate_rounded),
               title: const Text('Méthode de calcul'),
-              subtitle: Text(_methodLabel(_method)),
+              subtitle: SizedBox(
+                width: 180,
+                child: Text(
+                  _methodLabel(_method),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                ),
+              ),
               trailing: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _method,
-                  items: _methods
-                      .map((m) => DropdownMenuItem<String>(
-                            value: m['id'],
-                            child: Text(m['label']!),
-                          ))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v == null) return;
-                    _saveMethod(v);
-                  },
+                child: SizedBox(
+                  width: 220,
+                  child: DropdownButton<String>(
+                    value: _method,
+                    isExpanded: true,
+                    items: _methods
+                        .map((m) => DropdownMenuItem<String>(
+                              value: m['id'],
+                              child: Text(
+                                m['label']!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                              ),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      _saveMethod(v);
+                    },
+                  ),
                 ),
               ),
             ),
