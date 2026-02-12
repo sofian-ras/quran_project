@@ -22,7 +22,6 @@ import 'widgets/ios_side_menu.dart';
 import 'widgets/continue_reading_card.dart';
 import 'widgets/youtube_video_card.dart';
 import 'widgets/prayer_times_card_v2.dart';
-import 'widgets/popular_clips_carousel.dart';
 import '../theme/theme_service.dart';
 import '../models/reciter.dart';
 import 'package:dio/dio.dart';
@@ -1196,7 +1195,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                                        // Top row: menu + recherche + thème + notifications
+                    // Top row: menu + recherche + thème + notifications
                     Row(
                       children: [
                         IconButton(
@@ -1264,73 +1263,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
                           },
                         ),
                       ],
-                    ),
-
-                    const SizedBox(height: 10),
-                    Text(
-                      'Clips populaires',
-                      style: TextStyle(
-                        color: fg,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    PopularClipsCarousel(
-                      clips: [
-
-                              PopularClip(
-                                title: 'Beauté de la Kaaba',
-                                icon: Icons.crop_square,
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Clip bientôt')),
-                                  );
-                                },
-                              ),
-                              PopularClip(
-                                title: 'Merveilles du Coran',
-                                icon: Icons.menu_book,
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Clip bientôt')),
-                                  );
-                                },
-                              ),
-                              PopularClip(
-                                title: 'Paisible nuit',
-                                icon: Icons.nightlight_round,
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Clip bientôt')),
-                                  );
-                                },
-                              ),
-                              PopularClip(
-                                title: 'Duas & dhikr',
-                                icon: Icons.favorite,
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Clip bientôt')),
-                                  );
-                                },
-                              ),
-                              PopularClip(
-                                title: 'Histoires des prophètes',
-                                icon: Icons.auto_stories,
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Clip bientôt')),
-                                  );
-                                },
-                              ),
-                      ],
-                      height: 94,
-                      viewportFraction: 0.46,
-                      activeDotColor: const Color(0xFF1FA36A),
-                      dotColor: isDark
-                          ? Colors.white.withOpacity(0.28)
-                          : Colors.black.withOpacity(0.18),
                     ),
                     const SizedBox(height: 12),
                     if (snap.connectionState != ConnectionState.done || data == null)
@@ -1624,7 +1556,7 @@ class _HeaderWithEngagement extends StatelessWidget {
     const double headerHeight = 470;
 
     // on place les cartes sous le header (évite de masquer la carte des prières)
-    const double engagementTop = headerHeight + 12;
+    const double engagementTop = headerHeight - 160; // espace très rapproché
 
     // espace après la carte "reprendre"
     const double recitersTop = engagementTop + 92;
