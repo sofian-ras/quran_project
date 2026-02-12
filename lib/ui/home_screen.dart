@@ -41,7 +41,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
-
+  static const double hPad = 14;
+  static const double vGap = 12;
   String _prettyMoshafName(String raw) {
     final s = raw.toLowerCase();
 
@@ -829,249 +830,209 @@ Future<void> _checkFirstLaunch() async {
   Widget build(BuildContext context) {
     super.build(context);
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          IgnorePointer(
-            ignoring: _isMenuOpen,
-            child: GestureDetector(
-              onHorizontalDragStart: _handleDragStart,
-              onHorizontalDragUpdate: _handleDragUpdate,
-              onHorizontalDragEnd: _handleDragEnd,
-              child: _isLoading
-                  ? Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Color(0xFFF5F7FA),
-                            Color(0xFFE8EEF7),
-                            Color(0xFFDBE4F0),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: const Center(
-                        child: CircularProgressIndicator(color: Color(0xFFFFFFFF)),
-                      ),
-                    )
-                  : Stack(
-                      children: [
-                        // FOND DÉGRADÉ EN BAS SUPPRIMÉ
-                        // Contenu principal
-                       Positioned.fill(
-                        top: 0,
-                        child: MediaQuery.removePadding(
-                          context: context,
-                          removeLeft: true,
-                          removeRight: true,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: Theme.of(context).brightness == Brightness.dark
-                                  ? const LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Color(0xFF020617),
-                                        Color(0xFF0B1025),
-                                        Color(0xFF1A0033),
-                                        Color(0xFF2D1B4E),
-                                      ],
-                                    )
-                                  : const LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Color(0xFFFFFDF8),
-                                        Color(0xFFF7F3EA),
-                                      ],
-                                    ),
-                            ),
-                            child: Stack(
-                              children: [
-                                // effet lumière subtil
-                                Positioned.fill(
-                                  child: IgnorePointer(
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            Colors.white.withOpacity(0.04),
-                                            Colors.transparent,
-                                            const Color(0xFFFFFFFF).withOpacity(0.02),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-                                // contenu
-                                SafeArea(
-                                  top: true,
-                                  left: false,
-                                  right: false,
-                                  child: CustomScrollView(
-                                    physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                                    slivers: [
-                                      SliverToBoxAdapter(
-                                        child: _HeaderWithEngagement(
-                                          audio: _audio,
-                                          onMenuTap: _openMenu,
-                                          onThemeTap: _cycleTheme,
-                                          onContinue: _openSurahListScreen,
-                                          prayerFuture: _prayerFuture,
-                                          activeIndexFromTimes: _activeIndexFromTimes,
-                                          reciters: _reciters,
-                                          recitersLoading: _recitersLoading,
-                                          onReciterTap: _onReciterSelected,
-                                          getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
-                                        ),
-                                      ),
+    final bgGradient = isDark
+      ? const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF020617),
+            Color(0xFF0B1025),
+            Color(0xFF1A0033),
+            Color(0xFF2D1B4E),
+          ],
+        )
+      : const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            // Vert léger en haut
+            Color(0xFFEAF7F0),
+            Color(0xFFF1FAF5),
 
-                                      // Verset du jour (bord à bord)
-                                      SliverToBoxAdapter(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                                          child: Transform.translate(
-                                            offset: const Offset(0, -80),
-                                            child: const _VerseOfTheDayCard(),
-                                          ),
-                                        ),
-                                      ),
+            // Transition douce vers crème
+            Color(0xFFFFFBF2),
+            Color(0xFFF7F3EA),
+          ],
+        );
 
-                                      const SliverToBoxAdapter(child: SizedBox(height: 0)),
+    Widget loading() {
+      return Container(
+        decoration: BoxDecoration(gradient: bgGradient),
+        child: const Center(
+          child: CircularProgressIndicator(color: Color(0xFFFFFFFF)),
+        ),
+      );
+    }
 
-                                      // Vidéo du jour
-                                      SliverToBoxAdapter(
-                                        child: Transform.translate(
-                                          offset: const Offset(0, -30),
-                                          child: const YoutubeVideoCard(mode: QuranVideoMode.sufi),
-                                        ),
-                                      ),
-
-                                      // Explore (bord à bord) — suppression du SliverPadding horizontal
-                                      SliverToBoxAdapter(
-                                        child: Transform.translate(
-                                          offset: const Offset(0, -40),
-                                          child: _ExploreFeaturesSection(
-                                            features: const [
-                                              _FeatureChipData(label: 'Player', imagePath: 'assets/images/Features/player.webp'),
-                                              _FeatureChipData(label: 'Duʿa', imagePath: 'assets/images/Features/dua.webp'),
-                                              _FeatureChipData(label: 'Hadith', imagePath: 'assets/images/Features/hadith.webp'),
-                                              _FeatureChipData(label: 'Qibla', imagePath: 'assets/images/Features/qibla.webp'),
-                                              _FeatureChipData(label: 'Adhkar', imagePath: 'assets/images/Features/adhkar.webp'),
-                                              _FeatureChipData(label: 'Bookmarks', imagePath: 'assets/images/Features/bookmarks.webp'),
-                                            ],
-                                            onTap: (f) {
-                                              final ctx = NavigationService.navigatorKey.currentContext ?? context;
-                                              if (f.label == 'Player') {
-                                                _audio.isFullPlayerOpenNotifier.value = true;
-
-                                                showModalBottomSheet(
-                                                  context: ctx,
-                                                  useSafeArea: true,
-                                                  useRootNavigator: true,
-                                                  isScrollControlled: true,
-                                                  backgroundColor: Colors.transparent,
-                                                  builder: (_) => const FullPlayerScreen(),
-                                                ).whenComplete(() {
-                                                  _audio.isFullPlayerOpenNotifier.value = false;
-                                                });
-
-                                                return;
-                                              }
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(content: Text('${f.label} bientôt')),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ),
-
-                                      const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-                                      // cards image (déjà bord à bord chez toi)
-                                      SliverToBoxAdapter(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                                          child: _ContentCardsSection(
-                                            items: const [
-                                              _ContentCardData(
-                                                title: 'Coran en français',
-                                                subtitle: 'Lire avec traduction',
-                                                imageAsset: 'assets/images/Programmes/coran_fr_thumbnail.webp',
-                                              ),
-                                              _ContentCardData(
-                                                title: 'Tafsir Session',
-                                                subtitle: 'Tonight • 20:30',
-                                                imageAsset: 'assets/images/Programmes/tafsir.webp',
-                                              ),
-                                            ],
-                                            onTap: (item) {
-                                              if (item.title == 'Coran en français') {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (_) => const TranslatedQuranScreen(preferOffline: true),
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                          ),
-                                        ),
-                                      ),
-
-                                      const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                                      SliverToBoxAdapter(
-                                        child: SizedBox(
-                                          height: 170 + MediaQuery.of(context).padding.bottom,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        ),
-                        // Mini lecteur audio                       
+    Widget content() {
+      return Container(
+        decoration: BoxDecoration(gradient: bgGradient),
+        child: Stack(
+          children: [
+            // voile lumière subtil
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(isDark ? 0.04 : 0.06),
+                        Colors.transparent,
+                        Colors.white.withOpacity(isDark ? 0.02 : 0.03),
                       ],
                     ),
+                  ),
+                ),
+              ),
             ),
-          ),
 
-          // Menu latéral qui suit le doigt
-          if (_isMenuOpen)
-            AnimatedBuilder(
-              animation: _menuAnimation,
-              builder: (context, child) {
-                final screenWidth = MediaQuery.of(context).size.width * 0.8;
-                return GestureDetector(
-                  onHorizontalDragStart: _handleDragStart,
-                  onHorizontalDragUpdate: _handleDragUpdate,
-                  onHorizontalDragEnd: _handleDragEnd,
-                  child: Transform.translate(
-                    offset: Offset(
-                      -screenWidth + (screenWidth * _menuAnimation.value),
-                      0,
-                    ),
-                    child: RepaintBoundary(
-                      child: IOSSideMenu(
-                        onSettingsClosed: _refreshPrayerHeader,
-                      ),
+            CustomScrollView(
+              physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: hPad),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate(
+                      [
+                        // Header
+                        _HeaderWithEngagement(
+                          audio: _audio,
+                          onMenuTap: _openMenu,
+                          onThemeTap: _cycleTheme,
+                          onContinue: _openSurahListScreen,
+                          prayerFuture: _prayerFuture,
+                          activeIndexFromTimes: _activeIndexFromTimes,
+                          reciters: _reciters,
+                          recitersLoading: _recitersLoading,
+                          onReciterTap: _onReciterSelected,
+                          getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
+                        ),
+                        const SizedBox(height: vGap),
+
+                        // Verse of the day
+                        const _VerseOfTheDayCard(),
+                        const SizedBox(height: vGap),
+
+                        // Video of the day
+                        const YoutubeVideoCard(mode: QuranVideoMode.sufi),
+                        const SizedBox(height: vGap),
+
+                        // Explore
+                        _ExploreFeaturesSection(
+                          features: const [
+                            _FeatureChipData(label: 'Player', imagePath: 'assets/images/Features/player.webp'),
+                            _FeatureChipData(label: 'Duʿa', imagePath: 'assets/images/Features/dua.webp'),
+                            _FeatureChipData(label: 'Hadith', imagePath: 'assets/images/Features/hadith.webp'),
+                            _FeatureChipData(label: 'Qibla', imagePath: 'assets/images/Features/qibla.webp'),
+                            _FeatureChipData(label: 'Adhkar', imagePath: 'assets/images/Features/adhkar.webp'),
+                            _FeatureChipData(label: 'Bookmarks', imagePath: 'assets/images/Features/bookmarks.webp'),
+                          ],
+                          onTap: (f) {
+                            final ctx = NavigationService.navigatorKey.currentContext ?? context;
+                            if (f.label == 'Player') {
+                              _audio.isFullPlayerOpenNotifier.value = true;
+                              showModalBottomSheet(
+                                context: ctx,
+                                useSafeArea: true,
+                                useRootNavigator: true,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => const FullPlayerScreen(),
+                              ).whenComplete(() {
+                                _audio.isFullPlayerOpenNotifier.value = false;
+                              });
+                              return;
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${f.label} bientôt')),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: vGap),
+
+                        // Programs / content cards
+                        _ContentCardsSection(
+                          items: const [
+                            _ContentCardData(
+                              title: 'Coran en français',
+                              subtitle: 'Lire avec traduction',
+                              imageAsset: 'assets/images/Programmes/coran_fr_thumbnail.webp',
+                            ),
+                            _ContentCardData(
+                              title: 'Tafsir Session',
+                              subtitle: 'Tonight • 20:30',
+                              imageAsset: 'assets/images/Programmes/tafsir.webp',
+                            ),
+                          ],
+                          onTap: (item) {
+                            if (item.title == 'Coran en français') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+
+                        // Bottom space (mini-player / safe area)
+                        SizedBox(height: 16 + MediaQuery.of(context).padding.bottom),
+                      ],
                     ),
                   ),
-                );
-              },
+                ),
+              ],
             ),
         ],
       ),
     );
   }
+
+  return Scaffold(
+    body: Stack(
+      children: [
+        IgnorePointer(
+          ignoring: _isMenuOpen,
+          child: GestureDetector(
+            onHorizontalDragStart: _handleDragStart,
+            onHorizontalDragUpdate: _handleDragUpdate,
+            onHorizontalDragEnd: _handleDragEnd,
+            child: _isLoading ? loading() : content(),
+          ),
+        ),
+
+        // Side menu
+        if (_isMenuOpen)
+          AnimatedBuilder(
+            animation: _menuAnimation,
+            builder: (context, child) {
+              final screenWidth = MediaQuery.of(context).size.width * 0.8;
+              return GestureDetector(
+                onHorizontalDragStart: _handleDragStart,
+                onHorizontalDragUpdate: _handleDragUpdate,
+                onHorizontalDragEnd: _handleDragEnd,
+                child: Transform.translate(
+                  offset: Offset(-screenWidth + (screenWidth * _menuAnimation.value), 0),
+                  child: RepaintBoundary(
+                    child: IOSSideMenu(
+                      onSettingsClosed: _refreshPrayerHeader,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  
 }
 
 class _HomeTopBar extends StatelessWidget {
@@ -1151,196 +1112,158 @@ class _DribbbleHomeHeader extends StatelessWidget {
         final data = snap.data;
 
         final location = data == null ? 'Paris, France' : '${data.city}, ${data.country}';
-        return ClipRRect(
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(28),
-            bottomRight: Radius.circular(28),
+        return Padding(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 2,
+            bottom: 10,
           ),
-          child: Stack(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Fond neutre (on retire le bleu)
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: isDark
-                        ? const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0xFF020617),
-                              Color(0xFF0B1025),
-                              Color(0xFF111827),
-                            ],
-                          )
-                        : const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0xFFFFFFFF),
-                              Color(0xFFF3F4F6),
-                            ],
-                          ),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: onMenuTap,
+                    icon: Icon(Icons.menu_rounded, color: fg),
                   ),
-                ),
-              ),
-
-              // Contenu
-              Padding(
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + 2,
-                  left: 16,
-                  right: 16,
-                  bottom: 18,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top row: menu + recherche + thème + notifications
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: onMenuTap,
-                          icon: Icon(Icons.menu_rounded, color: fg),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Recherche bientôt')),
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(999),
-                            child: Container(
-                              height: 40,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: pillBg,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.search_rounded, color: muted, size: 20),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    'Rechercher',
-                                    style: TextStyle(
-                                      color: muted,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        ValueListenableBuilder<ThemeMode>(
-                          valueListenable: ThemeService.themeMode,
-                          builder: (context, mode, _) {
-                            final IconData icon = (mode == ThemeMode.system)
-                                ? Icons.brightness_auto_rounded
-                                : (mode == ThemeMode.light)
-                                    ? Icons.light_mode_rounded
-                                    : Icons.dark_mode_rounded;
-                            final Color color = isDark
-                                ? ((mode == ThemeMode.light) ? const Color(0xFFFFD54F) : Colors.white)
-                                : const Color(0xFF0F172A);
-                            return IconButton(
-                              onPressed: onThemeTap,
-                              icon: Icon(icon, color: color),
-                              tooltip: 'Thème',
-                            );
-                          },
-                        ),
-                        _NotificationBellButton(
-                          count: 3,
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Notifications bientôt')),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (snap.connectionState != ConnectionState.done || data == null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Recherche bientôt')),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
                           color: pillBg,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Text(
-                          'Chargement des horaires...',
-                          style: TextStyle(
-                            color: (isDark ? Colors.white : Colors.black).withOpacity(0.75),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.search_rounded, color: muted, size: 20),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Rechercher',
+                              style: TextStyle(
+                                color: muted,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
-                      )
-                    else
-                      StreamBuilder<int>(
-                        stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
-                        builder: (context, _) {
-                          final prayers5 = <(String, String)>[
-                            ('Fajr', data.times['Fajr'] ?? '--:--'),
-                            ('Dhuhr', data.times['Dhohr'] ?? '--:--'),
-                            ('Asr', data.times['Asr'] ?? '--:--'),
-                            ('Maghrib', data.times['Maghrib'] ?? '--:--'),
-                            ('Isha', data.times['Isha'] ?? '--:--'),
-                          ];
-
-                          int nextIndex5 = 0;
-                          final now = DateTime.now();
-                          DateTime? parseToday(String t) {
-                            final parts = t.split(':');
-                            if (parts.length < 2) return null;
-                            final h = int.tryParse(parts[0]);
-                            final m = int.tryParse(parts[1]);
-                            if (h == null || m == null) return null;
-                            return DateTime(now.year, now.month, now.day, h, m);
-                          }
-                          for (int i = 0; i < prayers5.length; i++) {
-                            final dt = parseToday(prayers5[i].$2);
-                            if (dt != null && dt.isAfter(now)) {
-                              nextIndex5 = i;
-                              break;
-                            }
-                          }
-
-                          final remaining5 = _DribbbleHomeHeader._remainingToNextPrayer(prayers5, nextIndex5);
-                          final nextName = prayers5[nextIndex5].$1;
-                          final nextTime = prayers5[nextIndex5].$2;
-
-                          return PrayerTimesCardV2(
-                            nextPrayerName: nextName,
-                            nextPrayerTime: nextTime,
-                            remaining: remaining5,
-                            prayers: prayers5,
-                            activeIndex: nextIndex5,
-                            location: location,
-                            onLocationTap: () {
-                              (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
-                            },
-                            onExpandTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const PrayersScreen()),
-                              );
-                            },
-                          );
-                        },
                       ),
-
-                  ],
-                ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ValueListenableBuilder<ThemeMode>(
+                    valueListenable: ThemeService.themeMode,
+                    builder: (context, mode, _) {
+                      final IconData icon = (mode == ThemeMode.system)
+                          ? Icons.brightness_auto_rounded
+                          : (mode == ThemeMode.light)
+                              ? Icons.light_mode_rounded
+                              : Icons.dark_mode_rounded;
+                      final Color color = isDark
+                          ? ((mode == ThemeMode.light) ? const Color(0xFFFFD54F) : Colors.white)
+                          : const Color(0xFF0F172A);
+                      return IconButton(
+                        onPressed: onThemeTap,
+                        icon: Icon(icon, color: color),
+                        tooltip: 'Thème',
+                      );
+                    },
+                  ),
+                  _NotificationBellButton(
+                    count: 3,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Notifications bientôt')),
+                      );
+                    },
+                  ),
+                ],
               ),
+              const SizedBox(height: 12),
+
+              if (snap.connectionState != ConnectionState.done || data == null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: pillBg,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Chargement des horaires...',
+                    style: TextStyle(
+                      color: (isDark ? Colors.white : Colors.black).withOpacity(0.75),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else
+                StreamBuilder<int>(
+                  stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
+                  builder: (context, _) {
+                    final prayers5 = <(String, String)>[
+                      ('Fajr', data.times['Fajr'] ?? '--:--'),
+                      ('Dhuhr', data.times['Dhohr'] ?? '--:--'),
+                      ('Asr', data.times['Asr'] ?? '--:--'),
+                      ('Maghrib', data.times['Maghrib'] ?? '--:--'),
+                      ('Isha', data.times['Isha'] ?? '--:--'),
+                    ];
+
+                    int nextIndex5 = 0;
+                    final now = DateTime.now();
+                    DateTime? parseToday(String t) {
+                      final parts = t.split(':');
+                      if (parts.length < 2) return null;
+                      final h = int.tryParse(parts[0]);
+                      final m = int.tryParse(parts[1]);
+                      if (h == null || m == null) return null;
+                      return DateTime(now.year, now.month, now.day, h, m);
+                    }
+
+                    for (int i = 0; i < prayers5.length; i++) {
+                      final dt = parseToday(prayers5[i].$2);
+                      if (dt != null && dt.isAfter(now)) {
+                        nextIndex5 = i;
+                        break;
+                      }
+                    }
+
+                    final remaining5 = _DribbbleHomeHeader._remainingToNextPrayer(prayers5, nextIndex5);
+                    final nextName = prayers5[nextIndex5].$1;
+                    final nextTime = prayers5[nextIndex5].$2;
+
+                    return PrayerTimesCardV2(
+                      nextPrayerName: nextName,
+                      nextPrayerTime: nextTime,
+                      remaining: remaining5,
+                      prayers: prayers5,
+                      activeIndex: nextIndex5,
+                      location: location,
+                      onLocationTap: () {
+                        (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
+                      },
+                      onExpandTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const PrayersScreen()),
+                        );
+                      },
+                    );
+                  },
+                ),
             ],
           ),
         );
+
       },
     );
   }
@@ -1553,65 +1476,46 @@ class _HeaderWithEngagement extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double headerHeight = 470;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header prières
+        _DribbbleHomeHeader(
+          onMenuTap: onMenuTap,
+          onThemeTap: onThemeTap,
+          prayerFuture: prayerFuture,
+          activeIndexFromTimes: activeIndexFromTimes,
+        ),
 
-    // on place les cartes sous le header (évite de masquer la carte des prières)
-    const double engagementTop = headerHeight - 160; // espace très rapproché
+        const SizedBox(height: 12),
 
-    // espace après la carte "reprendre"
-    const double recitersTop = engagementTop + 92;
+        // Continuer / Reprendre lecture
+        const ContinueReadingCard(),
 
-    return SizedBox(
-      height: recitersTop + 170,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          SizedBox(
-            height: headerHeight,
-            child: _DribbbleHomeHeader(
-              onMenuTap: onMenuTap,
-              onThemeTap: onThemeTap,
-              prayerFuture: prayerFuture,
-              activeIndexFromTimes: activeIndexFromTimes,
-            ),
-          ),
+        const SizedBox(height: 12),
 
-          // === Carte Reprendre la lecture ===
-          Positioned(
-            left: 16,
-            right: 16,
-            top: engagementTop,
-            child: const ContinueReadingCard(),
-          ),
-
-          // === Carte Reciters (AU-DESSUS) ===
-          Positioned(
-            left: 16,
-            right: 16,
-            top: recitersTop,
-            child: _HomeCardShell(
-              child: recitersLoading
-                  ? const SizedBox(
-                      height: 64,
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  : _RecitersSection(
-                      onSeeAll: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => RecitersGalleryScreen(reciters: reciters),
-                          ),
-                        );
-                      },
-                      reciters: reciters,
-                      onReciterTap: onReciterTap,
-                      getAssetByName: getReciterAsset,
-                    ),
-            ),
-          ),
-        ],
-      ),
+        // Reciters
+        _HomeCardShell(
+          child: recitersLoading
+              ? const SizedBox(
+                  height: 64,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _RecitersSection(
+                  onSeeAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => RecitersGalleryScreen(reciters: reciters),
+                      ),
+                    );
+                  },
+                  reciters: reciters,
+                  onReciterTap: onReciterTap,
+                  getAssetByName: getReciterAsset,
+                ),
+        ),
+      ],
     );
   }
 }
@@ -1634,9 +1538,30 @@ class _RecitersSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF111827);
-    final linkColor = const Color(0xFF2C6CB5);
+    const linkColor = Color(0xFF2C6CB5);
 
-    return Padding(
+    return Container(
+      decoration: BoxDecoration(
+        gradient: isDark
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF2C3E50),
+                  const Color(0xFF1A252F),
+                ],
+              )
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFFFEF5E7),
+                  const Color(0xFFFAE5D3),
+                ],
+              ),
+        borderRadius: BorderRadius.circular(20),
+        // boxShadow supprimé
+      ),
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1700,7 +1625,7 @@ class _RecitersSection extends StatelessWidget {
                           radius: 18,
                           backgroundColor: isDark
                               ? Colors.white.withOpacity(0.08)
-                              : const Color(0xFFF3F6FF),
+                              : const Color.fromARGB(255, 255, 251, 243),
                           backgroundImage: asset.isEmpty ? null : AssetImage(asset),
                           onBackgroundImageError: (_, __) {},
                         ),
@@ -2176,25 +2101,64 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
       return Container(
         height: 80,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F1734) : const Color(0xFFE8DCC8),
-          borderRadius: BorderRadius.circular(12),
+          gradient: isDark
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF2C3E50),
+                    Color(0xFF1A252F),
+                  ],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFEF5E7),
+                    Color(0xFFFAE5D3),
+                  ],
+                ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              // ignore: deprecated_member_use
+              color: (isDark ? Colors.black : Colors.orange.shade200).withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: const Center(child: CircularProgressIndicator()),
       );
     }
 
     final surahName = surahFr[_surahNumber] ?? 'Sourate $_surahNumber';
-    
-    final bgColor = isDark ? const Color(0xFF0F1734) : const Color(0xFFE8DCC8);
     final arabicColor = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF3D2817);
     final translationColor = isDark ? const Color(0xFFD4C5B0) : const Color(0xFF6B5744);
-    final goldColor = const Color(0xFFA67C52);
+    const goldColor = Color(0xFFA67C52);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        gradient: isDark
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF2C3E50),
+                  Color(0xFF1A252F),
+                ],
+              )
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFEF5E7),
+                  Color(0xFFFAE5D3),
+                ],
+              ),
+        borderRadius: BorderRadius.circular(20),
+        // boxShadow supprimé
       ),
       child: Column(
         children: [
@@ -2231,7 +2195,7 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
           // Référence simple
           Text(
             '$surahName $_surahNumber:$_verseNumber',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
               color: goldColor,
@@ -2251,6 +2215,7 @@ class _HomeCardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
 
     return Material(
       color: isDark ? const Color(0xFF0F1734) : Colors.white,
@@ -2418,84 +2383,3 @@ class _FeatureSquareItem extends StatelessWidget {
 }
 
 // Painter minimaliste et élégant - juste quelques touches dorées subtiles
-class _GoldenDecorPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final goldColor = const Color(0xFFC8A165);
-    
-    // ═══════════════════════════════════════════════════
-    // Juste 2-3 éléments discrets et raffinés
-    // ═══════════════════════════════════════════════════
-    
-    // 1. Fine ligne dorée en haut (très subtile)
-    final topLinePaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          Colors.transparent,
-          goldColor.withOpacity(0.15),
-          goldColor.withOpacity(0.20),
-          goldColor.withOpacity(0.15),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, 1))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    
-    canvas.drawLine(
-      Offset(0, size.height * 0.15),
-      Offset(size.width, size.height * 0.15),
-      topLinePaint,
-    );
-
-    // 2. Une seule petite étoile élégante coin supérieur droit
-    final starPaint = Paint()
-      ..color = goldColor.withOpacity(0.12)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    
-    _drawSimpleStar(
-      canvas,
-      starPaint,
-      Offset(size.width * 0.88, size.height * 0.08),
-      20,
-    );
-
-    // 3. Petite arabesque discrète coin inférieur
-    final arabPaint = Paint()
-      ..color = goldColor.withOpacity(0.10)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    final decorPath = Path();
-    decorPath.moveTo(size.width * 0.85, size.height * 0.92);
-    decorPath.quadraticBezierTo(
-      size.width * 0.90, size.height * 0.94,
-      size.width * 0.95, size.height * 0.93,
-    );
-    canvas.drawPath(decorPath, arabPaint);
-  }
-
-  // Étoile simple et épurée
-  void _drawSimpleStar(Canvas canvas, Paint paint, Offset center, double radius) {
-    final path = Path();
-    const points = 8;
-    
-    for (int i = 0; i < points * 2; i++) {
-      final angle = (i * math.pi / points) - math.pi / 2;
-      final r = (i % 2 == 0) ? radius : radius * 0.5;
-      final x = center.dx + r * math.cos(angle);
-      final y = center.dy + r * math.sin(angle);
-      
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

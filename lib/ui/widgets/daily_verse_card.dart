@@ -84,22 +84,26 @@ class DailyVerseCard extends StatelessWidget {
         final verse = snapshot.data!;
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+          padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? [
+            gradient: isDark
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
                       const Color(0xFF2C3E50),
                       const Color(0xFF1A252F),
-                    ]
-                  : [
+                    ],
+                  )
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
                       const Color(0xFFFEF5E7),
                       const Color(0xFFFAE5D3),
                     ],
-            ),
+                  ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
