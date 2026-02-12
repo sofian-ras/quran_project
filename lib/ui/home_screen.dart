@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/rendering.dart';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,6 +44,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   final ScrollController _scrollCtrl = ScrollController();
   bool _statusBarGreen = false;
+  bool _isUserScrolling = false;
   static const double hPad = 14;
   static const double vGap = 12;
   String _prettyMoshafName(String raw) {
@@ -843,7 +845,7 @@ Future<void> _checkFirstLaunch() async {
 
     final Color statusBarColor = isDark
     ? Colors.transparent
-    : (_statusBarGreen ? const Color(0xFFEAF7F0) : Colors.transparent);
+    : (_statusBarGreen ? const Color(0xFFF7EEDB) : Colors.transparent);
 
     final overlay = SystemUiOverlayStyle(
       statusBarColor: statusBarColor,
@@ -863,18 +865,15 @@ Future<void> _checkFirstLaunch() async {
           ],
         )
       : const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            // Vert léger en haut
-            Color(0xFFEAF7F0),
-            Color(0xFFF1FAF5),
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color(0xFFFFF7E8), // beige clair en haut
+          Color(0xFFF7EEDB), // beige un peu plus chaud
+          Color(0xFFF2E4CC), // beige plus profond en bas
+        ],
+      );
 
-            // Transition douce vers crème
-            Color(0xFFFFFBF2),
-            Color(0xFFF7F3EA),
-          ],
-        );
 
     Widget loading() {
       return Container(
@@ -909,106 +908,109 @@ Future<void> _checkFirstLaunch() async {
               ),
             ),
 
-            CustomScrollView(
-              controller: _scrollCtrl,
-              physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              slivers: [
-                
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: hPad),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate(
-                      [
-                        // Header
-                        _HeaderWithEngagement(
-                          audio: _audio,
-                          onMenuTap: _openMenu,
-                          onThemeTap: _cycleTheme,
-                          onContinue: _openSurahListScreen,
-                          prayerFuture: _prayerFuture,
-                          activeIndexFromTimes: _activeIndexFromTimes,
-                          reciters: _reciters,
-                          recitersLoading: _recitersLoading,
-                          onReciterTap: _onReciterSelected,
-                          getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
-                        ),
-                        const SizedBox(height: vGap),
+            NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                final scrolling =
+                    n is UserScrollNotification && n.direction != ScrollDirection.idle;
+                if (scrolling != _isUserScrolling) {
+                  setState(() => _isUserScrolling = scrolling);
+                }
+                return false;
+              },
+              child: CustomScrollView(
+                controller: _scrollCtrl,
+                physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: hPad),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate(
+                        [
+                          _HeaderWithEngagement(
+                            audio: _audio,
+                            onMenuTap: _openMenu,
+                            onThemeTap: _cycleTheme,
+                            onContinue: _openSurahListScreen,
+                            prayerFuture: _prayerFuture,
+                            activeIndexFromTimes: _activeIndexFromTimes,
+                            reciters: _reciters,
+                            recitersLoading: _recitersLoading,
+                            onReciterTap: _onReciterSelected,
+                            getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
+                            pausePrayerTicker: _isUserScrolling, // <-- AJOUT
+                          ),
+                          const SizedBox(height: vGap),
+                          const _VerseOfTheDayCard(),
+                          const SizedBox(height: vGap),
+                          const YoutubeVideoCard(mode: QuranVideoMode.sufi),
+                          const SizedBox(height: vGap),
 
-                        // Verse of the day
-                        const _VerseOfTheDayCard(),
-                        const SizedBox(height: vGap),
-
-                        // Video of the day
-                        const YoutubeVideoCard(mode: QuranVideoMode.sufi),
-                        const SizedBox(height: vGap),
-
-                        // Explore
-                        _ExploreFeaturesSection(
-                          features: const [
-                            _FeatureChipData(label: 'Player', imagePath: 'assets/images/Features/player.webp'),
-                            _FeatureChipData(label: 'Duʿa', imagePath: 'assets/images/Features/dua.webp'),
-                            _FeatureChipData(label: 'Hadith', imagePath: 'assets/images/Features/hadith.webp'),
-                            _FeatureChipData(label: 'Qibla', imagePath: 'assets/images/Features/qibla.webp'),
-                            _FeatureChipData(label: 'Adhkar', imagePath: 'assets/images/Features/adhkar.webp'),
-                            _FeatureChipData(label: 'Bookmarks', imagePath: 'assets/images/Features/bookmarks.webp'),
-                          ],
-                          onTap: (f) {
-                            final ctx = NavigationService.navigatorKey.currentContext ?? context;
-                            if (f.label == 'Player') {
-                              _audio.isFullPlayerOpenNotifier.value = true;
-                              showModalBottomSheet(
-                                context: ctx,
-                                useSafeArea: true,
-                                useRootNavigator: true,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => const FullPlayerScreen(),
-                              ).whenComplete(() {
-                                _audio.isFullPlayerOpenNotifier.value = false;
-                              });
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${f.label} bientôt')),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: vGap),
-
-                        // Programs / content cards
-                        _ContentCardsSection(
-                          items: const [
-                            _ContentCardData(
-                              title: 'Coran en français',
-                              subtitle: 'Lire avec traduction',
-                              imageAsset: 'assets/images/Programmes/coran_fr_thumbnail.webp',
-                            ),
-                            _ContentCardData(
-                              title: 'Tafsir Session',
-                              subtitle: 'Tonight • 20:30',
-                              imageAsset: 'assets/images/Programmes/tafsir.webp',
-                            ),
-                          ],
-                          onTap: (item) {
-                            if (item.title == 'Coran en français') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const TranslatedQuranScreen(preferOffline: true),
-                                ),
+                          _ExploreFeaturesSection(
+                            features: const [
+                              _FeatureChipData(label: 'Player', imagePath: 'assets/images/Features/player.webp'),
+                              _FeatureChipData(label: 'Duʿa', imagePath: 'assets/images/Features/dua.webp'),
+                              _FeatureChipData(label: 'Hadith', imagePath: 'assets/images/Features/hadith.webp'),
+                              _FeatureChipData(label: 'Qibla', imagePath: 'assets/images/Features/qibla.webp'),
+                              _FeatureChipData(label: 'Adhkar', imagePath: 'assets/images/Features/adhkar.webp'),
+                              _FeatureChipData(label: 'Bookmarks', imagePath: 'assets/images/Features/bookmarks.webp'),
+                            ],
+                            onTap: (f) {
+                              final ctx = NavigationService.navigatorKey.currentContext ?? context;
+                              if (f.label == 'Player') {
+                                _audio.isFullPlayerOpenNotifier.value = true;
+                                showModalBottomSheet(
+                                  context: ctx,
+                                  useSafeArea: true,
+                                  useRootNavigator: true,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (_) => const FullPlayerScreen(),
+                                ).whenComplete(() {
+                                  _audio.isFullPlayerOpenNotifier.value = false;
+                                });
+                                return;
+                              }
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('${f.label} bientôt')),
                               );
-                            }
-                          },
-                        ),
+                            },
+                          ),
+                          const SizedBox(height: vGap),
 
-                        // Bottom space (mini-player / safe area)
-                        SizedBox(height: 16 + MediaQuery.of(context).padding.bottom),
-                      ],
+                          _ContentCardsSection(
+                            items: const [
+                              _ContentCardData(
+                                title: 'Coran en français',
+                                subtitle: 'Lire avec traduction',
+                                imageAsset: 'assets/images/Programmes/coran_fr_thumbnail.webp',
+                              ),
+                              _ContentCardData(
+                                title: 'Tafsir Session',
+                                subtitle: 'Tonight • 20:30',
+                                imageAsset: 'assets/images/Programmes/tafsir.webp',
+                              ),
+                            ],
+                            onTap: (item) {
+                              if (item.title == 'Coran en français') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+
+                          SizedBox(height: 16 + MediaQuery.of(context).padding.bottom),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+
         ],
       ),
     );
@@ -1105,6 +1107,7 @@ class _HomeTopBar extends StatelessWidget {
 }
 
 class _DribbbleHomeHeader extends StatelessWidget {
+  final bool pauseTicker;
   final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
   final Future<_PrayerHeaderData> prayerFuture;
@@ -1115,6 +1118,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
     required this.onThemeTap,
     required this.prayerFuture,
     required this.activeIndexFromTimes,
+    required this.pauseTicker, // <-- AJOUT
   });
   @override
   Widget build(BuildContext context) {
@@ -1122,6 +1126,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
     final Color fg = isDark ? Colors.white : const Color(0xFF0F172A);
     final Color muted = fg.withOpacity(isDark ? 0.72 : 0.60);
     final Color pillBg = isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.92);
+    const double prayerCardHeight = 240;
     final Color pillBorder = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
     return FutureBuilder<_PrayerHeaderData>(
       future: prayerFuture,
@@ -1177,74 +1182,80 @@ class _DribbbleHomeHeader extends StatelessWidget {
               const SizedBox(height: 12),
 
               if (snap.connectionState != ConnectionState.done || data == null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: pillBg,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'Chargement des horaires...',
-                    style: TextStyle(
-                      color: (isDark ? Colors.white : Colors.black).withOpacity(0.75),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                SizedBox(
+                  height: prayerCardHeight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: pillBg,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Chargement des horaires...',
+                        style: TextStyle(
+                          color: (isDark ? Colors.white : Colors.black).withOpacity(0.75),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 )
               else
-                StreamBuilder<int>(
-                  stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
-                  builder: (context, _) {
-                    final prayers5 = <(String, String)>[
-                      ('Fajr', data.times['Fajr'] ?? '--:--'),
-                      ('Dhuhr', data.times['Dhohr'] ?? '--:--'),
-                      ('Asr', data.times['Asr'] ?? '--:--'),
-                      ('Maghrib', data.times['Maghrib'] ?? '--:--'),
-                      ('Isha', data.times['Isha'] ?? '--:--'),
-                    ];
+                SizedBox(
+                  height: prayerCardHeight,
+                  child: StreamBuilder<int>(
+                    stream: pauseTicker
+                      ? const Stream.empty()
+                      : Stream.periodic(const Duration(seconds: 1), (i) => i),
+                    builder: (context, _) {
+                      final prayers5 = <(String, String)>[
+                        ('Fajr', data.times['Fajr'] ?? '--:--'),
+                        ('Dhuhr', data.times['Dhohr'] ?? '--:--'),
+                        ('Asr', data.times['Asr'] ?? '--:--'),
+                        ('Maghrib', data.times['Maghrib'] ?? '--:--'),
+                        ('Isha', data.times['Isha'] ?? '--:--'),
+                      ];
 
-                    int nextIndex5 = 0;
-                    final now = DateTime.now();
-                    DateTime? parseToday(String t) {
-                      final parts = t.split(':');
-                      if (parts.length < 2) return null;
-                      final h = int.tryParse(parts[0]);
-                      final m = int.tryParse(parts[1]);
-                      if (h == null || m == null) return null;
-                      return DateTime(now.year, now.month, now.day, h, m);
-                    }
-
-                    for (int i = 0; i < prayers5.length; i++) {
-                      final dt = parseToday(prayers5[i].$2);
-                      if (dt != null && dt.isAfter(now)) {
-                        nextIndex5 = i;
-                        break;
+                      int nextIndex5 = 0;
+                      final now = DateTime.now();
+                      DateTime? parseToday(String t) {
+                        final parts = t.split(':');
+                        if (parts.length < 2) return null;
+                        final h = int.tryParse(parts[0]);
+                        final m = int.tryParse(parts[1]);
+                        if (h == null || m == null) return null;
+                        return DateTime(now.year, now.month, now.day, h, m);
                       }
-                    }
 
-                    final remaining5 = _DribbbleHomeHeader._remainingToNextPrayer(prayers5, nextIndex5);
-                    final nextName = prayers5[nextIndex5].$1;
-                    final nextTime = prayers5[nextIndex5].$2;
+                      for (int i = 0; i < prayers5.length; i++) {
+                        final dt = parseToday(prayers5[i].$2);
+                        if (dt != null && dt.isAfter(now)) {
+                          nextIndex5 = i;
+                          break;
+                        }
+                      }
 
-                    return PrayerTimesCardV2(
-                      nextPrayerName: nextName,
-                      nextPrayerTime: nextTime,
-                      remaining: remaining5,
-                      prayers: prayers5,
-                      activeIndex: nextIndex5,
-                      location: location,
-                      onLocationTap: () {
-                        (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
-                      },
-                      onExpandTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const PrayersScreen()),
-                        );
-                      },
-                    );
-                  },
+                      final remaining5 = _DribbbleHomeHeader._remainingToNextPrayer(prayers5, nextIndex5);
+
+                      return PrayerTimesCardV2(
+                        nextPrayerName: prayers5[nextIndex5].$1,
+                        nextPrayerTime: prayers5[nextIndex5].$2,
+                        remaining: remaining5,
+                        prayers: prayers5,
+                        activeIndex: nextIndex5,
+                        location: location,
+                        onLocationTap: () {
+                          (context.findAncestorStateOfType<_HomeScreenState>())?._showLocationPicker();
+                        },
+                        onExpandTap: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PrayersScreen()));
+                        },
+                      );
+                    },
+                  ),
                 ),
             ],
           ),
@@ -1431,6 +1442,7 @@ class _QuranEngagementCard extends StatelessWidget {
 }
 
 class _HeaderWithEngagement extends StatelessWidget {
+  final bool pausePrayerTicker;
   final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
   final VoidCallback onContinue;
@@ -1457,6 +1469,7 @@ class _HeaderWithEngagement extends StatelessWidget {
     required this.recitersLoading,
     required this.onReciterTap,
     required this.getReciterAsset,
+    required this.pausePrayerTicker,
   });
 
 
@@ -1471,6 +1484,7 @@ class _HeaderWithEngagement extends StatelessWidget {
           onThemeTap: onThemeTap,
           prayerFuture: prayerFuture,
           activeIndexFromTimes: activeIndexFromTimes,
+          pauseTicker: pausePrayerTicker, // <-- AJOUT
         ),
 
         const SizedBox(height: 12),
@@ -2102,8 +2116,46 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     if (_isLoading) {
-      return Container(
-        height: 80,
+      return SizedBox(
+        height: 190,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: isDark
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF2C3E50), Color(0xFF1A252F)],
+                  )
+                : const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFFEF5E7), Color(0xFFFAE5D3)],
+                  ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                // ignore: deprecated_member_use
+                color: (isDark ? Colors.black : Colors.orange.shade200).withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+      );
+
+    }
+
+    final surahName = surahFr[_surahNumber] ?? 'Sourate $_surahNumber';
+    final arabicColor = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF3D2817);
+    final translationColor = isDark ? const Color(0xFFD4C5B0) : const Color(0xFF6B5744);
+    const goldColor = Color(0xFFA67C52);
+
+    return SizedBox(
+      height: 190,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
         decoration: BoxDecoration(
           gradient: isDark
               ? const LinearGradient(
@@ -2123,90 +2175,49 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
                   ],
                 ),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              // ignore: deprecated_member_use
-              color: (isDark ? Colors.black : Colors.orange.shade200).withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _arabicText,
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.rtl,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'ScheherazadeNew',
+                fontSize: 18,
+                color: arabicColor,
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _translationText,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: translationColor,
+                height: 1.4,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$surahName $_surahNumber:$_verseNumber',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: goldColor,
+                letterSpacing: 0.3,
+              ),
             ),
           ],
         ),
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    final surahName = surahFr[_surahNumber] ?? 'Sourate $_surahNumber';
-    final arabicColor = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF3D2817);
-    final translationColor = isDark ? const Color(0xFFD4C5B0) : const Color(0xFF6B5744);
-    const goldColor = Color(0xFFA67C52);
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
-      decoration: BoxDecoration(
-        gradient: isDark
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF2C3E50),
-                  Color(0xFF1A252F),
-                ],
-              )
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFEF5E7),
-                  Color(0xFFFAE5D3),
-                ],
-              ),
-        borderRadius: BorderRadius.circular(20),
-        // boxShadow supprimé
-      ),
-      child: Column(
-        children: [
-          // Verset en arabe
-          Text(
-            _arabicText,
-            textAlign: TextAlign.center,
-            textDirection: TextDirection.rtl,
-            style: TextStyle(
-              fontFamily: 'ScheherazadeNew',
-              fontSize: 18,
-              color: arabicColor,
-              height: 1.8,
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // Traduction française
-          Text(
-            _translationText,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: translationColor,
-              height: 1.5,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Référence simple
-          Text(
-            '$surahName $_surahNumber:$_verseNumber',
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: goldColor,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -2219,6 +2230,7 @@ class _HomeCardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    const double cardHeight = 190;
 
 
     return Material(
