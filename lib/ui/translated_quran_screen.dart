@@ -1,3 +1,4 @@
+// lib/ui/translated_quran_screen.dart
 import 'dart:convert';
 import 'dart:ui';
 
@@ -8,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../hizb_juzz.dart';
+import '../services/audio_service.dart';
 import '../services/quran_translation_pack_service.dart';
 import '../services/verse_favorites_service.dart';
 import '../surah_name.dart';
@@ -41,7 +43,10 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
   }
 
   Future<void> _showPackDialog() async {
-    final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
+    final isEn = Localizations.localeOf(context)
+        .languageCode
+        .toLowerCase()
+        .startsWith('en');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     bool frReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
@@ -99,7 +104,11 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
 
                 if (!cancelled && ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(content: Text(isEn ? 'Download failed: $e' : 'Téléchargement échoué : $e')),
+                    SnackBar(
+                      content: Text(isEn
+                          ? 'Download failed: $e'
+                          : 'Téléchargement échoué : $e'),
+                    ),
                   );
                 }
               }
@@ -114,16 +123,22 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
               required bool ready,
               required AppLang lang,
             }) {
-              final status = ready ? (isEn ? 'Installed' : 'Installé') : (isEn ? 'Not installed' : 'Non installé');
+              final status = ready
+                  ? (isEn ? 'Installed' : 'Installé')
+                  : (isEn ? 'Not installed' : 'Non installé');
               final canDownload = !ready && !downloading;
 
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0B1025).withOpacity(0.55) : Colors.white.withOpacity(0.85),
+                  color: isDark
+                      ? const Color(0xFF0B1025).withOpacity(0.55)
+                      : Colors.white.withOpacity(0.85),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
+                    color: isDark
+                        ? Colors.white.withOpacity(0.10)
+                        : Colors.black.withOpacity(0.08),
                   ),
                 ),
                 child: Row(
@@ -136,7 +151,9 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
                             title,
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
-                              color: isDark ? const Color(0xFFF6E7C5) : const Color(0xFF3B2A0B),
+                              color: isDark
+                                  ? const Color(0xFFF6E7C5)
+                                  : const Color(0xFF3B2A0B),
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -144,7 +161,8 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
                             status,
                             style: TextStyle(
                               fontSize: 12,
-                              color: (isDark ? Colors.white : Colors.black).withOpacity(0.65),
+                              color: (isDark ? Colors.white : Colors.black)
+                                  .withOpacity(0.65),
                             ),
                           ),
                         ],
@@ -160,21 +178,28 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
             }
 
             return AlertDialog(
-              backgroundColor: isDark ? const Color(0xFF0F1734) : const Color(0xFFFFF7EA),
-              title: Text(isEn ? 'Offline translation packs' : 'Packs de traduction offline'),
+              backgroundColor:
+                  isDark ? const Color(0xFF0F1734) : const Color(0xFFFFF7EA),
+              title: Text(isEn
+                  ? 'Offline translation packs'
+                  : 'Packs de traduction offline'),
               content: SizedBox(
                 width: 420,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     packRow(
-                      title: isEn ? 'French translation (SQLite)' : 'Traduction Français (SQLite)',
+                      title: isEn
+                          ? 'French translation (SQLite)'
+                          : 'Traduction Français (SQLite)',
                       ready: frReady,
                       lang: AppLang.fr,
                     ),
                     const SizedBox(height: 10),
                     packRow(
-                      title: isEn ? 'English translation (SQLite)' : 'Traduction Anglais (SQLite)',
+                      title: isEn
+                          ? 'English translation (SQLite)'
+                          : 'Traduction Anglais (SQLite)',
                       ready: enReady,
                       lang: AppLang.en,
                     ),
@@ -190,7 +215,8 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
                               '${(downloadingLang == AppLang.fr) ? "FR" : "EN"}',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: (isDark ? Colors.white : Colors.black).withOpacity(0.7),
+                                color: (isDark ? Colors.white : Colors.black)
+                                    .withOpacity(0.7),
                               ),
                             ),
                           ),
@@ -219,7 +245,10 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
+    final isEn = Localizations.localeOf(context)
+        .languageCode
+        .toLowerCase()
+        .startsWith('en');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return DefaultTabController(
@@ -310,7 +339,6 @@ class _SurahTabState extends State<_SurahTab> {
       } else if (decoded['verses'] is List) {
         quranData = decoded['verses'] as List;
       } else {
-        // dernier recours: si le JSON est un objet dont les valeurs sont les versets
         quranData = decoded.values.toList();
       }
     } else {
@@ -377,7 +405,6 @@ class _SurahTabState extends State<_SurahTab> {
           final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
 
           final nameAr = (s['nameAr'] ?? '').toString();
-
           final nameTr = isEn ? (surahEn[surahId] ?? 'Surah $surahId') : (surahFr[surahId] ?? 'Sourate $surahId');
 
           final titleColor = isDark ? const Color(0xFFF6E7C5) : const Color(0xFF3B2A0B);
@@ -476,13 +503,24 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   List<String> _translation = [];
   List<String> _tafsir = [];
   bool _loadedOnce = false;
+
   bool _showArabic = true;
   bool _showTranslation = true;
+
   double _fontArabic = 20;
   double _fontTranslation = 16;
   double _fontTafsir = 14;
+
   Set<String> _favoriteKeys = <String>{};
   String? _openTafsirKey;
+
+  // NEW: selection + mini-player
+  int? _selectedAyah;
+  bool _continuous = false;
+  final ScrollController _scrollCtrl = ScrollController();
+
+  // NEW: tajweed cache
+  final Map<int, List<InlineSpan>> _tajweedCache = {};
 
   final Dio _dio = Dio();
 
@@ -491,6 +529,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   static const _tafsirKey = 'french_mokhtasar';
 
   static const _alquranBase = 'https://api.alquran.cloud/v1';
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -512,6 +556,18 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     setState(() => _favoriteKeys = favs);
   }
 
+  void _normalizeLengths() {
+    final maxLen = [
+      _arabic.length,
+      _translation.length,
+      _tafsir.length,
+    ].reduce((a, b) => a > b ? a : b);
+
+    while (_arabic.length < maxLen) _arabic.add('');
+    while (_translation.length < maxLen) _translation.add('');
+    while (_tafsir.length < maxLen) _tafsir.add('');
+  }
+
   Future<void> _load() async {
     _loading = true;
     _error = null;
@@ -519,8 +575,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
     try {
       final lang = AppLang.fr;
-
       final packReady = await QuranTranslationPackService.isPackReady(lang);
+
+      if (widget.preferOffline && !packReady) {
+        throw Exception('Pack offline FR non installé. Télécharge-le via l’icône cloud.');
+      }
+
       final useOffline = widget.preferOffline && packReady;
 
       if (useOffline) {
@@ -541,7 +601,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
         _translation = rows.map((r) => (r['fr'] as String?) ?? '').toList();
         _tafsir = rows.map((r) => (r['tafsir'] as String?) ?? '').toList();
 
-        // Fallback: si le pack offline n'a pas de tafsir, on le récupère en ligne
         final hasAnyTafsir = _tafsir.any((t) => t.trim().isNotEmpty);
         if (!hasAnyTafsir) {
           final tafRes = await _dio.get('$_quranEncBase/translation/sura/$_tafsirKey/${widget.surahNumber}');
@@ -549,7 +608,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
           _tafsir = tafAyahs.map((e) => _stripHtml((e['translation'] ?? '').toString())).toList();
         }
       } else {
-        // ONLINE: on récupère arabe + traduction + tafsir en parallèle
         final results = await Future.wait([
           _dio.get('$_alquranBase/surah/${widget.surahNumber}/quran-uthmani'),
           _dio.get('$_quranEncBase/translation/sura/$_translationKey/${widget.surahNumber}'),
@@ -560,26 +618,25 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
         final trRes = results[1] as Response;
         final tafRes = results[2] as Response;
 
-        // 1) Arabe
         final arAyahs = (arRes.data['data']['ayahs'] as List);
         _arabic = arAyahs.map((e) => (e['text'] ?? '').toString()).toList();
 
-        // 2) Traduction (QuranEnc)
         final trAyahs = _extractQuranEncList(trRes.data);
-        _translation = trAyahs
-            .map((e) => _stripHtml((e['translation'] ?? '').toString()))
-            .toList();
+        _translation = trAyahs.map((e) => _stripHtml((e['translation'] ?? '').toString())).toList();
 
-        // 3) Tafsir (QuranEnc)
         final tafAyahs = _extractQuranEncList(tafRes.data);
-        _tafsir = tafAyahs
-            .map((e) => _stripHtml((e['translation'] ?? '').toString()))
-            .toList();
-
+        _tafsir = tafAyahs.map((e) => _stripHtml((e['translation'] ?? '').toString())).toList();
       }
 
+      _normalizeLengths();
+
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        if (_selectedAyah == null && _arabic.isNotEmpty) {
+          _selectedAyah = 1;
+        }
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -594,8 +651,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   void _showSettingsSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0F1734) : const Color(0xFFFFF7EA),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF0F1734)
+          : const Color(0xFFFFF7EA),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       showDragHandle: true,
       builder: (_) {
         return SafeArea(
@@ -751,7 +812,9 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0F1734) : const Color(0xFFFFF7EA),
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF0F1734)
+          : const Color(0xFFFFF7EA),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       showDragHandle: true,
       builder: (_) {
@@ -823,12 +886,18 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
   String _stripTrailingAyahNumber(String input) {
     return input
-        .replaceAll('\u200F', '')  // Remove RLM (Right-to-Left Mark)
-        .replaceAll('\u200E', '')  // Remove LRM (Left-to-Right Mark)
+        .replaceAll('\u200F', '')
+        .replaceAll('\u200E', '')
         .replaceAll(RegExp(r'[\s\u0660-\u0669\u06F0-\u06F9]+$'), '');
   }
 
-  List<InlineSpan> _parseTajweedSpans(String input, Color fallback) {
+  List<InlineSpan> _parseTajweedSpans(int ayah, String input, Color fallback) {
+    if (!input.contains('<rule')) {
+      return [TextSpan(text: input, style: TextStyle(color: fallback))];
+    }
+    final cached = _tajweedCache[ayah];
+    if (cached != null) return cached;
+
     final spans = <InlineSpan>[];
     final regex = RegExp(
       "<rulee?\\s+class=['\\\"]?([^\\s>]+)['\\\"]?>(.*?)</rulee?>",
@@ -848,6 +917,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     if (last < input.length) {
       spans.add(TextSpan(text: input.substring(last), style: TextStyle(color: fallback)));
     }
+
+    _tajweedCache[ayah] = spans;
     return spans;
   }
 
@@ -891,15 +962,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     final title = '${widget.surahNumber}. ${widget.surahNameFr}';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final arabicColor = isDark ? const Color(0xFFF6E7C5) : const Color(0xFF4B2E0E);
+    final selectedBorder = isDark ? const Color(0xFFE3C880) : const Color(0xFFB37A2A);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
           title,
-          style: TextStyle(
-            color: arabicColor,
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(color: arabicColor, fontWeight: FontWeight.w700),
         ),
         backgroundColor: isDark ? const Color(0xFF0D132F) : const Color(0xFFFFF4E6),
         foregroundColor: isDark ? const Color(0xFFF6E7C5) : const Color(0xFF3B2A0B),
@@ -910,33 +979,47 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: (_selectedAyah == null || _loading || _error != null)
+          ? null
+          : _VerseMiniPlayer(
+              isDark: isDark,
+              surahNumber: widget.surahNumber,
+              ayah: _selectedAyah!,
+              maxAyah: _arabic.length,
+              continuous: _continuous,
+              onToggleMode: () => setState(() => _continuous = !_continuous),
+              onPrev: () => setState(() => _selectedAyah = (_selectedAyah! > 1) ? _selectedAyah! - 1 : 1),
+              onNext: () => setState(() => _selectedAyah = (_selectedAyah! < _arabic.length) ? _selectedAyah! + 1 : _arabic.length),
+              onPlay: () async {
+                final a = _selectedAyah!;
+                if (_continuous) {
+                  await AudioService.instance.playAyahRange(widget.surahNumber, a, _arabic.length);
+                } else {
+                  await AudioService.instance.playAyah(widget.surahNumber, a);
+                }
+              },
+              onStop: () => AudioService.instance.stop(),
+            ),
       body: Container(
         decoration: BoxDecoration(
           gradient: Theme.of(context).brightness == Brightness.dark
               ? const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF0B1025),
-                    Color(0xFF131A3A),
-                    Color(0xFF1C1635),
-                  ],
+                  colors: [Color(0xFF0B1025), Color(0xFF131A3A), Color(0xFF1C1635)],
                 )
               : const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFFFFEFA),
-                    Color(0xFFFBF6ED),
-                    Color(0xFFF4EADB),
-                  ],
+                  colors: [Color(0xFFFFFEFA), Color(0xFFFBF6ED), Color(0xFFF4EADB)],
                 ),
         ),
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : (_error != null)
-                ? Center(child: Text(_error!))
+                ? Center(child: Padding(padding: const EdgeInsets.all(16), child: Text(_error!, textAlign: TextAlign.center)))
                 : ListView.builder(
+                    controller: _scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     itemCount: _arabic.length + 1,
                     itemBuilder: (context, i) {
@@ -975,18 +1058,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                               const SizedBox(height: 6),
                               Text(
                                 widget.surahNameFr,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: arabicColor.withOpacity(0.9),
-                                ),
+                                style: TextStyle(fontSize: 16, color: arabicColor.withOpacity(0.9)),
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 '${_arabic.length} versets',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
+                                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                               ),
                             ],
                           ),
@@ -996,12 +1073,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                       final idx = i - 1;
                       final ayaNum = idx + 1;
 
-                      final ar = _arabic.length > idx ? _arabic[idx] : '';
-                      final tr = _translation.length > idx ? _translation[idx] : '';
-                      final taf = _tafsir.length > idx ? _tafsir[idx] : '';
+                      final ar = _arabic[idx];
+                      final tr = _translation[idx];
+                      final taf = _tafsir[idx];
 
                       final key = _verseKey(ayaNum);
                       final isFav = _favoriteKeys.contains(key);
+                      final isSelected = _selectedAyah == ayaNum;
 
                       final subtleAccent = isDark ? Colors.white.withOpacity(0.70) : Colors.black.withOpacity(0.55);
 
@@ -1017,15 +1095,20 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                             child: BackdropFilter(
                               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                               child: InkWell(
-                                onTap: () => _toggleTafsir(ayaNum),
+                                onTap: () {
+                                  setState(() => _selectedAyah = ayaNum);
+                                  _toggleTafsir(ayaNum);
+                                },
                                 onLongPress: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
                                 child: Container(
                                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                                   decoration: BoxDecoration(
                                     color: isDark ? const Color(0xFF0B1025).withOpacity(0.45) : Colors.white.withOpacity(0.88),
                                     border: Border.all(
-                                      color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
-                                      width: 1,
+                                      color: isSelected
+                                          ? selectedBorder.withOpacity(isDark ? 0.85 : 0.9)
+                                          : (isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08)),
+                                      width: isSelected ? 1.4 : 1,
                                     ),
                                     boxShadow: [
                                       BoxShadow(
@@ -1076,10 +1159,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                                             iconSize: 18,
                                             onPressed: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
-                                            icon: Icon(
-                                              Icons.more_horiz_rounded,
-                                              color: isDark ? Colors.white70 : Colors.black54,
-                                            ),
+                                            icon: Icon(Icons.more_horiz_rounded, color: isDark ? Colors.white70 : Colors.black54),
                                           ),
                                         ],
                                       ),
@@ -1098,15 +1178,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                             );
 
                                             final clean = _stripTrailingAyahNumber(ar);
-                                            final spans = _parseTajweedSpans(clean, arabicColor);
+                                            final spans = _parseTajweedSpans(ayaNum, clean, arabicColor);
 
                                             spans.add(
                                               TextSpan(
                                                 text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
-                                                style: TextStyle(
-                                                  color: subtleAccent,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
+                                                style: TextStyle(color: subtleAccent, fontWeight: FontWeight.w700),
                                               ),
                                             );
 
@@ -1157,7 +1234,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                           color: isDark ? Colors.white70 : Colors.black54,
                                         ),
                                       ),
-
                                       AnimatedSize(
                                         duration: const Duration(milliseconds: 220),
                                         curve: Curves.easeOutCubic,
@@ -1215,6 +1291,84 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   }
 }
 
+class _VerseMiniPlayer extends StatelessWidget {
+  final bool isDark;
+  final int surahNumber;
+  final int ayah;
+  final int maxAyah;
+  final bool continuous;
+  final VoidCallback onToggleMode;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final Future<void> Function() onPlay;
+  final VoidCallback onStop;
+
+  const _VerseMiniPlayer({
+    required this.isDark,
+    required this.surahNumber,
+    required this.ayah,
+    required this.maxAyah,
+    required this.continuous,
+    required this.onToggleMode,
+    required this.onPrev,
+    required this.onNext,
+    required this.onPlay,
+    required this.onStop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF0F1734) : const Color(0xFFFFF7EA);
+    final fg = isDark ? const Color(0xFFF6E7C5) : const Color(0xFF3B2A0B);
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border(top: BorderSide(color: (isDark ? Colors.white : Colors.black).withOpacity(0.08))),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'S$surahNumber : $ayah / $maxAyah',
+                style: TextStyle(color: fg, fontWeight: FontWeight.w800),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Mode',
+              onPressed: onToggleMode,
+              icon: Icon(continuous ? Icons.repeat_rounded : Icons.filter_1_rounded, color: fg),
+            ),
+            IconButton(onPressed: onPrev, icon: Icon(Icons.skip_previous_rounded, color: fg)),
+            IconButton(onPressed: () => onPlay(), icon: Icon(Icons.play_arrow_rounded, color: fg)),
+            IconButton(onPressed: onStop, icon: Icon(Icons.stop_rounded, color: fg)),
+            IconButton(onPressed: onNext, icon: Icon(Icons.skip_next_rounded, color: fg)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JuzRange {
+  final int surah;
+  final int start;
+  final int end;
+  _JuzRange(this.surah, this.start, this.end);
+}
+
+class _JuzVerse {
+  final int surah;
+  final int ayah;
+  final String ar;
+  final String tr;
+  final String taf;
+  _JuzVerse(this.surah, this.ayah, this.ar, this.tr, this.taf);
+}
+
 class TranslatedJuzScreen extends StatefulWidget {
   final int juzNumber;
   final bool preferOffline;
@@ -1230,17 +1384,197 @@ class TranslatedJuzScreen extends StatefulWidget {
 }
 
 class _TranslatedJuzScreenState extends State<TranslatedJuzScreen> {
+  bool _loading = true;
+  String? _error;
+  final Dio _dio = Dio();
+
+  static const _quranEncBase = 'https://quranenc.com/api/v1';
+  static const _translationKey = 'french_hameedullah';
+  static const _tafsirKey = 'french_mokhtasar';
+  static const _alquranBase = 'https://api.alquran.cloud/v1';
+
+  final List<_JuzVerse> _verses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadJuz();
+  }
+
+  Future<List<_JuzRange>> _readMapping() async {
+    // Place this file in assets/data/juz_mapping.json and add it to pubspec.yaml assets.
+    final raw = await rootBundle.loadString('assets/data/juz_mapping.json');
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    final juzObj = decoded['${widget.juzNumber}'] as Map<String, dynamic>;
+    final vm = juzObj['verse_mapping'] as Map<String, dynamic>;
+
+    final ranges = <_JuzRange>[];
+    for (final entry in vm.entries) {
+      final surah = int.parse(entry.key);
+      final parts = entry.value.toString().split('-');
+      final start = int.parse(parts[0]);
+      final end = int.parse(parts[1]);
+      ranges.add(_JuzRange(surah, start, end));
+    }
+    ranges.sort((a, b) => a.surah != b.surah ? a.surah.compareTo(b.surah) : a.start.compareTo(b.start));
+    return ranges;
+  }
+
+  Future<void> _loadJuz() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _verses.clear();
+    });
+
+    try {
+      final ranges = await _readMapping();
+
+      final packReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
+      if (widget.preferOffline && !packReady) {
+        throw Exception('Pack offline FR non installé. Télécharge-le via l’icône cloud.');
+      }
+
+      final useOffline = widget.preferOffline && packReady;
+
+      if (useOffline) {
+        final dbPath = await QuranTranslationPackService.getDbPath(AppLang.fr);
+        final db = await openDatabase(dbPath, readOnly: true);
+
+        for (final r in ranges) {
+          final rows = await db.query(
+            'verses',
+            columns: ['ayah', 'ar', 'fr', 'tafsir'],
+            where: 'surah = ? AND ayah >= ? AND ayah <= ?',
+            whereArgs: [r.surah, r.start, r.end],
+            orderBy: 'ayah ASC',
+          );
+
+          for (final row in rows) {
+            final ayah = (row['ayah'] as int?) ?? 0;
+            _verses.add(
+              _JuzVerse(
+                r.surah,
+                ayah,
+                (row['ar'] as String?) ?? '',
+                (row['fr'] as String?) ?? '',
+                (row['tafsir'] as String?) ?? '',
+              ),
+            );
+          }
+        }
+
+        await db.close();
+      } else {
+        for (final r in ranges) {
+          final results = await Future.wait([
+            _dio.get('$_alquranBase/surah/${r.surah}/quran-uthmani'),
+            _dio.get('$_quranEncBase/translation/sura/$_translationKey/${r.surah}'),
+            _dio.get('$_quranEncBase/translation/sura/$_tafsirKey/${r.surah}'),
+          ]);
+
+          final arRes = results[0] as Response;
+          final trRes = results[1] as Response;
+          final tafRes = results[2] as Response;
+
+          final arAyahs = (arRes.data['data']['ayahs'] as List)
+              .map((e) => (e['text'] ?? '').toString())
+              .toList();
+
+          final trAyahs = _extractQuranEncList(trRes.data)
+              .map((e) => _stripHtml((e['translation'] ?? '').toString()))
+              .toList();
+
+          final tafAyahs = _extractQuranEncList(tafRes.data)
+              .map((e) => _stripHtml((e['translation'] ?? '').toString()))
+              .toList();
+
+          for (int a = r.start; a <= r.end; a++) {
+            final idx = a - 1;
+            _verses.add(_JuzVerse(
+              r.surah,
+              a,
+              (idx >= 0 && idx < arAyahs.length) ? arAyahs[idx] : '',
+              (idx >= 0 && idx < trAyahs.length) ? trAyahs[idx] : '',
+              (idx >= 0 && idx < tafAyahs.length) ? tafAyahs[idx] : '',
+            ));
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final arabicColor = isDark ? const Color(0xFFF6E7C5) : const Color(0xFF4B2E0E);
+
     return Scaffold(
       appBar: AppBar(title: Text('Juz ${widget.juzNumber}')),
-      body: const Center(
-        child: Text(
-          'Étape suivante: Juz (traduction + tafsir) avec verse_mapping.\n'
-          'On va intégrer le JSON "Juz info" (QUL) pour découper exactement.',
-          textAlign: TextAlign.center,
-        ),
-      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : (_error != null)
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(_error!, textAlign: TextAlign.center),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: _verses.length,
+                  itemBuilder: (context, i) {
+                    final v = _verses[i];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        color: isDark ? const Color(0xFF0B1025).withOpacity(0.45) : Colors.white.withOpacity(0.90),
+                        border: Border.all(color: (isDark ? Colors.white : Colors.black).withOpacity(0.08)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'S${v.surah}:${v.ayah}',
+                            style: TextStyle(color: arabicColor.withOpacity(0.85), fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            v.ar,
+                            textDirection: TextDirection.rtl,
+                            style: TextStyle(
+                              fontFamily: 'ScheherazadeNew',
+                              fontSize: 22,
+                              height: 2.2,
+                              color: arabicColor,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            v.tr,
+                            style: TextStyle(
+                              fontFamily: 'serif',
+                              fontSize: 16,
+                              height: 1.6,
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(isDark ? 0.92 : 0.88),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }

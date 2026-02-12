@@ -51,6 +51,7 @@ flutter:
 
   # Gestion des images et fichiers de données
   assets:
+    - assets/data/juz_mapping.json
     - assets/data/reciters_mapping.json
     - assets/data/reciters_bio.json
     - assets/images/
