@@ -41,6 +41,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
+  final ScrollController _scrollCtrl = ScrollController();
+  bool _statusBarGreen = false;
   static const double hPad = 14;
   static const double vGap = 12;
   String _prettyMoshafName(String raw) {
@@ -109,6 +111,12 @@ void initState() {
   _loadReciters();
   _loadReciterServersIfNeeded();
 
+  _scrollCtrl.addListener(() {
+    final shouldBeGreen = _scrollCtrl.offset > 4; // seuil
+    if (shouldBeGreen == _statusBarGreen) return;
+    setState(() => _statusBarGreen = shouldBeGreen);
+  });
+
   _menuController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 300),
@@ -137,6 +145,7 @@ Future<void> _checkFirstLaunch() async {
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     _menuController.dispose();
     super.dispose();
   }
@@ -832,6 +841,16 @@ Future<void> _checkFirstLaunch() async {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final Color statusBarColor = isDark
+    ? Colors.transparent
+    : (_statusBarGreen ? const Color(0xFFDDF5E6) : Colors.transparent);
+
+    final overlay = SystemUiOverlayStyle(
+      statusBarColor: statusBarColor,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    );
+    SystemChrome.setSystemUIOverlayStyle(overlay);
+
     final bgGradient = isDark
       ? const LinearGradient(
           begin: Alignment.topCenter,
@@ -891,6 +910,7 @@ Future<void> _checkFirstLaunch() async {
             ),
 
             CustomScrollView(
+              controller: _scrollCtrl,
               physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
               slivers: [
                 
@@ -1006,8 +1026,6 @@ Future<void> _checkFirstLaunch() async {
             child: _isLoading ? loading() : content(),
           ),
         ),
-
-        // Side menu
         if (_isMenuOpen)
           AnimatedBuilder(
             animation: _menuAnimation,
@@ -1028,12 +1046,10 @@ Future<void> _checkFirstLaunch() async {
               );
             },
           ),
-        ],
-      ),
-    );
-  }
-
-  
+      ],
+    ),
+  );
+ }
 }
 
 class _HomeTopBar extends StatelessWidget {
