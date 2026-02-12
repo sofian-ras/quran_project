@@ -893,6 +893,7 @@ Future<void> _checkFirstLaunch() async {
             CustomScrollView(
               physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
               slivers: [
+                
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: hPad),
                   sliver: SliverList(
@@ -2382,4 +2383,3 @@ class _FeatureSquareItem extends StatelessWidget {
 
 }
 
-// Painter minimaliste et élégant - juste quelques touches dorées subtiles

@@ -46,6 +46,7 @@ class QuranApp extends StatelessWidget {
       valueListenable: ThemeService.themeMode,
       builder: (context, mode, _) {
         return MaterialApp(
+          debugShowCheckedModeBanner: false,
           navigatorKey: NavigationService.navigatorKey,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
