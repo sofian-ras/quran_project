@@ -21,6 +21,8 @@ class YoutubeVideoCard extends StatefulWidget {
 }
 
 class _YoutubeVideoCardState extends State<YoutubeVideoCard> {
+  static const double _cardHeight = 187; // <-- change 150 (ex: 130 / 140 / 160)
+  
   static const List<String> allowedSufiVideoIds = [
     'tRnuRmK9vuY',
     'qKZr7jTN-Ns',
@@ -88,25 +90,24 @@ class _YoutubeVideoCardState extends State<YoutubeVideoCard> {
       }
 
       if (videoId != _currentVideoId) {
-        debugPrint('Changement de vidéo YouTube: $_currentVideoId -> $videoId');
         setState(() {
           _currentVideoId = videoId;
           _isInitialized = true;
         });
+
+        // Précharge thumbnail
+        final thumb = NetworkImage('https://img.youtube.com/vi/$videoId/sddefault.jpg');
+        // ignore: unawaited_futures
+        precacheImage(thumb, context);
       } else if (!_isInitialized) {
-        setState(() {
-          _isInitialized = true;
-        });
+        setState(() => _isInitialized = true);
       }
     } catch (e) {
       debugPrint('Erreur chargement vidéo YouTube: $e');
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-      }
+      if (mounted) setState(() => _isInitialized = true);
     }
   }
+
 
   Future<void> _handleRefresh() async {
     final mode = widget.mode == QuranVideoMode.sufi ? 'sufi' : 'makkah';
@@ -140,7 +141,7 @@ class _YoutubeVideoCardState extends State<YoutubeVideoCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
@@ -165,7 +166,7 @@ class _YoutubeVideoCardState extends State<YoutubeVideoCard> {
           children: [
             if (!_isInitialized)
               Container(
-                height: 200,
+                height: _cardHeight,
                 alignment: Alignment.center,
                 child: const CircularProgressIndicator(
                   color: Color(0xFFC8A165),
@@ -173,7 +174,7 @@ class _YoutubeVideoCardState extends State<YoutubeVideoCard> {
               )
             else if (_currentVideoId == null)
               Container(
-                height: 200,
+                height: _cardHeight,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -200,7 +201,7 @@ class _YoutubeVideoCardState extends State<YoutubeVideoCard> {
               GestureDetector(
                 onTap: _openYoutubeVideo,
                 child: Container(
-                  height: 200,
+                  height: _cardHeight,
                   color: Colors.black,
                   child: Stack(
                     children: [
@@ -245,13 +246,15 @@ class _ThumbnailWithFallbackState extends State<_ThumbnailWithFallback> {
 
   @override
   Widget build(BuildContext context) {
+    // On démarre par hqdefault (beaucoup moins lourd => moins de jank)
     final url = !_useFallback
-        ? 'https://img.youtube.com/vi/${widget.videoId}/maxresdefault.jpg'
+        ? 'https://img.youtube.com/vi/${widget.videoId}/sddefault.jpg'
         : 'https://img.youtube.com/vi/${widget.videoId}/hqdefault.jpg';
 
     return Image.network(
       url,
       fit: BoxFit.cover,
+      gaplessPlayback: true,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;
         return Center(
