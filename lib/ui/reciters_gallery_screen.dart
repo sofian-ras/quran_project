@@ -56,7 +56,13 @@ class RecitersGalleryScreen extends StatelessWidget {
             child: FutureBuilder<List<Map<String, dynamic>>>(
               future: _loadBioList(),
               builder: (context, snap) {
+                // Loader simple pendant la lecture du JSON (évite écran vide)
+                if (snap.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
                 final bioList = snap.data ?? [];
+
                 return GridView.builder(
                   padding: const EdgeInsets.all(16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -68,26 +74,27 @@ class RecitersGalleryScreen extends StatelessWidget {
                   itemCount: reciters.length,
                   itemBuilder: (context, i) {
                     final r = reciters[i];
+
                     final bioEntry = bioList.firstWhere(
                       (e) =>
                           (e['reciterId'] != null &&
                               r.reciterId != null &&
-                              e['reciterId'].toString() ==
-                                  r.reciterId.toString()) ||
-                          (e['name'] ?? '')
-                                  .toString()
-                                  .toLowerCase() ==
-                              r.name.toLowerCase(),
-                      orElse: () => {},
+                              e['reciterId'].toString() == r.reciterId.toString()) ||
+                          (e['name'] ?? '').toString().toLowerCase() == r.name.toLowerCase(),
+                      orElse: () => const <String, dynamic>{},
                     );
 
-                    final hasAssetImage = bioEntry.isNotEmpty &&
-                        (bioEntry['imageAsset'] ?? '').toString().isNotEmpty;
-                    final image = hasAssetImage
-                        ? Image.asset(bioEntry['imageAsset'], fit: BoxFit.cover)
-                        : (r.baseUrl != null && r.baseUrl!.isNotEmpty
-                            ? Image.network(r.baseUrl!, fit: BoxFit.cover)
-                            : Container(color: Colors.grey[300]));
+                    final imageAsset = (bioEntry['imageAsset'] ?? '').toString().trim();
+                    final hasAssetImage = imageAsset.isNotEmpty;
+
+                    // IMPORTANT: on évite Image.network(r.baseUrl) car baseUrl chez toi est souvent un serveur mp3.
+                    final Widget image = hasAssetImage
+                        ? Image.asset(
+                            imageAsset,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(color: Colors.grey[300]),
+                          )
+                        : Container(color: Colors.grey[300]);
 
                     return GestureDetector(
                       onTap: () => Navigator.push(
@@ -101,6 +108,8 @@ class RecitersGalleryScreen extends StatelessWidget {
                         child: Stack(
                           children: [
                             Positioned.fill(child: image),
+
+                            // Dégradé bas (lisibilité du nom)
                             Positioned(
                               left: 0,
                               right: 0,
@@ -116,6 +125,7 @@ class RecitersGalleryScreen extends StatelessWidget {
                                 ),
                               ),
                             ),
+
                             Positioned(
                               left: 8,
                               right: 8,
@@ -127,7 +137,7 @@ class RecitersGalleryScreen extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                   color: Colors.black,
                                   shadows: [
-                                    Shadow(blurRadius: 6, color: Colors.white)
+                                    Shadow(blurRadius: 6, color: Colors.white),
                                   ],
                                 ),
                                 textAlign: TextAlign.center,
@@ -145,6 +155,5 @@ class RecitersGalleryScreen extends StatelessWidget {
         ],
       ),
     );
-
   }
 }

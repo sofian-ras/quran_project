@@ -7,6 +7,7 @@ import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
 import 'services/navigation_service.dart';
 import 'ui/bottom_nav_shell.dart';
+// Ensure that the file 'ui/bottom_nav_shell.dart' contains a class named 'BottomNavShell'
 
 
 
