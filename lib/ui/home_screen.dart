@@ -843,7 +843,7 @@ Future<void> _checkFirstLaunch() async {
 
     final Color statusBarColor = isDark
     ? Colors.transparent
-    : (_statusBarGreen ? const Color(0xFFDDF5E6) : Colors.transparent);
+    : (_statusBarGreen ? const Color(0xFFEAF7F0) : Colors.transparent);
 
     final overlay = SystemUiOverlayStyle(
       statusBarColor: statusBarColor,
@@ -1144,38 +1144,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                     icon: Icon(Icons.menu_rounded, color: fg),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Recherche bientôt')),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(999),
-                      child: Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: pillBg,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.search_rounded, color: muted, size: 20),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Rechercher',
-                              style: TextStyle(
-                                color: muted,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                  const Spacer(),
                   const SizedBox(width: 10),
                   ValueListenableBuilder<ThemeMode>(
                     valueListenable: ThemeService.themeMode,
@@ -1704,7 +1673,7 @@ class _ExploreFeaturesSection extends StatelessWidget {
       children: [
         const SizedBox(height: 10),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1721,38 +1690,56 @@ class _ExploreFeaturesSection extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 0),
           child: SizedBox(
             height: 112,
-            child: ListView.separated(
-              physics: const BouncingScrollPhysics(),
-              scrollDirection: Axis.horizontal,
-              itemCount: features.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final f = features[i];
+            child: ClipRect(
+              child: ShaderMask(
+                shaderCallback: (Rect rect) {
+                  return const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black,
+                      Colors.black,
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.08, 0.92, 1.0],
+                  ).createShader(rect);
+                },
+                blendMode: BlendMode.dstIn,
+                child: ListView.separated(
+                  physics: const BouncingScrollPhysics(),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: features.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    final f = features[i];
 
-                final pastel = <Color>[
-                  const Color(0xFFFFF4CC), // jaune pâle
-                  const Color(0xFFDFF7E9), // vert pâle
-                  const Color(0xFFE3F0FF), // bleu pâle
-                  const Color(0xFFFFE3E6), // rouge/rose pâle
-                  const Color(0xFFEDE7FF), // violet pâle
-                  const Color(0xFFE7FFF7), // menthe pâle
-                ];
+                    final pastel = <Color>[
+                      const Color(0xFFFFF4CC),
+                      const Color(0xFFDFF7E9),
+                      const Color(0xFFE3F0FF),
+                      const Color(0xFFFFE3E6),
+                      const Color(0xFFEDE7FF),
+                      const Color(0xFFE7FFF7),
+                    ];
 
-                return SizedBox(
-                  width: 180, // même largeur que Programs
-                  height: 112, // même hauteur que Programs
-                  child: _FeatureSquareItem(
-                    label: f.label,
-                    imagePath: f.imagePath,
-                    onTap: () => onTap(f),
-                    isDark: isDark,
-                    bgColor: pastel[i % pastel.length],
-                  ),
-                );
-              },
+                    return SizedBox(
+                      width: 180,
+                      height: 112,
+                      child: _FeatureSquareItem(
+                        label: f.label,
+                        imagePath: f.imagePath,
+                        onTap: () => onTap(f),
+                        isDark: isDark,
+                        bgColor: pastel[i % pastel.length],
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ),
