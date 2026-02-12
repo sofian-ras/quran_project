@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/audio_service.dart';
-import 'full_player_screen.dart';
 import '../models/reciter.dart';
 
 class ReciterDetailScreen extends StatelessWidget {
@@ -15,12 +14,15 @@ class ReciterDetailScreen extends StatelessWidget {
     try {
       final jsonStr = await rootBundle.loadString('assets/data/reciters_bio.json');
       final List<dynamic> list = json.decode(jsonStr) as List<dynamic>;
+
       // Cherche par reciterId si présent, sinon par nom
       for (final item in list) {
         final map = item as Map<String, dynamic>;
+
         if (reciter.reciterId != null && map['reciterId'] != null) {
           if (map['reciterId'].toString() == reciter.reciterId.toString()) return map;
         }
+
         if ((map['name'] ?? '').toString().toLowerCase() == reciter.name.toLowerCase()) return map;
       }
     } catch (_) {}
@@ -39,35 +41,37 @@ class ReciterDetailScreen extends StatelessWidget {
       body: FutureBuilder<Map<String, dynamic>?>(
         future: _loadBioEntry(),
         builder: (context, snap) {
+          // Etat chargement
+          if (snap.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
           final bioEntry = snap.data;
-          final imageIsAsset = bioEntry != null && (bioEntry['imageAsset'] ?? '').toString().isNotEmpty;
+
+          final height = MediaQuery.of(context).size.height;
+          final imageHeight = height * 0.48;
+
+          final imageAsset = (bioEntry?['imageAsset'] ?? '').toString().trim();
+          final imageIsAsset = imageAsset.isNotEmpty;
+
+          // IMPORTANT: on évite Image.network(reciter.baseUrl) car baseUrl chez toi est souvent un serveur mp3.
           final imageWidget = Container(
             color: Colors.black,
             child: imageIsAsset
                 ? Image.asset(
-                    bioEntry!['imageAsset'],
-                    fit: BoxFit.contain,
+                    imageAsset,
+                    fit: BoxFit.cover,
                     width: double.infinity,
                     height: double.infinity,
                     errorBuilder: (_, __, ___) => Container(color: Colors.grey[300]),
                   )
-                : (reciter.baseUrl != null && reciter.baseUrl!.isNotEmpty
-                    ? Image.network(
-                        reciter.baseUrl!,
-                        fit: BoxFit.contain,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (_, __, ___) => Container(color: Colors.grey[300]),
-                      )
-                    : Container(color: Colors.grey[300])),
+                : Container(color: Colors.grey[300]),
           );
 
-            final bioText = bioEntry != null && ((bioEntry['bioFrLong'] ?? '') != '' || (bioEntry['bioFr'] ?? '') != '')
-              ? (bioEntry['bioFrLong'] ?? bioEntry['bioFr']).toString()
-              : 'Aucune biographie disponible pour ce récitant.';
-
-          final height = MediaQuery.of(context).size.height;
-          final imageHeight = height * 0.48;
+          final bioText =
+              (bioEntry != null && ((bioEntry['bioFrLong'] ?? '') != '' || (bioEntry['bioFr'] ?? '') != ''))
+                  ? (bioEntry['bioFrLong'] ?? bioEntry['bioFr']).toString()
+                  : 'Aucune biographie disponible pour ce récitant.';
 
           return Stack(
             children: [
@@ -100,7 +104,7 @@ class ReciterDetailScreen extends StatelessWidget {
                 ),
               ),
 
-              // Contenu dans un fond beige en bas (arrondi + ombre pour transition douce)
+              // Contenu bas
               Positioned(
                 left: 0,
                 right: 0,
@@ -110,7 +114,9 @@ class ReciterDetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFFF5EBDD),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 14, offset: Offset(0, -6))],
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black12, blurRadius: 14, offset: Offset(0, -6)),
+                    ],
                   ),
                   child: SafeArea(
                     top: false,
@@ -125,7 +131,11 @@ class ReciterDetailScreen extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   reciter.name,
-                                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
                                 ),
                               ),
                               if (reciter.reciterId != null)
@@ -147,9 +157,14 @@ class ReciterDetailScreen extends StatelessWidget {
                                     label: const Text('Écouter'),
                                     onPressed: () async {
                                       final audio = AudioService.instance;
-                                      final server = (bioEntry != null && (bioEntry['server'] ?? '').toString().isNotEmpty)
-                                          ? bioEntry['server'].toString()
-                                          : (reciter.baseUrl != null && reciter.baseUrl!.isNotEmpty ? reciter.baseUrl! : reciter.server);
+
+                                      final serverFromBio = (bioEntry?['server'] ?? '').toString().trim();
+
+                                      // Priorité: server du JSON -> reciter.server (évite baseUrl ici)
+                                      final server = serverFromBio.isNotEmpty
+                                          ? serverFromBio
+                                          : reciter.server;
+
                                       audio.setReciter(reciter.name, server);
                                       await audio.loadPlaylistAndPlay(1);
                                     },
@@ -158,13 +173,20 @@ class ReciterDetailScreen extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          // Arabic name / country from bio when available
-                          if (bioEntry != null && (bioEntry['arabicName'] ?? '').toString().isNotEmpty)
+
+                          // Nom arabe
+                          if ((bioEntry?['arabicName'] ?? '').toString().trim().isNotEmpty)
                             Text(
                               bioEntry!['arabicName'].toString(),
-                              style: const TextStyle(fontSize: 16, color: Colors.black54, fontWeight: FontWeight.w500),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          if (bioEntry != null && (bioEntry['country'] ?? '').toString().isNotEmpty)
+
+                          // Pays
+                          if ((bioEntry?['country'] ?? '').toString().trim().isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 6.0),
                               child: Row(
@@ -178,7 +200,10 @@ class ReciterDetailScreen extends StatelessWidget {
                                 ],
                               ),
                             ),
+
                           const SizedBox(height: 8),
+
+                          // Tags / chips
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -186,39 +211,37 @@ class ReciterDetailScreen extends StatelessWidget {
                               if (reciter.letter.isNotEmpty) Chip(label: Text('Code: ${reciter.letter}')),
                               if (reciter.server.isNotEmpty) Chip(label: Text('Serveur: ${reciter.server}')),
 
-                              // Roles from bio
                               if (bioEntry != null && bioEntry['roles'] is List && (bioEntry['roles'] as List).isNotEmpty)
                                 for (final rname in (bioEntry['roles'] as List))
                                   Chip(label: Text(rname.toString())),
 
-                              // Style tags
-                              if (bioEntry != null && bioEntry['styleTags'] is List && (bioEntry['styleTags'] as List).isNotEmpty)
+                              if (bioEntry != null &&
+                                  bioEntry['styleTags'] is List &&
+                                  (bioEntry['styleTags'] as List).isNotEmpty)
                                 for (final tag in (bioEntry['styleTags'] as List))
                                   Chip(label: Text(tag.toString())),
-
-                              // ...existing code...
                             ],
                           ),
+
                           const SizedBox(height: 14),
                           const Text('Biographie', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 8),
-                          
-                          
-                          
-                          const SizedBox(height: 8),
                           Text(bioText, style: const TextStyle(fontSize: 14, color: Colors.black87)),
                           const SizedBox(height: 12),
-                          if (bioEntry != null && bioEntry['links'] != null)
+
+                          // Liens (on ignore wikipedia comme tu faisais)
+                          if (bioEntry != null && bioEntry['links'] is Map<String, dynamic>)
                             Row(
                               children: [
                                 for (final entry in (bioEntry['links'] as Map<String, dynamic>).entries)
-                                  if (entry.value != null && entry.value.toString().isNotEmpty && entry.key.toString().toLowerCase() != 'wikipedia')
+                                  if (entry.value != null &&
+                                      entry.value.toString().trim().isNotEmpty &&
+                                      entry.key.toString().toLowerCase() != 'wikipedia')
                                     IconButton(
                                       tooltip: _friendlyLinkLabel(entry.key),
                                       icon: _linkIcon(entry.key),
-                                      color: Colors.blueAccent,
                                       onPressed: () async {
-                                        final url = entry.value.toString();
+                                        final url = entry.value.toString().trim();
                                         try {
                                           final uri = Uri.parse(url);
                                           if (await canLaunchUrl(uri)) {
@@ -258,7 +281,7 @@ String _friendlyLinkLabel(String key) {
     case 'official_website':
       return 'Site web';
     default:
-      return key[0].toUpperCase() + key.substring(1);
+      return key.isEmpty ? 'Lien' : key[0].toUpperCase() + key.substring(1);
   }
 }
 
