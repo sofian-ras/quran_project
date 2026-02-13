@@ -241,16 +241,36 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _showSurahSelection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
+      backgroundColor: isDark ? const Color(0xFF1A0033) : Colors.white,
       builder: (_) => ListView.builder(
         itemCount: fullSurahList.length,
         itemBuilder: (context, index) {
           final s = fullSurahList[index];
           return ListTile(
-            leading: Text('${s['id']}'),
-            title: Text(s['nameFr']),
-            trailing: Text(s['nameAr'], style: const TextStyle(fontFamily: 'Amiri')),
+            leading: Text(
+              '${s['id']}',
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            title: Text(
+              s['nameFr'],
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: Text(
+              s['nameAr'],
+              style: TextStyle(
+                fontFamily: 'Amiri',
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+            ),
             onTap: () {
               _pageController.jumpToPage((s['page'] as int) - 1);
               Navigator.pop(context);

@@ -275,8 +275,19 @@ class SurahListScreen extends StatelessWidget {
 
                                     return ListTile(
                                       dense: true,
-                                      title: Text(nameFr),
-                                      subtitle: Text('$nameAr • Versets $from-$to'),
+                                      title: Text(
+                                        nameFr,
+                                        style: TextStyle(
+                                          color: isDark ? Colors.white : const Color(0xFF1a0033),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        '$nameAr • Versets $from-$to',
+                                        style: TextStyle(
+                                          color: isDark ? Colors.white70 : Colors.black54,
+                                        ),
+                                      ),
                                       trailing: const Icon(Icons.chevron_right_rounded),
                                       onTap: () => onOpenReader(openPage),
                                     );

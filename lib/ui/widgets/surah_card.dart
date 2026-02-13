@@ -57,7 +57,7 @@ class SurahCard extends StatelessWidget {
         ? gold
         : (isDark ? Colors.white38 : Colors.grey.shade400);
     
-    final Color tileBg = isDark ? Colors.white.withOpacity(0.04) : Colors.transparent;
+    final Color tileBg = isDark ? const Color(0xFF1A0033) : Colors.transparent;
 
     return Container(
       margin: EdgeInsets.zero,
