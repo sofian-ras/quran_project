@@ -1,9 +1,8 @@
-// lib/services/audio_service.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 import '../surah_name.dart';
+import 'dart:async';
 
 class PositionData {
   final Duration position;
@@ -12,78 +11,67 @@ class PositionData {
   PositionData(this.position, this.bufferedPosition, this.duration);
 }
 
+/// Récitant "verset par verset" (EveryAyah)
+class AyahReciter {
+  final String name;
+  final String folder; // dossier sur https://everyayah.com/data/<folder>/
+  const AyahReciter(this.name, this.folder);
+}
+
 class AudioService {
   final ValueNotifier<bool> isFullPlayerOpenNotifier = ValueNotifier<bool>(false);
 
   AudioService._() {
     _player.setLoopMode(loopModeNotifier.value);
-
     _player.processingStateStream.listen((state) {
-      isBuffering.value =
-          state == ProcessingState.buffering || state == ProcessingState.loading;
+      isBuffering.value = state == ProcessingState.buffering || state == ProcessingState.loading;
     });
 
-    // Update title/index for SURAH mode or AYAH mode
+    // Écouter les changements de piste (lecture sourate complète)
     _currentIndexSub = _player.currentIndexStream.listen((index) {
-      if (_ayahMode) {
-        final seq = _player.sequence;
-        if (index == null || index < 0 || seq == null || index >= seq.length) return;
-
-        final tag = seq[index].tag;
-        if (tag is String && tag.contains(':')) {
-          final parts = tag.split(':');
-          final s = int.tryParse(parts[0]);
-          final a = int.tryParse(parts[1]);
-          if (s != null && a != null) {
-            currentPlayingSurahIdNotifier.value = s;
-            currentTitleNotifier.value =
-                '${surahFr[s] ?? 'Sourate $s'} - $a';
-          }
-        }
-        return;
-      }
-
-      // SURAH mode (old behavior)
       final int? surahId = index == null ? null : index + 1;
       currentPlayingSurahIdNotifier.value = surahId;
       if (surahId != null) {
         currentTitleNotifier.value = surahFr[surahId] ?? 'Sourate $surahId';
       }
     });
+
+    // Buffering pour le player "verset par verset"
+    _ayahPlayer.processingStateStream.listen((state) {
+      isAyahBuffering.value = state == ProcessingState.buffering || state == ProcessingState.loading;
+    });
   }
 
   static final AudioService instance = AudioService._();
 
+  // =======================
+  //  A) Sourate complète
+  // =======================
   final AudioPlayer _player = AudioPlayer();
   ConcatenatingAudioSource? _playlist;
   bool _audioSourceReady = false;
 
-  final ValueNotifier<int?> currentPlayingSurahIdNotifier =
-      ValueNotifier<int?>(null);
+  final ValueNotifier<int?> currentPlayingSurahIdNotifier = ValueNotifier<int?>(null);
   StreamSubscription<int?>? _currentIndexSub;
 
-  final ValueNotifier<String> currentTitleNotifier =
-      ValueNotifier("Aucune lecture");
-  final ValueNotifier<String> currentReciterNotifier =
-      ValueNotifier("Abdelrashid as-Soufy");
-
+  final ValueNotifier<String> currentTitleNotifier = ValueNotifier("Aucune lecture");
+  final ValueNotifier<String> currentReciterNotifier = ValueNotifier("Abdelrashid as-Soufy");
   final ValueNotifier<bool> isBuffering = ValueNotifier(false);
+
   final ValueNotifier<LoopMode> loopModeNotifier = ValueNotifier(LoopMode.off);
   final ValueNotifier<bool> isShuffleEnabled = ValueNotifier(false);
 
   String get currentTitle => currentTitleNotifier.value;
   String get currentReciterName => currentReciterNotifier.value;
-
-  int? get currentSurahId =>
-      _player.currentIndex == null ? null : _player.currentIndex! + 1;
-
+  int? get currentSurahId => _player.currentIndex == null ? null : _player.currentIndex! + 1;
   List<AudioSource> get playlistSources => _playlist?.children ?? [];
   Stream<int?> get currentIndexStream => _player.currentIndexStream;
 
-  Stream<PlayerState> get playerStateStream => _player.playerStateStream;
+  // Serveur par défaut mp3quran.net (lecture sourate complète)
+  String currentServer = "https://server16.mp3quran.net/download/soufi/Rewayat-Hafs-A-n-Assem";
 
-  Stream<bool> get isActiveStream =>
-      _player.processingStateStream.map((state) => state != ProcessingState.idle);
+  Stream<PlayerState> get playerStateStream => _player.playerStateStream;
+  Stream<bool> get isActiveStream => _player.processingStateStream.map((state) => state != ProcessingState.idle);
 
   Stream<PositionData> get positionDataStream =>
       Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
@@ -97,18 +85,7 @@ class AudioService {
         ),
       ).asBroadcastStream();
 
-  // --- SURAH audio server (mp3quran) ---
-  String currentServer =
-      "https://server16.mp3quran.net/download/soufi/Rewayat-Hafs-A-n-Assem";
-
-  // --- AYAH mode (EveryAyah) ---
-  bool _ayahMode = false;
-
-  /// Base EveryAyah (files like 001001.mp3)
-  /// You can change this to another folder later.
-  String currentAyahServer = 'https://everyayah.com/data/Alafasy_128kbps/';
-
-  // 1) Change reciter for SURAH mode and invalidate playlist
+  // 1) changer récitant (sourate complète) + invalider playlist
   void setReciter(String name, String server) {
     if (currentReciterNotifier.value != name || currentServer != server) {
       currentReciterNotifier.value = name;
@@ -118,17 +95,7 @@ class AudioService {
     }
   }
 
-  // Optional: set ayah reciter folder (EveryAyah)
-  void setAyahReciter(String folderName) {
-    // Example: Alafasy_128kbps/
-    var f = folderName.trim();
-    if (f.isEmpty) return;
-    if (!f.endsWith('/')) f = '$f/';
-    currentAyahServer = 'https://everyayah.com/data/$f';
-  }
-
   Future<void> loadPlaylistAndPlay(int surahId) async {
-    _ayahMode = false;
     try {
       if (_playlist == null) {
         _playlist = _createPlaylist();
@@ -136,7 +103,6 @@ class AudioService {
       }
 
       currentTitleNotifier.value = surahFr[surahId] ?? 'Sourate $surahId';
-
       final targetIndex = surahId - 1;
 
       if (!_audioSourceReady || _player.audioSource == null) {
@@ -146,7 +112,7 @@ class AudioService {
         await _player.seek(Duration.zero, index: targetIndex);
       }
 
-      await play();
+      play();
     } catch (e) {
       debugPrint("Erreur lors du chargement de la playlist: $e");
       _playlist = null;
@@ -164,63 +130,9 @@ class AudioService {
     return ConcatenatingAudioSource(children: sources);
   }
 
-  String _ayahFileName(int surah, int ayah) {
-    final s = surah.toString().padLeft(3, '0');
-    final a = ayah.toString().padLeft(3, '0');
-    return '$s$a.mp3';
-  }
-
-  Uri _ayahUri(int surah, int ayah) {
-    final file = _ayahFileName(surah, ayah);
-    return Uri.parse('$currentAyahServer$file');
-  }
-
-  Future<void> _setAyahSource(List<AudioSource> children,
-      {int initialIndex = 0}) async {
-    _ayahMode = true;
-    _playlist = ConcatenatingAudioSource(children: children);
-    _audioSourceReady = false;
-    await _player.setAudioSource(_playlist!, initialIndex: initialIndex);
-    _audioSourceReady = true;
-  }
-
-  /// Play a single ayah (surah:ayah)
-  Future<void> playAyah(int surah, int ayah) async {
-    try {
-      currentPlayingSurahIdNotifier.value = surah;
-      currentTitleNotifier.value =
-          '${surahFr[surah] ?? 'Sourate $surah'} - $ayah';
-      final src = AudioSource.uri(_ayahUri(surah, ayah), tag: '$surah:$ayah');
-      await _setAyahSource([src], initialIndex: 0);
-      await play();
-    } catch (e) {
-      debugPrint("Erreur playAyah: $e");
-    }
-  }
-
-  /// Play a range of ayat (inclusive)
-  Future<void> playAyahRange(int surah, int startAyah, int endAyah) async {
-    try {
-      currentPlayingSurahIdNotifier.value = surah;
-      currentTitleNotifier.value =
-          '${surahFr[surah] ?? 'Sourate $surah'} - $startAyah..$endAyah';
-
-      final children = <AudioSource>[
-        for (int a = startAyah; a <= endAyah; a++)
-          AudioSource.uri(_ayahUri(surah, a), tag: '$surah:$a'),
-      ];
-
-      await _setAyahSource(children, initialIndex: 0);
-      await play();
-    } catch (e) {
-      debugPrint("Erreur playAyahRange: $e");
-    }
-  }
-
   Future<void> play() => _player.play();
   Future<void> pause() => _player.pause();
   Future<void> stop() => _player.stop();
-
   Future<void> seek(Duration position) => _player.seek(position);
   Future<void> seekToIndex(int index) => _player.seek(Duration.zero, index: index);
 
@@ -255,9 +167,150 @@ class AudioService {
     await _player.setShuffleModeEnabled(newShuffleState);
   }
 
+  // =======================
+  //  B) Verset par verset
+  // =======================
+  static const String _everyAyahBase = 'https://everyayah.com/data';
+
+  /// Liste simple (tu peux en ajouter) — dossiers confirmés via /data :contentReference[oaicite:4]{index=4}
+  static const List<AyahReciter> ayahReciters = [
+    AyahReciter('Mishary Alafasy (128kbps)', 'Alafasy_128kbps'),
+    AyahReciter('AbdulBasit Mujawwad (128kbps)', 'Abdul_Basit_Mujawwad_128kbps'),
+    AyahReciter('Saood Ash-Shuraym (128kbps)', 'Saood_ash-Shuraym_128kbps'),
+    AyahReciter('As-Sudais (64kbps)', 'Abdurrahmaan_As-Sudais_64kbps'),
+    AyahReciter('Al-Hudhaify (128kbps)', 'Hudhaify_128kbps'),
+    AyahReciter('Ali Jaber (64kbps)', 'Ali_Jaber_64kbps'),
+    AyahReciter('Abu Bakr Ash-Shaatree (64kbps)', 'Abu_Bakr_Ash-Shaatree_64kbps'),
+    AyahReciter('Ahmad Al-Ajmy (64kbps)', 'Ahmed_ibn_Ali_al-Ajamy_64kbps_QuranExplorer.Com'),
+    AyahReciter('Nasser Alqatami (128kbps)', 'Nasser_Alqatami_128kbps'),
+    AyahReciter('Abdullah Al-Juhany (128kbps)', 'Abdullaah_3awwaad_Al-Juhaynee_128kbps'),
+    AyahReciter('Maher Al-Muaiqly (128kbps)', 'MaherAlMuaiqly128kbps'),
+    AyahReciter('Saad Al-Ghamdi (40kbps)', 'Ghamadi_40kbps'),
+    AyahReciter('Hani Arrifai (64kbps)', 'Hani_Rifai_64kbps'),
+    AyahReciter('Al-Hussary (128kbps)', 'Husary_128kbps'),
+  ];
+
+  final ValueNotifier<AyahReciter> currentAyahReciterNotifier =
+      ValueNotifier<AyahReciter>(ayahReciters[0]);
+
+  final AudioPlayer _ayahPlayer = AudioPlayer();
+  final ValueNotifier<bool> isAyahBuffering = ValueNotifier(false);
+  final ValueNotifier<String> currentAyahTitleNotifier = ValueNotifier("Aucun verset");
+
+  Stream<PlayerState> get ayahPlayerStateStream => _ayahPlayer.playerStateStream;
+
+  Stream<PositionData> get ayahPositionDataStream =>
+      Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
+        _ayahPlayer.positionStream,
+        _ayahPlayer.bufferedPositionStream,
+        _ayahPlayer.durationStream,
+        (position, bufferedPosition, duration) => PositionData(
+          position,
+          bufferedPosition,
+          duration ?? Duration.zero,
+        ),
+      ).asBroadcastStream();
+
+  Stream<bool> get isAyahActiveStream =>
+      _ayahPlayer.processingStateStream.map((state) => state != ProcessingState.idle);
+
+  String _ayahFile(int surah, int ayah) {
+    final s = surah.toString().padLeft(3, '0');
+    final a = ayah.toString().padLeft(3, '0');
+    return '$s$a.mp3'; // ex: 001001.mp3
+  }
+
+  String _ayahUrl(int surah, int ayah) {
+    final folder = currentAyahReciterNotifier.value.folder;
+    return '$_everyAyahBase/$folder/${_ayahFile(surah, ayah)}';
+  }
+
+  void setAyahReciter(AyahReciter reciter) {
+    currentAyahReciterNotifier.value = reciter;
+  }
+
+  StreamSubscription<PlayerState>? _ayahSeqSub;
+  int? _seqSurah;
+  int? _seqAyah;
+  int? _seqEndAyah;
+
+  /// Lecture d’un seul verset
+  Future<void> playAyah(int surah, int ayah) async {
+    // stop séquence si en cours
+    await _ayahSeqSub?.cancel();
+    _ayahSeqSub = null;
+    _seqSurah = null;
+    _seqAyah = null;
+    _seqEndAyah = null;
+
+    final url = _ayahUrl(surah, ayah);
+
+    currentAyahTitleNotifier.value =
+        'S${surah.toString().padLeft(3, '0')}:${ayah.toString().padLeft(3, '0')} • ${currentAyahReciterNotifier.value.name}';
+
+    try {
+      await _ayahPlayer.setAudioSource(AudioSource.uri(Uri.parse(url)));
+      await _ayahPlayer.play();
+    } catch (e) {
+      debugPrint("Erreur lecture ayah ($surah:$ayah) : $e");
+      rethrow;
+    }
+  }
+
+  /// Lecture verset par verset (range) : ex 1..7
+  Future<void> playAyahRange({
+    required int surah,
+    required int startAyah,
+    required int endAyah,
+  }) async {
+    if (endAyah < startAyah) return;
+
+    await _ayahSeqSub?.cancel();
+    _ayahSeqSub = null;
+
+    _seqSurah = surah;
+    _seqAyah = startAyah;
+    _seqEndAyah = endAyah;
+
+    await playAyah(surah, startAyah);
+
+    _ayahSeqSub = _ayahPlayer.playerStateStream.listen((st) async {
+      if (st.processingState == ProcessingState.completed) {
+        if (_seqSurah == null || _seqAyah == null || _seqEndAyah == null) return;
+        final next = (_seqAyah ?? startAyah) + 1;
+        if (next > (_seqEndAyah ?? endAyah)) {
+          await _ayahSeqSub?.cancel();
+          _ayahSeqSub = null;
+          _seqSurah = null;
+          _seqAyah = null;
+          _seqEndAyah = null;
+          return;
+        }
+        _seqAyah = next;
+        try {
+          await playAyah(surah, next);
+        } catch (_) {}
+      }
+    });
+  }
+
+  Future<void> stopAyah() async {
+    await _ayahSeqSub?.cancel();
+    _ayahSeqSub = null;
+    _seqSurah = null;
+    _seqAyah = null;
+    _seqEndAyah = null;
+    await _ayahPlayer.stop();
+  }
+
   Future<void> dispose() async {
     await _currentIndexSub?.cancel();
     _currentIndexSub = null;
+
+    await _ayahSeqSub?.cancel();
+    _ayahSeqSub = null;
+
     await _player.dispose();
+    await _ayahPlayer.dispose();
   }
 }

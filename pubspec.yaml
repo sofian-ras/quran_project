@@ -61,7 +61,6 @@ flutter:
     - assets/images/reciters/
     - assets/images/prieres/
     - assets/images/reprendre_lecture/reprendre_lecture.webp
-    - assets/data/quran-metadata-juz.json
     - assets/data/
     - assets/data/ayahinfo_1120.db
     # - assets/assetpacks/quran_pages.zip
