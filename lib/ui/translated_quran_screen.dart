@@ -14,7 +14,7 @@ import '../services/audio_service.dart';
 import '../surah_name.dart';
 
 class TranslatedQuranScreen extends StatefulWidget {
-  final bool preferOffline; // si true: on essaie le pack, sinon online
+  final bool preferOffline;
 
   const TranslatedQuranScreen({super.key, required this.preferOffline});
 
@@ -35,9 +35,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
 
   @override
   void dispose() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }
 
@@ -75,9 +73,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
                 await QuranTranslationPackService.downloadPack(
                   lang,
                   cancelToken: cancelToken,
-                  onProgress: (p) {
-                    setStateDialog(() => progress = p);
-                  },
+                  onProgress: (p) => setStateDialog(() => progress = p),
                 );
 
                 frReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
@@ -106,9 +102,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
               }
             }
 
-            void cancelDownload() {
-              cancelToken?.cancel('cancelled');
-            }
+            void cancelDownload() => cancelToken?.cancel('cancelled');
 
             Widget packRow({
               required String title,
@@ -475,11 +469,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   List<String> _translation = [];
   List<String> _tafsir = [];
   bool _loadedOnce = false;
+
   bool _showArabic = true;
   bool _showTranslation = true;
   double _fontArabic = 20;
   double _fontTranslation = 16;
   double _fontTafsir = 14;
+
   Set<String> _favoriteKeys = <String>{};
   String? _openTafsirKey;
 
@@ -488,7 +484,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   static const _quranEncBase = 'https://quranenc.com/api/v1';
   static const _translationKey = 'french_hameedullah';
   static const _tafsirKey = 'french_mokhtasar';
-
   static const _alquranBase = 'https://api.alquran.cloud/v1';
 
   @override
@@ -518,7 +513,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
     try {
       final lang = AppLang.fr;
-
       final packReady = await QuranTranslationPackService.isPackReady(lang);
       final useOffline = widget.preferOffline && packReady;
 
@@ -582,15 +576,38 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
   Future<void> _playAyah(int ayah) async {
     try {
+      AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.single;
       await AudioService.instance.playAyah(widget.surahNumber, ayah);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lecture du verset $ayah • ${AudioService.instance.currentAyahReciterNotifier.value.name}')),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur audio verset : $e')),
+      );
+    }
+  }
+
+  Future<void> _playAyahContinuousFrom(int ayah) async {
+    try {
+      await AudioService.instance.playAyahRange(
+        surah: widget.surahNumber,
+        startAyah: ayah,
+        endAyah: _arabic.length,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lecture continue : $e')),
+      );
+    }
+  }
+
+  Future<void> _repeatAyah(int ayah) async {
+    try {
+      await AudioService.instance.playAyahRepeatOne(widget.surahNumber, ayah);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur boucle verset : $e')),
       );
     }
   }
@@ -839,10 +856,26 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.play_arrow_rounded),
-                title: const Text('Lire ce verset (verset par verset)'),
+                title: const Text('Lire ce verset'),
                 onTap: () {
                   Navigator.pop(context);
                   _playAyah(ayah);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_play_rounded),
+                title: const Text('Lire en continu (de ce verset à la fin)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _playAyahContinuousFrom(ayah);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.repeat_one_rounded),
+                title: const Text('Boucler ce verset'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _repeatAyah(ayah);
                 },
               ),
               ListTile(
@@ -963,6 +996,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final arabicColor = isDark ? const Color(0xFFF6E7C5) : const Color(0xFF4B2E0E);
 
+    final merged = Listenable.merge([
+      AudioService.instance.currentAyahKeyNotifier,
+      AudioService.instance.ayahPlayModeNotifier,
+      AudioService.instance.isAyahPlayingNotifier,
+    ]);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -981,6 +1020,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
             onPressed: _showAyahReciterDialog,
           ),
           IconButton(
+            tooltip: 'Stop (verset par verset)',
+            icon: const Icon(Icons.stop_rounded),
+            onPressed: () => AudioService.instance.stopAyah(),
+          ),
+          IconButton(
             onPressed: _showSettingsSheet,
             icon: const Icon(Icons.tune_rounded),
           ),
@@ -988,320 +1032,363 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: Theme.of(context).brightness == Brightness.dark
+          gradient: isDark
               ? const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF0B1025),
-                    Color(0xFF131A3A),
-                    Color(0xFF1C1635),
-                  ],
+                  colors: [Color(0xFF0B1025), Color(0xFF131A3A), Color(0xFF1C1635)],
                 )
               : const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFFFFEFA),
-                    Color(0xFFFBF6ED),
-                    Color(0xFFF4EADB),
-                  ],
+                  colors: [Color(0xFFFFFEFA), Color(0xFFFBF6ED), Color(0xFFF4EADB)],
                 ),
         ),
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : (_error != null)
                 ? Center(child: Text(_error!))
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                    itemCount: _arabic.length + 1,
-                    itemBuilder: (context, i) {
-                      if (i == 0) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(18),
-                            color: isDark ? const Color(0xFF0B1025).withOpacity(0.55) : Colors.white.withOpacity(0.92),
-                            border: Border.all(
-                              color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(isDark ? 0.20 : 0.06),
-                                blurRadius: 10,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.surahNameAr,
-                                textDirection: TextDirection.rtl,
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w700,
-                                  fontFamily: 'ScheherazadeNew',
-                                  color: arabicColor,
+                : AnimatedBuilder(
+                    animation: merged,
+                    builder: (_, __) {
+                      final currentKey = AudioService.instance.currentAyahKeyNotifier.value;
+                      final mode = AudioService.instance.ayahPlayModeNotifier.value;
+                      final isPlaying = AudioService.instance.isAyahPlayingNotifier.value;
+
+                      return ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                        itemCount: _arabic.length + 1,
+                        itemBuilder: (context, i) {
+                          if (i == 0) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                color: isDark ? const Color(0xFF0B1025).withOpacity(0.55) : Colors.white.withOpacity(0.92),
+                                border: Border.all(
+                                  color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
+                                  width: 1,
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                widget.surahNameFr,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: arabicColor.withOpacity(0.9),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${_arabic.length} versets',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Récitant verset-par-verset : ${AudioService.instance.currentAyahReciterNotifier.value.name}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.65),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final idx = i - 1;
-                      final ayaNum = idx + 1;
-
-                      final ar = _arabic.length > idx ? _arabic[idx] : '';
-                      final tr = _translation.length > idx ? _translation[idx] : '';
-                      final taf = _tafsir.length > idx ? _tafsir[idx] : '';
-
-                      final key = _verseKey(ayaNum);
-                      final isFav = _favoriteKeys.contains(key);
-
-                      final subtleAccent = isDark ? Colors.white.withOpacity(0.70) : Colors.black.withOpacity(0.55);
-
-                      return Column(
-                        children: [
-                          Container(
-                            height: 1,
-                            margin: const EdgeInsets.only(bottom: 10),
-                            color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06),
-                          ),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                              child: InkWell(
-                                onTap: () => _toggleTafsir(ayaNum),
-                                onLongPress: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
-                                child: Container(
-                                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF0B1025).withOpacity(0.45) : Colors.white.withOpacity(0.88),
-                                    border: Border.all(
-                                      color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(isDark ? 0.18 : 0.05),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 6),
-                                      ),
-                                    ],
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(isDark ? 0.20 : 0.06),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 6),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              borderRadius: BorderRadius.circular(999),
-                                              color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
-                                              border: Border.all(
-                                                color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              '$ayaNum',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 12,
-                                                color: isDark ? Colors.white.withOpacity(0.85) : Colors.black.withOpacity(0.70),
-                                              ),
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                          IconButton(
-                                            tooltip: 'Lire (verset par verset)',
-                                            visualDensity: VisualDensity.compact,
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                            iconSize: 18,
-                                            onPressed: () => _playAyah(ayaNum),
-                                            icon: Icon(
-                                              Icons.play_arrow_rounded,
-                                              color: isDark ? Colors.white70 : Colors.black54,
-                                            ),
-                                          ),
-                                          IconButton(
-                                            visualDensity: VisualDensity.compact,
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                            iconSize: 18,
-                                            onPressed: () => _toggleFavorite(ayaNum),
-                                            icon: Icon(
-                                              isFav ? Icons.favorite : Icons.favorite_border,
-                                              color: isFav ? Colors.redAccent : (isDark ? Colors.white70 : Colors.black54),
-                                            ),
-                                          ),
-                                          IconButton(
-                                            visualDensity: VisualDensity.compact,
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                            iconSize: 18,
-                                            onPressed: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
-                                            icon: Icon(
-                                              Icons.more_horiz_rounded,
-                                              color: isDark ? Colors.white70 : Colors.black54,
-                                            ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.surahNameAr,
+                                    textDirection: TextDirection.rtl,
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'ScheherazadeNew',
+                                      color: arabicColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    widget.surahNameFr,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: arabicColor.withOpacity(0.9),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${_arabic.length} versets',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Récitant verset-par-verset : ${AudioService.instance.currentAyahReciterNotifier.value.name}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: (isDark ? Colors.white : Colors.black).withOpacity(0.65),
+                                    ),
+                                  ),
+                                  if (currentKey != null && isPlaying) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Lecture : $currentKey  •  ${mode == AyahPlayMode.repeatOne ? "Répétition" : mode == AyahPlayMode.continuous ? "Continue" : "Simple"}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: (isDark ? Colors.white : Colors.black).withOpacity(0.65),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          }
+
+                          final idx = i - 1;
+                          final ayaNum = idx + 1;
+
+                          final ar = _arabic.length > idx ? _arabic[idx] : '';
+                          final tr = _translation.length > idx ? _translation[idx] : '';
+                          final taf = _tafsir.length > idx ? _tafsir[idx] : '';
+
+                          final key = _verseKey(ayaNum);
+                          final isFav = _favoriteKeys.contains(key);
+
+                          final isPlayingThis = (currentKey == key) && isPlaying;
+
+                          final subtleAccent = isDark ? Colors.white.withOpacity(0.70) : Colors.black.withOpacity(0.55);
+
+                          final tileColor = isPlayingThis
+                              ? (isDark
+                                  ? const Color(0xFF2A355F).withOpacity(0.50)
+                                  : const Color(0xFFFFE8B5).withOpacity(0.70))
+                              : (isDark
+                                  ? const Color(0xFF0B1025).withOpacity(0.45)
+                                  : Colors.white.withOpacity(0.88));
+
+                          return Column(
+                            children: [
+                              Container(
+                                height: 1,
+                                margin: const EdgeInsets.only(bottom: 10),
+                                color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06),
+                              ),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: InkWell(
+                                    onTap: () => _toggleTafsir(ayaNum),
+                                    onLongPress: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
+                                    child: Container(
+                                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                                      decoration: BoxDecoration(
+                                        color: tileColor,
+                                        border: Border.all(
+                                          color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
+                                          width: 1,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(isDark ? 0.18 : 0.05),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 6),
                                           ),
                                         ],
                                       ),
-                                      if (_showArabic) ...[
-                                        const SizedBox(height: 10),
-                                        Builder(
-                                          builder: (_) {
-                                            final style = TextStyle(
-                                              fontSize: _fontArabic,
-                                              height: 2.6,
-                                              fontFamily: 'ScheherazadeNew',
-                                              fontWeight: FontWeight.w600,
-                                              wordSpacing: 5,
-                                              letterSpacing: 0.6,
-                                              color: arabicColor,
-                                            );
-
-                                            final clean = _stripTrailingAyahNumber(ar);
-                                            final spans = _parseTajweedSpans(clean, arabicColor);
-
-                                            spans.add(
-                                              TextSpan(
-                                                text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
-                                                style: TextStyle(
-                                                  color: subtleAccent,
-                                                  fontWeight: FontWeight.w700,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(999),
+                                                  color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
+                                                  border: Border.all(
+                                                    color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  '$ayaNum',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 12,
+                                                    color: isDark ? Colors.white.withOpacity(0.85) : Colors.black.withOpacity(0.70),
+                                                  ),
                                                 ),
                                               ),
-                                            );
-
-                                            return RichText(
-                                              textDirection: TextDirection.rtl,
-                                              text: TextSpan(style: style, children: spans),
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                      if (_showTranslation) ...[
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Container(
-                                              width: 3,
-                                              height: 42,
-                                              margin: const EdgeInsets.only(right: 10, top: 2),
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(999),
-                                                color: isDark ? Colors.white.withOpacity(0.18) : Colors.black.withOpacity(0.12),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: Text(
-                                                tr,
-                                                textAlign: TextAlign.justify,
-                                                style: TextStyle(
-                                                  fontSize: _fontTranslation + 1,
-                                                  height: 1.7,
-                                                  fontFamily: 'serif',
-                                                  fontWeight: FontWeight.w600,
-                                                  letterSpacing: 0.2,
-                                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(isDark ? 0.92 : 0.88),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        'Tafsir (tap)',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: isDark ? Colors.white70 : Colors.black54,
-                                        ),
-                                      ),
-                                      AnimatedSize(
-                                        duration: const Duration(milliseconds: 220),
-                                        curve: Curves.easeOutCubic,
-                                        child: (_openTafsirKey == key)
-                                            ? Padding(
-                                                padding: const EdgeInsets.only(top: 12),
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(10),
+                                              if (isPlayingThis) ...[
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                                   decoration: BoxDecoration(
-                                                    borderRadius: BorderRadius.circular(12),
-                                                    color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
-                                                    border: Border.all(
-                                                      color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
+                                                    borderRadius: BorderRadius.circular(999),
+                                                    color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.06),
+                                                  ),
+                                                  child: Text(
+                                                    mode == AyahPlayMode.repeatOne
+                                                        ? 'RÉPÉTITION'
+                                                        : mode == AyahPlayMode.continuous
+                                                            ? 'CONTINU'
+                                                            : 'LECTURE',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: isDark ? Colors.white70 : Colors.black54,
                                                     ),
                                                   ),
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Text(
-                                                        'Tafsir',
-                                                        style: TextStyle(
-                                                          fontSize: _fontTafsir + 1,
-                                                          fontWeight: FontWeight.w700,
-                                                          color: isDark ? Colors.white70 : Colors.black54,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 6),
-                                                      Text(
-                                                        taf.trim().isEmpty ? 'Tafsir indisponible.' : taf,
-                                                        style: TextStyle(
-                                                          fontSize: _fontTafsir,
-                                                          height: 1.45,
-                                                          fontFamily: 'serif',
-                                                          color: Theme.of(context).colorScheme.onSurface.withOpacity(isDark ? 0.88 : 0.82),
-                                                        ),
-                                                      ),
-                                                    ],
+                                                ),
+                                              ],
+                                              const Spacer(),
+                                              IconButton(
+                                                tooltip: 'Lire',
+                                                visualDensity: VisualDensity.compact,
+                                                padding: EdgeInsets.zero,
+                                                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                                iconSize: 18,
+                                                onPressed: () => _playAyah(ayaNum),
+                                                icon: Icon(
+                                                  Icons.play_arrow_rounded,
+                                                  color: isDark ? Colors.white70 : Colors.black54,
+                                                ),
+                                              ),
+                                              IconButton(
+                                                visualDensity: VisualDensity.compact,
+                                                padding: EdgeInsets.zero,
+                                                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                                iconSize: 18,
+                                                onPressed: () => _toggleFavorite(ayaNum),
+                                                icon: Icon(
+                                                  isFav ? Icons.favorite : Icons.favorite_border,
+                                                  color: isFav ? Colors.redAccent : (isDark ? Colors.white70 : Colors.black54),
+                                                ),
+                                              ),
+                                              IconButton(
+                                                visualDensity: VisualDensity.compact,
+                                                padding: EdgeInsets.zero,
+                                                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                                iconSize: 18,
+                                                onPressed: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
+                                                icon: Icon(
+                                                  Icons.more_horiz_rounded,
+                                                  color: isDark ? Colors.white70 : Colors.black54,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          if (_showArabic) ...[
+                                            const SizedBox(height: 10),
+                                            Builder(
+                                              builder: (_) {
+                                                final style = TextStyle(
+                                                  fontSize: _fontArabic,
+                                                  height: 2.6,
+                                                  fontFamily: 'ScheherazadeNew',
+                                                  fontWeight: FontWeight.w600,
+                                                  wordSpacing: 5,
+                                                  letterSpacing: 0.6,
+                                                  color: arabicColor,
+                                                );
+
+                                                final clean = _stripTrailingAyahNumber(ar);
+                                                final spans = _parseTajweedSpans(clean, arabicColor);
+
+                                                spans.add(
+                                                  TextSpan(
+                                                    text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
+                                                    style: TextStyle(
+                                                      color: subtleAccent,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                );
+
+                                                return RichText(
+                                                  textDirection: TextDirection.rtl,
+                                                  text: TextSpan(style: style, children: spans),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                          if (_showTranslation) ...[
+                                            const SizedBox(height: 12),
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Container(
+                                                  width: 3,
+                                                  height: 42,
+                                                  margin: const EdgeInsets.only(right: 10, top: 2),
+                                                  decoration: BoxDecoration(
+                                                    borderRadius: BorderRadius.circular(999),
+                                                    color: isDark ? Colors.white.withOpacity(0.18) : Colors.black.withOpacity(0.12),
                                                   ),
                                                 ),
-                                              )
-                                            : const SizedBox.shrink(),
+                                                Expanded(
+                                                  child: Text(
+                                                    tr,
+                                                    textAlign: TextAlign.justify,
+                                                    style: TextStyle(
+                                                      fontSize: _fontTranslation + 1,
+                                                      height: 1.7,
+                                                      fontFamily: 'serif',
+                                                      fontWeight: FontWeight.w600,
+                                                      letterSpacing: 0.2,
+                                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(isDark ? 0.92 : 0.88),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            'Tafsir (tap)',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? Colors.white70 : Colors.black54,
+                                            ),
+                                          ),
+                                          AnimatedSize(
+                                            duration: const Duration(milliseconds: 220),
+                                            curve: Curves.easeOutCubic,
+                                            child: (_openTafsirKey == key)
+                                                ? Padding(
+                                                    padding: const EdgeInsets.only(top: 12),
+                                                    child: Container(
+                                                      padding: const EdgeInsets.all(10),
+                                                      decoration: BoxDecoration(
+                                                        borderRadius: BorderRadius.circular(12),
+                                                        color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+                                                        border: Border.all(
+                                                          color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
+                                                        ),
+                                                      ),
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            'Tafsir',
+                                                            style: TextStyle(
+                                                              fontSize: _fontTafsir + 1,
+                                                              fontWeight: FontWeight.w700,
+                                                              color: isDark ? Colors.white70 : Colors.black54,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(height: 6),
+                                                          Text(
+                                                            taf.trim().isEmpty ? 'Tafsir indisponible.' : taf,
+                                                            style: TextStyle(
+                                                              fontSize: _fontTafsir,
+                                                              height: 1.45,
+                                                              fontFamily: 'serif',
+                                                              color: Theme.of(context).colorScheme.onSurface.withOpacity(isDark ? 0.88 : 0.82),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink(),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ),
-                        ],
+                            ],
+                          );
+                        },
                       );
                     },
                   ),
