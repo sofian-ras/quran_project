@@ -581,6 +581,26 @@ class TranslatedSurahScreen extends StatefulWidget {
 }
 
 class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
+  bool _shouldShowBasmalaForThisSurah() {
+    // Sourate 1: la basmala fait partie du verset (selon beaucoup d'affichages)
+    // Sourate 9: pas de basmala
+    return widget.surahNumber != 1 && widget.surahNumber != 9;
+  }
+
+String _removeLeadingBasmalaIfPresent(String input) {
+  final index = input.indexOf('الرَّحِيم');
+  if (index == -1) return input;
+
+  // on coupe juste après الرحيم
+  final end = index + 'الرَّحِيم'.length;
+
+  // sécurité : seulement si ça se trouve vraiment au début du verset
+  if (end < 60) {
+    return input.substring(end).trimLeft();
+  }
+
+  return input;
+}
   bool _loading = true;
   String? _error;
 
@@ -1394,68 +1414,64 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
     void collapseBar() => setState(() => _barExpanded = false);
 
-    Widget compactRow() {
-      return Row(
-        children: [
-          IconButton(
-            onPressed: _togglePlayPauseFromBar,
-            icon: const Icon(Icons.play_arrow_rounded),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: InkWell(
-              onTap: openReciters,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        reciterName,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: fg, fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(Icons.expand_less_rounded, size: 18, color: subtle),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+    IconButton bouton({
+      required VoidCallback? onPressed,
+      required IconData icon,
+      String? tooltip,
+    }) {
+      return IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon),
+        iconSize: 20,
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
       );
     }
 
-    // FIX overflow: row scrollable horizontal
-    Widget controlsRow() {
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+    Widget petitChip({required Widget child, required VoidCallback onTap}) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: chipBg,
+            border: Border.all(color: border),
+          ),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: subtle,
+              fontSize: 12,
+            ),
+            child: child,
+          ),
+        ),
+      );
+    }
+
+    Widget compactRow() {
+      return Center(
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(onPressed: _stopFromBar, icon: const Icon(Icons.stop_rounded), tooltip: 'Stop'),
-            IconButton(onPressed: _selectedAyah <= 1 ? null : _playPrevFromBar, icon: const Icon(Icons.skip_previous_rounded)),
-            IconButton(
-              onPressed: _togglePlayPauseFromBar,
-              icon: Icon(playingThis ? Icons.pause_rounded : Icons.play_arrow_rounded),
-            ),
-            IconButton(onPressed: _selectedAyah >= _arabic.length ? null : _playNextFromBar, icon: const Icon(Icons.skip_next_rounded)),
-            const SizedBox(width: 6),
-            InkWell(
-              onTap: _cycleRepeatFromBar,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: chipBg,
-                  border: Border.all(color: border),
-                ),
-                child: Text(_repeatLabel(), style: TextStyle(fontWeight: FontWeight.w900, color: subtle)),
-              ),
-            ),
+            bouton(onPressed: _stopFromBar, icon: Icons.stop_rounded, tooltip: 'Stop'),
+            bouton(onPressed: _selectedAyah <= 1 ? null : _playPrevFromBar, icon: Icons.skip_previous_rounded),
+            bouton(onPressed: _togglePlayPauseFromBar, icon: playingThis ? Icons.pause_rounded : Icons.play_arrow_rounded),
+            bouton(onPressed: _selectedAyah >= _arabic.length ? null : _playNextFromBar, icon: Icons.skip_next_rounded),
+
             const SizedBox(width: 8),
+
+            petitChip(
+              onTap: _cycleRepeatFromBar,
+              child: Text(_repeatLabel()),
+            ),
+
+            const SizedBox(width: 8),
+
             PopupMenuButton<double>(
               tooltip: 'Vitesse',
               initialValue: _playbackSpeed,
@@ -1470,33 +1486,120 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                     child: Text('${v.toStringAsFixed(v == 1.0 ? 0 : 2)}×'),
                   ),
               ],
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: chipBg,
-                  border: Border.all(color: border),
-                ),
+              child: petitChip(
+                onTap: () {},
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.speed_rounded, size: 18, color: subtle),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${_playbackSpeed.toStringAsFixed(_playbackSpeed == 1.0 ? 0 : 2)}×',
-                      style: TextStyle(fontWeight: FontWeight.w900, color: subtle),
-                    ),
+                    Icon(Icons.speed_rounded, size: 16, color: subtle),
+                    const SizedBox(width: 8),
+                    Text('${_playbackSpeed.toStringAsFixed(_playbackSpeed == 1.0 ? 0 : 2)}×'),
                   ],
                 ),
               ),
             ),
+
             const SizedBox(width: 8),
-            IconButton(onPressed: openReciters, icon: const Icon(Icons.record_voice_over_rounded), tooltip: 'Récitant'),
-            IconButton(onPressed: openSettings, icon: const Icon(Icons.settings_rounded), tooltip: 'Paramètres'),
+
+            bouton(onPressed: openSettings, icon: Icons.settings_rounded, tooltip: 'Paramètres'),
           ],
         ),
       );
     }
+
+    // FIX overflow: row scrollable horizontal
+   Widget controlsRow() {
+    IconButton bouton({
+      required VoidCallback? onPressed,
+      required IconData icon,
+      String? tooltip,
+    }) {
+      return IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon),
+        iconSize: 20,
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+      );
+    }
+
+    Widget petitChip({required Widget child, required VoidCallback onTap}) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: chipBg,
+            border: Border.all(color: border),
+          ),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: subtle,
+              fontSize: 12,
+            ),
+            child: child,
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        bouton(onPressed: _stopFromBar, icon: Icons.stop_rounded, tooltip: 'Stop'),
+        bouton(onPressed: _selectedAyah <= 1 ? null : _playPrevFromBar, icon: Icons.skip_previous_rounded),
+        bouton(onPressed: _togglePlayPauseFromBar, icon: playingThis ? Icons.pause_rounded : Icons.play_arrow_rounded),
+        bouton(onPressed: _selectedAyah >= _arabic.length ? null : _playNextFromBar, icon: Icons.skip_next_rounded),
+
+        const SizedBox(width: 8),
+
+        // répétition
+        petitChip(
+          onTap: _cycleRepeatFromBar,
+          child: Text(_repeatLabel()),
+        ),
+
+        const SizedBox(width: 8),
+
+        // vitesse
+        PopupMenuButton<double>(
+          tooltip: 'Vitesse',
+          initialValue: _playbackSpeed,
+          onSelected: (v) {
+            setState(() => _playbackSpeed = v);
+            svc.setAyahSpeed(v);
+          },
+          itemBuilder: (_) => [
+            for (final v in speeds)
+              PopupMenuItem(
+                value: v,
+                child: Text('${v.toStringAsFixed(v == 1.0 ? 0 : 2)}×'),
+              ),
+          ],
+          child: petitChip(
+            onTap: () {},
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.speed_rounded, size: 16, color: subtle),
+                const SizedBox(width: 8),
+                Text('${_playbackSpeed.toStringAsFixed(_playbackSpeed == 1.0 ? 0 : 2)}×'),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 8),
+
+        // paramètres
+        bouton(onPressed: openSettings, icon: Icons.settings_rounded, tooltip: 'Paramètres'),
+      ],
+    );
+  }
 
     Widget recitersPanel() {
       final selected = svc.currentAyahReciterNotifier.value;
@@ -1745,27 +1848,41 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     return SafeArea(
       top: false,
       child: Container(
-        decoration: BoxDecoration(
-          color: bg,
-          border: Border(top: BorderSide(color: border)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeOut,
-                child: active ? controlsRow() : compactRow(),
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOut,
-                child: expandedPanel(),
+        // IMPORTANT: on ne met plus le même bg que la page
+        // On met une "surface" (card) qui ressort.
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F1734) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: border),
+            boxShadow: [
+              BoxShadow(
+                blurRadius: isDark ? 18 : 22,
+                spreadRadius: 0,
+                offset: const Offset(0, 8),
+                color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
               ),
             ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeOut,
+                  child: active ? controlsRow() : compactRow(),
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
+                  child: expandedPanel(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1937,18 +2054,48 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                           color: fg,
                                         );
 
-                                        final clean = _stripTrailingAyahNumber(ar);
-                                        final spans = _parseTajweedSpans(clean, fg);
-                                        spans.add(
-                                          TextSpan(
-                                            text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
-                                            style: TextStyle(color: subtle, fontWeight: FontWeight.w700),
-                                          ),
-                                        );
+                                      var clean = _stripTrailingAyahNumber(ar);
 
-                                        return RichText(
-                                          textDirection: TextDirection.rtl,
-                                          text: TextSpan(style: style, children: spans),
+                                      // enlever la basmala du verset 1 (sauf sourate 1 et 9)
+                                      if (ayaNum == 1 && _shouldShowBasmalaForThisSurah()) {
+                                        clean = _removeLeadingBasmalaIfPresent(clean);
+                                      }
+
+                                      final spans = _parseTajweedSpans(clean, fg);
+                                      spans.add(
+                                        TextSpan(
+                                          text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
+                                          style: TextStyle(color: subtle, fontWeight: FontWeight.w700),
+                                        ),
+                                      );
+
+                                        final showBasmala = (ayaNum == 1 && _shouldShowBasmalaForThisSurah());
+
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            if (showBasmala) ...[
+                                              const SizedBox(height: 6),
+                                              Center(
+                                                child: Text(
+                                                  'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
+                                                  textDirection: TextDirection.rtl,
+                                                  style: TextStyle(
+                                                    fontSize: _fontArabic,
+                                                    height: 2.2,
+                                                    fontFamily: 'ScheherazadeNew',
+                                                    fontWeight: FontWeight.w600,
+                                                    color: fg,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                            ],
+                                            RichText(
+                                              textDirection: TextDirection.rtl,
+                                              text: TextSpan(style: style, children: spans),
+                                            ),
+                                          ],
                                         );
                                       },
                                     ),
