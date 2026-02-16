@@ -50,6 +50,13 @@ class AudioService {
     _ayahPlayer.playerStateStream.listen((st) {
       isAyahPlayingNotifier.value = st.playing;
     });
+    _ayahPlayer.sequenceStateStream.listen((seq) {
+      final tag = seq?.currentSource?.tag;
+      if (tag is String) {
+        currentAyahKeyNotifier.value = tag; // ex: "2:255"
+        currentAyahTitleNotifier.value = tag;
+      }
+    });
 
     // Vitesse lecture verset
     _ayahPlayer.setSpeed(ayahSpeedNotifier.value);
@@ -187,6 +194,24 @@ class AudioService {
   // =======================
   //  B) Verset par verset
   // =======================
+  ConcatenatingAudioSource _buildAyahPlaylist({
+    required int surah,
+    required int startAyah,
+    required int endAyah,
+  }) {
+    final children = <AudioSource>[];
+    for (int a = startAyah; a <= endAyah; a++) {
+      final url = _ayahUrl(surah, a);
+      children.add(
+        AudioSource.uri(
+          Uri.parse(url),
+          tag: '$surah:$a',
+        ),
+      );
+    }
+    return ConcatenatingAudioSource(children: children);
+  }
+
   static const String _everyAyahBase = 'https://everyayah.com/data';
 
   static const List<AyahReciter> ayahReciters = [
@@ -207,7 +232,7 @@ class AudioService {
   ];
 
   final ValueNotifier<AyahReciter> currentAyahReciterNotifier = ValueNotifier<AyahReciter>(ayahReciters[0]);
-
+  ConcatenatingAudioSource? _ayahPlaylist;
   final AudioPlayer _ayahPlayer = AudioPlayer();
   final ValueNotifier<bool> isAyahBuffering = ValueNotifier(false);
   final ValueNotifier<String> currentAyahTitleNotifier = ValueNotifier("Aucun verset");
@@ -266,6 +291,7 @@ class AudioService {
     currentAyahKeyNotifier.value = null;
 
     await _ayahPlayer.setLoopMode(LoopMode.off);
+    _ayahPlaylist = null;
     await _ayahPlayer.stop();
   }
 
@@ -321,41 +347,32 @@ class AudioService {
     if (endAyah < startAyah) return;
 
     ayahPlayModeNotifier.value = AyahPlayMode.continuous;
-    await _ayahPlayer.setLoopMode(LoopMode.off);
 
+    // stop l’ancienne logique "completed -> next"
     await _ayahSeqSub?.cancel();
     _ayahSeqSub = null;
+    _seqSurah = null;
+    _seqAyah = null;
+    _seqEndAyah = null;
 
-    _seqSurah = surah;
-    _seqAyah = startAyah;
-    _seqEndAyah = endAyah;
+    await _ayahPlayer.setLoopMode(LoopMode.off);
 
-    await _playAyahInternal(surah, startAyah);
+    _ayahPlaylist = _buildAyahPlaylist(
+      surah: surah,
+      startAyah: startAyah,
+      endAyah: endAyah,
+    );
 
-    _ayahSeqSub = _ayahPlayer.playerStateStream.listen((st) async {
-      if (st.processingState == ProcessingState.completed) {
-        if (_seqSurah == null || _seqAyah == null || _seqEndAyah == null) return;
+    await _ayahPlayer.setAudioSource(
+      _ayahPlaylist!,
+      initialIndex: 0,
+      preload: true,
+    );
 
-        final next = (_seqAyah ?? startAyah) + 1;
-        if (next > (_seqEndAyah ?? endAyah)) {
-          await _ayahSeqSub?.cancel();
-          _ayahSeqSub = null;
-          _seqSurah = null;
-          _seqAyah = null;
-          _seqEndAyah = null;
-          ayahPlayModeNotifier.value = AyahPlayMode.single;
-          return;
-        }
+    // set key immédiatement (avant le 1er son)
+    currentAyahKeyNotifier.value = '$surah:$startAyah';
 
-        _seqAyah = next;
-
-        try {
-          final delay = ayahAutoNextDelayNotifier.value;
-          if (delay > Duration.zero) await Future.delayed(delay);
-          await _playAyahInternal(surah, next);
-        } catch (_) {}
-      }
-    });
+    await _ayahPlayer.play();
   }
 
   /// Range en boucle : revient au start à la fin (∞ sur la plage)
@@ -367,33 +384,30 @@ class AudioService {
     if (endAyah < startAyah) return;
 
     ayahPlayModeNotifier.value = AyahPlayMode.continuous;
-    await _ayahPlayer.setLoopMode(LoopMode.off);
 
     await _ayahSeqSub?.cancel();
     _ayahSeqSub = null;
+    _seqSurah = null;
+    _seqAyah = null;
+    _seqEndAyah = null;
 
-    _seqSurah = surah;
-    _seqAyah = startAyah;
-    _seqEndAyah = endAyah;
+    await _ayahPlayer.setLoopMode(LoopMode.all);
 
-    await _playAyahInternal(surah, startAyah);
+    _ayahPlaylist = _buildAyahPlaylist(
+      surah: surah,
+      startAyah: startAyah,
+      endAyah: endAyah,
+    );
 
-    _ayahSeqSub = _ayahPlayer.playerStateStream.listen((st) async {
-      if (st.processingState == ProcessingState.completed) {
-        if (_seqSurah == null || _seqAyah == null || _seqEndAyah == null) return;
+    await _ayahPlayer.setAudioSource(
+      _ayahPlaylist!,
+      initialIndex: 0,
+      preload: true,
+    );
 
-        var next = (_seqAyah ?? startAyah) + 1;
-        if (next > (_seqEndAyah ?? endAyah)) next = startAyah;
+    currentAyahKeyNotifier.value = '$surah:$startAyah';
 
-        _seqAyah = next;
-
-        try {
-          final delay = ayahAutoNextDelayNotifier.value;
-          if (delay > Duration.zero) await Future.delayed(delay);
-          await _playAyahInternal(surah, next);
-        } catch (_) {}
-      }
-    });
+    await _ayahPlayer.play();
   }
 
   /// Répéter un verset N fois (N>=1). Pour ∞, utiliser playAyahRepeatOne().

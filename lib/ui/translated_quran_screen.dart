@@ -1,6 +1,7 @@
 // lib/ui/translated_quran_screen.dart
 import 'dart:convert';
-
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -582,9 +583,129 @@ class TranslatedSurahScreen extends StatefulWidget {
 }
 
 class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
+  bool _surahDownloaded = false;
+  bool _checkingSurahDownloaded = false;
+  bool _downloadingSurah = false;
+  double _downloadProgress = 0.0;
+  CancelToken? _downloadCancel;
   bool _shouldShowBasmalaForThisSurah() {
     return widget.surahNumber != 1 && widget.surahNumber != 9;
   }
+
+  static const String _everyAyahBase = 'https://everyayah.com/data';
+
+  String _pad3(int v) => v.toString().padLeft(3, '0');
+
+  String _ayahFileName(int surah, int ayah) => '${_pad3(surah)}${_pad3(ayah)}.mp3';
+
+  String _ayahUrlForCurrentReciter(int surah, int ayah) {
+    final folder = AudioService.instance.currentAyahReciterNotifier.value.folder;
+    return '$_everyAyahBase/$folder/${_ayahFileName(surah, ayah)}';
+  }
+
+  Future<bool> _isCurrentSurahDownloaded() async {
+    if (_arabic.isEmpty) return false;
+
+    try {
+      final outDir = await _ensureSurahAudioDir();
+      final total = _arabic.length;
+
+      for (int ayah = 1; ayah <= total; ayah++) {
+        final file = File('${outDir.path}/${_ayahFileName(widget.surahNumber, ayah)}');
+        if (!await file.exists()) return false;
+        if ((await file.length()) <= 0) return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _refreshSurahDownloadedFlag() async {
+    if (_checkingSurahDownloaded) return;
+
+    setState(() => _checkingSurahDownloaded = true);
+    final ok = await _isCurrentSurahDownloaded();
+    if (!mounted) return;
+
+    setState(() {
+      _surahDownloaded = ok;
+      _checkingSurahDownloaded = false;
+    });
+  }
+
+  Future<Directory> _ensureSurahAudioDir() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final folder = AudioService.instance.currentAyahReciterNotifier.value.folder;
+    final path = '${dir.path}/ayah_cache/$folder/${_pad3(widget.surahNumber)}';
+    final out = Directory(path);
+    if (!await out.exists()) {
+      await out.create(recursive: true);
+    }
+    return out;
+  }
+
+  Future<void> _downloadCurrentSurahAudioFromBar() async {
+    if (_downloadingSurah) return;
+    if (_arabic.isEmpty) return;
+
+    setState(() {
+      _downloadingSurah = true;
+      _downloadProgress = 0.0;
+      _downloadCancel = CancelToken();
+    });
+
+    try {
+      final outDir = await _ensureSurahAudioDir();
+      final total = _arabic.length;
+
+      for (int ayah = 1; ayah <= total; ayah++) {
+        if (_downloadCancel?.isCancelled == true) break;
+
+        final file = File('${outDir.path}/${_ayahFileName(widget.surahNumber, ayah)}');
+
+        // si déjà téléchargé, on saute
+        if (await file.exists() && (await file.length()) > 0) {
+          setState(() => _downloadProgress = ayah / total);
+          continue;
+        }
+
+        final url = _ayahUrlForCurrentReciter(widget.surahNumber, ayah);
+
+        final res = await _dio.get<List<int>>(
+          url,
+          options: Options(responseType: ResponseType.bytes, followRedirects: true),
+          cancelToken: _downloadCancel,
+        );
+
+        final bytes = res.data;
+        if (bytes == null || bytes.isEmpty) {
+          throw Exception('Fichier vide: $url');
+        }
+
+        await file.writeAsBytes(bytes, flush: true);
+
+        if (!mounted) return;
+        setState(() => _downloadProgress = ayah / total);
+      }
+    } catch (_) {
+      // silence (ou SnackBar si tu veux)
+    } finally {
+      if (!mounted) return;
+        setState(() {
+          _downloadingSurah = false;
+          _downloadCancel = null;
+          _downloadProgress = 0.0;
+        });
+
+        await _refreshSurahDownloadedFlag();
+    }
+  }
+
+  void _cancelSurahDownload() {
+    _downloadCancel?.cancel('cancel');
+  }
+
 
   String _removeLeadingBasmalaIfPresent(String input) {
     final index = input.indexOf('الرَّحِيم');
@@ -685,6 +806,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     super.initState();
     _selectedAyah = widget.initialAyah <= 0 ? 1 : widget.initialAyah;
     _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
+    AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.continuous;
+    _repeatTimes = 1;
 
     Future.microtask(() async {
       await _loadFavorites();
@@ -835,6 +958,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
       if (_arabic.isNotEmpty) {
         _normalizeLengths();
+        await _refreshSurahDownloadedFlag();
         if (_isTafsirMostlyEmpty()) {
           await _loadTafsirOnlineFallback();
           _normalizeLengths();
@@ -997,6 +1121,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
   Future<void> _stopFromBar() async {
     await AudioService.instance.stopAyah();
+    AudioService.instance.currentAyahKeyNotifier.value = null; // sécurité
     if (!mounted) return;
     setState(() => _barExpanded = false);
   }
@@ -1392,6 +1517,34 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     final border = _border(isDark);
     final accent = _accent(isDark);
 
+    Widget downloadRow() {
+      final pct = (_downloadProgress * 100).clamp(0, 100).toStringAsFixed(0);
+
+      return Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: _downloadProgress),
+                const SizedBox(height: 6),
+                Text(
+                  'Téléchargement... $pct%',
+                  style: TextStyle(color: subtle, fontWeight: FontWeight.w800, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          IconButton(
+            onPressed: _cancelSurahDownload,
+            icon: Icon(Icons.close_rounded, color: subtle),
+            tooltip: 'Annuler',
+          ),
+        ],
+      );
+    }
+
     final barBg = isDark ? const Color(0xFF0F1734) : Colors.white;
     final chipBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
 
@@ -1500,6 +1653,15 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
+              onPressed: (_surahDownloaded || _checkingSurahDownloaded) ? null : _downloadCurrentSurahAudioFromBar,
+              icon: Icon(_surahDownloaded ? Icons.check_circle_rounded : Icons.download_rounded),
+              iconSize: 20,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+              tooltip: _surahDownloaded ? 'Déjà téléchargée' : 'Télécharger la sourate',
+            ),
+            IconButton(
               onPressed: _togglePlayPauseFromBar,
               icon: Icon(playingThis ? Icons.pause_rounded : Icons.play_arrow_rounded),
               iconSize: 22,
@@ -1508,32 +1670,19 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             ),
             const SizedBox(width: 8),
-            InkWell(
-              onTap: openReciters,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: chipBg,
-                  border: Border.all(color: border),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.record_voice_over_rounded, size: 16, color: subtle),
-                    const SizedBox(width: 6),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 220),
-                      child: Text(
-                        _cleanReciterName(reciterName),
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 13),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(Icons.expand_more_rounded, size: 18, color: subtle),
-                  ],
+            TextButton(
+              onPressed: openReciters,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                minimumSize: const Size(0, 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 240),
+                child: Text(
+                  _cleanReciterName(reciterName),
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 13),
                 ),
               ),
             ),
@@ -1908,39 +2057,32 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: barBg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: border),
-            boxShadow: [
-              BoxShadow(
-                blurRadius: isDark ? 18 : 22,
-                spreadRadius: 0,
-                offset: const Offset(0, 8),
-                color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F1734) : const Color(0xFFF1ECE0), // bande différente du fond
+          border: Border(
+            top: BorderSide(color: border), // séparation propre avec le contenu
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _downloadingSurah
+                  ? downloadRow()
+                  : AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeOut,
+                      child: active ? controlsRow() : compactRow(),
+                    ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                child: expandedPanel(),
               ),
             ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeOut,
-                  child: active ? controlsRow() : compactRow(),
-                ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  child: expandedPanel(),
-                ),
-              ],
-            ),
           ),
         ),
       ),
