@@ -281,7 +281,8 @@ class _FavoritesTabState extends State<_FavoritesTab> {
     final favs = await VerseFavoritesService.instance.getFavorites();
     if (!mounted) return;
     setState(() {
-      _keys = favs.toList()..sort((a, b) {
+      _keys = favs.toList()
+        ..sort((a, b) {
           int sa(String k) => int.tryParse(k.split(':').first) ?? 0;
           int aa(String k) => int.tryParse(k.split(':').last) ?? 0;
           final ds = sa(a).compareTo(sa(b));
@@ -582,25 +583,24 @@ class TranslatedSurahScreen extends StatefulWidget {
 
 class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   bool _shouldShowBasmalaForThisSurah() {
-    // Sourate 1: la basmala fait partie du verset (selon beaucoup d'affichages)
-    // Sourate 9: pas de basmala
     return widget.surahNumber != 1 && widget.surahNumber != 9;
   }
 
-String _removeLeadingBasmalaIfPresent(String input) {
-  final index = input.indexOf('الرَّحِيم');
-  if (index == -1) return input;
-
-  // on coupe juste après الرحيم
-  final end = index + 'الرَّحِيم'.length;
-
-  // sécurité : seulement si ça se trouve vraiment au début du verset
-  if (end < 60) {
-    return input.substring(end).trimLeft();
+  String _removeLeadingBasmalaIfPresent(String input) {
+    final index = input.indexOf('الرَّحِيم');
+    if (index == -1) return input;
+    final end = index + 'الرَّحِيم'.length;
+    if (end < 60) {
+      return input.substring(end).trimLeft();
+    }
+    return input;
   }
 
-  return input;
-}
+  // Option 1: enlever "(128kbps)" etc
+  String _cleanReciterName(String s) {
+    return s.replaceAll(RegExp(r'\s*\([^)]*\)\s*'), '').trim();
+  }
+
   bool _loading = true;
   String? _error;
 
@@ -617,26 +617,49 @@ String _removeLeadingBasmalaIfPresent(String input) {
   Set<String> _favoriteKeys = <String>{};
   String? _openTafsirKey;
 
+  // --- Auto-center precise (no more "approxItem") ---
+  final Map<int, GlobalKey> _ayahItemKeys = <int, GlobalKey>{};
+
+  GlobalKey _keyForAyah(int ayah) {
+    return _ayahItemKeys.putIfAbsent(ayah, () => GlobalKey());
+  }
+
+  void _ensureAyahCentered(int ayah) {
+    if (!mounted) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final key = _ayahItemKeys[ayah];
+      final ctx = key?.currentContext;
+      if (ctx == null) return;
+
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.5, // center
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOut,
+      );
+    });
+  }
   final ScrollController _scrollController = ScrollController();
   int _selectedAyah = 1;
 
-  int _repeatTimes = 1; // 1,3,5,-1...
+  int _repeatTimes = 1;
   bool _loopRangeEnabled = false;
   int? _loopStartAyah;
   int? _loopEndAyah;
 
-  int _rangeRepeatTimes = 1; // 1..25 ou -1 pour ∞
-  int _eachAyahRepeatTimes = 1; // 1..25
+  int _rangeRepeatTimes = 1;
+  int _eachAyahRepeatTimes = 1;
 
   bool _barExpanded = false;
   _BarPanel _barPanel = _BarPanel.reciters;
   double _playbackSpeed = 1.0;
 
-  // Choix API (quranenc)
   String _translationKey = 'french_hameedullah';
   String _tafsirKey = 'french_mokhtasar';
 
-  // Options (tu peux en ajouter quand tu veux)
   static const Map<String, String> _translationOptions = {
     'FR • Hamidullah': 'french_hameedullah',
     'EN • Saheeh International': 'english_saheeh',
@@ -821,7 +844,6 @@ String _removeLeadingBasmalaIfPresent(String input) {
         _loopStartAyah ??= _selectedAyah;
         _loopEndAyah ??= (_selectedAyah + 1).clamp(1, _arabic.length);
 
-        // assure scroll sur le verset initial (ex: favoris)
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _setSelectedAyah(_selectedAyah, scroll: true, center: true);
@@ -849,29 +871,13 @@ String _removeLeadingBasmalaIfPresent(String input) {
   void _setSelectedAyah(int ayah, {bool scroll = true, bool center = false}) {
     if (_arabic.isEmpty) return;
     ayah = ayah.clamp(1, _arabic.length);
+
     setState(() => _selectedAyah = ayah);
 
     if (!scroll) return;
-    if (!_scrollController.hasClients) return;
 
-    const double header = 90;
-    const double approxItem = 185;
-
-    double target = header + (ayah - 1) * approxItem;
-
-    if (center) {
-      final viewport = _scrollController.position.viewportDimension;
-      target = target - (viewport / 2) + (approxItem / 2);
-    }
-
-    final max = _scrollController.position.maxScrollExtent;
-    target = target.clamp(0.0, max);
-
-    _scrollController.animateTo(
-      target,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOut,
-    );
+    // ✅ centre exactement le verset à l'écran
+    _ensureAyahCentered(ayah);
   }
 
   void _cycleRepeatFromBar() {
@@ -1020,7 +1026,9 @@ String _removeLeadingBasmalaIfPresent(String input) {
                     final isSelected = r.folder == selected.folder;
                     return Container(
                       decoration: BoxDecoration(
-                        color: isSelected ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04)) : Colors.transparent,
+                        color: isSelected
+                            ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04))
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: _border(isDark)),
                       ),
@@ -1384,7 +1392,7 @@ String _removeLeadingBasmalaIfPresent(String input) {
     final border = _border(isDark);
     final accent = _accent(isDark);
 
-    final bg = isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF);
+    final barBg = isDark ? const Color(0xFF0F1734) : Colors.white;
     final chipBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
 
     final svc = AudioService.instance;
@@ -1453,14 +1461,108 @@ String _removeLeadingBasmalaIfPresent(String input) {
       );
     }
 
+    Widget togglePill({
+      required bool value,
+      required VoidCallback onTap,
+    }) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          width: 46,
+          height: 26,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            color: value ? accent.withOpacity(isDark ? 0.35 : 0.25) : chipBg,
+            border: Border.all(color: value ? accent.withOpacity(0.55) : border),
+          ),
+          child: Align(
+            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: value ? accent : (isDark ? Colors.white.withOpacity(0.85) : Colors.black.withOpacity(0.80)),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget compactRow() {
       return Center(
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              onPressed: _togglePlayPauseFromBar,
+              icon: Icon(playingThis ? Icons.pause_rounded : Icons.play_arrow_rounded),
+              iconSize: 22,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: openReciters,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: chipBg,
+                  border: Border.all(color: border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.record_voice_over_rounded, size: 16, color: subtle),
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 220),
+                      child: Text(
+                        _cleanReciterName(reciterName),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(Icons.expand_more_rounded, size: 18, color: subtle),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: openSettings,
+              icon: const Icon(Icons.settings_rounded),
+              iconSize: 20,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+              tooltip: 'Paramètres',
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget controlsRow() {
+      return Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             bouton(onPressed: _stopFromBar, icon: Icons.stop_rounded, tooltip: 'Stop'),
+            const SizedBox(width: 2),
             bouton(onPressed: _selectedAyah <= 1 ? null : _playPrevFromBar, icon: Icons.skip_previous_rounded),
+            const SizedBox(width: 2),
             bouton(onPressed: _togglePlayPauseFromBar, icon: playingThis ? Icons.pause_rounded : Icons.play_arrow_rounded),
+            const SizedBox(width: 2),
             bouton(onPressed: _selectedAyah >= _arabic.length ? null : _playNextFromBar, icon: Icons.skip_next_rounded),
 
             const SizedBox(width: 8),
@@ -1492,7 +1594,7 @@ String _removeLeadingBasmalaIfPresent(String input) {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.speed_rounded, size: 16, color: subtle),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     Text('${_playbackSpeed.toStringAsFixed(_playbackSpeed == 1.0 ? 0 : 2)}×'),
                   ],
                 ),
@@ -1506,100 +1608,6 @@ String _removeLeadingBasmalaIfPresent(String input) {
         ),
       );
     }
-
-    // FIX overflow: row scrollable horizontal
-   Widget controlsRow() {
-    IconButton bouton({
-      required VoidCallback? onPressed,
-      required IconData icon,
-      String? tooltip,
-    }) {
-      return IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon),
-        iconSize: 20,
-        visualDensity: VisualDensity.compact,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-      );
-    }
-
-    Widget petitChip({required Widget child, required VoidCallback onTap}) {
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: chipBg,
-            border: Border.all(color: border),
-          ),
-          child: DefaultTextStyle.merge(
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              color: subtle,
-              fontSize: 12,
-            ),
-            child: child,
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        bouton(onPressed: _stopFromBar, icon: Icons.stop_rounded, tooltip: 'Stop'),
-        bouton(onPressed: _selectedAyah <= 1 ? null : _playPrevFromBar, icon: Icons.skip_previous_rounded),
-        bouton(onPressed: _togglePlayPauseFromBar, icon: playingThis ? Icons.pause_rounded : Icons.play_arrow_rounded),
-        bouton(onPressed: _selectedAyah >= _arabic.length ? null : _playNextFromBar, icon: Icons.skip_next_rounded),
-
-        const SizedBox(width: 8),
-
-        // répétition
-        petitChip(
-          onTap: _cycleRepeatFromBar,
-          child: Text(_repeatLabel()),
-        ),
-
-        const SizedBox(width: 8),
-
-        // vitesse
-        PopupMenuButton<double>(
-          tooltip: 'Vitesse',
-          initialValue: _playbackSpeed,
-          onSelected: (v) {
-            setState(() => _playbackSpeed = v);
-            svc.setAyahSpeed(v);
-          },
-          itemBuilder: (_) => [
-            for (final v in speeds)
-              PopupMenuItem(
-                value: v,
-                child: Text('${v.toStringAsFixed(v == 1.0 ? 0 : 2)}×'),
-              ),
-          ],
-          child: petitChip(
-            onTap: () {},
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.speed_rounded, size: 16, color: subtle),
-                const SizedBox(width: 8),
-                Text('${_playbackSpeed.toStringAsFixed(_playbackSpeed == 1.0 ? 0 : 2)}×'),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 8),
-
-        // paramètres
-        bouton(onPressed: openSettings, icon: Icons.settings_rounded, tooltip: 'Paramètres'),
-      ],
-    );
-  }
 
     Widget recitersPanel() {
       final selected = svc.currentAyahReciterNotifier.value;
@@ -1632,177 +1640,230 @@ String _removeLeadingBasmalaIfPresent(String input) {
       );
     }
 
-    Widget choiceChipGold({
-      required String label,
-      required bool selected,
-      required VoidCallback onTap,
-    }) {
-      return ChoiceChip(
-        label: Text(label, style: TextStyle(color: selected ? fg : subtle, fontWeight: FontWeight.w800)),
-        selected: selected,
-        onSelected: (_) => onTap(),
-        selectedColor: accent.withOpacity(isDark ? 0.18 : 0.16),
-        backgroundColor: chipBg,
-        side: BorderSide(color: selected ? accent.withOpacity(0.55) : border),
-        checkmarkColor: accent,
-      );
-    }
-
     Widget settingsPanel() {
       final maxAyah = _arabic.isEmpty ? 1 : _arabic.length;
       final start = (_loopStartAyah ?? _selectedAyah).clamp(1, maxAyah);
       final end = (_loopEndAyah ?? (_selectedAyah + 1)).clamp(1, maxAyah);
 
-      InputDecoration deco(String label) => InputDecoration(
-            labelText: label,
-            labelStyle: TextStyle(color: subtle, fontWeight: FontWeight.w700),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accent.withOpacity(0.7))),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          );
+      Widget line(String label, Widget right) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: right),
+            ],
+          ),
+        );
+      }
+
+      Widget dd<T>({
+        required T value,
+        required List<DropdownMenuItem<T>> items,
+        required ValueChanged<T?> onChanged,
+      }) {
+        return DropdownButtonHideUnderline(
+          child: DropdownButton<T>(
+            value: value,
+            isDense: true,
+            isExpanded: true,
+            iconSize: 18,
+            items: items,
+            onChanged: onChanged,
+            dropdownColor: isDark ? const Color(0xFF0F1734) : Colors.white,
+          ),
+        );
+      }
 
       return ListView(
+        padding: EdgeInsets.zero,
         children: [
-          DropdownButtonFormField<String>(
-            value: _translationKey,
-            dropdownColor: isDark ? const Color(0xFF0F1734) : Colors.white,
-            decoration: deco('Traduction (API)'),
-            style: TextStyle(color: fg, fontWeight: FontWeight.w700),
-            items: _translationOptions.entries
-                .map((e) => DropdownMenuItem<String>(value: e.value, child: Text(e.key, style: TextStyle(color: fg))))
-                .toList(),
-            onChanged: (v) async {
-              if (v == null) return;
-              setState(() => _translationKey = v);
-              await _load();
-            },
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            value: _tafsirKey,
-            dropdownColor: isDark ? const Color(0xFF0F1734) : Colors.white,
-            decoration: deco('Tafsir (API)'),
-            style: TextStyle(color: fg, fontWeight: FontWeight.w700),
-            items: _tafsirOptions.entries
-                .map((e) => DropdownMenuItem<String>(value: e.value, child: Text(e.key, style: TextStyle(color: fg))))
-                .toList(),
-            onChanged: (v) async {
-              if (v == null) return;
-              setState(() => _tafsirKey = v);
-              await _load();
-            },
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              border: Border.all(color: border),
-              borderRadius: BorderRadius.circular(12),
-              color: chipBg,
+          line(
+            'Traduction',
+            dd<String>(
+              value: _translationKey,
+              items: _translationOptions.entries
+                  .map((e) => DropdownMenuItem<String>(
+                        value: e.value,
+                        child: Text(
+                          e.key,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: fg, fontWeight: FontWeight.w700),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (v) async {
+                if (v == null) return;
+                setState(() => _translationKey = v);
+                await _load();
+              },
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          line(
+            'Tafsir',
+            dd<String>(
+              value: _tafsirKey,
+              items: _tafsirOptions.entries
+                  .map((e) => DropdownMenuItem<String>(
+                        value: e.value,
+                        child: Text(
+                          e.key,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: fg, fontWeight: FontWeight.w700),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (v) async {
+                if (v == null) return;
+                setState(() => _tafsirKey = v);
+                await _load();
+              },
+            ),
+          ),
+
+          // boucle + bouton à côté
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text('Boucle plage (Start → End)', style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
-                    ),
-                    Switch(
-                      value: _loopRangeEnabled,
-                      onChanged: (v) => setState(() => _loopRangeEnabled = v),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: start,
-                        dropdownColor: isDark ? const Color(0xFF0F1734) : Colors.white,
-                        decoration: deco('Start'),
-                        style: TextStyle(color: fg, fontWeight: FontWeight.w800),
-                        items: [
-                          for (int i = 1; i <= maxAyah; i++)
-                            DropdownMenuItem(value: i, child: Text('$i', style: TextStyle(color: fg))),
-                        ],
-                        onChanged: (v) => setState(() => _loopStartAyah = v),
+                Expanded(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Boucle', style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
+                      const SizedBox(width: 10),
+                      togglePill(
+                        value: _loopRangeEnabled,
+                        onTap: () => setState(() => _loopRangeEnabled = !_loopRangeEnabled),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: end,
-                        dropdownColor: isDark ? const Color(0xFF0F1734) : Colors.white,
-                        decoration: deco('End'),
-                        style: TextStyle(color: fg, fontWeight: FontWeight.w800),
-                        items: [
-                          for (int i = 1; i <= maxAyah; i++)
-                            DropdownMenuItem(value: i, child: Text('$i', style: TextStyle(color: fg))),
-                        ],
-                        onChanged: (v) => setState(() => _loopEndAyah = v),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 10),
+                const SizedBox(width: 1),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              border: Border.all(color: border),
-              borderRadius: BorderRadius.circular(12),
-              color: chipBg,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Répéter la plage', style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final v in rangeRepeatOptions)
-                      choiceChipGold(
-                        label: repeatText(v),
-                        selected: _rangeRepeatTimes == v,
-                        onTap: () => setState(() => _rangeRepeatTimes = v),
-                      ),
-                  ],
-                ),
+
+          line(
+            'Start',
+            dd<int>(
+              value: start,
+              items: [
+                for (int i = 1; i <= maxAyah; i++)
+                  DropdownMenuItem<int>(
+                    value: i,
+                    child: Text('$i', style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
+                  ),
               ],
+              onChanged: (v) => setState(() => _loopStartAyah = v),
             ),
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              border: Border.all(color: border),
-              borderRadius: BorderRadius.circular(12),
-              color: chipBg,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Répéter chaque ayah', style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final v in eachAyahRepeatOptions)
-                      choiceChipGold(
-                        label: repeatText(v),
-                        selected: _eachAyahRepeatTimes == v,
-                        onTap: () => setState(() => _eachAyahRepeatTimes = v),
-                      ),
-                  ],
-                ),
+          line(
+            'End',
+            dd<int>(
+              value: end,
+              items: [
+                for (int i = 1; i <= maxAyah; i++)
+                  DropdownMenuItem<int>(
+                    value: i,
+                    child: Text('$i', style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
+                  ),
               ],
+              onChanged: (v) => setState(() => _loopEndAyah = v),
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          Text('Répéter la plage', style: TextStyle(color: subtle, fontWeight: FontWeight.w800, fontSize: 12)),
+          const SizedBox(height: 4),
+          Theme(
+            data: Theme.of(context).copyWith(
+              segmentedButtonTheme: SegmentedButtonThemeData(
+                style: ButtonStyle(
+                  side: WidgetStateProperty.all(BorderSide.none),
+                  shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? accent.withOpacity(isDark ? 0.25 : 0.18)
+                        : chipBg,
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected) ? fg : subtle,
+                  ),
+                  padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 6, vertical: 8)),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+            child: SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: [
+                for (final v in rangeRepeatOptions)
+                  ButtonSegment(
+                    value: v,
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        repeatText(v),
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
+                    ),
+                  ),
+              ],
+              selected: {_rangeRepeatTimes},
+              onSelectionChanged: (s) => setState(() => _rangeRepeatTimes = s.first),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text('Répéter chaque ayah', style: TextStyle(color: subtle, fontWeight: FontWeight.w800, fontSize: 12)),
+          const SizedBox(height: 4),
+          Theme(
+            data: Theme.of(context).copyWith(
+              segmentedButtonTheme: SegmentedButtonThemeData(
+                style: ButtonStyle(
+                  side: WidgetStateProperty.all(BorderSide.none),
+                  shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? accent.withOpacity(isDark ? 0.25 : 0.18)
+                        : chipBg,
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected) ? fg : subtle,
+                  ),
+                  padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 6, vertical: 8)),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+            child: SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: [
+                for (final v in eachAyahRepeatOptions)
+                  ButtonSegment(
+                    value: v,
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        repeatText(v),
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
+                    ),
+                  ),
+              ],
+              selected: {_eachAyahRepeatTimes},
+              onSelectionChanged: (s) => setState(() => _eachAyahRepeatTimes = s.first),
             ),
           ),
         ],
@@ -1813,28 +1874,27 @@ String _removeLeadingBasmalaIfPresent(String input) {
       if (!_barExpanded) return const SizedBox.shrink();
 
       final maxH = MediaQuery.of(context).size.height * 0.42;
+      final panelBg = isDark ? const Color(0xFF081027) : const Color(0xFFF1ECE0);
 
       return ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxH),
         child: Container(
           margin: const EdgeInsets.only(top: 8),
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
           decoration: BoxDecoration(
-            color: bg,
-            border: Border.all(color: border),
+            color: panelBg,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: Text(
-                      _barPanel == _BarPanel.reciters ? 'Récitateur' : 'Paramètres',
-                      style: TextStyle(color: fg, fontWeight: FontWeight.w900),
-                    ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: collapseBar,
+                    icon: const Icon(Icons.close_rounded),
+                    tooltip: 'Fermer',
                   ),
-                  IconButton(onPressed: collapseBar, icon: const Icon(Icons.close_rounded), tooltip: 'Fermer'),
                 ],
               ),
               const SizedBox(height: 6),
@@ -1848,12 +1908,10 @@ String _removeLeadingBasmalaIfPresent(String input) {
     return SafeArea(
       top: false,
       child: Container(
-        // IMPORTANT: on ne met plus le même bg que la page
-        // On met une "surface" (card) qui ressort.
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
         child: Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F1734) : Colors.white,
+            color: barBg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: border),
             boxShadow: [
@@ -1996,6 +2054,7 @@ String _removeLeadingBasmalaIfPresent(String input) {
                           final highlight = isPlayingThis ? _accent(isDark).withOpacity(isDark ? 0.16 : 0.12) : Colors.transparent;
 
                           return InkWell(
+                            key: _keyForAyah(ayaNum),
                             onTap: () {
                               _setSelectedAyah(ayaNum, center: false);
                               _toggleTafsir(ayaNum);
@@ -2054,20 +2113,19 @@ String _removeLeadingBasmalaIfPresent(String input) {
                                           color: fg,
                                         );
 
-                                      var clean = _stripTrailingAyahNumber(ar);
+                                        var clean = _stripTrailingAyahNumber(ar);
 
-                                      // enlever la basmala du verset 1 (sauf sourate 1 et 9)
-                                      if (ayaNum == 1 && _shouldShowBasmalaForThisSurah()) {
-                                        clean = _removeLeadingBasmalaIfPresent(clean);
-                                      }
+                                        if (ayaNum == 1 && _shouldShowBasmalaForThisSurah()) {
+                                          clean = _removeLeadingBasmalaIfPresent(clean);
+                                        }
 
-                                      final spans = _parseTajweedSpans(clean, fg);
-                                      spans.add(
-                                        TextSpan(
-                                          text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
-                                          style: TextStyle(color: subtle, fontWeight: FontWeight.w700),
-                                        ),
-                                      );
+                                        final spans = _parseTajweedSpans(clean, fg);
+                                        spans.add(
+                                          TextSpan(
+                                            text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
+                                            style: TextStyle(color: subtle, fontWeight: FontWeight.w700),
+                                          ),
+                                        );
 
                                         final showBasmala = (ayaNum == 1 && _shouldShowBasmalaForThisSurah());
 
