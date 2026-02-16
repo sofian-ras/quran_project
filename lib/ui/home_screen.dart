@@ -1931,7 +1931,11 @@ class _ContentCard extends StatelessWidget {
                 alignment: Alignment.bottomLeft,
                 child: ClipPath(
                   clipper: _DiagonalBannerClipper(),
-                  child: Container(color: bannerColor),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 170, // ajuste si tu veux plus/moins
+                    child: ColoredBox(color: bannerColor),
+                  ),
                 ),
               ),
 
@@ -2352,7 +2356,7 @@ class _FeatureSquareItem extends StatelessWidget {
                 child: ClipPath(
                   clipper: _DiagonalBannerClipper(),
                   child: Container(
-                    height: 60, // bande encore plus large
+                    height: 70, // bande encore plus large
                     color: isDark
                         ? Colors.black.withOpacity(0.35)
                         : Colors.white.withOpacity(0.55),
