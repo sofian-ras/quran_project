@@ -708,14 +708,42 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
 
   String _removeLeadingBasmalaIfPresent(String input) {
-    final index = input.indexOf('الرَّحِيم');
-    if (index == -1) return input;
-    final end = index + 'الرَّحِيم'.length;
-    if (end < 60) {
-      return input.substring(end).trimLeft();
+    final s = input.trimLeft();
+
+    // On ne touche que si ça commence bien par "بسم"
+    if (!s.startsWith('ب') && !s.contains('بِسْمِ')) return input;
+
+    // Cherche la fin de la basmala avec plusieurs variantes possibles
+    const candidates = <String>[
+      'ٱلرَّحِيمِ',
+      'ٱلرَّحِيم',
+      'الرَّحِيمِ',
+      'الرَّحِيم',
+      'الرحيم',
+    ];
+
+    int endIndex = -1;
+    String? matched;
+
+    for (final c in candidates) {
+      final i = s.indexOf(c);
+      if (i != -1 && (endIndex == -1 || i < endIndex)) {
+        endIndex = i;
+        matched = c;
+      }
     }
-    return input;
+
+    if (endIndex == -1 || matched == null) return input;
+
+    final cut = endIndex + matched.length;
+
+    // Sécurité : on coupe seulement si la basmala est vraiment au début (sinon on risque de casser un verset)
+    // La basmala est courte, donc si la fin trouvée est trop loin, on ne coupe pas.
+    if (cut > 90) return input;
+
+    return s.substring(cut).trimLeft();
   }
+
 
   // Option 1: enlever "(128kbps)" etc
   String _cleanReciterName(String s) {
