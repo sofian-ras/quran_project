@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dua_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:math' as math;
@@ -966,9 +967,12 @@ Future<void> _checkFirstLaunch() async {
                                 });
                                 return;
                               }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('${f.label} bientôt')),
-                              );
+                              if (f.label == 'Duʿa') {
+                                Navigator.of(ctx).push(
+                                  MaterialPageRoute(builder: (_) => const DuaScreen()),
+                                );
+                                return;
+                              }
                             },
                           ),
                           const SizedBox(height: vGap),

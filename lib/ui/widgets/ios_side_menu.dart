@@ -1,24 +1,47 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'dart:ui';
-import 'reciter_selector.dart';
+
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+
 import '../../services/audio_service.dart';
+import '../bookmarks_screen.dart';
 import '../downloads_screen.dart';
 import '../favorites_screen.dart';
-import '../../theme/theme_service.dart';
-import '../bookmarks_screen.dart';
 import '../settings_screen.dart';
+import 'reciter_selector.dart';
 
 class IOSSideMenu extends StatelessWidget {
   final VoidCallback? onSettingsClosed;
-
   const IOSSideMenu({super.key, this.onSettingsClosed});
+
+  // Ferme le drawer puis push sur le Navigator racine (évite écran noir)
+  void _closeAndPush(BuildContext context, Widget page) {
+    final nav = Navigator.of(context, rootNavigator: true);
+    Navigator.pop(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      nav.push(MaterialPageRoute(builder: (_) => page));
+    });
+  }
+
+  // Ferme le drawer puis ouvre un bottom sheet sur le Navigator racine
+  void _closeAndShowBottomSheet(BuildContext context, Widget sheet) {
+    final nav = Navigator.of(context, rootNavigator: true);
+    Navigator.pop(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showModalBottomSheet(
+        context: nav.context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => sheet,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isDarkApp = Theme.of(context).brightness == Brightness.dark;
 
-    // Sidebar always "dark-green" (same in light and dark app theme)
+    // Sidebar look (toujours dark-green)
     const bgGradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
@@ -30,15 +53,10 @@ class IOSSideMenu extends StatelessWidget {
       ],
     );
 
-    // Text always light (same as dark mode)
     const Color text = Color(0xFFE8FFF4);
     const Color textMuted = Color(0xFFBFEBD8);
-    final Color divider = Colors.white.withOpacity(0.12);
-
-    // Accent stays green (optional)
     const Color accent = Color(0xFF2AAE7A);
-
-
+    final Color divider = Colors.white.withOpacity(0.12);
 
     return ClipRRect(
       borderRadius: const BorderRadius.only(
@@ -55,13 +73,10 @@ class IOSSideMenu extends StatelessWidget {
               topRight: Radius.circular(26),
               bottomRight: Radius.circular(26),
             ),
-            border: Border.all(
-              color: (isDark ? Colors.white : const Color(0xFF3D2817)).withOpacity(0.10),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.10), width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.35 : 0.18),
+                color: Colors.black.withOpacity(isDarkApp ? 0.35 : 0.18),
                 blurRadius: 28,
                 offset: const Offset(10, 0),
               ),
@@ -74,25 +89,24 @@ class IOSSideMenu extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
                     child: Row(
                       children: [
                         Container(
-                          width: 50,
-                          height: 50,
+                          width: 46,
+                          height: 46,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                // ignore: deprecated_member_use
-                                color: accent.withOpacity(0.3),
+                                color: accent.withOpacity(0.30),
                                 blurRadius: 20,
                                 spreadRadius: 5,
                               ),
                               BoxShadow(
-                                // ignore: deprecated_member_use
-                                color: (isDark ? Colors.white : const Color(0xFF3D2817)).withOpacity(0.08),
+                                color: Colors.white.withOpacity(0.08),
                                 blurRadius: 10,
                                 spreadRadius: 2,
                               ),
@@ -107,160 +121,116 @@ class IOSSideMenu extends StatelessWidget {
                                 return const Icon(
                                   CupertinoIcons.book_fill,
                                   color: Colors.white,
-                                  size: 28,
+                                  size: 26,
                                 );
                               },
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 14),
                         const Expanded(
                           child: Text(
                             'Quran',
                             style: TextStyle(
-                              fontSize: 22,
+                              fontSize: 20,
                               color: text,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 6),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        _MenuSection(
-                          icon: CupertinoIcons.book_fill,
-                          title: 'Coran',
-                          subtitle: 'Lecture et récitation',
-                          trailing: null,
-                          onTap: () => Navigator.pop(context),
-                        ),
-                        _MenuSection(
-                          icon: CupertinoIcons.heart_fill,
-                          title: 'Favoris',
-                          subtitle: 'Vos sourates préférées',
-                          trailing: null,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Future.delayed(const Duration(milliseconds: 300), () {
-                              if (context.mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-                                );
-                              }
-                            });
-                          },
-                        ),
-                        _MenuSection(
-                          icon: CupertinoIcons.bookmark_fill,
-                          title: 'Marque-pages',
-                          subtitle: 'Pages sauvegardées',
-                          trailing: null,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Future.delayed(const Duration(milliseconds: 300), () {
-                              if (context.mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const BookmarksScreen()),
-                                );
-                              }
-                            });
-                          },
-                        ),
-                        _MenuSection(
-                          icon: CupertinoIcons.music_note_2,
-                          title: 'Écouter',
-                          subtitle: 'Récitateurs et audio',
-                          trailing: ValueListenableBuilder<String>(
-                            valueListenable: AudioService.instance.currentReciterNotifier,
-                            builder: (context, reciter, _) => SizedBox(
-                              width: 120,
-                              child: Text(
-                                reciter,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: textMuted,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
+
+                  // Menu (shrink)
+                  ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _MenuSection(
+                        icon: CupertinoIcons.book_fill,
+                        title: 'Coran',
+                        subtitle: 'Lecture et récitation',
+                        divider: divider,
+                        onTap: () => Navigator.pop(context),
+                      ),
+                      _MenuSection(
+                        icon: CupertinoIcons.heart_fill,
+                        title: 'Favoris',
+                        subtitle: 'Vos sourates préférées',
+                        divider: divider,
+                        onTap: () => _closeAndPush(context, const FavoritesScreen()),
+                      ),
+                      _MenuSection(
+                        icon: CupertinoIcons.bookmark_fill,
+                        title: 'Marque-pages',
+                        subtitle: 'Pages sauvegardées',
+                        divider: divider,
+                        onTap: () => _closeAndPush(context, const BookmarksScreen()),
+                      ),
+                      _MenuSection(
+                        icon: CupertinoIcons.music_note_2,
+                        title: 'Écouter',
+                        subtitle: 'Récitateurs et audio',
+                        divider: divider,
+                        trailing: ValueListenableBuilder<String>(
+                          valueListenable: AudioService.instance.currentReciterNotifier,
+                          builder: (context, reciter, _) => SizedBox(
+                            width: 120,
+                            child: Text(
+                              reciter,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Future.delayed(const Duration(milliseconds: 300), () {
-                              if (context.mounted) {
-                                showModalBottomSheet(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.transparent,
-                                  builder: (context) => ReciterSelectorSheet(
-                                    onSelected: (name, server) {
-                                      AudioService.instance.setReciter(name, server);
-                                    },
-                                  ),
-                                );
-                              }
-                            });
-                          },
                         ),
-                        const SizedBox(height: 10),
-                        _MenuSection(
-                          icon: CupertinoIcons.arrow_down_circle,
-                          title: 'Téléchargements',
-                          subtitle: 'Gérer les fichiers',
-                          trailing: null,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const DownloadsScreen()),
-                            );
-                          },
+                        onTap: () => _closeAndShowBottomSheet(
+                          context,
+                          ReciterSelectorSheet(
+                            onSelected: (name, server) {
+                              AudioService.instance.setReciter(name, server);
+                            },
+                          ),
                         ),
-                        _MenuSection(
-                          icon: CupertinoIcons.settings,
-                          title: 'Paramètres',
-                          subtitle: 'Personnalisation',
-                          trailing: null,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Future.delayed(const Duration(milliseconds: 300), () {
-                              if (context.mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                                ).then((_) {
-                                  if (!context.mounted) return;
-                                  onSettingsClosed?.call();
-                                });
-                              }
-                            });
-                          },
-                        ),
-                        _MenuSection(
-                          icon: CupertinoIcons.info_circle_fill,
-                          title: 'À propos',
-                          subtitle: 'Version et crédits',
-                          trailing: null,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showAboutDialog(context);
-                          },
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 10),
+                      _MenuSection(
+                        icon: CupertinoIcons.arrow_down_circle,
+                        title: 'Téléchargements',
+                        subtitle: 'Gérer les fichiers',
+                        divider: divider,
+                        onTap: () => _closeAndPush(context, const DownloadsScreen()),
+                      ),
+                      _MenuSection(
+                        icon: CupertinoIcons.settings,
+                        title: 'Paramètres',
+                        subtitle: 'Personnalisation',
+                        divider: divider,
+                        onTap: () {
+                          _closeAndPush(context, const SettingsScreen());
+                          onSettingsClosed?.call();
+                        },
+                      ),
+                      _MenuSection(
+                        icon: CupertinoIcons.info_circle_fill,
+                        title: 'À propos',
+                        subtitle: 'Version et crédits',
+                        divider: divider,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _showAboutDialog(context);
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -269,15 +239,14 @@ class IOSSideMenu extends StatelessWidget {
         ),
       ),
     );
-
-}
+  }
 
   void _showAboutDialog(BuildContext context) {
     showCupertinoDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('القرآن الكريم'),
-        content: const Column(
+      builder: (context) => const CupertinoAlertDialog(
+        title: Text('القرآن الكريم'),
+        content: Column(
           children: [
             SizedBox(height: 10),
             Text('Version 1.0.0'),
@@ -295,57 +264,17 @@ class IOSSideMenu extends StatelessWidget {
         ),
         actions: [
           CupertinoDialogAction(
-            child: const Text('Fermer'),
-            onPressed: () => Navigator.pop(context),
+            child: Text('Fermer'),
+            onPressed: null, // remplacé juste après
           ),
         ],
       ),
     );
 
-    // Keep your original behavior
-    // ignore: unused_result
-    Future.delayed(Duration.zero);
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String title;
-  final Color color;
-  final Color textColor;
-
-  const _SectionLabel({
-    required this.title,
-    required this.color,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Container(
-            width: 3,
-            height: 14,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
+    // corrige le bouton fermer (sans refactor)
+    Future.delayed(Duration.zero, () {
+      if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+    });
   }
 }
 
@@ -355,13 +284,15 @@ class _MenuSection extends StatelessWidget {
   final String subtitle;
   final Widget? trailing;
   final VoidCallback onTap;
+  final Color divider;
 
   const _MenuSection({
     required this.icon,
     required this.title,
     required this.subtitle,
-    this.trailing,
     required this.onTap,
+    required this.divider,
+    this.trailing,
   });
 
   @override
@@ -369,9 +300,6 @@ class _MenuSection extends StatelessWidget {
     const Color text = Color(0xFFE8FFF4);
     const Color textMuted = Color(0xFFBFEBD8);
     const Color accent = Color(0xFF2AAE7A);
-    final Color divider = Colors.white.withOpacity(0.12);
-
-
 
     return CupertinoButton(
       padding: EdgeInsets.zero,
@@ -381,12 +309,7 @@ class _MenuSection extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.transparent,
-          border: Border(
-            bottom: BorderSide(
-              color: divider,
-              width: 0.8,
-            ),
-          ),
+          border: Border(bottom: BorderSide(color: divider, width: 0.8)),
         ),
         child: Row(
           children: [
@@ -404,6 +327,7 @@ class _MenuSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SizedBox(height: 1),
                   Text(
                     title,
                     style: const TextStyle(
@@ -432,7 +356,6 @@ class _MenuSection extends StatelessWidget {
           ],
         ),
       ),
-
     );
   }
 }

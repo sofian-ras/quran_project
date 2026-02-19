@@ -51,6 +51,7 @@ flutter:
 
   # Gestion des images et fichiers de données
   assets:
+    - assets/data/dua_pack_v1.json
     - assets/data/juz_mapping.json
     - assets/data/reciters_mapping.json
     - assets/data/reciters_bio.json

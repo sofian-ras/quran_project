@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "version": 1,
+    "langs": ["ar", "fr", "en"],
+    "updatedAt": "2026-02-19"
+  },
+  "categories": [
+    {
+      "id": "morning",
+      "title": { "ar": "أذكار الصباح", "fr": "Adhkâr du matin", "en": "Morning Adhkar" },
+      "order": 1,
+      "icon": "sun"
+    },
+    {
+      "id": "evening",
+      "title": { "ar": "أذكار المساء", "fr": "Adhkâr du soir", "en": "Evening Adhkar" },
+      "order": 2,
+      "icon": "moon"
+    }
+  ],
+  "items": [
+    {
+      "id": "dua_001",
+      "categoryId": "morning",
+      "title": {
+        "ar": "ذِكْرٌ",
+        "fr": "Dhikr",
+        "en": "Dhikr"
+      },
+      "text": {
+        "ar": "اللَّهُمَّ بِكَ أَصْبَحْنَا وَبِكَ أَمْسَيْنَا ...",
+        "fr": "Ô Allah, par Toi nous entrons dans le matin...",
+        "en": "O Allah, by You we enter the morning..."
+      },
+      "transliteration": "Allahumma bika asbahna wa bika amsayna ...",
+      "repeat": { "count": 1, "mode": "fixed" },
+      "source": {
+        "type": "hadith",
+        "ref": "Abu Dawud",
+        "grade": "sahih",
+        "notes": ""
+      },
+      "virtue": {
+        "ar": "فَضْلٌ ...",
+        "fr": "Mérite...",
+        "en": "Virtue..."
+      },
+      "tags": ["morning", "daily"],
+      "audio": {
+        "url": "",
+        "durationSec": 0
+      }
+    }
+  ]
+}
