@@ -18,254 +18,259 @@ class IOSSideMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final bgGradient = isDark
-      ? const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF020617),
-            Color(0xFF0B1025),
-            Color(0xFF1A0033),
-            Color(0xFF2D1B4E),
-          ],
-        )
-      : const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFFFF7E8),
-            Color(0xFFF7EEDB),
-            Color(0xFFF2E4CC),
-          ],
-        );
+    // Sidebar always "dark-green" (same in light and dark app theme)
+    const bgGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF04110C),
+        Color(0xFF062017),
+        Color(0xFF0A3A2A),
+        Color(0xFF0E5A3F),
+      ],
+    );
 
-    // Text (reprend l'esprit Home)
-    final Color text = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF3D2817);
-    final Color textMuted = isDark ? const Color(0xFFD4C5B0) : const Color(0xFF6B5744);
+    // Text always light (same as dark mode)
+    const Color text = Color(0xFFE8FFF4);
+    const Color textMuted = Color(0xFFBFEBD8);
+    final Color divider = Colors.white.withOpacity(0.12);
 
-    // Accent "gold" déjà dans ton HomeScreen
-    const Color accent = Color(0xFFA67C52);
+    // Accent stays green (optional)
+    const Color accent = Color(0xFF2AAE7A);
 
-    // Dividers discrets
-    final Color divider = isDark
-        ? Colors.white.withOpacity(0.10)
-        : const Color(0xFF3D2817).withOpacity(0.10);
 
-    return Container(
-      width: MediaQuery.of(context).size.width * 0.85,
-      decoration: BoxDecoration(
-        gradient: bgGradient,
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(22),
-          bottomRight: Radius.circular(22),
-        ),
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topRight: Radius.circular(26),
+        bottomRight: Radius.circular(26),
       ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header (sans encadré, juste halo de lumière)
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.85,
+          decoration: BoxDecoration(
+            gradient: bgGradient,
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(26),
+              bottomRight: Radius.circular(26),
+            ),
+            border: Border.all(
+              color: (isDark ? Colors.white : const Color(0xFF3D2817)).withOpacity(0.10),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.35 : 0.18),
+                blurRadius: 28,
+                offset: const Offset(10, 0),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withOpacity(0.3),
-                          blurRadius: 20,
-                          spreadRadius: 5,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                // ignore: deprecated_member_use
+                                color: accent.withOpacity(0.3),
+                                blurRadius: 20,
+                                spreadRadius: 5,
+                              ),
+                              BoxShadow(
+                                // ignore: deprecated_member_use
+                                color: (isDark ? Colors.white : const Color(0xFF3D2817)).withOpacity(0.08),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.asset(
+                              'assets/icon/logo_quranv2.webp',
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  CupertinoIcons.book_fill,
+                                  color: Colors.white,
+                                  size: 28,
+                                );
+                              },
+                            ),
+                          ),
                         ),
-                        BoxShadow(
-                          color: (isDark ? Colors.white : const Color(0xFF3D2817)).withOpacity(0.08),
-                          blurRadius: 10,
-                          spreadRadius: 2,
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Text(
+                            'Quran',
+                            style: TextStyle(
+                              fontSize: 22,
+                              color: text,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        'assets/icon/logo_quranv2.webp',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(
-                            CupertinoIcons.book_fill,
-                            color: Colors.white,
-                            size: 28,
-                          );
-                        },
-                      ),
-                    ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'Quran',
-                      style: TextStyle(
-                        fontSize: 22,
-                        color: text,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-
-            Flexible(
-              fit: FlexFit.loose,
-              child: ListView(
-                padding: const EdgeInsets.only(left: 14, right: 14, bottom: 16),
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  _MenuSection(
-                    icon: CupertinoIcons.book_fill,
-                    title: 'Coran',
-                    subtitle: 'Lecture et récitation',
-                    trailing: null,
-                    onTap: () => Navigator.pop(context),
-                  ),
-
-                  _MenuSection(
-                    icon: CupertinoIcons.heart_fill,
-                    title: 'Favoris',
-                    subtitle: 'Vos sourates préférées',
-                    trailing: null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        if (context.mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-                          );
-                        }
-                      });
-                    },
-                  ),
-
-                  _MenuSection(
-                    icon: CupertinoIcons.bookmark_fill,
-                    title: 'Marque-pages',
-                    subtitle: 'Pages sauvegardées',
-                    trailing: null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        if (context.mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const BookmarksScreen()),
-                          );
-                        }
-                      });
-                    },
-                  ),
-
-                  _MenuSection(
-                    icon: CupertinoIcons.music_note_2,
-                    title: 'Écouter',
-                    subtitle: 'Récitateurs et audio',
-                    trailing: ValueListenableBuilder<String>(
-                      valueListenable: AudioService.instance.currentReciterNotifier,
-                      builder: (context, reciter, _) => SizedBox(
-                        width: 120,
-                        child: Text(
-                          reciter,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: textMuted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        _MenuSection(
+                          icon: CupertinoIcons.book_fill,
+                          title: 'Coran',
+                          subtitle: 'Lecture et récitation',
+                          trailing: null,
+                          onTap: () => Navigator.pop(context),
                         ),
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        if (context.mounted) {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (context) => ReciterSelectorSheet(
-                              onSelected: (name, server) {
-                                AudioService.instance.setReciter(name, server);
-                              },
+                        _MenuSection(
+                          icon: CupertinoIcons.heart_fill,
+                          title: 'Favoris',
+                          subtitle: 'Vos sourates préférées',
+                          trailing: null,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              if (context.mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+                                );
+                              }
+                            });
+                          },
+                        ),
+                        _MenuSection(
+                          icon: CupertinoIcons.bookmark_fill,
+                          title: 'Marque-pages',
+                          subtitle: 'Pages sauvegardées',
+                          trailing: null,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              if (context.mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const BookmarksScreen()),
+                                );
+                              }
+                            });
+                          },
+                        ),
+                        _MenuSection(
+                          icon: CupertinoIcons.music_note_2,
+                          title: 'Écouter',
+                          subtitle: 'Récitateurs et audio',
+                          trailing: ValueListenableBuilder<String>(
+                            valueListenable: AudioService.instance.currentReciterNotifier,
+                            builder: (context, reciter, _) => SizedBox(
+                              width: 120,
+                              child: Text(
+                                reciter,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: textMuted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          );
-                        }
-                      });
-                    },
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  _MenuSection(
-                    icon: CupertinoIcons.arrow_down_circle,
-                    title: 'Téléchargements',
-                    subtitle: 'Gérer les fichiers',
-                    trailing: null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const DownloadsScreen()),
-                      );
-                    },
-                  ),
-
-                  _MenuSection(
-                    icon: CupertinoIcons.settings,
-                    title: 'Paramètres',
-                    subtitle: 'Personnalisation',
-                    trailing: null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        if (context.mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                          ).then((_) {
-                            if (!context.mounted) return;
-                            onSettingsClosed?.call();
-                          });
-                        }
-                      });
-                    },
-                  ),
-
-                  _MenuSection(
-                    icon: CupertinoIcons.info_circle_fill,
-                    title: 'À propos',
-                    subtitle: 'Version et crédits',
-                    trailing: null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showAboutDialog(context);
-                    },
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              if (context.mounted) {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => ReciterSelectorSheet(
+                                    onSelected: (name, server) {
+                                      AudioService.instance.setReciter(name, server);
+                                    },
+                                  ),
+                                );
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _MenuSection(
+                          icon: CupertinoIcons.arrow_down_circle,
+                          title: 'Téléchargements',
+                          subtitle: 'Gérer les fichiers',
+                          trailing: null,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+                            );
+                          },
+                        ),
+                        _MenuSection(
+                          icon: CupertinoIcons.settings,
+                          title: 'Paramètres',
+                          subtitle: 'Personnalisation',
+                          trailing: null,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              if (context.mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                ).then((_) {
+                                  if (!context.mounted) return;
+                                  onSettingsClosed?.call();
+                                });
+                              }
+                            });
+                          },
+                        ),
+                        _MenuSection(
+                          icon: CupertinoIcons.info_circle_fill,
+                          title: 'À propos',
+                          subtitle: 'Version et crédits',
+                          trailing: null,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showAboutDialog(context);
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-
-
-          ],
+          ),
         ),
       ),
     );
-  }
+
+}
 
   void _showAboutDialog(BuildContext context) {
     showCupertinoDialog(
@@ -361,15 +366,11 @@ class _MenuSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    const Color text = Color(0xFFE8FFF4);
+    const Color textMuted = Color(0xFFBFEBD8);
+    const Color accent = Color(0xFF2AAE7A);
+    final Color divider = Colors.white.withOpacity(0.12);
 
-    final Color text = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF3D2817);
-    final Color textMuted = isDark ? const Color(0xFFD4C5B0) : const Color(0xFF6B5744);
-    const Color accent = Color(0xFFA67C52);
-
-    final Color divider = isDark
-        ? Colors.white.withOpacity(0.10)
-        : const Color(0xFF3D2817).withOpacity(0.10);
 
 
     return CupertinoButton(
@@ -393,7 +394,7 @@ class _MenuSection extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: accent.withOpacity(isDark ? 0.18 : 0.14),
+                color: accent.withOpacity(0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: text, size: 18),
@@ -405,7 +406,7 @@ class _MenuSection extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: text,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -414,7 +415,7 @@ class _MenuSection extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: textMuted,
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -427,7 +428,7 @@ class _MenuSection extends StatelessWidget {
             if (trailing != null)
               trailing!
             else
-              Icon(CupertinoIcons.chevron_right, color: textMuted, size: 16),
+              const Icon(CupertinoIcons.chevron_right, color: textMuted, size: 16),
           ],
         ),
       ),
