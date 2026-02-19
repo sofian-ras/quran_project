@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
@@ -1516,7 +1517,7 @@ class _HeaderWithEngagement extends StatelessWidget {
 }
 
 
-class _RecitersSection extends StatelessWidget {
+class _RecitersSection extends StatefulWidget {
   final VoidCallback onSeeAll;
   final List<Reciter> reciters;
   final void Function(Reciter) onReciterTap;
@@ -1528,6 +1529,26 @@ class _RecitersSection extends StatelessWidget {
     required this.onReciterTap,
     required this.getAssetByName,
   });
+
+  @override
+  State<_RecitersSection> createState() => _RecitersSectionState();
+}
+
+class _RecitersSectionState extends State<_RecitersSection> {
+  late final ScrollController _hCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    // Empêche la restauration d’un offset horizontal “fantôme”
+    _hCtrl = ScrollController(keepScrollOffset: false);
+  }
+
+  @override
+  void dispose() {
+    _hCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1542,20 +1563,19 @@ class _RecitersSection extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF2C3E50),
-                  const Color(0xFF1A252F),
+                  Color(0xFF2C3E50),
+                  Color(0xFF1A252F),
                 ],
               )
             : const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFFFEF5E7),
-                  const Color(0xFFFAE5D3),
+                  Color(0xFFFEF5E7),
+                  Color(0xFFFAE5D3),
                 ],
               ),
         borderRadius: BorderRadius.circular(20),
-        // boxShadow supprimé
       ),
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
       child: Column(
@@ -1572,39 +1592,42 @@ class _RecitersSection extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-            TextButton(
-              onPressed: onSeeAll,
-              style: TextButton.styleFrom(
-                foregroundColor: linkColor,
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
+              TextButton(
+                onPressed: widget.onSeeAll,
+                style: TextButton.styleFrom(
+                  foregroundColor: linkColor,
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: const Text(
+                  'See all',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
               ),
-              child: const Text(
-                'See all',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-              ),
-            ),
-          ],
+            ],
           ),
           const SizedBox(height: 0),
           SizedBox(
             height: 64,
             child: ListView.separated(
+              controller: _hCtrl,
               scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: reciters.length,
+              // Réduit les conflits “scroll vertical” vs “horizontal”
+              dragStartBehavior: DragStartBehavior.start,
+              physics: const ClampingScrollPhysics(),
+              itemCount: widget.reciters.length,
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (context, i) {
-                final r = reciters[i];
-                final asset = getAssetByName(r.name);
+                final r = widget.reciters[i];
+                final asset = widget.getAssetByName(r.name);
+
                 return InkWell(
-                  onTap: () => onReciterTap(r),
+                  onTap: () => widget.onReciterTap(r),
                   borderRadius: BorderRadius.circular(999),
                   child: Column(
                     children: [
-                      // Avatar avec ring
                       Container(
                         padding: const EdgeInsets.all(1.5),
                         decoration: BoxDecoration(
@@ -1653,6 +1676,7 @@ class _RecitersSection extends StatelessWidget {
     );
   }
 }
+
 
 class _FeatureChipData {
   final String label;
