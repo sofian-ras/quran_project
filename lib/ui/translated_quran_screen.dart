@@ -384,14 +384,28 @@ class _SurahTab extends StatefulWidget {
   State<_SurahTab> createState() => _SurahTabState();
 }
 
+// Les 27 sourates médinoises (toutes les autres sont mecquoises)
+const _medinanSurahs = <int>{
+  2, 3, 4, 5, 8, 9, 13, 22, 24, 33, 47, 48,
+  49, 55, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 76, 98, 110,
+};
+
 class _SurahTabState extends State<_SurahTab> {
-  List<Map<String, dynamic>> _surahs = [];
+  /// Liste aplatie : chaque item est soit {'type':'juz','juz':N} soit {'type':'surah',...}
+  List<Map<String, dynamic>> _items = [];
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _loadSurahs();
+  }
+
+  static int _pageToJuz(int page) {
+    for (int i = juzzMap.length - 1; i >= 0; i--) {
+      if (juzzMap[i]['start_page']! <= page) return juzzMap[i]['juz']!;
+    }
+    return 1;
   }
 
   Future<void> _loadSurahs() async {
@@ -441,18 +455,31 @@ class _SurahTabState extends State<_SurahTab> {
 
     final ids = ayahCounts.keys.toList()..sort();
 
-    _surahs = [
-      for (final id in ids)
-        {
-          'id': id,
-          'nameAr': arName[id] ?? 'سورة $id',
-          'page': startPage[id] ?? 1,
-          'ayahCount': ayahCounts[id] ?? 0,
-        }
-    ];
+    final List<Map<String, dynamic>> flat = [];
+    int lastJuz = 0;
+
+    for (final id in ids) {
+      final page = startPage[id] ?? 1;
+      final juz = _pageToJuz(page);
+      if (juz != lastJuz) {
+        flat.add({'type': 'juz', 'juz': juz});
+        lastJuz = juz;
+      }
+      flat.add({
+        'type': 'surah',
+        'id': id,
+        'nameAr': arName[id] ?? 'سورة $id',
+        'page': page,
+        'ayahCount': ayahCounts[id] ?? 0,
+        'juz': juz,
+      });
+    }
 
     if (!mounted) return;
-    setState(() => _loading = false);
+    setState(() {
+      _items = flat;
+      _loading = false;
+    });
   }
 
   @override
@@ -460,59 +487,109 @@ class _SurahTabState extends State<_SurahTab> {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
 
     final bg = isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF);
-    final tileBg = isDark ? const Color(0xFF0F1734) : Colors.white;
-    final border = isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08);
     final titleColor = isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90);
     final subColor = isDark ? Colors.white.withOpacity(0.65) : Colors.black.withOpacity(0.60);
+    final dividerColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07);
+    final juzHeaderBg = isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04);
+    final juzHeaderColor = isDark ? Colors.white.withOpacity(0.50) : Colors.black.withOpacity(0.45);
 
     return Container(
       color: bg,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(12),
-        itemCount: _surahs.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 24),
+        itemCount: _items.length,
         itemBuilder: (context, index) {
-          final s = _surahs[index];
-          final surahId = (s['id'] is int) ? s['id'] as int : int.tryParse('${s['id']}') ?? 0;
-          final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
+          final item = _items[index];
 
-          final nameAr = (s['nameAr'] ?? '').toString();
+          if (item['type'] == 'juz') {
+            final juzNum = item['juz'] as int;
+            return Container(
+              color: juzHeaderBg,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Text(
+                isEn ? 'Juz $juzNum' : 'Juz $juzNum',
+                style: TextStyle(
+                  color: juzHeaderColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            );
+          }
+
+          // Surah item
+          final surahId = item['id'] as int;
+          final nameAr = (item['nameAr'] ?? '').toString();
           final nameTr = isEn ? (surahEn[surahId] ?? 'Surah $surahId') : (surahFr[surahId] ?? 'Sourate $surahId');
+          final ayahCount = item['ayahCount'] as int;
+          final page = item['page'] as int;
+          final isMadinan = _medinanSurahs.contains(surahId);
+          final revLabel = isEn
+              ? (isMadinan ? 'Medinan' : 'Meccan')
+              : (isMadinan ? 'Médinoise' : 'Mecquoise');
 
-          return Container(
-            decoration: BoxDecoration(
-              color: tileBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: border),
-            ),
-            child: ListTile(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              title: Text(
-                '$surahId. $nameTr',
-                style: TextStyle(color: titleColor, fontWeight: FontWeight.w800),
-              ),
-              subtitle: Text(
-                nameAr,
-                textDirection: TextDirection.rtl,
-                style: TextStyle(color: subColor, height: 1.4),
-              ),
-              trailing: Icon(Icons.chevron_right_rounded, color: subColor),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TranslatedSurahScreen(
-                      surahNumber: surahId,
-                      surahNameFr: nameTr,
-                      surahNameAr: nameAr,
-                      preferOffline: widget.preferOffline,
-                    ),
+          // Affiche une ligne de séparation fine sauf juste après un header de Juz
+          final prevIsJuz = index > 0 && _items[index - 1]['type'] == 'juz';
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!prevIsJuz)
+                Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16, color: dividerColor),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                leading: SizedBox(
+                  width: 32,
+                  child: Text(
+                    '$surahId',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: subColor, fontWeight: FontWeight.w600, fontSize: 13),
                   ),
-                );
-              },
-            ),
+                ),
+                title: Text(
+                  nameTr,
+                  style: TextStyle(color: titleColor, fontWeight: FontWeight.w700),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(
+                    '$ayahCount ${isEn ? 'verses' : 'versets'}  ·  $revLabel  ·  ${isEn ? 'p.' : 'p.'} $page',
+                    style: TextStyle(color: subColor, fontSize: 11.5),
+                  ),
+                ),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      nameAr,
+                      textDirection: TextDirection.rtl,
+                      style: TextStyle(
+                        color: titleColor.withOpacity(0.85),
+                        fontSize: 15,
+                        fontFamily: 'UthmanTahaNaskh',
+                      ),
+                    ),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TranslatedSurahScreen(
+                        surahNumber: surahId,
+                        surahNameFr: nameTr,
+                        surahNameAr: nameAr,
+                        preferOffline: widget.preferOffline,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           );
         },
       ),
@@ -528,20 +605,49 @@ class _JuzTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF);
+    final titleColor = isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90);
+    final subColor = isDark ? Colors.white.withOpacity(0.65) : Colors.black.withOpacity(0.60);
+    final dividerColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07);
 
     return Container(
       color: bg,
       child: ListView.separated(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: juzzMap.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, __) => Divider(height: 1, thickness: 0.5, color: dividerColor),
         itemBuilder: (context, i) {
           final juz = juzzMap[i]['juz']!;
+          final startPage = juzzMap[i]['start_page']!;
+          final endPage = i + 1 < juzzMap.length ? juzzMap[i + 1]['start_page']! - 1 : 604;
+          final pageCount = endPage - startPage + 1;
+
           return ListTile(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            tileColor: isDark ? const Color(0xFF0F1734) : Colors.white,
-            title: Text('Juz $juz'),
-            trailing: const Icon(Icons.chevron_right_rounded),
+            contentPadding: const EdgeInsets.symmetric(vertical: 4),
+            leading: Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark ? Colors.white.withOpacity(0.18) : Colors.black.withOpacity(0.12),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                '$juz',
+                style: TextStyle(color: titleColor, fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            ),
+            title: Text(
+              'Juz $juz',
+              style: TextStyle(color: titleColor, fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(
+              'Pages $startPage – $endPage  •  $pageCount pages',
+              style: TextStyle(color: subColor, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right_rounded, color: subColor, size: 20),
             onTap: () {
               Navigator.push(
                 context,
