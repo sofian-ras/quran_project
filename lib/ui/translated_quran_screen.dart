@@ -12,7 +12,11 @@ import '../hizb_juzz.dart';
 import '../services/quran_translation_pack_service.dart';
 import '../services/verse_favorites_service.dart';
 import '../services/audio_service.dart';
+import '../services/quran_image_service.dart';
+import '../services/reading_history_service.dart';
 import '../surah_name.dart';
+import 'reader_screen.dart';
+import 'screens/quran_loader.dart';
 
 class TranslatedQuranScreen extends StatefulWidget {
   final bool preferOffline;
@@ -393,6 +397,7 @@ const _medinanSurahs = <int>{
 class _SurahTabState extends State<_SurahTab> {
   /// Liste aplatie : chaque item est soit {'type':'juz','juz':N} soit {'type':'surah',...}
   List<Map<String, dynamic>> _items = [];
+  Set<int> _visitedSurahIds = {};
   bool _loading = true;
 
   @override
@@ -475,9 +480,18 @@ class _SurahTabState extends State<_SurahTab> {
       });
     }
 
+    // Sourates visitées via l'historique de lecture
+    final history = await ReadingHistoryService.instance.getHistory(limit: 500);
+    final visited = <int>{};
+    for (final h in history) {
+      final sid = h['surahId'];
+      if (sid is int) visited.add(sid);
+    }
+
     if (!mounted) return;
     setState(() {
       _items = flat;
+      _visitedSurahIds = visited;
       _loading = false;
     });
   }
@@ -495,27 +509,108 @@ class _SurahTabState extends State<_SurahTab> {
     final dividerColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07);
     final juzHeaderBg = isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04);
     final juzHeaderColor = isDark ? Colors.white.withOpacity(0.50) : Colors.black.withOpacity(0.45);
+    final accentColor = isDark ? const Color(0xFF7986CB) : const Color(0xFF3949AB);
+    final badgeFill = isDark ? const Color(0xFF2A3A6A) : const Color(0xFFE8EAF6);
+    final badgeText = isDark ? Colors.white.withOpacity(0.90) : const Color(0xFF3949AB);
+
+    const totalSurahs = 114;
+    final visitedCount = _visitedSurahIds.length;
+    final progress = visitedCount / totalSurahs;
 
     return Container(
       color: bg,
       child: ListView.builder(
         padding: const EdgeInsets.only(bottom: 24),
-        itemCount: _items.length,
+        // +1 pour la barre de progression en en-tête
+        itemCount: _items.length + 1,
         itemBuilder: (context, index) {
-          final item = _items[index];
+          // ─── En-tête : barre de progression ───
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        isEn ? 'Progress' : 'Progression',
+                        style: TextStyle(color: subColor, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '$visitedCount / $totalSurahs ${isEn ? 'surahs' : 'sourates'}',
+                        style: TextStyle(color: subColor, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 4,
+                      backgroundColor: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07),
+                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final item = _items[index - 1]; // décalage de 1 à cause de l'en-tête
 
           if (item['type'] == 'juz') {
             final juzNum = item['juz'] as int;
-            return Container(
-              color: juzHeaderBg,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: Text(
-                isEn ? 'Juz $juzNum' : 'Juz $juzNum',
-                style: TextStyle(
-                  color: juzHeaderColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
+            final juzPage = juzzMap.firstWhere((j) => j['juz'] == juzNum)['start_page']!;
+            return InkWell(
+              onTap: () async {
+                try {
+                  final file = await QuranImageService.getPageFile('hafs', juzPage);
+                  if (!context.mounted) return;
+                  await precacheImage(FileImage(file), context);
+                } catch (_) {}
+                if (!context.mounted) return;
+                try {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReaderScreen(initialPage: juzPage, reading: 'hafs'),
+                    ),
+                  );
+                } catch (_) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const QuranLoader()),
+                  );
+                }
+              },
+              child: Container(
+                color: juzHeaderBg,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                child: Row(
+                  children: [
+                    Text(
+                      'Juz $juzNum',
+                      style: TextStyle(
+                        color: juzHeaderColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '—  p. $juzPage',
+                      style: TextStyle(
+                        color: juzHeaderColor.withOpacity(0.7),
+                        fontSize: 11,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.chevron_right_rounded, size: 14, color: juzHeaderColor.withOpacity(0.5)),
+                  ],
                 ),
               ),
             );
@@ -531,33 +626,49 @@ class _SurahTabState extends State<_SurahTab> {
           final revLabel = isEn
               ? (isMadinan ? 'Medinan' : 'Meccan')
               : (isMadinan ? 'Médinoise' : 'Mecquoise');
+          final meaning = surahMeaning[surahId];
+          final isVisited = _visitedSurahIds.contains(surahId);
 
-          // Affiche une ligne de séparation fine sauf juste après un header de Juz
-          final prevIsJuz = index > 0 && _items[index - 1]['type'] == 'juz';
+          // Séparateur fin sauf juste après un header de Juz (décalage +1 d'index)
+          final prevItem = index > 1 ? _items[index - 2] : null;
+          final prevIsJuz = index == 1 || (prevItem != null && prevItem['type'] == 'juz');
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (!prevIsJuz)
-                Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16, color: dividerColor),
+                Divider(height: 1, thickness: 0.5, indent: 68, endIndent: 16, color: dividerColor),
               ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: SizedBox(
-                  width: 32,
-                  child: Text(
-                    '$surahId',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: subColor, fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
+                leading: _OctagonBadge(
+                  number: surahId,
+                  fillColor: isVisited ? accentColor.withOpacity(0.15) : badgeFill,
+                  textColor: isVisited ? accentColor : badgeText,
+                  borderColor: isVisited ? accentColor.withOpacity(0.50) : Colors.transparent,
                 ),
                 title: Text(
                   nameTr,
                   style: TextStyle(color: titleColor, fontWeight: FontWeight.w700),
                 ),
                 subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 3),
-                  child: Text(
-                    '$ayahCount ${isEn ? 'verses' : 'versets'}  ·  $revLabel  ·  ${isEn ? 'p.' : 'p.'} $page',
-                    style: TextStyle(color: subColor, fontSize: 11.5),
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (meaning != null)
+                        Text(
+                          '"$meaning"',
+                          style: TextStyle(
+                            color: subColor.withOpacity(0.75),
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '$ayahCount ${isEn ? 'verses' : 'versets'}  ·  $revLabel  ·  p. $page',
+                        style: TextStyle(color: subColor, fontSize: 11),
+                      ),
+                    ],
                   ),
                 ),
                 trailing: Column(
@@ -595,6 +706,80 @@ class _SurahTabState extends State<_SurahTab> {
       ),
     );
   }
+}
+
+// ─── Badge octogonal pour le numéro de sourate ────────────────────────────
+class _OctagonBadge extends StatelessWidget {
+  final int number;
+  final Color fillColor;
+  final Color textColor;
+  final Color borderColor;
+
+  const _OctagonBadge({
+    required this.number,
+    required this.fillColor,
+    required this.textColor,
+    required this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 38,
+      height: 38,
+      child: CustomPaint(
+        painter: _OctagonPainter(fill: fillColor, border: borderColor),
+        child: Center(
+          child: Text(
+            '$number',
+            style: TextStyle(
+              color: textColor,
+              fontSize: number > 99 ? 9.5 : 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OctagonPainter extends CustomPainter {
+  final Color fill;
+  final Color border;
+  const _OctagonPainter({required this.fill, required this.border});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final c = w * 0.26;
+    final path = Path()
+      ..moveTo(c, 0)
+      ..lineTo(w - c, 0)
+      ..lineTo(w, c)
+      ..lineTo(w, h - c)
+      ..lineTo(w - c, h)
+      ..lineTo(c, h)
+      ..lineTo(0, h - c)
+      ..lineTo(0, c)
+      ..close();
+
+    canvas.drawPath(path, Paint()..color = fill..style = PaintingStyle.fill);
+    if (border != Colors.transparent) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OctagonPainter old) =>
+      old.fill != fill || old.border != border;
 }
 
 class _JuzTab extends StatelessWidget {
