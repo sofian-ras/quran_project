@@ -595,7 +595,12 @@ class AudioService {
     await _ayahPlayer.play();
   }
 
+  bool _disposed = false;
+
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+
     await _currentIndexSub?.cancel();
     _currentIndexSub = null;
 

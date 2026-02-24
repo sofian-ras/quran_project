@@ -1,4 +1,5 @@
 // lib/ui/dua_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/dua_db.dart';
 
@@ -14,6 +15,7 @@ class _DuaScreenState extends State<DuaScreen> {
   String? _error;
 
   String _query = '';
+  Timer? _debounce;
   List<Map<String, Object?>> _cats = [];
   Map<String, Object?>? _duaOfDay;
 
@@ -21,6 +23,19 @@ class _DuaScreenState extends State<DuaScreen> {
   void initState() {
     super.initState();
     _init();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _query = v.trim());
+    });
   }
 
   Future<void> _init() async {
@@ -144,7 +159,7 @@ class _DuaScreenState extends State<DuaScreen> {
                 card: card,
                 stroke: stroke,
                 green: green,
-                onChanged: (v) => setState(() => _query = v.trim()),
+                onChanged: _onSearchChanged,
               ),
               const SizedBox(height: 16),
 
@@ -207,16 +222,11 @@ class _DuaScreenState extends State<DuaScreen> {
               ),
               const SizedBox(height: 10),
 
-              GridView.builder(
+              ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: filteredCats.length,
-                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: w < 420 ? 320 : 360,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: w < 360 ? 2.6 : 2.9,
-                ),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (_, i) {
                   final c = filteredCats[i];
                   final id = c['id'] as String;
@@ -428,62 +438,65 @@ Widget _categoryTile({
   required IconData icon,
   required VoidCallback onTap,
 }) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final mutedColor = isDark ? Colors.white70 : Colors.black.withOpacity(0.55);
+
   return Material(
     color: card,
-    borderRadius: BorderRadius.circular(18),
+    borderRadius: BorderRadius.circular(16),
     child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: stroke),
-          boxShadow: const [
-            BoxShadow(blurRadius: 12, offset: Offset(0, 5), color: Color(0x12000000)),
-          ],
         ),
         child: Row(
           children: [
+            // Icône
             Container(
-              width: 46,
-              height: 46,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: green.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: green),
+              child: Icon(icon, color: green, size: 22),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
+            // Textes
             Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.88),
+                    ),
                   ),
                   if (subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textDirection: TextDirection.rtl,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white70
-                            : Colors.black.withOpacity(0.55),
-                      ),
+                      textAlign: TextAlign.left,
+                      style: TextStyle(fontSize: 13, color: mutedColor, height: 1.3),
                     ),
                   ],
                 ],
               ),
             ),
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right_rounded, color: mutedColor, size: 20),
           ],
         ),
       ),

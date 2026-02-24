@@ -18,7 +18,7 @@ class QuranImageService {
   static bool _isDownloading = false;
   static bool _isExtracting = false;
   static double _downloadProgress = 0.0;
-  static final double _extractionProgress = 0.0;
+  static double _extractionProgress = 0.0;
 
   static Future<void> _ensurePaths() async {
     if (_docsPath != null) return;
@@ -134,6 +134,7 @@ class QuranImageService {
       debugPrint('Téléchargement terminé, début de l\'extraction...');
 
       // Étape 2: Extraction dans un Isolate séparé (pour ne pas bloquer l'UI)
+      _extractionProgress = 0.0;
       onExtractionProgress?.call(0.0);
 
       await _extractZipInIsolate(
@@ -141,6 +142,7 @@ class QuranImageService {
         _docsPath!,
       );
 
+      _extractionProgress = 1.0;
       onExtractionProgress?.call(1.0);
 
 
@@ -211,13 +213,16 @@ class QuranImageService {
         processedFiles++;
         // Log progression tous les 50 fichiers
         if (processedFiles % 50 == 0) {
-          debugPrint('Extraction: $processedFiles/$totalFiles fichiers');
+          // ignore: avoid_print
+          print('Extraction: $processedFiles/$totalFiles fichiers');
         }
       }
 
-      debugPrint('Extraction terminée: $processedFiles fichiers extraits');
+      // ignore: avoid_print
+      print('Extraction terminée: $processedFiles fichiers extraits');
     } catch (e) {
-      debugPrint('Erreur dans l\'Isolate d\'extraction: $e');
+      // ignore: avoid_print
+      print('Erreur dans l\'Isolate d\'extraction: $e');
       rethrow;
     }
   }

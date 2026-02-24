@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-enum DownloadStatus {
+enum AudioDownloadStatus {
   notDownloaded,
   downloading,
   downloaded,
@@ -14,7 +14,7 @@ enum DownloadStatus {
 class DownloadProgress {
   final int surahId;
   final double progress; // 0.0 to 1.0
-  final DownloadStatus status;
+  final AudioDownloadStatus status;
 
   DownloadProgress(this.surahId, this.progress, this.status);
 }
@@ -25,7 +25,7 @@ class AudioDownloadService {
   static final AudioDownloadService instance = AudioDownloadService._();
 
   final Dio _dio = Dio();
-  final Map<int, DownloadStatus> _downloadStatuses = {};
+  final Map<int, AudioDownloadStatus> _downloadStatuses = {};
   final Map<int, ValueNotifier<DownloadProgress>> _progressNotifiers = {};
 
   String _currentServer = "https://server8.mp3quran.net/afs";
@@ -54,25 +54,25 @@ class AudioDownloadService {
     return await file.exists();
   }
 
-  DownloadStatus getDownloadStatus(int surahId) {
-    return _downloadStatuses[surahId] ?? DownloadStatus.notDownloaded;
+  AudioDownloadStatus getAudioDownloadStatus(int surahId) {
+    return _downloadStatuses[surahId] ?? AudioDownloadStatus.notDownloaded;
   }
 
   ValueNotifier<DownloadProgress> getProgressNotifier(int surahId) {
     return _progressNotifiers.putIfAbsent(
       surahId,
-      () => ValueNotifier(DownloadProgress(surahId, 0.0, DownloadStatus.notDownloaded)),
+      () => ValueNotifier(DownloadProgress(surahId, 0.0, AudioDownloadStatus.notDownloaded)),
     );
   }
 
   Future<void> downloadSurah(int surahId) async {
-    if (_downloadStatuses[surahId] == DownloadStatus.downloading) {
+    if (_downloadStatuses[surahId] == AudioDownloadStatus.downloading) {
       return; // Already downloading
     }
 
     final progressNotifier = getProgressNotifier(surahId);
-    _downloadStatuses[surahId] = DownloadStatus.downloading;
-    progressNotifier.value = DownloadProgress(surahId, 0.0, DownloadStatus.downloading);
+    _downloadStatuses[surahId] = AudioDownloadStatus.downloading;
+    progressNotifier.value = DownloadProgress(surahId, 0.0, AudioDownloadStatus.downloading);
 
     try {
       final file = await getAudioFile(surahId);
@@ -85,17 +85,17 @@ class AudioDownloadService {
         onReceiveProgress: (received, total) {
           if (total != -1) {
             final progress = received / total;
-            progressNotifier.value = DownloadProgress(surahId, progress, DownloadStatus.downloading);
+            progressNotifier.value = DownloadProgress(surahId, progress, AudioDownloadStatus.downloading);
           }
         },
       );
 
-      _downloadStatuses[surahId] = DownloadStatus.downloaded;
-      progressNotifier.value = DownloadProgress(surahId, 1.0, DownloadStatus.downloaded);
+      _downloadStatuses[surahId] = AudioDownloadStatus.downloaded;
+      progressNotifier.value = DownloadProgress(surahId, 1.0, AudioDownloadStatus.downloaded);
     } catch (e) {
       debugPrint("Erreur de téléchargement pour la sourate $surahId: $e");
-      _downloadStatuses[surahId] = DownloadStatus.failed;
-      progressNotifier.value = DownloadProgress(surahId, 0.0, DownloadStatus.failed);
+      _downloadStatuses[surahId] = AudioDownloadStatus.failed;
+      progressNotifier.value = DownloadProgress(surahId, 0.0, AudioDownloadStatus.failed);
     }
   }
 
@@ -104,9 +104,9 @@ class AudioDownloadService {
       final file = await getAudioFile(surahId);
       if (await file.exists()) {
         await file.delete();
-        _downloadStatuses[surahId] = DownloadStatus.notDownloaded;
+        _downloadStatuses[surahId] = AudioDownloadStatus.notDownloaded;
         final progressNotifier = getProgressNotifier(surahId);
-        progressNotifier.value = DownloadProgress(surahId, 0.0, DownloadStatus.notDownloaded);
+        progressNotifier.value = DownloadProgress(surahId, 0.0, AudioDownloadStatus.notDownloaded);
       }
     } catch (e) {
       debugPrint("Erreur lors de la suppression de la sourate $surahId: $e");

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(printf \"part of ''home_screen.dart'';\\\\n\\\\n\")",
+      "Bash(echo \"head exit: $?\")",
+      "Bash(echo \"mv exit: $?\")",
+      "Bash(python3.exe --version)",
+      "Bash(py --version)",
+      "Bash(python -:*)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

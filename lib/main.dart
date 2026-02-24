@@ -5,23 +5,23 @@ import 'ui/home_screen.dart';
 import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
+import 'services/audio_service.dart';
 import 'services/navigation_service.dart';
 import 'ui/bottom_nav_shell.dart';
-// Ensure that the file 'ui/bottom_nav_shell.dart' contains a class named 'BottomNavShell'
 
 
 
 Future<void> main() async {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: Colors.transparent, // rend la barre du bas transparente
-        systemNavigationBarIconBrightness: Brightness.light, // adapte la couleur des icônes
-      ),
-    );
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
   PaintingBinding.instance.imageCache.maximumSizeBytes = 150 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 200;
   await ThemeService.init();
@@ -38,8 +38,33 @@ Future<void> main() async {
 }
 
 
-class QuranApp extends StatelessWidget {
+class QuranApp extends StatefulWidget {
   const QuranApp({super.key});
+
+  @override
+  State<QuranApp> createState() => _QuranAppState();
+}
+
+class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    AudioService.instance.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      AudioService.instance.pause();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

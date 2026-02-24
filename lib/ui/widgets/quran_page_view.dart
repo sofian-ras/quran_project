@@ -1,15 +1,35 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
-import '../../services/quran_image_service.dart';
-import 'dart:async';
+// lib/ui/widgets/quran_page_view.dart
+//
+// REMPLACEMENT COMPLET de ton quran_page_view.dart existant.
+// Ajoute : overlay verset sélectionnable par-dessus l'image PNG.
+//
+// Changements vs version originale :
+//  - _buildPageImage() remplace InteractiveViewer par un Stack
+//    avec AyahSelectionOverlay par-dessus l'image
+//  - LayoutBuilder pour récupérer la taille d'affichage exacte
+//  - Gestion de selectedVerseKey + appel de AyahActionSheet
+//  - InteractiveViewer conservé mais son child est le Stack
 
-/// Widget PageView pour afficher les pages du Coran avec pre-caching intelligent
+import 'dart:io';
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../../services/quran_pages_hitbox_db.dart';
+import '../../services/quran_image_service.dart';
+import 'ayah_selection_overlay.dart';
+import 'ayah_action_sheet.dart';
+
 class QuranPageView extends StatefulWidget {
   final String reading; // 'hafs' ou 'warsh'
   final int initialPage;
   final int totalPages;
   final Function(int)? onPageChanged;
   final bool enablePrecaching;
+
+  /// Taille réelle des images PNG (en pixels).
+  /// Hafs  : 1300 × 2103 (vérifie avec tes fichiers)
+  /// Warsh : peut différer
+  /// Si null → coordonnées normalisées [0..1] attendues dans la DB
+  final Size? imagePxSize;
 
   const QuranPageView({
     super.key,
@@ -18,6 +38,7 @@ class QuranPageView extends StatefulWidget {
     this.totalPages = 604,
     this.onPageChanged,
     this.enablePrecaching = true,
+    this.imagePxSize = const Size(1300, 2103), // ← ajuste si besoin
   });
 
   @override
@@ -33,19 +54,29 @@ class _QuranPageViewState extends State<QuranPageView> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  // Plage de pre-caching (pages avant et après)
+  /// Verset actuellement sélectionné (format "surah:ayah"), null = aucun
+  String? _selectedVerseKey;
+
   static const int _precacheRange = 3;
 
   @override
   void initState() {
     super.initState();
+    () async {
+      try {
+        await QuranPagesHitboxDb.instance.ensureFromAsset(
+          assetPath: 'assets/data/quranpages.sqlite',
+        );
+      } catch (e) {
+        debugPrint('Erreur copie quranpages.sqlite: $e');
+      }
+    }();
     _pageController = PageController(initialPage: widget.initialPage - 1);
     _initializeImages();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _pageController.addListener(_onPageScroll);
     });
-
   }
 
   @override
@@ -54,65 +85,48 @@ class _QuranPageViewState extends State<QuranPageView> {
     _pageController.dispose();
     _imageCache.clear();
     _precacheDebounce?.cancel();
-    _precacheDebounce = null;
     super.dispose();
   }
 
-  /// Initialise les images (télécharge si nécessaire)
   Future<void> _initializeImages() async {
     if (!mounted) return;
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
-      // Vérifier si les images sont disponibles
       final imagesAvailable = await QuranImageService.areImagesDownloaded();
-
       if (!imagesAvailable) {
-        // Télécharger et extraire les images
         await QuranImageService.downloadAndExtractImages(
-          onDownloadProgress: (progress) {
-            // Optionnel: afficher la progression
-            debugPrint('Téléchargement: ${(progress * 100).toStringAsFixed(1)}%');
-          },
+          onDownloadProgress: (p) =>
+              debugPrint('Téléchargement: ${(p * 100).toStringAsFixed(1)}%'),
         );
       }
-
-      // Pre-charger la page initiale et les pages suivantes
       if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-        });
-
-      // Lancer le precache après la 1ère frame (ne bloque pas l'entrée)
+      setState(() => _isLoading = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _precachePages(widget.initialPage);
       });
     } catch (e) {
       if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Erreur lors du chargement des images: $e';
-        });
-      debugPrint('Erreur d\'initialisation: $e');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Erreur lors du chargement des images: $e';
+      });
     }
   }
 
-  /// Écoute le défilement pour pre-cacher les pages
   void _onPageScroll() {
     if (!_pageController.hasClients) return;
-
     final int currentPage = (_pageController.page?.round() ?? 0) + 1;
-
-    // évite de refaire la même chose
     if (currentPage == _lastCenterPage) return;
     _lastCenterPage = currentPage;
-
-    // debounce: attendre la fin d’un petit mouvement
+    // Désélectionner quand on tourne la page
+    if (_selectedVerseKey != null) {
+      setState(() => _selectedVerseKey = null);
+    }
     _precacheDebounce?.cancel();
     _precacheDebounce = Timer(const Duration(milliseconds: 120), () {
       if (!mounted) return;
@@ -120,112 +134,109 @@ class _QuranPageViewState extends State<QuranPageView> {
     });
   }
 
-
-  /// Pre-cache les pages autour de la page courante
   Future<void> _precachePages(int centerPage) async {
     if (!widget.enablePrecaching) return;
-
-    // Déterminer les pages à pre-cacher
-    final pagesToCache = <int>[];
     for (int i = -_precacheRange; i <= _precacheRange; i++) {
       final pageNum = centerPage + i;
       if (pageNum >= 1 && pageNum <= widget.totalPages) {
-        pagesToCache.add(pageNum);
+        if (!_imageCache.containsKey(pageNum) &&
+            !_loadingPages.contains(pageNum)) {
+          _loadingPages.add(pageNum);
+          _loadPageIntoCache(pageNum)
+              .whenComplete(() => _loadingPages.remove(pageNum));
+        }
       }
     }
-
-    // Charger les pages en cache
-    for (final pageNum in pagesToCache) {
-      if (!_imageCache.containsKey(pageNum) && !_loadingPages.contains(pageNum)) {
-        _loadingPages.add(pageNum);
-        _loadPageIntoCache(pageNum).whenComplete(() {
-          _loadingPages.remove(pageNum);
-        });
-      }
-    }
-
-    // Nettoyer les pages trop éloignées
     _cleanDistantPages(centerPage);
   }
 
-  /// Charge une page dans le cache
   Future<void> _loadPageIntoCache(int pageNum) async {
     try {
-      final file = await QuranImageService.getPageFile(widget.reading, pageNum);
-
+      final file =
+          await QuranImageService.getPageFile(widget.reading, pageNum);
       if (!mounted) return;
-
-      // juste remplir le cache mémoire (pas besoin de rebuild)
       _imageCache[pageNum] = file;
-
-      // Pre-cacher l'image dans le cache de Flutter
       if (context.mounted) {
         await precacheImage(FileImage(file), context);
       }
     } catch (e) {
-      debugPrint('Erreur lors du chargement de la page $pageNum: $e');
+      debugPrint('Erreur chargement page $pageNum: $e');
     }
   }
 
-  /// Nettoie les pages trop éloignées du cache
   void _cleanDistantPages(int centerPage) {
-    final pagesToRemove = <int>[];
-    
+    final toRemove = <int>[];
     _imageCache.forEach((pageNum, _) {
       if ((pageNum - centerPage).abs() > _precacheRange * 2) {
-        pagesToRemove.add(pageNum);
+        toRemove.add(pageNum);
       }
     });
-
-    for (final pageNum in pagesToRemove) {
-      _imageCache.remove(pageNum);
+    for (final p in toRemove) {
+      _imageCache.remove(p);
     }
   }
+
+  // ── Gestion de la sélection ──────────────────────────────────────────────
+
+  void _onAyahTapped(int surah, int ayah) {
+    // surah == -1 → tap en dehors → désélectionner
+    if (surah == -1) {
+      setState(() => _selectedVerseKey = null);
+      return;
+    }
+
+    final key = '$surah:$ayah';
+
+    // Si on tape sur le même verset déjà sélectionné → ouvrir la sheet
+    if (_selectedVerseKey == key) {
+      AyahActionSheet.show(context, surah: surah, ayah: ayah);
+      return;
+    }
+
+    // Sinon → surligner
+    setState(() => _selectedVerseKey = key);
+
+    // Petit délai puis ouvrir la sheet automatiquement
+    // (retire ce Future.delayed si tu veux juste surligner sans sheet auto)
+    Future.delayed(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      if (_selectedVerseKey == key) {
+        AyahActionSheet.show(context, surah: surah, ayah: ayah).then((_) {
+          // Désélectionner après fermeture de la sheet
+          if (mounted) setState(() => _selectedVerseKey = null);
+        });
+      }
+    });
+  }
+
+  // ── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    // Affichage pendant le chargement initial
     if (_isLoading) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(
-              'Préparation des pages du Coran...',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Première utilisation, cela peut prendre quelques minutes',
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.center,
-            ),
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Préparation des pages du Coran...'),
           ],
         ),
       );
     }
 
-    // Affichage en cas d'erreur
     if (_errorMessage != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red,
-              ),
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
-              Text(
-                _errorMessage!,
-                style: Theme.of(context).textTheme.bodyLarge,
-                textAlign: TextAlign.center,
-              ),
+              Text(_errorMessage!,
+                  textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: _initializeImages,
@@ -238,42 +249,33 @@ class _QuranPageViewState extends State<QuranPageView> {
       );
     }
 
-    // PageView principal
     return PageView.builder(
       controller: _pageController,
-      reverse: true, // Défilement de droite à gauche (sens arabe)
+      reverse: true, // sens arabe droite → gauche
       itemCount: widget.totalPages,
       onPageChanged: (index) {
-        final pageNum = index + 1;
-        widget.onPageChanged?.call(pageNum);
-        _precachePages(pageNum);
+        widget.onPageChanged?.call(index + 1);
+        _precachePages(index + 1);
       },
-      itemBuilder: (context, index) {
-        final pageNum = index + 1;
-        return _buildPage(pageNum);
-      },
+      itemBuilder: (context, index) => _buildPage(index + 1),
     );
   }
 
-  /// Construit une page individuelle
   Widget _buildPage(int pageNum) {
     final cached = _imageCache[pageNum];
+
     if (cached != null) {
-      return _buildPageImage(cached);
+      return _buildPageWithOverlay(cached, pageNum);
     }
 
-    // Lancer le chargement en arrière-plan (sans FutureBuilder)
     if (!_loadingPages.contains(pageNum)) {
       _loadingPages.add(pageNum);
       _loadPageIntoCache(pageNum).whenComplete(() {
         _loadingPages.remove(pageNum);
-        if (mounted) {
-          setState(() {});
-        }
+        if (mounted) setState(() {});
       });
     }
 
-    // Placeholder léger et discret
     return const Center(
       child: SizedBox(
         width: 28,
@@ -283,33 +285,126 @@ class _QuranPageViewState extends State<QuranPageView> {
     );
   }
 
-
-
-  /// Construit l'affichage de l'image de la page
-  Widget _buildPageImage(File imageFile) {
+  /// ── Cœur de la fonctionnalité ────────────────────────────────────────────
+  ///
+  /// Stack : image PNG + overlay transparent avec hitboxes.
+  ///
+  /// On utilise LayoutBuilder pour connaître la taille d'affichage exacte
+  /// (nécessaire pour convertir les coords DB → coords écran).
+  Widget _buildPageWithOverlay(File imageFile, int pageNum) {
     return InteractiveViewer(
-      minScale: 0.5,
+      minScale: 0.8,
       maxScale: 4.0,
-      child: Center(
-        child: Image.file(
-          imageFile,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Image corrompue',
-                    style: Theme.of(context).textTheme.bodyLarge,
+      // Désactiver le pan quand aucun zoom (pour que le PageView reste prioritaire)
+      panEnabled: false,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final displaySize = Size(
+            constraints.maxWidth,
+            constraints.maxHeight,
+          );
+
+          return Stack(
+            children: [
+              // ── 1. Image PNG ──────────────────────────────
+              SizedBox(
+                width: displaySize.width,
+                height: displaySize.height,
+                child: Image.file(
+                  imageFile,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
                   ),
-                ],
+                ),
               ),
-            );
-          },
-        ),
+
+              // ── 2. Overlay des versets ────────────────────
+              //
+              // IMPORTANT : Image.file avec BoxFit.contain laisse des bandes
+              // noires/vides sur les côtés. L'overlay doit être dimensionné
+              // à la zone réelle de l'image, pas au conteneur.
+              //
+              // On calcule la zone effective de l'image :
+              Positioned.fill(
+                child: _ImageOverlayPositioned(
+                  displaySize: displaySize,
+                  imagePxSize: widget.imagePxSize,
+                  page: pageNum,
+                  selectedVerseKey: _selectedVerseKey,
+                  onAyahTapped: _onAyahTapped,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── Widget interne qui calcule la zone réelle de l'image (BoxFit.contain) ───
+
+class _ImageOverlayPositioned extends StatelessWidget {
+  final Size displaySize;
+  final Size? imagePxSize;
+  final int page;
+  final String? selectedVerseKey;
+  final void Function(int surah, int ayah) onAyahTapped;
+
+  const _ImageOverlayPositioned({
+    required this.displaySize,
+    required this.imagePxSize,
+    required this.page,
+    required this.selectedVerseKey,
+    required this.onAyahTapped,
+  });
+
+  /// Calcule la Rect dans laquelle l'image est réellement dessinée
+  /// (BoxFit.contain centre l'image et laisse des marges).
+  Rect _imageRect() {
+    if (imagePxSize == null) {
+      // Pas de taille connue → on couvre tout le container
+      return Rect.fromLTWH(0, 0, displaySize.width, displaySize.height);
+    }
+
+    final imgAspect = imagePxSize!.width / imagePxSize!.height;
+    final dispAspect = displaySize.width / displaySize.height;
+
+    double imgW, imgH, offsetX, offsetY;
+
+    if (imgAspect > dispAspect) {
+      // Limité par la largeur
+      imgW = displaySize.width;
+      imgH = imgW / imgAspect;
+      offsetX = 0;
+      offsetY = (displaySize.height - imgH) / 2;
+    } else {
+      // Limité par la hauteur
+      imgH = displaySize.height;
+      imgW = imgH * imgAspect;
+      offsetX = (displaySize.width - imgW) / 2;
+      offsetY = 0;
+    }
+
+    return Rect.fromLTWH(offsetX, offsetY, imgW, imgH);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rect = _imageRect();
+
+    return Positioned(
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      child: AyahSelectionOverlay(
+        page: page,
+        displaySize: Size(rect.width, rect.height),
+        imageSize: imagePxSize,
+        selectedVerseKey: selectedVerseKey,
+        onAyahTapped: onAyahTapped,
       ),
     );
   }

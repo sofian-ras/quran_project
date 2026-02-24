@@ -4,7 +4,6 @@ import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import '../surah_name.dart';
-import 'widgets/reciter_selector.dart';
 import 'package:dio/dio.dart';
 
 class FullPlayerScreen extends StatefulWidget {
@@ -18,6 +17,10 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   final AudioService _audio = AudioService.instance;
 
   final Dio _dio = Dio();
+
+  static const _kGold = Color(0xFFC8A165);
+  List<Map<String, dynamic>>? _cachedReciters;
+  Set<int> _favorites = {};
 
   String _normName(String s) => s
     .toLowerCase()
@@ -51,16 +54,13 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   Future<List<Map<String, dynamic>>> _fetchMoshafOptions(String reciterName) async {
     final base = _baseReciterName(reciterName);
 
-    final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
-    final reciters = (res.data['reciters'] as List?) ?? const [];
+    final reciters = await _getReciters();
 
-    for (final item in reciters) {
-      final r = item as Map<String, dynamic>;
+    for (final r in reciters) {
       final name = (r['name'] ?? '').toString().trim();
       final nn = _normName(name);
       final bb = _normName(base);
       if (nn != bb && !nn.contains(bb) && !bb.contains(nn)) continue;
-
 
       final moshaf = (r['moshaf'] as List?) ?? const [];
       final List<Map<String, dynamic>> options = [];
@@ -104,7 +104,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
 
     if (options.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Aucune riwāya e pour $base')),
+        SnackBar(content: Text('Aucune riwāya pour $base')),
       );
       return;
     }
@@ -225,7 +225,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                         Navigator.pop(context);
                         _audio.loadPlaylistAndPlay(selectedSurahId);
                       },
-                      child: const Text('OK', style: TextStyle(color: Color(0xFFC8A165), fontWeight: FontWeight.bold)),
+                      child: const Text('OK', style: TextStyle(color: _kGold, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -266,8 +266,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                         height: 50,
                         decoration: BoxDecoration(
                           border: Border(
-                            top: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
-                            bottom: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
+                            top: BorderSide(color: _kGold.withValues(alpha: 0.3), width: 1),
+                            bottom: BorderSide(color: _kGold.withValues(alpha: 0.3), width: 1),
                           ),
                         ),
                       ),
@@ -283,11 +283,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   void _showReciterPicker(BuildContext context) async {
-    // Charger la liste des récitateurs depuis l'API
     List<Map<String, dynamic>> reciters = [];
     try {
-      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
-      reciters = ((res.data['reciters'] as List?) ?? []).cast<Map<String, dynamic>>();
+      reciters = await _getReciters();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -372,7 +370,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                         final id = _audio.currentSurahId;
                         if (id != null) _audio.loadPlaylistAndPlay(id);
                       },
-                      child: const Text('OK', style: TextStyle(color: Color(0xFFC8A165), fontWeight: FontWeight.bold)),
+                      child: const Text('OK', style: TextStyle(color: _kGold, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -413,8 +411,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                         height: 50,
                         decoration: BoxDecoration(
                           border: Border(
-                            top: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
-                            bottom: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
+                            top: BorderSide(color: _kGold.withValues(alpha: 0.3), width: 1),
+                            bottom: BorderSide(color: _kGold.withValues(alpha: 0.3), width: 1),
                           ),
                         ),
                       ),
@@ -433,13 +431,24 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _audio.loadPlaylistAndPlay(1); // Load default surah on init
+    _audio.loadPlaylistAndPlay(1);
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final favs = await FavoritesService.instance.getFavorites();
+    if (mounted) setState(() => _favorites = favs);
+  }
+
+  Future<List<Map<String, dynamic>>> _getReciters() async {
+    if (_cachedReciters != null) return _cachedReciters!;
+    final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
+    _cachedReciters = ((res.data['reciters'] as List?) ?? []).cast<Map<String, dynamic>>();
+    return _cachedReciters!;
   }
 
   @override
   Widget build(BuildContext context) {
-    const gold = Color(0xFFC8A165);
-
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
       child: BackdropFilter(
@@ -458,12 +467,12 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 automaticallyImplyLeading: false,
-                title: TabBar(
-                  indicatorColor: gold,
+                title: const TabBar(
+                  indicatorColor: _kGold,
                   indicatorSize: TabBarIndicatorSize.label,
-                  labelColor: gold,
+                  labelColor: _kGold,
                   unselectedLabelColor: Colors.white60,
-                  tabs: const [
+                  tabs: [
                     Tab(text: 'Lecteur'),
                     Tab(text: 'Favoris'),
                   ],
@@ -471,8 +480,8 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
               ),
               body: TabBarView(
                 children: [
-                  _buildPlayerView(context, gold),
-                  _buildPlaylistView(context, gold),
+                  _buildPlayerView(context, _kGold),
+                  _buildPlaylistView(context, _kGold),
                 ],
               ),
             ),
@@ -541,7 +550,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                       children: [
                         Text(reciter, style: TextStyle(fontSize: 15, color: gold), textAlign: TextAlign.center),
                         const SizedBox(width: 6),
-                        Icon(Icons.arrow_drop_down, color: gold.withOpacity(0.7), size: 24),
+                        Icon(Icons.arrow_drop_down, color: gold.withValues(alpha: 0.7), size: 24),
                       ],
                     ),
                   ),
@@ -584,66 +593,54 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   
   // ---- Vue des favoris ----
   Widget _buildPlaylistView(BuildContext context, Color gold) {
-    return FutureBuilder<Set<int>>(
-      future: FavoritesService.instance.getFavorites(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator(color: Colors.white));
-        }
-
-        final favorites = snapshot.data!.toList()..sort();
-        if (favorites.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.favorite_border, size: 64, color: Colors.white30),
-                const SizedBox(height: 16),
-                const Text(
-                  "Aucun favori pour le moment.",
-                  style: TextStyle(color: Colors.white60, fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Ajoutez des sourates en cliquant sur ❤️",
-                  style: TextStyle(color: Colors.white38, fontSize: 14),
-                ),
-              ],
+    final favorites = _favorites.toList()..sort();
+    if (favorites.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.favorite_border, size: 64, color: Colors.white30),
+            SizedBox(height: 16),
+            Text(
+              "Aucun favori pour le moment.",
+              style: TextStyle(color: Colors.white60, fontSize: 16),
             ),
-          );
-        }
+            SizedBox(height: 8),
+            Text(
+              "Ajoutez des sourates en cliquant sur ❤️",
+              style: TextStyle(color: Colors.white38, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
 
-        return ListView.builder(
-          itemCount: favorites.length,
-          itemBuilder: (context, index) {
-            final surahId = favorites[index];
-            final surahName = surahFr[surahId] ?? "Sourate $surahId";
-            final currentSurahId = _audio.currentSurahId;
-            final bool isPlaying = currentSurahId == surahId;
+    return ListView.builder(
+      itemCount: favorites.length,
+      itemBuilder: (context, index) {
+        final surahId = favorites[index];
+        final surahName = surahFr[surahId] ?? "Sourate $surahId";
+        final bool isPlaying = _audio.currentSurahId == surahId;
 
-            return ListTile(
-              leading: isPlaying
-                  ? Icon(Icons.volume_up, color: gold)
-                  : Text("$surahId", style: const TextStyle(color: Colors.white60, fontSize: 16)),
-              title: Text(
-                surahName,
-                style: TextStyle(
-                  color: isPlaying ? gold : Colors.white,
-                  fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.white38),
-                onPressed: () async {
-                  await FavoritesService.instance.removeFavorite(surahId);
-                  setState(() {}); // Rafraîchir la liste
-                },
-              ),
-              onTap: () {
-                _audio.loadPlaylistAndPlay(surahId);
-              },
-            );
-          },
+        return ListTile(
+          leading: isPlaying
+              ? Icon(Icons.volume_up, color: gold)
+              : Text("$surahId", style: const TextStyle(color: Colors.white60, fontSize: 16)),
+          title: Text(
+            surahName,
+            style: TextStyle(
+              color: isPlaying ? gold : Colors.white,
+              fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.white38),
+            onPressed: () async {
+              await FavoritesService.instance.removeFavorite(surahId);
+              _loadFavorites();
+            },
+          ),
+          onTap: () => _audio.loadPlaylistAndPlay(surahId),
         );
       },
     );
@@ -718,12 +715,10 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 },
               ),
               const SizedBox(width: 4),
-              FutureBuilder<bool>(
-                future: _audio.currentSurahId != null 
-                    ? FavoritesService.instance.isFavorite(_audio.currentSurahId!)
-                    : Future.value(false),
-                builder: (context, snapshot) {
-                  final isFavorite = snapshot.data ?? false;
+              ValueListenableBuilder<int?>(
+                valueListenable: _audio.currentPlayingSurahIdNotifier,
+                builder: (_, surahId, __) {
+                  final isFavorite = surahId != null && _favorites.contains(surahId);
                   return IconButton(
                     icon: Icon(
                       isFavorite ? Icons.favorite : Icons.favorite_border,
@@ -731,10 +726,9 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                     ),
                     iconSize: 28,
                     onPressed: () async {
-                      final surahId = _audio.currentSurahId;
                       if (surahId != null) {
                         await FavoritesService.instance.toggleFavorite(surahId);
-                        setState(() {}); // Rafraîchir l'icône
+                        _loadFavorites();
                       }
                     },
                   );
@@ -762,7 +756,6 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   }
 
   Widget _buildProgressBar() {
-    const gold = Color(0xFFC8A165);
     return StreamBuilder<PositionData>(
       stream: _audio.positionDataStream,
       builder: (context, snapshot) {
@@ -779,7 +772,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 16.0),
               ),
               child: Slider(
-                activeColor: gold,
+                activeColor: _kGold,
                 inactiveColor: Colors.white24,
                 max: duration.inMilliseconds.toDouble().clamp(1.0, double.infinity),
                 value: position.inMilliseconds.toDouble().clamp(0.0, duration.inMilliseconds.toDouble()),

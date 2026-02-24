@@ -355,10 +355,14 @@ class _SurahPlayingTileWidgetState extends State<_SurahPlayingTileWidget> {
   }
 }
 
+Map<int, dynamic>? _juzMetadataCache;
+
 Future<Map<int, dynamic>> loadJuzMetadata() async {
+  if (_juzMetadataCache != null) return _juzMetadataCache!;
   final raw = await rootBundle.loadString('assets/data/quran-metadata-juz.json');
   final Map<String, dynamic> decoded = jsonDecode(raw);
-  return decoded.map((k, v) => MapEntry(int.parse(k), v));
+  _juzMetadataCache = decoded.map((k, v) => MapEntry(int.parse(k), v));
+  return _juzMetadataCache!;
 }
 
 List<int> parseRange(String range) {
