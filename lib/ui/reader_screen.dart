@@ -9,6 +9,9 @@ import 'package:flutter/services.dart';
 
 import 'screens/quran_loader.dart';
 import '../services/quran_image_service.dart';
+import '../services/quran_pages_hitbox_db.dart';
+import 'widgets/ayah_selection_overlay.dart';
+import 'widgets/ayah_action_sheet.dart';
 import '../services/quran_page_preloader.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
@@ -62,6 +65,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
+  String? _selectedVerseKey;
   Timer? _saveTimer;
   Timer? _preloadDebounce;
   bool _isBookmarked = false;
@@ -120,6 +124,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     _initApp();
     _refreshBookmarkStatus(currentPage);
+    () async {
+      try {
+        await QuranPagesHitboxDb.instance.ensureFromAsset(
+          assetPath: 'assets/data/quranpages1024.sqlite',
+        );
+      } catch (e) {
+        debugPrint('Erreur chargement hitbox: $e');
+      }
+    }();
   }
 
   void _onPageScroll() {
@@ -338,10 +351,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       backgroundColor: Colors.white,
       extendBody: true,
       extendBodyBehindAppBar: true,
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => setState(() => _showUI = !_showUI),
-        child: Stack(
+      body: Stack(
           children: [
            Positioned.fill(
             child: ColoredBox(
@@ -351,7 +361,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 reverse: true,
                 itemCount: 604,
                 onPageChanged: (p) {
-                  setState(() => currentPage = p + 1);
+                  setState(() {
+                    currentPage = p + 1;
+                    _selectedVerseKey = null;
+                  });
                   _refreshBookmarkStatus(p + 1);
                   _preloadPages(p + 1);
 
@@ -375,7 +388,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
                   final cached = _imageCache[pageNum];
                   if (cached != null) {
-                    return _buildPageContent(cached, isLandscape);
+                    return _buildPageContent(cached, isLandscape, pageNum);
                   }
 
                   return FutureBuilder<File?>(
@@ -402,14 +415,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       }
 
                       _imageCache[pageNum] = file;
-                      return _buildPageContent(file, isLandscape);
+                      return _buildPageContent(file, isLandscape, pageNum);
                     },
                   );
                 },
               ),
             ),
           ),
-
 
             // TOP overlay
             AnimatedPositioned(
@@ -507,8 +519,33 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ],
         ),
-      ),
-    );
+      );
+  }
+
+  void _onAyahTapped(int surah, int ayah) {
+    if (surah == -1) {
+      // Tap hors verset → toggle UI
+      setState(() => _showUI = !_showUI);
+      return;
+    }
+
+    final key = '$surah:$ayah';
+
+    if (_selectedVerseKey == key) {
+      AyahActionSheet.show(context, surah: surah, ayah: ayah);
+      return;
+    }
+
+    setState(() => _selectedVerseKey = key);
+
+    Future.delayed(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      if (_selectedVerseKey == key) {
+        AyahActionSheet.show(context, surah: surah, ayah: ayah).then((_) {
+          if (mounted) setState(() => _selectedVerseKey = null);
+        });
+      }
+    });
   }
 
   Widget _loadingPage(BuildContext context, int pageNum) {
@@ -675,9 +712,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  Widget _buildPageContent(File imageFile, bool isLandscape) {
+  Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final displaySize = Size(constraints.maxWidth, constraints.maxHeight);
+        const imagePxSize = Size(1024, 1657); // taille réelle PNG Hafs 1024px
+
         if (isLandscape) {
           return SingleChildScrollView(
             child: Image.file(
@@ -688,12 +728,46 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           );
         }
-        return Center(
-          child: Image.file(
-            imageFile,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-          ),
+
+        // Calcul de la zone réelle de l'image (BoxFit.contain)
+        final imgAspect = imagePxSize.width / imagePxSize.height;
+        final dispAspect = displaySize.width / displaySize.height;
+        double imgW, imgH, offsetX, offsetY;
+        if (imgAspect > dispAspect) {
+          imgW = displaySize.width;
+          imgH = imgW / imgAspect;
+          offsetX = 0;
+          offsetY = (displaySize.height - imgH) / 2;
+        } else {
+          imgH = displaySize.height;
+          imgW = imgH * imgAspect;
+          offsetX = (displaySize.width - imgW) / 2;
+          offsetY = 0;
+        }
+
+        return Stack(
+          children: [
+            Center(
+              child: Image.file(
+                imageFile,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+            Positioned(
+              left: offsetX,
+              top: offsetY,
+              width: imgW,
+              height: imgH,
+              child: AyahSelectionOverlay(
+                page: pageNum,
+                displaySize: Size(imgW, imgH),
+                imageSize: imagePxSize,
+                selectedVerseKey: _selectedVerseKey,
+                onAyahTapped: _onAyahTapped,
+              ),
+            ),
+          ],
         );
       },
     );

@@ -1,51 +1,21 @@
 // lib/ui/widgets/ayah_selection_overlay.dart
-//
-// Widget overlay transparent posé AU-DESSUS de l'image PNG.
-// Il dessine les rectangles de surbrillance et détecte les taps.
-//
-// Usage :
-//   Stack(children: [
-//     Image.file(pageFile, fit: BoxFit.contain),
-//     AyahSelectionOverlay(
-//       page: currentPage,
-//       imageSize: Size(imageWidth, imageHeight),   // taille réelle du PNG
-//       displaySize: Size(containerW, containerH),  // taille affichée à l'écran
-//       onAyahTapped: (surah, ayah) { ... },
-//     ),
-//   ])
-
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/quran_pages_hitbox_db.dart';
 
 class AyahSelectionOverlay extends StatefulWidget {
   final int page;
-
-  /// Taille RÉELLE du fichier PNG (ex: 1280×1810).
-  /// Récupérée avec decodeImageFromList ou stockée en dur selon ta DB.
-  /// Si null, l'overlay utilise les coordonnées normalisées [0..1].
-  final Size? imageSize;
-
-  /// Taille affichée dans le widget à l'écran (LayoutBuilder ou MediaQuery).
   final Size displaySize;
-
-  /// Callback quand l'utilisateur tape sur un verset.
-  final void Function(int surah, int ayah)? onAyahTapped;
-
-  /// Verset actuellement sélectionné (pour le surligner différemment).
-  final String? selectedVerseKey; // format "surah:ayah"
-
-  /// Chemin optionnel vers la DB (si différent du chemin par défaut).
-  final String? dbPathOverride;
+  final Size imageSize;
+  final String? selectedVerseKey;
+  final void Function(int surah, int ayah) onAyahTapped;
 
   const AyahSelectionOverlay({
     super.key,
     required this.page,
     required this.displaySize,
-    this.imageSize,
-    this.onAyahTapped,
-    this.selectedVerseKey,
-    this.dbPathOverride,
+    required this.imageSize,
+    required this.selectedVerseKey,
+    required this.onAyahTapped,
   });
 
   @override
@@ -53,107 +23,64 @@ class AyahSelectionOverlay extends StatefulWidget {
 }
 
 class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
-  List<AyahBox> _boxes = [];
-  bool _loading = true;
+  List<Rect> _wordRects = [];
 
-  @override
-  void initState() {
-    super.initState();
-    _loadBoxes();
+  Future<void> _selectFromLocalPos(Offset localPos) async {
+    final dx = localPos.dx.clamp(0.0, widget.displaySize.width);
+    final dy = localPos.dy.clamp(0.0, widget.displaySize.height);
+
+    final xImg = (dx / widget.displaySize.width) * widget.imageSize.width;
+    final yImg = (dy / widget.displaySize.height) * widget.imageSize.height;
+
+    final hit = await QuranPagesHitboxDb.instance.getAyahAt(
+      page: widget.page,
+      x: xImg,
+      y: yImg,
+    );
+
+    if (!mounted) return;
+
+    if (hit == null) {
+      setState(() => _wordRects = []);
+      widget.onAyahTapped(-1, -1);
+      return;
+    }
+
+    final surah = hit['surah']!;
+    final ayah = hit['ayah']!;
+
+    final rects = await QuranPagesHitboxDb.instance.getAyahRects(
+      page: widget.page,
+      surah: surah,
+      ayah: ayah,
+    );
+
+    if (!mounted) return;
+
+    setState(() => _wordRects = rects);
+    widget.onAyahTapped(surah, ayah);
   }
 
   @override
-  void didUpdateWidget(AyahSelectionOverlay old) {
-    super.didUpdateWidget(old);
-    if (old.page != widget.page) {
-      _boxes = [];
-      _loading = true;
-      _loadBoxes();
+  void didUpdateWidget(covariant AyahSelectionOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedVerseKey == null && _wordRects.isNotEmpty) {
+      setState(() => _wordRects = []);
     }
-  }
-
-  Future<void> _loadBoxes() async {
-    try {
-      final boxes = await QuranPagesHitboxDb.instance.getPageBoxes(
-        widget.page,
-        dbPathOverride: widget.dbPathOverride,
-      );
-      if (!mounted) return;
-      setState(() {
-        _boxes = boxes;
-        _loading = false;
-      });
-    } catch (e) {
-      debugPrint('AyahSelectionOverlay: erreur chargement page ${widget.page}: $e');
-      if (!mounted) return;
-      setState(() => _loading = false);
-    }
-  }
-
-  // Convertit les coordonnées DB → coordonnées écran.
-  //
-  // Deux cas :
-  //   - imageSize fournie : les coords DB sont en pixels absolus PNG → on scale.
-  //   - imageSize null    : les coords DB sont déjà normalisées [0..1] → on multiplie.
-  Rect _toScreenRect(AyahBox box) {
-    final dw = widget.displaySize.width;
-    final dh = widget.displaySize.height;
-
-    if (widget.imageSize != null) {
-      final sx = dw / widget.imageSize!.width;
-      final sy = dh / widget.imageSize!.height;
-      return Rect.fromLTWH(
-        box.x * sx,
-        box.y * sy,
-        box.w * sx,
-        box.h * sy,
-      );
-    } else {
-      // Coordonnées normalisées
-      return Rect.fromLTWH(
-        box.x * dw,
-        box.y * dh,
-        box.w * dw,
-        box.h * dh,
-      );
-    }
-  }
-
-  void _onPointerDown(PointerDownEvent e) {
-    final pos = e.localPosition;
-    for (final box in _boxes) {
-      final rect = _toScreenRect(box);
-      if (rect.inflate(4).contains(pos)) {
-        widget.onAyahTapped?.call(box.surah, box.ayah);
-        return;
-      }
-    }
-    widget.onAyahTapped?.call(-1, -1);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading || _boxes.isEmpty) {
-      return Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: _onPointerDown,
-        child: SizedBox(
-          width: widget.displaySize.width,
-          height: widget.displaySize.height,
-        ),
-      );
-    }
-
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: _onPointerDown,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (d) => _selectFromLocalPos(d.localPosition),
+      onLongPressStart: (d) => _selectFromLocalPos(d.localPosition),
       child: CustomPaint(
-        size: widget.displaySize,
+        size: Size.infinite,
         painter: _AyahHighlightPainter(
-          boxes: _boxes,
-          selectedVerseKey: widget.selectedVerseKey,
-          toScreenRect: _toScreenRect,
-          isDark: Theme.of(context).brightness == Brightness.dark,
+          displaySize: widget.displaySize,
+          imageSize: widget.imageSize,
+          wordRects: _wordRects,
         ),
       ),
     );
@@ -161,53 +88,78 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
 }
 
 class _AyahHighlightPainter extends CustomPainter {
-  final List<AyahBox> boxes;
-  final String? selectedVerseKey;
-  final Rect Function(AyahBox) toScreenRect;
-  final bool isDark;
+  final Size displaySize;
+  final Size imageSize;
+  final List<Rect> wordRects;
 
   _AyahHighlightPainter({
-    required this.boxes,
-    required this.selectedVerseKey,
-    required this.toScreenRect,
-    required this.isDark,
+    required this.displaySize,
+    required this.imageSize,
+    required this.wordRects,
   });
+
+  /// Regroupe les rects par ligne (Y-center similaires) et retourne
+  /// le rect union de chaque ligne.
+  List<Rect> _groupByLine(List<Rect> rects) {
+    if (rects.isEmpty) return [];
+
+    final scaleX = displaySize.width / imageSize.width;
+    final scaleY = displaySize.height / imageSize.height;
+
+    // Convertir en coordonnées écran
+    final screen = rects.map((r) => Rect.fromLTRB(
+      r.left * scaleX, r.top * scaleY,
+      r.right * scaleX, r.bottom * scaleY,
+    )).toList();
+
+    // Trier par Y croissant
+    screen.sort((a, b) => a.top.compareTo(b.top));
+
+    final lines = <List<Rect>>[];
+    for (final r in screen) {
+      final center = (r.top + r.bottom) / 2;
+      // Cherche une ligne existante dont l'intervalle vertical se chevauche
+      final idx = lines.indexWhere((line) {
+        final lineTop = line.map((x) => x.top).reduce((a, b) => a < b ? a : b);
+        final lineBot = line.map((x) => x.bottom).reduce((a, b) => a > b ? a : b);
+        return center >= lineTop && center <= lineBot;
+      });
+      if (idx >= 0) {
+        lines[idx].add(r);
+      } else {
+        lines.add([r]);
+      }
+    }
+
+    // Union de chaque ligne
+    return lines.map((line) {
+      final l = line.map((r) => r.left).reduce((a, b) => a < b ? a : b);
+      final t = line.map((r) => r.top).reduce((a, b) => a < b ? a : b);
+      final ri = line.map((r) => r.right).reduce((a, b) => a > b ? a : b);
+      final bo = line.map((r) => r.bottom).reduce((a, b) => a > b ? a : b);
+      return Rect.fromLTRB(l, t, ri, bo);
+    }).toList();
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (selectedVerseKey == null) return;
+    if (wordRects.isEmpty) return;
 
-    final parts = selectedVerseKey!.split(':');
-    if (parts.length != 2) return;
-    final selSurah = int.tryParse(parts[0]);
-    final selAyah = int.tryParse(parts[1]);
-    if (selSurah == null || selAyah == null) return;
-
-    // Couleur de surlignage : dorée semi-transparente (adapte selon ton thème)
-    final highlightPaint = Paint()
-      ..color = isDark
-          ? const Color(0x55F5D278) // doré clair mode sombre
-          : const Color(0x44E8B84B) // doré mode clair
+    final paint = Paint()
+      ..color = const Color(0x66FFC107)
       ..style = PaintingStyle.fill;
 
-    final borderPaint = Paint()
-      ..color = isDark
-          ? const Color(0xCCF5D278)
-          : const Color(0xCCB8860B)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    for (final box in boxes) {
-      if (box.surah == selSurah && box.ayah == selAyah) {
-        final rect = toScreenRect(box);
-        final rRect = RRect.fromRectAndRadius(rect, const Radius.circular(3));
-        canvas.drawRRect(rRect, highlightPaint);
-        canvas.drawRRect(rRect, borderPaint);
-      }
+    for (final r in _groupByLine(wordRects)) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, const Radius.circular(6)),
+        paint,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(_AyahHighlightPainter old) =>
-      old.selectedVerseKey != selectedVerseKey || old.isDark != isDark;
+  bool shouldRepaint(covariant _AyahHighlightPainter old) =>
+      old.wordRects != wordRects ||
+      old.displaySize != displaySize ||
+      old.imageSize != imageSize;
 }

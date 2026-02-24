@@ -29,7 +29,7 @@ class QuranPageView extends StatefulWidget {
   /// Hafs  : 1300 × 2103 (vérifie avec tes fichiers)
   /// Warsh : peut différer
   /// Si null → coordonnées normalisées [0..1] attendues dans la DB
-  final Size? imagePxSize;
+  final Size imagePxSize;
 
   const QuranPageView({
     super.key,
@@ -38,7 +38,7 @@ class QuranPageView extends StatefulWidget {
     this.totalPages = 604,
     this.onPageChanged,
     this.enablePrecaching = true,
-    this.imagePxSize = const Size(1300, 2103), // ← ajuste si besoin
+    this.imagePxSize = const Size(1024, 1657), // Hafs 1024px
   });
 
   @override
@@ -65,10 +65,10 @@ class _QuranPageViewState extends State<QuranPageView> {
     () async {
       try {
         await QuranPagesHitboxDb.instance.ensureFromAsset(
-          assetPath: 'assets/data/quranpages.sqlite',
+          assetPath: 'assets/data/quranpages1024.sqlite',
         );
       } catch (e) {
-        debugPrint('Erreur copie quranpages.sqlite: $e');
+        debugPrint('Erreur chargement hitbox: $e');
       }
     }();
     _pageController = PageController(initialPage: widget.initialPage - 1);
@@ -287,15 +287,15 @@ class _QuranPageViewState extends State<QuranPageView> {
 
   /// ── Cœur de la fonctionnalité ────────────────────────────────────────────
   ///
-  /// Stack : image PNG + overlay transparent avec hitboxes.
-  ///
-  /// On utilise LayoutBuilder pour connaître la taille d'affichage exacte
-  /// (nécessaire pour convertir les coords DB → coords écran).
+  /// Stack : image PNG + overlay Positioned DIRECTEMENT dans le Stack.
+  /// Le Positioned doit être enfant direct du Stack pour que left/top/
+  /// width/height soient pris en compte. Sinon les coordonnées locales
+  /// du GestureDetector sont relatives au coin supérieur gauche de l'écran
+  /// au lieu du coin supérieur gauche de l'image → conversion fausse.
   Widget _buildPageWithOverlay(File imageFile, int pageNum) {
     return InteractiveViewer(
       minScale: 0.8,
       maxScale: 4.0,
-      // Désactiver le pan quand aucun zoom (pour que le PageView reste prioritaire)
       panEnabled: false,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -303,6 +303,9 @@ class _QuranPageViewState extends State<QuranPageView> {
             constraints.maxWidth,
             constraints.maxHeight,
           );
+
+          // Zone réelle de l'image dans le conteneur (BoxFit.contain).
+          final rect = _imageRect(displaySize);
 
           return Stack(
             children: [
@@ -319,18 +322,16 @@ class _QuranPageViewState extends State<QuranPageView> {
                 ),
               ),
 
-              // ── 2. Overlay des versets ────────────────────
-              //
-              // IMPORTANT : Image.file avec BoxFit.contain laisse des bandes
-              // noires/vides sur les côtés. L'overlay doit être dimensionné
-              // à la zone réelle de l'image, pas au conteneur.
-              //
-              // On calcule la zone effective de l'image :
-              Positioned.fill(
-                child: _ImageOverlayPositioned(
-                  displaySize: displaySize,
-                  imagePxSize: widget.imagePxSize,
+              // ── 2. Overlay des versets — Positioned DIRECT dans Stack ──
+              Positioned(
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height,
+                child: AyahSelectionOverlay(
                   page: pageNum,
+                  displaySize: Size(rect.width, rect.height),
+                  imageSize: widget.imagePxSize,
                   selectedVerseKey: _selectedVerseKey,
                   onAyahTapped: _onAyahTapped,
                 ),
@@ -341,46 +342,21 @@ class _QuranPageViewState extends State<QuranPageView> {
       ),
     );
   }
-}
-
-// ── Widget interne qui calcule la zone réelle de l'image (BoxFit.contain) ───
-
-class _ImageOverlayPositioned extends StatelessWidget {
-  final Size displaySize;
-  final Size? imagePxSize;
-  final int page;
-  final String? selectedVerseKey;
-  final void Function(int surah, int ayah) onAyahTapped;
-
-  const _ImageOverlayPositioned({
-    required this.displaySize,
-    required this.imagePxSize,
-    required this.page,
-    required this.selectedVerseKey,
-    required this.onAyahTapped,
-  });
 
   /// Calcule la Rect dans laquelle l'image est réellement dessinée
-  /// (BoxFit.contain centre l'image et laisse des marges).
-  Rect _imageRect() {
-    if (imagePxSize == null) {
-      // Pas de taille connue → on couvre tout le container
-      return Rect.fromLTWH(0, 0, displaySize.width, displaySize.height);
-    }
-
-    final imgAspect = imagePxSize!.width / imagePxSize!.height;
+  /// (BoxFit.contain centre l'image et laisse des marges letterbox).
+  Rect _imageRect(Size displaySize) {
+    final imgAspect = widget.imagePxSize.width / widget.imagePxSize.height;
     final dispAspect = displaySize.width / displaySize.height;
 
     double imgW, imgH, offsetX, offsetY;
 
     if (imgAspect > dispAspect) {
-      // Limité par la largeur
       imgW = displaySize.width;
       imgH = imgW / imgAspect;
       offsetX = 0;
       offsetY = (displaySize.height - imgH) / 2;
     } else {
-      // Limité par la hauteur
       imgH = displaySize.height;
       imgW = imgH * imgAspect;
       offsetX = (displaySize.width - imgW) / 2;
@@ -388,24 +364,5 @@ class _ImageOverlayPositioned extends StatelessWidget {
     }
 
     return Rect.fromLTWH(offsetX, offsetY, imgW, imgH);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final rect = _imageRect();
-
-    return Positioned(
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-      child: AyahSelectionOverlay(
-        page: page,
-        displaySize: Size(rect.width, rect.height),
-        imageSize: imagePxSize,
-        selectedVerseKey: selectedVerseKey,
-        onAyahTapped: onAyahTapped,
-      ),
-    );
   }
 }

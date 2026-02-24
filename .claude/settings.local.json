@@ -6,7 +6,8 @@
       "Bash(echo \"mv exit: $?\")",
       "Bash(python3.exe --version)",
       "Bash(py --version)",
-      "Bash(python -:*)"
+      "Bash(python -:*)",
+      "WebFetch(domain:qul.tarteel.ai)"
     ],
     "additionalDirectories": [
       "\\tmp"
