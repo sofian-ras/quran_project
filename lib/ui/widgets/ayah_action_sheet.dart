@@ -10,8 +10,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:dio/dio.dart';
 import 'dart:async';
 import '../../services/quran_text_db.dart';
+import '../../services/quran_translation_pack_service.dart';
 import '../../services/verse_favorites_service.dart';
 import '../../services/audio_service.dart';
 import '../../surah_name.dart';
@@ -51,6 +53,10 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   bool _isFavorite = false;
   bool _showTafsir = false;
   bool _isPlaying = false;
+  bool _packReady = false;
+  bool _downloading = false;
+  double _downloadProgress = 0;
+  CancelToken? _cancelToken;
 
   String get _verseKey => '${widget.surah}:${widget.ayah}';
   String get _surahName => surahFr[widget.surah] ?? 'Sourate ${widget.surah}';
@@ -76,14 +82,53 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   }
 
   Future<void> _load() async {
+    await QuranTranslationPackService.migrateLegacyToQulIfNeeded();
+    final ready = await QuranTextDb.instance.isReady();
     final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
     final fav = await VerseFavoritesService.instance.isFavorite(_verseKey);
     if (!mounted) return;
     setState(() {
+      _packReady = ready;
       _verse = verse;
       _isFavorite = fav;
       _loading = false;
     });
+  }
+
+  Future<void> _downloadAndReload() async {
+    if (_downloading) return;
+    setState(() {
+      _downloading = true;
+      _downloadProgress = 0;
+    });
+    _cancelToken = CancelToken();
+    try {
+      await QuranTranslationPackService.downloadPack(
+        AppLang.fr,
+        onProgress: (prog) {
+          if (!mounted) return;
+          setState(() => _downloadProgress = prog);
+        },
+        cancelToken: _cancelToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _downloading = false;
+        _loading = true;
+      });
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _downloading = false);
+      // Si annulé volontairement, pas de snackbar
+      if (e is DioException && e.type == DioExceptionType.cancel) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur téléchargement : $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _toggleFavorite() async {
@@ -210,15 +255,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
                     : _verse == null
-                        ? Center(
-                            child: Text(
-                              'Texte non disponible\n(pack texte non téléchargé)',
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: Colors.grey,
-                              ),
-                            ),
-                          )
+                        ? _buildNoPackState(isDark, theme, scrollController)
                         : _buildContent(scrollController, isDark, theme),
               ),
             ],
@@ -251,7 +288,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
             ),
           ),
           child: Text(
-            _verse!.ar,
+            sanitizeQulText(_verse!.ar),
             textAlign: TextAlign.right,
             textDirection: TextDirection.rtl,
             style: TextStyle(
@@ -279,8 +316,24 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
         const SizedBox(height: 20),
 
         // ── Tafsir (accordéon) ───────────────────────────────
-        if (_verse!.tafsir != null && _verse!.tafsir!.isNotEmpty)
-          _buildTafsirSection(isDark, theme),
+        _buildTafsirSection(isDark, theme),
+      ],
+    );
+  }
+
+  /// État "pack non téléchargé" avec bouton de téléchargement.
+  Widget _buildNoPackState(bool isDark, ThemeData theme, ScrollController sc) {
+    return ListView(
+      controller: sc,
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      children: [
+        Text(
+          'Texte non disponible',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+        ),
+        const SizedBox(height: 20),
+        _buildTafsirSection(isDark, theme),
       ],
     );
   }
@@ -339,67 +392,132 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   }
 
   Widget _buildTafsirSection(bool isDark, ThemeData theme) {
+    final gold = isDark ? const Color(0xFFF5D278) : const Color(0xFFB8860B);
+    final goldDark = isDark ? const Color(0xFFF5D278) : const Color(0xFF8B6914);
+    final hasTafsir = _verse?.tafsir != null && _verse!.tafsir!.isNotEmpty;
+    final packMissing = !_packReady && !_downloading;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── En-tête accordéon ────────────────────────────────
         InkWell(
-          onTap: () => setState(() => _showTafsir = !_showTafsir),
+          onTap: () {
+            if (packMissing) {
+              // Pack absent → lancer le téléchargement
+              _downloadAndReload();
+            } else if (hasTafsir) {
+              setState(() => _showTafsir = !_showTafsir);
+            }
+            // Si pack prêt mais tafsir vide : rien à faire
+          },
           borderRadius: BorderRadius.circular(10),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.black.withOpacity(0.04),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.menu_book_rounded,
-                  size: 18,
-                  color: isDark
-                      ? const Color(0xFFF5D278)
-                      : const Color(0xFFB8860B),
-                ),
+                Icon(Icons.menu_book_rounded, size: 18, color: gold),
                 const SizedBox(width: 8),
                 Text(
                   'Tafsir',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: isDark
-                        ? const Color(0xFFF5D278)
-                        : const Color(0xFF8B6914),
+                    color: goldDark,
                   ),
                 ),
                 const Spacer(),
-                AnimatedRotation(
-                  turns: _showTafsir ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: const Icon(Icons.keyboard_arrow_down_rounded,
-                      size: 20),
-                ),
+                if (_downloading)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (packMissing)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.download_rounded, size: 18, color: goldDark),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Télécharger',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: goldDark,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  )
+                else if (hasTafsir)
+                  AnimatedRotation(
+                    turns: _showTafsir ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: const Icon(Icons.keyboard_arrow_down_rounded,
+                        size: 20),
+                  ),
               ],
             ),
           ),
         ),
-        AnimatedCrossFade(
-          firstChild: const SizedBox.shrink(),
-          secondChild: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
-            child: Text(
-              _verse!.tafsir!,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                height: 1.75,
-                color: isDark ? Colors.white70 : const Color(0xFF444444),
-                fontStyle: FontStyle.italic,
+
+        // ── Barre de progression ─────────────────────────────
+        if (_downloading) ...
+          [
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: _downloadProgress,
+                minHeight: 4,
+                backgroundColor:
+                    isDark ? Colors.white12 : Colors.black12,
+                valueColor: AlwaysStoppedAnimation<Color>(gold),
               ),
             ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '${(_downloadProgress * 100).toStringAsFixed(0)} %',
+                style: TextStyle(fontSize: 11, color: goldDark),
+              ),
+            ),
+          ],
+
+        // ── Contenu tafsir ───────────────────────────────────
+        if (!_downloading)
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+              child: hasTafsir
+                  ? Text(
+                      sanitizeQulText(_verse!.tafsir!),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        height: 1.75,
+                        color: isDark
+                            ? Colors.white70
+                            : const Color(0xFF444444),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    )
+                  : Text(
+                      'Tafsir non disponible pour ce verset.',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: Colors.grey),
+                    ),
+            ),
+            crossFadeState: (_showTafsir && hasTafsir)
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 250),
           ),
-          crossFadeState: _showTafsir
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          duration: const Duration(milliseconds: 250),
-        ),
       ],
     );
   }
@@ -452,4 +570,20 @@ class _ActionButton extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Nettoyage du texte brut (balises HTML, tokens OTF, etc.) ─────────────────
+String sanitizeQulText(String input) {
+  var s = input;
+  // Supprime balises type <...> (HTML / XML / markup Quranique)
+  s = s.replaceAll(RegExp(r'<[^>]+>'), '');
+  // Supprime tokens typographiques injectés en clair (rule(...) class=slnt ...)
+  s = s.replaceAll(
+    RegExp(r'\b(rule|class|slnt|wght|wdth)\b[^ \n]*', caseSensitive: false),
+    '',
+  );
+  // Normalise les espaces et sauts de ligne superflus
+  s = s.replaceAll(RegExp(r'[ \t]{2,}'), ' ');
+  s = s.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+  return s.trim();
 }

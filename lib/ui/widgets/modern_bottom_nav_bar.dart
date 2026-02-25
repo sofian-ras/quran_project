@@ -88,7 +88,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
     final List<IconData> icons = [
       Icons.home_rounded,
       Icons.mosque_rounded,
-      Icons.auto_awesome_rounded,
+      Icons.volunteer_activism_rounded,
       Icons.more_horiz_rounded,
     ];
 

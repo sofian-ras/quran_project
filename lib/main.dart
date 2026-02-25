@@ -7,12 +7,22 @@ import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
 import 'services/audio_service.dart';
 import 'services/navigation_service.dart';
+import 'services/quran_translation_pack_service.dart';
+import 'services/quran_text_db.dart';
 import 'ui/bottom_nav_shell.dart';
 
 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Migration one-shot : quran_translation/ → qul/
+  await QuranTranslationPackService.migrateLegacyToQulIfNeeded();
+  // Diagnostic (supprimable une fois confirmé)
+  final dbReady = await QuranTextDb.instance.isReady();
+  // ignore: avoid_print
+  print('[QuranTextDb] ready? $dbReady');
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

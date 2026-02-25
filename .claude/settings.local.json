@@ -7,7 +7,13 @@
       "Bash(python3.exe --version)",
       "Bash(py --version)",
       "Bash(python -:*)",
-      "WebFetch(domain:qul.tarteel.ai)"
+      "WebFetch(domain:qul.tarteel.ai)",
+      "WebFetch(domain:fontawesome.com)",
+      "WebFetch(domain:www.w3schools.com)",
+      "WebFetch(domain:fontawesome.cc)",
+      "WebFetch(domain:pub.dev)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(python -c \":*)"
     ],
     "additionalDirectories": [
       "\\tmp"
