@@ -83,11 +83,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
     const double vMargin  = 14.0;
     const double gap      = 10.0;
 
-    // ── Palette gold ────────────────────────────────────────────────
-    const Color gold       = Color(0xFFB8860B);
     const Color goldLight  = Color(0xFFD4AF37);
-    const Color goldVif    = Color(0xFFFFCF40);
-    const Color inactive   = Color(0x55000000);
 
     final List<IconData> icons = [
       Icons.home_rounded,
@@ -96,42 +92,36 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
       Icons.more_horiz_rounded,
     ];
 
-    // ── Barre avec indicateur glissant ──────────────────────────────
+    // ── Barre — verre dépoli identique au logo ──────────────────────
     Widget navBar() {
       return Expanded(
         child: SizedBox(
           height: barH,
-          child: DecoratedBox(
+          child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(barH / 2),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.60),
-                width: 1.0,
-              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 20,
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 18,
                   offset: const Offset(0, 6),
-                ),
-                BoxShadow(
-                  color: goldLight.withValues(alpha: 0.10),
-                  blurRadius: 10,
-                  offset: const Offset(0, 1),
                 ),
               ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(barH / 2),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-                child: ColoredBox(
-                  color: Colors.white.withValues(alpha: 0.78),
+                filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(barH / 2),
+                    color: const Color(0xFFFDF6D8).withValues(alpha: 0.50),
+                  ),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final double totalW  = constraints.maxWidth;
-                      final double itemW   = totalW / 4;
-                      const double pillW = 44.0;
+                      final double totalW = constraints.maxWidth;
+                      final double itemW  = totalW / 4;
+                      const double pillW  = 44.0;
 
                       final double pillLeft = (widget.index == 0 || widget.index == 3)
                           ? widget.index * itemW
@@ -143,7 +133,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
 
                       return Stack(
                         children: [
-                          // ── Indicateur glissant ──────────────────
+                          // ── Pill actif ───────────────────────────
                           AnimatedPositioned(
                             duration: const Duration(milliseconds: 320),
                             curve: Curves.easeOutCubic,
@@ -154,14 +144,10 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                             child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(barH / 2),
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [goldVif, gold],
-                                ),
+                                color: const Color(0xFF1B5E20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: gold.withValues(alpha: 0.40),
+                                    color: const Color(0xFF1B5E20).withValues(alpha: 0.40),
                                     blurRadius: 10,
                                     offset: const Offset(0, 3),
                                   ),
@@ -179,9 +165,9 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                                 height: barH,
                                 child: GestureDetector(
                                   behavior: HitTestBehavior.opaque,
-                                  onTapDown:  (_) { if (!sel) _iconCtrl[i]!.forward(); },
-                                  onTapUp:    (_) { _iconCtrl[i]!.reverse(); _tapItem(i); },
-                                  onTapCancel: () => _iconCtrl[i]!.reverse(),
+                                  onTapDown:   (_) { if (!sel) _iconCtrl[i]!.forward(); },
+                                  onTapUp:     (_) { _iconCtrl[i]!.reverse(); _tapItem(i); },
+                                  onTapCancel: ()  => _iconCtrl[i]!.reverse(),
                                   child: Center(
                                     child: AnimatedBuilder(
                                       animation: _iconScale[i]!,
@@ -196,7 +182,9 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                                         child: Icon(
                                           icons[i],
                                           size: 21,
-                                          color: sel ? Colors.white : inactive,
+                                          color: sel
+                                              ? Colors.white
+                                              : const Color(0xFF2E7D32),
                                         ),
                                       ),
                                     ),
@@ -267,21 +255,14 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
                           child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.18),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.55),
-                                width: 1.5,
-                              ),
-                            ),
+                            color: const Color(0xFF0D3B12),
                             child: Center(
                               child: SvgPicture.asset(
                                 'assets/images/navbar/Quran_Kareem.svg',
                                 width: 42,
                                 height: 42,
                                 colorFilter: const ColorFilter.mode(
-                                  Colors.white,
+                                  Color(0xFFFFCF40),
                                   BlendMode.srcIn,
                                 ),
                               ),
