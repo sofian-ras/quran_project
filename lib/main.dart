@@ -18,18 +18,17 @@ Future<void> main() async {
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
       statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarColor: Color(0x33000000), // 80 % transparent
+      systemNavigationBarDividerColor: Colors.transparent,
       systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarContrastEnforced: false,
     ),
   );
   PaintingBinding.instance.imageCache.maximumSizeBytes = 150 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 200;
   await ThemeService.init();
 
-  SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.manual,
-    overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
-  );
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -46,14 +45,27 @@ class QuranApp extends StatefulWidget {
 }
 
 class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
+  static void _applyNavBarStyle() {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        systemNavigationBarColor: Color(0x33000000),
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarContrastEnforced: false,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Réapplique le style à chaque changement de thème
+    ThemeService.themeMode.addListener(_applyNavBarStyle);
   }
 
   @override
   void dispose() {
+    ThemeService.themeMode.removeListener(_applyNavBarStyle);
     WidgetsBinding.instance.removeObserver(this);
     AudioService.instance.dispose();
     super.dispose();
@@ -64,6 +76,10 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused) {
       AudioService.instance.pause();
     }
+    // Réapplique au retour au premier plan
+    if (state == AppLifecycleState.resumed) {
+      _applyNavBarStyle();
+    }
   }
 
   @override
@@ -71,7 +87,14 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: ThemeService.themeMode,
       builder: (context, mode, _) {
-        return MaterialApp(
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: Color(0x33000000),
+            systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarContrastEnforced: false,
+          ),
+          child: MaterialApp(
           debugShowCheckedModeBanner: false,
           navigatorKey: NavigationService.navigatorKey,
           theme: AppTheme.lightTheme,
@@ -95,7 +118,8 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
               ],
             );
           },
-        );
+        ),       // MaterialApp
+        );       // AnnotatedRegion
       },
     );
   }

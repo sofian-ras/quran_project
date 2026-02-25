@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'home_screen.dart';
 import 'prayers_screen.dart';
-import 'favorites_screen.dart';
+import 'dua_screen.dart';
 import 'settings_screen.dart';
 import 'reader_screen.dart';
 
@@ -26,7 +26,7 @@ class _BottomNavShellState extends State<BottomNavShell> {
   late final List<Widget> _pages = <Widget>[
     const HomeScreen(key: PageStorageKey('tab_home')),
     const PrayersScreen(key: PageStorageKey('tab_prayers')),
-    const FavoritesScreen(key: PageStorageKey('tab_favorites')),
+    const DuaScreen(key: PageStorageKey('tab_dua')),
     const SettingsScreen(key: PageStorageKey('tab_settings')),
   ];
 
