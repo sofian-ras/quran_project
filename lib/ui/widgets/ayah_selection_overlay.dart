@@ -96,8 +96,8 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (d) => _selectFromLocalPos(d.localPosition),
-      onLongPressStart: (d) => _selectFromLocalPos(d.localPosition),
+      onTap: () => widget.onAyahTapped(-1, -1, null), // tap simple → toggle UI
+      onLongPressStart: (d) => _selectFromLocalPos(d.localPosition), // appui long → sélection
       child: CustomPaint(
         size: Size.infinite,
         painter: _AyahHighlightPainter(

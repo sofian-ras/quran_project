@@ -55,19 +55,25 @@ class QuranPagesHitboxDb {
     required double y,
   }) async {
     await _open();
+    // Distance Manhattan du point (x,y) au rectangle le plus proche.
+    // MAX(minx-x, 0) = dépassement à gauche ; MAX(x-maxx, 0) = à droite.
+    // Retourne l'ayah le plus proche si la distance est ≤ 20 px image.
     final rows = await _db!.rawQuery(
       '''
-      SELECT soraid, ayaid
+      SELECT soraid, ayaid,
+             (MAX(minx - ?, 0.0) + MAX(? - maxx, 0.0)) +
+             (MAX(miny - ?, 0.0) + MAX(? - maxy, 0.0)) AS dist
       FROM ayarects
       WHERE page = ?
-        AND ? >= minx AND ? <= maxx
-        AND ? >= miny AND ? <= maxy
+      ORDER BY dist ASC
       LIMIT 1
       ''',
-      [page, x, x, y, y],
+      [x, x, y, y, page],
     );
 
     if (rows.isEmpty) return null;
+    final dist = (rows.first['dist'] as num).toDouble();
+    if (dist > 20.0) return null; // tap trop loin du texte (marges, inter-sourates)
     return {
       'surah': rows.first['soraid'] as int,
       'ayah': rows.first['ayaid'] as int,
