@@ -1036,6 +1036,9 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
             if (rows.isNotEmpty) {
               final row = rows.first;
               _arabicText = ((row['ar'] as String?) ?? '')
+                  .replaceAll('\u200C', '')
+                  .replaceAll('\u200D', '')
+                  .replaceAll('\u200B', '')
                   .replaceAll('\u200F', '')
                   .replaceAll('\u200E', '')
                   .trim();
@@ -1067,6 +1070,9 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
         final frText = frData[_verseNumber - 1]['translation']?.toString() ?? '';
         
         _arabicText = arText
+            .replaceAll('\u200C', '')
+            .replaceAll('\u200D', '')
+            .replaceAll('\u200B', '')
             .replaceAll('\u200F', '')
             .replaceAll('\u200E', '')
             .trim();
@@ -1159,11 +1165,13 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
               _arabicText,
               textAlign: TextAlign.center,
               textDirection: TextDirection.rtl,
+              locale: const Locale('ar'),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'ScheherazadeNew',
                 fontSize: 18,
+                letterSpacing: 0.0,
                 color: arabicColor,
                 height: 1.6,
               ),

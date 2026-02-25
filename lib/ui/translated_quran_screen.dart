@@ -1757,6 +1757,9 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
   String _stripTrailingAyahNumber(String input) {
     return input
+        .replaceAll('\u200C', '')
+        .replaceAll('\u200D', '')
+        .replaceAll('\u200B', '')
         .replaceAll('\u200F', '')
         .replaceAll('\u200E', '')
         .replaceAll(RegExp(r'[\s\u0660-\u0669\u06F0-\u06F9]+$'), '');
@@ -2570,7 +2573,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                           fontFamily: 'ScheherazadeNew',
                                           fontWeight: FontWeight.w600,
                                           wordSpacing: 4.5,
-                                          letterSpacing: 0.4,
                                           color: fg,
                                         );
 

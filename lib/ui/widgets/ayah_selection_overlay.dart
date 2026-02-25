@@ -1,4 +1,5 @@
 // lib/ui/widgets/ayah_selection_overlay.dart
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../services/quran_pages_hitbox_db.dart';
 
@@ -94,10 +95,26 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return RawGestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => widget.onAyahTapped(-1, -1, null), // tap simple → toggle UI
-      onLongPressStart: (d) => _selectFromLocalPos(d.localPosition), // appui long → sélection
+      gestures: <Type, GestureRecognizerFactory>{
+        TapGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+          () => TapGestureRecognizer(),
+          (TapGestureRecognizer instance) {
+            instance.onTap = () => widget.onAyahTapped(-1, -1, null);
+          },
+        ),
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+          () => LongPressGestureRecognizer(
+              duration: const Duration(milliseconds: 200)),
+          (LongPressGestureRecognizer instance) {
+            instance.onLongPressStart =
+                (d) => _selectFromLocalPos(d.localPosition);
+          },
+        ),
+      },
       child: CustomPaint(
         size: Size.infinite,
         painter: _AyahHighlightPainter(
