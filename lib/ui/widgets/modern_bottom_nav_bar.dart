@@ -77,8 +77,8 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    const double fabSize  = 62.0;
-    const double barH     = fabSize * 0.84;
+    const double fabSize  = 72.0;
+    const double barH     = 52.0;
     const double hMargin  = 14.0;
     const double vMargin  = 14.0;
     const double gap      = 10.0;
@@ -115,7 +115,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(barH / 2),
-                    color: const Color(0xFFFDF6D8).withValues(alpha: 0.50),
+                    color: Colors.white.withValues(alpha: 0.55),
                   ),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -255,14 +255,14 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
                           child: Container(
-                            color: const Color(0xFF0D3B12),
+                            color: Colors.white.withValues(alpha: 0.55),
                             child: Center(
                               child: SvgPicture.asset(
                                 'assets/images/navbar/Quran_Kareem.svg',
-                                width: 42,
-                                height: 42,
+                                width: 52,
+                                height: 52,
                                 colorFilter: const ColorFilter.mode(
-                                  Color(0xFFFFCF40),
+                                  Color(0xFF1B5E20),
                                   BlendMode.srcIn,
                                 ),
                               ),
