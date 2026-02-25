@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// Barre de navigation en deux demi-capsules avec FAB central flottant.
+/// Barre de navigation en deux demi-capsules avec encoche concave pour le FAB central.
 class ModernBottomNavBar extends StatelessWidget {
-  final int index; // 0=Accueil 1=Prières 2=Du'a 3=Plus
+  final int index;
   final ValueChanged<int> onChanged;
   final VoidCallback onCenterTap;
 
@@ -20,15 +20,17 @@ class ModernBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    const double barH    = 64.0;
-    const double hMargin = 20.0;
+    const double barH = 64.0;
+    const double hMargin = 30.0;
     const double vMargin = 14.0;
     const double fabSize = 64.0;
-    const double fabGap  = 20.0; // espace de chaque côté du FAB
+    const double centerGap = 20.0;
 
-    const Color bgColor  = Color(0x8CFFFFFF);
-    const Color gold     = Color(0xFFB8860B);
-    const Color inactive = Color(0x59000000); // 35 %
+    const Color bgColor = Color(0x8CFFFFFF);
+    const Color gold = Color(0xFFB8860B);
+    const Color inactive = Color(0x59000000);
+
+    const double notchR = fabSize / 2 + centerGap / 2;
 
     void tapItem(int i) {
       if (i == index) return;
@@ -67,10 +69,19 @@ class ModernBottomNavBar extends StatelessWidget {
       );
     }
 
-    Widget halfBar(List<Widget> items) {
+    Widget halfBar(
+      List<Widget> items, {
+      required bool isLeft,
+      required double halfW,
+    }) {
+      const double outerR = 32.0;
+
+      // Padding proportionnel à la largeur de la barre → cohérent sur tous les écrans
+      final double innerPad = halfW * 0.20;
+
       return DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
+          borderRadius: BorderRadius.circular(outerR),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.12),
@@ -79,15 +90,25 @@ class ModernBottomNavBar extends StatelessWidget {
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
+        child: ClipPath(
+          clipper: _InnerNotchClipper(
+            isLeft: isLeft,
+            outerRadius: outerR,
+            notchRadius: notchR,
+          ),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: ColoredBox(
               color: bgColor,
               child: Material(
                 color: Colors.transparent,
-                child: Row(children: items),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: isLeft ? 0 : innerPad,
+                    right: isLeft ? innerPad : 0,
+                  ),
+                  child: Row(children: items),
+                ),
               ),
             ),
           ),
@@ -101,34 +122,58 @@ class ModernBottomNavBar extends StatelessWidget {
       height: totalH,
       child: Stack(
         children: [
-          // ── Deux demi-barres ──────────────────────────────────────────────
+          // ── Barres gauche + droite ───────────────────────────────────────
           Positioned(
             bottom: vMargin + bottomInset,
             left: 0,
             right: 0,
             height: barH,
-            child: Row(
-              children: [
-                const SizedBox(width: hMargin),
-                Expanded(
-                  child: halfBar([
-                    navItem(0, Icons.home_rounded),
-                    navItem(1, Icons.mosque_rounded),
-                  ]),
-                ),
-                const SizedBox(width: fabSize + fabGap * 2),
-                Expanded(
-                  child: halfBar([
-                    navItem(2, Icons.auto_awesome_rounded),
-                    navItem(3, Icons.more_horiz_rounded),
-                  ]),
-                ),
-                const SizedBox(width: hMargin),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: hMargin),
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  final double availableW = c.maxWidth - centerGap;
+                  final double halfW = (availableW / 2).clamp(120.0, 240.0);
+
+                  return Center(
+                    child: SizedBox(
+                      width: (halfW * 2) + centerGap,
+                      height: barH,
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: halfW,
+                            child: halfBar(
+                              [
+                                navItem(0, Icons.home_rounded),
+                                navItem(1, Icons.mosque_rounded),
+                              ],
+                              isLeft: true,
+                              halfW: halfW,
+                            ),
+                          ),
+                          SizedBox(width: centerGap),
+                          SizedBox(
+                            width: halfW,
+                            child: halfBar(
+                              [
+                                navItem(2, Icons.auto_awesome_rounded),
+                                navItem(3, Icons.more_horiz_rounded),
+                              ],
+                              isLeft: false,
+                              halfW: halfW,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
 
-          // ── FAB centré entre les deux barres ─────────────────────────────
+          // ── FAB ─────────────────────────────────────────────────────────
           Positioned(
             bottom: vMargin + bottomInset,
             left: 0,
@@ -181,5 +226,44 @@ class ModernBottomNavBar extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _InnerNotchClipper extends CustomClipper<Path> {
+  final bool isLeft;
+  final double outerRadius;
+  final double notchRadius;
+
+  _InnerNotchClipper({
+    required this.isLeft,
+    required this.outerRadius,
+    required this.notchRadius,
+  });
+
+  @override
+  Path getClip(Size size) {
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(outerRadius),
+    );
+
+    final cx = isLeft ? size.width : 0.0;
+    final cy = size.height / 2;
+
+    final notchCircle = Path()
+      ..addOval(Rect.fromCircle(center: Offset(cx, cy), radius: notchRadius));
+
+    return Path.combine(
+      PathOperation.difference,
+      Path()..addRRect(rect),
+      notchCircle,
+    );
+  }
+
+  @override
+  bool shouldReclip(covariant _InnerNotchClipper oldClipper) {
+    return oldClipper.isLeft != isLeft ||
+        oldClipper.outerRadius != outerRadius ||
+        oldClipper.notchRadius != notchRadius;
   }
 }
