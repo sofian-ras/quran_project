@@ -7,7 +7,9 @@ class AyahSelectionOverlay extends StatefulWidget {
   final Size displaySize;
   final Size imageSize;
   final String? selectedVerseKey;
-  final void Function(int surah, int ayah) onAyahTapped;
+  /// Appelé avec (surah, ayah, globalRect) — globalRect est le rect de la
+  /// sélection en coordonnées écran globales, null si rien n'est touché.
+  final void Function(int surah, int ayah, Rect? globalRect) onAyahTapped;
 
   const AyahSelectionOverlay({
     super.key,
@@ -42,7 +44,7 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
 
     if (hit == null) {
       setState(() => _wordRects = []);
-      widget.onAyahTapped(-1, -1);
+      widget.onAyahTapped(-1, -1, null);
       return;
     }
 
@@ -56,9 +58,30 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     );
 
     if (!mounted) return;
-
     setState(() => _wordRects = rects);
-    widget.onAyahTapped(surah, ayah);
+
+    // Calcul du rect global de la sélection pour positionner la bulle
+    Rect? globalRect;
+    if (rects.isNotEmpty) {
+      final ro = context.findRenderObject() as RenderBox?;
+      if (ro != null && ro.hasSize) {
+        final sx = widget.displaySize.width / widget.imageSize.width;
+        final sy = widget.displaySize.height / widget.imageSize.height;
+        double minX = double.infinity, minY = double.infinity;
+        double maxX = -double.infinity, maxY = -double.infinity;
+        for (final r in rects) {
+          if (r.left * sx < minX) minX = r.left * sx;
+          if (r.top * sy < minY) minY = r.top * sy;
+          if (r.right * sx > maxX) maxX = r.right * sx;
+          if (r.bottom * sy > maxY) maxY = r.bottom * sy;
+        }
+        final gTL = ro.localToGlobal(Offset(minX, minY));
+        final gBR = ro.localToGlobal(Offset(maxX, maxY));
+        globalRect = Rect.fromPoints(gTL, gBR);
+      }
+    }
+
+    widget.onAyahTapped(surah, ayah, globalRect);
   }
 
   @override
@@ -98,31 +121,25 @@ class _AyahHighlightPainter extends CustomPainter {
     required this.wordRects,
   });
 
-  /// Regroupe les rects par ligne (Y-center similaires) et retourne
-  /// le rect union de chaque ligne.
   List<Rect> _groupByLine(List<Rect> rects) {
     if (rects.isEmpty) return [];
 
-    final scaleX = displaySize.width / imageSize.width;
-    final scaleY = displaySize.height / imageSize.height;
+    final sx = displaySize.width / imageSize.width;
+    final sy = displaySize.height / imageSize.height;
 
-    // Convertir en coordonnées écran
-    final screen = rects.map((r) => Rect.fromLTRB(
-      r.left * scaleX, r.top * scaleY,
-      r.right * scaleX, r.bottom * scaleY,
-    )).toList();
-
-    // Trier par Y croissant
+    final screen = rects
+        .map((r) => Rect.fromLTRB(
+              r.left * sx, r.top * sy, r.right * sx, r.bottom * sy))
+        .toList();
     screen.sort((a, b) => a.top.compareTo(b.top));
 
     final lines = <List<Rect>>[];
     for (final r in screen) {
       final center = (r.top + r.bottom) / 2;
-      // Cherche une ligne existante dont l'intervalle vertical se chevauche
       final idx = lines.indexWhere((line) {
-        final lineTop = line.map((x) => x.top).reduce((a, b) => a < b ? a : b);
-        final lineBot = line.map((x) => x.bottom).reduce((a, b) => a > b ? a : b);
-        return center >= lineTop && center <= lineBot;
+        final lt = line.map((x) => x.top).reduce((a, b) => a < b ? a : b);
+        final lb = line.map((x) => x.bottom).reduce((a, b) => a > b ? a : b);
+        return center >= lt && center <= lb;
       });
       if (idx >= 0) {
         lines[idx].add(r);
@@ -131,7 +148,6 @@ class _AyahHighlightPainter extends CustomPainter {
       }
     }
 
-    // Union de chaque ligne
     return lines.map((line) {
       final l = line.map((r) => r.left).reduce((a, b) => a < b ? a : b);
       final t = line.map((r) => r.top).reduce((a, b) => a < b ? a : b);
@@ -144,16 +160,12 @@ class _AyahHighlightPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (wordRects.isEmpty) return;
-
     final paint = Paint()
       ..color = const Color(0x66FFC107)
       ..style = PaintingStyle.fill;
-
     for (final r in _groupByLine(wordRects)) {
       canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(6)),
-        paint,
-      );
+          RRect.fromRectAndRadius(r, const Radius.circular(6)), paint);
     }
   }
 

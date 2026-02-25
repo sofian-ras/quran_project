@@ -11,7 +11,7 @@ import 'screens/quran_loader.dart';
 import '../services/quran_image_service.dart';
 import '../services/quran_pages_hitbox_db.dart';
 import 'widgets/ayah_selection_overlay.dart';
-import 'widgets/ayah_action_sheet.dart';
+import 'widgets/ayah_bubble.dart';
 import '../services/quran_page_preloader.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
@@ -361,6 +361,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 reverse: true,
                 itemCount: 604,
                 onPageChanged: (p) {
+                  AyahBubble.dismiss();
                   setState(() {
                     currentPage = p + 1;
                     _selectedVerseKey = null;
@@ -522,30 +523,30 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
   }
 
-  void _onAyahTapped(int surah, int ayah) {
+  void _onAyahTapped(int surah, int ayah, Rect? globalRect) {
     if (surah == -1) {
-      // Tap hors verset → toggle UI
-      setState(() => _showUI = !_showUI);
+      AyahBubble.dismiss();
+      setState(() {
+        _showUI = !_showUI;
+        _selectedVerseKey = null;
+      });
       return;
     }
 
     final key = '$surah:$ayah';
-
-    if (_selectedVerseKey == key) {
-      AyahActionSheet.show(context, surah: surah, ayah: ayah);
-      return;
-    }
-
     setState(() => _selectedVerseKey = key);
 
-    Future.delayed(const Duration(milliseconds: 180), () {
-      if (!mounted) return;
-      if (_selectedVerseKey == key) {
-        AyahActionSheet.show(context, surah: surah, ayah: ayah).then((_) {
+    if (globalRect != null) {
+      AyahBubble.show(
+        context,
+        surah: surah,
+        ayah: ayah,
+        anchorGlobalRect: globalRect,
+        onDismiss: () {
           if (mounted) setState(() => _selectedVerseKey = null);
-        });
-      }
-    });
+        },
+      );
+    }
   }
 
   Widget _loadingPage(BuildContext context, int pageNum) {

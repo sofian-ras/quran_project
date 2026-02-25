@@ -16,7 +16,7 @@ import 'package:flutter/material.dart';
 import '../../services/quran_pages_hitbox_db.dart';
 import '../../services/quran_image_service.dart';
 import 'ayah_selection_overlay.dart';
-import 'ayah_action_sheet.dart';
+import 'ayah_bubble.dart';
 
 class QuranPageView extends StatefulWidget {
   final String reading; // 'hafs' ou 'warsh'
@@ -125,6 +125,7 @@ class _QuranPageViewState extends State<QuranPageView> {
     _lastCenterPage = currentPage;
     // Désélectionner quand on tourne la page
     if (_selectedVerseKey != null) {
+      AyahBubble.dismiss();
       setState(() => _selectedVerseKey = null);
     }
     _precacheDebounce?.cancel();
@@ -178,35 +179,27 @@ class _QuranPageViewState extends State<QuranPageView> {
 
   // ── Gestion de la sélection ──────────────────────────────────────────────
 
-  void _onAyahTapped(int surah, int ayah) {
-    // surah == -1 → tap en dehors → désélectionner
+  void _onAyahTapped(int surah, int ayah, Rect? globalRect) {
     if (surah == -1) {
+      AyahBubble.dismiss();
       setState(() => _selectedVerseKey = null);
       return;
     }
 
     final key = '$surah:$ayah';
-
-    // Si on tape sur le même verset déjà sélectionné → ouvrir la sheet
-    if (_selectedVerseKey == key) {
-      AyahActionSheet.show(context, surah: surah, ayah: ayah);
-      return;
-    }
-
-    // Sinon → surligner
     setState(() => _selectedVerseKey = key);
 
-    // Petit délai puis ouvrir la sheet automatiquement
-    // (retire ce Future.delayed si tu veux juste surligner sans sheet auto)
-    Future.delayed(const Duration(milliseconds: 180), () {
-      if (!mounted) return;
-      if (_selectedVerseKey == key) {
-        AyahActionSheet.show(context, surah: surah, ayah: ayah).then((_) {
-          // Désélectionner après fermeture de la sheet
+    if (globalRect != null) {
+      AyahBubble.show(
+        context,
+        surah: surah,
+        ayah: ayah,
+        anchorGlobalRect: globalRect,
+        onDismiss: () {
           if (mounted) setState(() => _selectedVerseKey = null);
-        });
-      }
-    });
+        },
+      );
+    }
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
