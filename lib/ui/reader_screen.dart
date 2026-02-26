@@ -183,8 +183,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _onPlayingAyahChanged() async {
+    if (!mounted) return;
     final key = MiniPlayerService.instance.currentAyahKey.value;
-    if (key == null || !mounted) return;
+
+    // Stop ou fin de lecture : efface le highlight
+    if (key == null) {
+      setState(() {});
+      return;
+    }
+
     final parts = key.split(':');
     if (parts.length != 2) return;
     final surah = int.tryParse(parts[0]);
@@ -201,8 +208,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         curve: Curves.easeInOut,
       );
     }
-    // Rebuild pour mettre à jour le highlight du verset en cours
-    if (mounted) setState(() {});
+    setState(() {});
   }
 
   @override
@@ -569,56 +575,54 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _onAyahTapped(int surah, int ayah, Rect? globalRect) {
-    // ── Tap simple : toggle UI + annule la sélection de plage ────────────────
+    // ── Tap simple : toggle UI + efface tout ──────────────────────────────────
     if (surah == -1) {
       AyahBubble.dismiss();
       setState(() {
-        _showUI = !_showUI;
-        _selectedVerseKey = null;
-        if (_selectionStartKey != null) {
-          _selectionStartKey = null;
-          _selectionEndKey   = null;
-          MiniPlayerService.instance.clearSelection();
-        }
+        _showUI            = !_showUI;
+        _selectedVerseKey  = null;
+        _selectionStartKey = null;
+        _selectionEndKey   = null;
+        MiniPlayerService.instance.clearSelection();
       });
       return;
     }
 
-    // ── Long press : met à jour la sélection de plage ─────────────────────────
     final svc = MiniPlayerService.instance;
-    setState(() {
-      _selectedVerseKey = '$surah:$ayah';
 
-      if (_selectionStartKey == null || _selectionEndKey != null) {
-        // Pas encore de début, ou plage déjà complète → nouveau début
+    if (_selectionStartKey == null || _selectionEndKey != null) {
+      // ── 1er long press : début de sélection — PAS de bulle ────────────────
+      // (La bulle bloquerait le 2ème long press via l'arène de gestes.)
+      AyahBubble.dismiss();
+      setState(() {
+        _selectedVerseKey  = '$surah:$ayah';
         _selectionStartKey = '$surah:$ayah';
         _selectionEndKey   = null;
-        svc.setSelectionStart(surah, ayah);
-      } else {
-        // Début défini → définir la fin
-        _selectionEndKey = '$surah:$ayah';
-        svc.setSelectionEnd(surah, ayah);
-        // Recalcule _selectionEndKey depuis le service (gère l'inversion si besoin)
+      });
+      svc.setSelectionStart(surah, ayah);
+    } else {
+      // ── 2ème long press : fin de sélection + bulle ────────────────────────
+      svc.setSelectionEnd(surah, ayah);
+      setState(() {
+        _selectedVerseKey  = '$surah:$ayah';
         _selectionStartKey = svc.selectionStartKey;
         _selectionEndKey   = svc.selectionEndKey;
-        // Bascule en mode sélection automatiquement
         if (svc.playMode.value != MiniPlayMode.selection) {
           svc.playMode.value = MiniPlayMode.selection;
         }
+      });
+      if (globalRect != null) {
+        AyahBubble.show(
+          context,
+          surah: surah,
+          ayah: ayah,
+          anchorGlobalRect: globalRect,
+          onDismiss: () {
+            if (mounted) setState(() => _selectedVerseKey = null);
+            // _selectionStartKey / _selectionEndKey conservés → range reste verte
+          },
+        );
       }
-    });
-
-    // ── Bulle d'actions (inchangée) ───────────────────────────────────────────
-    if (globalRect != null) {
-      AyahBubble.show(
-        context,
-        surah: surah,
-        ayah: ayah,
-        anchorGlobalRect: globalRect,
-        onDismiss: () {
-          if (mounted) setState(() => _selectedVerseKey = null);
-        },
-      );
     }
   }
 

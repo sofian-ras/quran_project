@@ -94,10 +94,10 @@ class _BubbleLayout extends StatelessWidget {
 
     return Stack(
       children: [
-        // Fond transparent qui capture les taps extérieurs
+        // Fond transparent : capture les taps (dismiss) sans bloquer les long press
         Positioned.fill(
           child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            behavior: HitTestBehavior.translucent,
             onTap: onDismiss,
             child: const ColoredBox(color: Colors.transparent),
           ),
@@ -179,12 +179,13 @@ class _BubbleState extends State<_Bubble> {
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
-  Future<void> _togglePlay() async {
+  void _togglePlay() {
+    widget.onDismiss(); // ferme immédiatement, avant tout await réseau
     final svc = MiniPlayerService.instance;
     if (svc.currentAyahKey.value == _verseKey && svc.isPlaying.value) {
-      await svc.playPause();
+      svc.playPause();
     } else {
-      await svc.playFrom(surah: widget.surah, ayah: widget.ayah);
+      svc.playFrom(surah: widget.surah, ayah: widget.ayah);
     }
   }
 

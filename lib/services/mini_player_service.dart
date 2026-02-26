@@ -169,13 +169,22 @@ class MiniPlayerService {
   // ── Lecture ───────────────────────────────────────────────────────────────
 
   /// Démarre la lecture à partir d'un verset donné.
-  /// Respecte le [playMode] courant pour déterminer où s'arrêter.
+  /// En mode sélection avec plage complète, ignore [surah]/[ayah] et démarre
+  /// depuis le début de la sélection.
   Future<void> playFrom({required int surah, required int ayah}) async {
-    _stopping     = false;
-    _repeatCount  = 0;
-    _curSurah     = surah;
-    _curAyah      = ayah;
-    _endAyah      = _computeEndAyah(surah, ayah);
+    _stopping    = false;
+    _repeatCount = 0;
+
+    if (playMode.value == MiniPlayMode.selection && hasFullSelection) {
+      final parts = selectionStartKey!.split(':');
+      _curSurah = int.parse(parts[0]);
+      _curAyah  = int.parse(parts[1]);
+    } else {
+      _curSurah = surah;
+      _curAyah  = ayah;
+    }
+
+    _endAyah = _computeEndAyah(_curSurah, _curAyah);
     isExpanded.value = true;
     await _playCurrent();
   }
