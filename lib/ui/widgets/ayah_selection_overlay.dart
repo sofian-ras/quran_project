@@ -7,9 +7,19 @@ class AyahSelectionOverlay extends StatefulWidget {
   final int page;
   final Size displaySize;
   final Size imageSize;
+
+  /// Verset sélectionné (bulle) — surbrillance jaune existante.
   final String? selectedVerseKey;
-  /// Appelé avec (surah, ayah, globalRect) — globalRect est le rect de la
-  /// sélection en coordonnées écran globales, null si rien n'est touché.
+
+  /// Verset en cours de lecture — surbrillance verte vive.
+  final String? playingAyahKey;
+
+  /// Plage de sélection mini lecteur — surbrillance verte légère.
+  final String? selectionStartKey;
+  final String? selectionEndKey;
+
+  /// Appelé avec (surah, ayah, globalRect) sur long-press,
+  /// ou (-1, -1, null) sur tap simple.
   final void Function(int surah, int ayah, Rect? globalRect) onAyahTapped;
 
   const AyahSelectionOverlay({
@@ -19,6 +29,9 @@ class AyahSelectionOverlay extends StatefulWidget {
     required this.imageSize,
     required this.selectedVerseKey,
     required this.onAyahTapped,
+    this.playingAyahKey,
+    this.selectionStartKey,
+    this.selectionEndKey,
   });
 
   @override
@@ -26,7 +39,16 @@ class AyahSelectionOverlay extends StatefulWidget {
 }
 
 class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
+  /// Rects du verset sélectionné (bulle) — jaune.
   List<Rect> _wordRects = [];
+
+  /// Rects du verset en cours de lecture — vert vif.
+  List<Rect> _playingRects = [];
+
+  /// Rects de la plage sélectionnée — vert léger.
+  List<Rect> _selectionRects = [];
+
+  // ── Geste tap ────────────────────────────────────────────────────────────
 
   Future<void> _selectFromLocalPos(Offset localPos) async {
     final dx = localPos.dx.clamp(0.0, widget.displaySize.width);
@@ -50,8 +72,9 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     }
 
     final surah = hit['surah']!;
-    final ayah = hit['ayah']!;
+    final ayah  = hit['ayah']!;
 
+    // Rects uniquement pour ancrer la bulle — plus de highlight jaune
     final rects = await QuranPagesHitboxDb.instance.getAyahRects(
       page: widget.page,
       surah: surah,
@@ -59,9 +82,8 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     );
 
     if (!mounted) return;
-    setState(() => _wordRects = rects);
 
-    // Calcul du rect global de la sélection pour positionner la bulle
+    // Calcul du rect global pour positionner la bulle
     Rect? globalRect;
     if (rects.isNotEmpty) {
       final ro = context.findRenderObject() as RenderBox?;
@@ -85,13 +107,92 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     widget.onAyahTapped(surah, ayah, globalRect);
   }
 
+  // ── Chargement des rects de lecture ──────────────────────────────────────
+
+  Future<void> _loadPlayingRects() async {
+    final key = widget.playingAyahKey;
+    if (key == null) {
+      if (mounted) setState(() => _playingRects = []);
+      return;
+    }
+    final parts = key.split(':');
+    if (parts.length != 2) return;
+    final surah = int.tryParse(parts[0]);
+    final ayah  = int.tryParse(parts[1]);
+    if (surah == null || ayah == null) return;
+
+    final rects = await QuranPagesHitboxDb.instance.getAyahRects(
+      page: widget.page,
+      surah: surah,
+      ayah: ayah,
+    );
+    if (mounted) setState(() => _playingRects = rects);
+  }
+
+  // ── Chargement des rects de sélection de plage ───────────────────────────
+
+  Future<void> _loadSelectionRects() async {
+    final startKey = widget.selectionStartKey;
+    final endKey   = widget.selectionEndKey;
+
+    if (startKey == null) {
+      if (mounted) setState(() => _selectionRects = []);
+      return;
+    }
+
+    final startParts = startKey.split(':');
+    if (startParts.length != 2) return;
+    final surah      = int.tryParse(startParts[0]);
+    final startAyah  = int.tryParse(startParts[1]);
+    if (surah == null || startAyah == null) return;
+
+    int endAyah = startAyah;
+    if (endKey != null) {
+      final endParts = endKey.split(':');
+      if (endParts.length == 2) {
+        final es = int.tryParse(endParts[0]);
+        final ea = int.tryParse(endParts[1]);
+        if (es == surah && ea != null) endAyah = ea;
+      }
+    }
+
+    final rects = await QuranPagesHitboxDb.instance.getAyahRectsInRange(
+      page: widget.page,
+      surah: surah,
+      startAyah: startAyah,
+      endAyah: endAyah,
+    );
+    if (mounted) setState(() => _selectionRects = rects);
+  }
+
+  // ── Cycle de vie ─────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlayingRects();
+    _loadSelectionRects();
+  }
+
   @override
   void didUpdateWidget(covariant AyahSelectionOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     if (widget.selectedVerseKey == null && _wordRects.isNotEmpty) {
       setState(() => _wordRects = []);
     }
+
+    if (widget.playingAyahKey != oldWidget.playingAyahKey) {
+      _loadPlayingRects();
+    }
+
+    if (widget.selectionStartKey != oldWidget.selectionStartKey ||
+        widget.selectionEndKey   != oldWidget.selectionEndKey) {
+      _loadSelectionRects();
+    }
   }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -118,30 +219,38 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
       child: CustomPaint(
         size: Size.infinite,
         painter: _AyahHighlightPainter(
-          displaySize: widget.displaySize,
-          imageSize: widget.imageSize,
-          wordRects: _wordRects,
+          displaySize:    widget.displaySize,
+          imageSize:      widget.imageSize,
+          wordRects:      _wordRects,
+          playingRects:   _playingRects,
+          selectionRects: _selectionRects,
         ),
       ),
     );
   }
 }
 
+// ── Painter ───────────────────────────────────────────────────────────────────
+
 class _AyahHighlightPainter extends CustomPainter {
   final Size displaySize;
   final Size imageSize;
-  final List<Rect> wordRects;
+  final List<Rect> wordRects;      // bulle sélection — jaune
+  final List<Rect> playingRects;   // verset en lecture — vert vif
+  final List<Rect> selectionRects; // plage mini lecteur — vert léger
 
   _AyahHighlightPainter({
     required this.displaySize,
     required this.imageSize,
     required this.wordRects,
+    required this.playingRects,
+    required this.selectionRects,
   });
 
   List<Rect> _groupByLine(List<Rect> rects) {
     if (rects.isEmpty) return [];
 
-    final sx = displaySize.width / imageSize.width;
+    final sx = displaySize.width  / imageSize.width;
     final sy = displaySize.height / imageSize.height;
 
     final screen = rects
@@ -166,29 +275,38 @@ class _AyahHighlightPainter extends CustomPainter {
     }
 
     return lines.map((line) {
-      final l = line.map((r) => r.left).reduce((a, b) => a < b ? a : b);
-      final t = line.map((r) => r.top).reduce((a, b) => a < b ? a : b);
+      final l  = line.map((r) => r.left).reduce((a, b) => a < b ? a : b);
+      final t  = line.map((r) => r.top).reduce((a, b) => a < b ? a : b);
       final ri = line.map((r) => r.right).reduce((a, b) => a > b ? a : b);
       final bo = line.map((r) => r.bottom).reduce((a, b) => a > b ? a : b);
       return Rect.fromLTRB(l, t, ri, bo);
     }).toList();
   }
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (wordRects.isEmpty) return;
+  void _drawRects(Canvas canvas, List<Rect> rects, Color color) {
+    if (rects.isEmpty) return;
     final paint = Paint()
-      ..color = const Color(0x66FFC107)
+      ..color = color
       ..style = PaintingStyle.fill;
-    for (final r in _groupByLine(wordRects)) {
+    for (final r in _groupByLine(rects)) {
       canvas.drawRRect(
           RRect.fromRectAndRadius(r, const Radius.circular(6)), paint);
     }
   }
 
   @override
+  void paint(Canvas canvas, Size size) {
+    // 1. Plage de sélection (couche du bas) — vert très léger
+    _drawRects(canvas, selectionRects, const Color(0x3581C784));
+    // 2. Verset en lecture — vert vif
+    _drawRects(canvas, playingRects,   const Color(0x6681C784));
+  }
+
+  @override
   bool shouldRepaint(covariant _AyahHighlightPainter old) =>
-      old.wordRects != wordRects ||
-      old.displaySize != displaySize ||
-      old.imageSize != imageSize;
+      old.wordRects      != wordRects      ||
+      old.playingRects   != playingRects   ||
+      old.selectionRects != selectionRects ||
+      old.displaySize    != displaySize    ||
+      old.imageSize      != imageSize;
 }

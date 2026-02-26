@@ -10,8 +10,10 @@ import 'package:flutter/services.dart';
 import 'screens/quran_loader.dart';
 import '../services/quran_image_service.dart';
 import '../services/quran_pages_hitbox_db.dart';
+import '../services/mini_player_service.dart';
 import 'widgets/ayah_selection_overlay.dart';
 import 'widgets/ayah_bubble.dart';
+import 'widgets/mini_player_widget.dart';
 import '../services/quran_page_preloader.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
@@ -70,6 +72,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Timer? _preloadDebounce;
   bool _isBookmarked = false;
 
+  // ── Mini lecteur ──────────────────────────────────────────────────────────
+  String? _selectionStartKey;
+  String? _selectionEndKey;
+
   final QuranPagePreloader _pagePreloader = QuranPagePreloader(range: 2);
 
   final Map<int, File?> _imageCache = {};
@@ -124,6 +130,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     _initApp();
     _refreshBookmarkStatus(currentPage);
+    MiniPlayerService.instance.currentAyahKey.addListener(_onPlayingAyahChanged);
     () async {
       try {
         await QuranPagesHitboxDb.instance.ensureFromAsset(
@@ -175,8 +182,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  Future<void> _onPlayingAyahChanged() async {
+    final key = MiniPlayerService.instance.currentAyahKey.value;
+    if (key == null || !mounted) return;
+    final parts = key.split(':');
+    if (parts.length != 2) return;
+    final surah = int.tryParse(parts[0]);
+    final ayah  = int.tryParse(parts[1]);
+    if (surah == null || ayah == null) return;
+
+    final page = await QuranPagesHitboxDb.instance.getPageForAyah(surah, ayah);
+    if (!mounted || page == null) return;
+
+    if (page != currentPage) {
+      _pageController.animateToPage(
+        page - 1,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
+    // Rebuild pour mettre à jour le highlight du verset en cours
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
     _preloadDebounce?.cancel();
     _saveTimer?.cancel();
     _pageController.removeListener(_onPageScroll);
@@ -339,6 +370,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final viewPadding = MediaQuery.of(context).viewPadding;
 
+    final currentSurah = fullSurahList.isEmpty
+        ? 1
+        : (fullSurahList.lastWhere(
+              (s) => (s['page'] as int) <= currentPage,
+              orElse: () => fullSurahList.first,
+            )['id'] as int? ?? 1);
+
     final surahNameFr = fullSurahList.isEmpty
         ? ''
         : (fullSurahList.lastWhere(
@@ -500,21 +538,28 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
             ),
 
-            // BOTTOM overlay
+            // BOTTOM overlay (mini lecteur + barre de navigation)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOut,
-              bottom: _showUI ? (viewPadding.bottom + 12) : (viewPadding.bottom - 140),
-              left: 20,
-              right: 20,
+              bottom: _showUI ? (viewPadding.bottom + 8) : (viewPadding.bottom - 200),
+              left: 16,
+              right: 16,
               child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 220),
                 opacity: _showUI ? 1.0 : 0.0,
                 child: IgnorePointer(
                   ignoring: !_showUI,
-                  child: isLandscape
-                      ? _bottomBarLandscape()
-                      : _bottomBarPortrait(surahNameFr),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      MiniPlayerWidget(currentSurah: currentSurah),
+                      const SizedBox(height: 6),
+                      isLandscape
+                          ? _bottomBarLandscape()
+                          : _bottomBarPortrait(surahNameFr),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -524,18 +569,46 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _onAyahTapped(int surah, int ayah, Rect? globalRect) {
+    // ── Tap simple : toggle UI + annule la sélection de plage ────────────────
     if (surah == -1) {
       AyahBubble.dismiss();
       setState(() {
         _showUI = !_showUI;
         _selectedVerseKey = null;
+        if (_selectionStartKey != null) {
+          _selectionStartKey = null;
+          _selectionEndKey   = null;
+          MiniPlayerService.instance.clearSelection();
+        }
       });
       return;
     }
 
-    final key = '$surah:$ayah';
-    setState(() => _selectedVerseKey = key);
+    // ── Long press : met à jour la sélection de plage ─────────────────────────
+    final svc = MiniPlayerService.instance;
+    setState(() {
+      _selectedVerseKey = '$surah:$ayah';
 
+      if (_selectionStartKey == null || _selectionEndKey != null) {
+        // Pas encore de début, ou plage déjà complète → nouveau début
+        _selectionStartKey = '$surah:$ayah';
+        _selectionEndKey   = null;
+        svc.setSelectionStart(surah, ayah);
+      } else {
+        // Début défini → définir la fin
+        _selectionEndKey = '$surah:$ayah';
+        svc.setSelectionEnd(surah, ayah);
+        // Recalcule _selectionEndKey depuis le service (gère l'inversion si besoin)
+        _selectionStartKey = svc.selectionStartKey;
+        _selectionEndKey   = svc.selectionEndKey;
+        // Bascule en mode sélection automatiquement
+        if (svc.playMode.value != MiniPlayMode.selection) {
+          svc.playMode.value = MiniPlayMode.selection;
+        }
+      }
+    });
+
+    // ── Bulle d'actions (inchangée) ───────────────────────────────────────────
     if (globalRect != null) {
       AyahBubble.show(
         context,
@@ -610,7 +683,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.black54.withOpacity(0.25),
+            color: Colors.black54.withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -633,7 +706,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 onTap: _jumpToPageDialog,
                 child: CircleAvatar(
                   radius: 18,
-                  backgroundColor: Colors.white.withOpacity(0.15),
+                  backgroundColor: Colors.white.withValues(alpha: 0.15),
                   child: Text(
                     '$currentPage',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -766,6 +839,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 imageSize: imagePxSize,
                 selectedVerseKey: _selectedVerseKey,
                 onAyahTapped: _onAyahTapped,
+                playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
+                selectionStartKey: _selectionStartKey,
+                selectionEndKey:   _selectionEndKey,
               ),
             ),
           ],

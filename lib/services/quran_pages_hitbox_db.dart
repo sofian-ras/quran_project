@@ -104,4 +104,43 @@ class QuranPagesHitboxDb {
       (r['maxy'] as num).toDouble(),
     )).toList();
   }
+
+  /// Retourne la page sur laquelle se trouve un verset.
+  /// Utilisé par le mini lecteur pour l'auto-scroll.
+  Future<int?> getPageForAyah(int surah, int ayah) async {
+    await _open();
+    final rows = await _db!.rawQuery(
+      'SELECT page FROM ayarects WHERE soraid = ? AND ayaid = ? LIMIT 1',
+      [surah, ayah],
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['page'] as int;
+  }
+
+  /// Retourne tous les rectangles d'une plage de versets [startAyah, endAyah]
+  /// d'une même sourate sur la page donnée.
+  /// Utilisé par le mini lecteur pour surligner la sélection.
+  Future<List<Rect>> getAyahRectsInRange({
+    required int page,
+    required int surah,
+    required int startAyah,
+    required int endAyah,
+  }) async {
+    await _open();
+    final rows = await _db!.rawQuery(
+      '''
+      SELECT minx, miny, maxx, maxy
+      FROM ayarects
+      WHERE page = ? AND soraid = ? AND ayaid >= ? AND ayaid <= ?
+      ORDER BY miny, minx
+      ''',
+      [page, surah, startAyah, endAyah],
+    );
+    return rows.map((r) => Rect.fromLTRB(
+      (r['minx'] as num).toDouble(),
+      (r['miny'] as num).toDouble(),
+      (r['maxx'] as num).toDouble(),
+      (r['maxy'] as num).toDouble(),
+    )).toList();
+  }
 }

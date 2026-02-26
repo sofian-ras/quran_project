@@ -8,11 +8,10 @@
 //                   onDismiss: () { ... });
 //   AyahBubble.dismiss();
 
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../services/audio_service.dart';
+import '../../services/mini_player_service.dart';
 import '../../services/quran_text_db.dart';
 import '../../surah_name.dart';
 import 'ayah_action_sheet.dart';
@@ -26,6 +25,8 @@ class AyahBubble {
     required int ayah,
     required Rect anchorGlobalRect,
     required VoidCallback onDismiss,
+    VoidCallback? onSetRangePoint,
+    bool hasRangeStart = false,
   }) {
     dismiss();
     _entry = OverlayEntry(
@@ -37,6 +38,8 @@ class AyahBubble {
           dismiss();
           onDismiss();
         },
+        onSetRangePoint: onSetRangePoint,
+        hasRangeStart: hasRangeStart,
       ),
     );
     Overlay.of(context).insert(_entry!);
@@ -55,17 +58,21 @@ class _BubbleLayout extends StatelessWidget {
   final int ayah;
   final Rect anchorGlobalRect;
   final VoidCallback onDismiss;
+  final VoidCallback? onSetRangePoint;
+  final bool hasRangeStart;
 
   const _BubbleLayout({
     required this.surah,
     required this.ayah,
     required this.anchorGlobalRect,
     required this.onDismiss,
+    this.onSetRangePoint,
+    this.hasRangeStart = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    const bubbleW = 244.0;
+    final bubbleW = onSetRangePoint != null ? 290.0 : 244.0;
     const bubbleH = 72.0; // hauteur approximative de la bulle
     const caretH = 8.0;
     const margin = 8.0;
@@ -107,6 +114,8 @@ class _BubbleLayout extends StatelessWidget {
               onDismiss: onDismiss,
               caretOnBottom: showAbove,
               caretX: caretX,
+              onSetRangePoint: onSetRangePoint,
+              hasRangeStart: hasRangeStart,
             ),
           ),
         ),
@@ -123,6 +132,8 @@ class _Bubble extends StatefulWidget {
   final VoidCallback onDismiss;
   final bool caretOnBottom;
   final double caretX;
+  final VoidCallback? onSetRangePoint;
+  final bool hasRangeStart;
 
   const _Bubble({
     required this.surah,
@@ -130,6 +141,8 @@ class _Bubble extends StatefulWidget {
     required this.onDismiss,
     required this.caretOnBottom,
     required this.caretX,
+    this.onSetRangePoint,
+    this.hasRangeStart = false,
   });
 
   @override
@@ -138,33 +151,40 @@ class _Bubble extends StatefulWidget {
 
 class _BubbleState extends State<_Bubble> {
   bool _isPlaying = false;
-  StreamSubscription? _sub;
 
   String get _verseKey => '${widget.surah}:${widget.ayah}';
 
-  @override
-  void initState() {
-    super.initState();
-    _sub = AudioService.instance.ayahPlayerStateStream.listen((st) {
-      if (!mounted) return;
-      final key = AudioService.instance.currentAyahKeyNotifier.value;
-      setState(() => _isPlaying = st.playing && key == _verseKey);
+  void _updateIsPlaying() {
+    if (!mounted) return;
+    final svc = MiniPlayerService.instance;
+    setState(() {
+      _isPlaying = svc.isPlaying.value && svc.currentAyahKey.value == _verseKey;
     });
   }
 
   @override
+  void initState() {
+    super.initState();
+    MiniPlayerService.instance.isPlaying.addListener(_updateIsPlaying);
+    MiniPlayerService.instance.currentAyahKey.addListener(_updateIsPlaying);
+    _updateIsPlaying();
+  }
+
+  @override
   void dispose() {
-    _sub?.cancel();
+    MiniPlayerService.instance.isPlaying.removeListener(_updateIsPlaying);
+    MiniPlayerService.instance.currentAyahKey.removeListener(_updateIsPlaying);
     super.dispose();
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
   Future<void> _togglePlay() async {
-    if (_isPlaying) {
-      await AudioService.instance.pauseAyah();
+    final svc = MiniPlayerService.instance;
+    if (svc.currentAyahKey.value == _verseKey && svc.isPlaying.value) {
+      await svc.playPause();
     } else {
-      await AudioService.instance.playAyah(widget.surah, widget.ayah);
+      await svc.playFrom(surah: widget.surah, ayah: widget.ayah);
     }
   }
 
@@ -200,6 +220,8 @@ class _BubbleState extends State<_Bubble> {
     AyahActionSheet.show(context, surah: widget.surah, ayah: widget.ayah);
   }
 
+  double get _btnWidth => widget.onSetRangePoint != null ? 50.0 : 56.0;
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -229,6 +251,7 @@ class _BubbleState extends State<_Bubble> {
             label: _isPlaying ? 'Pause' : 'Écouter',
             color: const Color(0xFF4CAF50),
             onTap: _togglePlay,
+            width: _btnWidth,
           ),
           _divider(),
           _Btn(
@@ -236,6 +259,7 @@ class _BubbleState extends State<_Bubble> {
             label: 'Copier',
             color: const Color(0xFF2196F3),
             onTap: _copy,
+            width: _btnWidth,
           ),
           _divider(),
           _Btn(
@@ -243,6 +267,7 @@ class _BubbleState extends State<_Bubble> {
             label: 'Partager',
             color: const Color(0xFF9C27B0),
             onTap: _share,
+            width: _btnWidth,
           ),
           _divider(),
           _Btn(
@@ -250,7 +275,21 @@ class _BubbleState extends State<_Bubble> {
             label: 'Tafsir',
             color: const Color(0xFFB8860B),
             onTap: _tafsir,
+            width: _btnWidth,
           ),
+          if (widget.onSetRangePoint != null) ...[
+            _divider(),
+            _Btn(
+              icon: Icons.push_pin_rounded,
+              label: widget.hasRangeStart ? 'Fin ◀' : 'Début ▶',
+              color: const Color(0xFF43A047),
+              onTap: () {
+                widget.onSetRangePoint!();
+                widget.onDismiss();
+              },
+              width: _btnWidth,
+            ),
+          ],
         ],
       ),
     );
@@ -303,12 +342,14 @@ class _Btn extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final double width;
 
   const _Btn({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.width = 56,
   });
 
   @override
@@ -317,7 +358,7 @@ class _Btn extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: SizedBox(
-        width: 56,
+        width: width,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
