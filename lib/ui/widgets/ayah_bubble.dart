@@ -94,14 +94,6 @@ class _BubbleLayout extends StatelessWidget {
 
     return Stack(
       children: [
-        // Fond transparent : capture les taps (dismiss) sans bloquer les long press
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: onDismiss,
-            child: const ColoredBox(color: Colors.transparent),
-          ),
-        ),
         // La bulle elle-même
         Positioned(
           left: left,

@@ -3,8 +3,9 @@
 // Mini lecteur audio sobre pour le reader screen.
 //
 // État collapsed : [Récitateur ▼]  [▶]
-// État expanded  : [Récitateur ▼] [Mode] [Repeat]
+// État expanded  : [Récitateur ▼] [Mode] [Repeat] [⬇]
 //                  [⏮]  [⏸/▶]  [⏹]  [⏭]
+//                  (message d'indisponibilité si applicable)
 //
 // Suit la visibilité des icônes du reader (_showUI).
 // Fond : verre dépoli sombre (BackdropFilter).
@@ -12,6 +13,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/mini_player_service.dart';
+import '../../services/qul_audio/audio_download_manager.dart';
 
 class MiniPlayerWidget extends StatelessWidget {
   /// Sourate actuellement visible (pour lancer la lecture depuis le début
@@ -71,7 +73,7 @@ class MiniPlayerWidget extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Ligne 1 : récitateur + mode + repeat
+        // Ligne 1 : récitateur + mode + repeat + download
         Row(
           children: [
             Expanded(child: _reciterButton(context, svc)),
@@ -91,6 +93,8 @@ class MiniPlayerWidget extends StatelessWidget {
                 onTap: svc.cycleRepeat,
               ),
             ),
+            const SizedBox(width: 4),
+            _buildDownloadBtn(svc),
           ],
         ),
         const SizedBox(height: 8),
@@ -108,8 +112,71 @@ class MiniPlayerWidget extends StatelessWidget {
             _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
           ],
         ),
+        // Ligne 3 : message d'indisponibilité
+        ValueListenableBuilder<String?>(
+          valueListenable: svc.unavailableMessage,
+          builder: (_, msg, __) {
+            if (msg == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Colors.orangeAccent, size: 14),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      msg,
+                      style: const TextStyle(
+                        color: Colors.orangeAccent,
+                        fontSize: 11,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ],
     );
+  }
+
+  // ── Bouton download ───────────────────────────────────────────────────────
+
+  Widget _buildDownloadBtn(MiniPlayerService svc) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: svc.currentAyahKey,
+      builder: (_, key, __) {
+        if (key == null) return const SizedBox.shrink();
+        return ValueListenableBuilder<Map<String, DownloadEntry>>(
+          valueListenable: AudioDownloadManager.instance.entriesNotifier,
+          builder: (_, entries, __) {
+            final dlKey = svc.currentDownloadKey;
+            if (dlKey == null) return const SizedBox.shrink();
+            final entry = entries[dlKey];
+            return _DownloadButton(
+              status:   entry?.status   ?? DownloadStatus.idle,
+              progress: entry?.progress ?? 0.0,
+              onTap: () => _handleDownloadTap(svc, entry),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _handleDownloadTap(MiniPlayerService svc, DownloadEntry? entry) {
+    switch (entry?.status ?? DownloadStatus.idle) {
+      case DownloadStatus.idle:
+      case DownloadStatus.failed:
+        svc.downloadCurrent();
+      case DownloadStatus.downloading:
+        svc.cancelCurrentDownload();
+      case DownloadStatus.done:
+        svc.deleteCurrentDownload();
+    }
   }
 
   // ── Bouton récitateur ─────────────────────────────────────────────────────
@@ -290,6 +357,60 @@ class _CtrlBtn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Icon(icon, color: color ?? Colors.white, size: 30),
+    );
+  }
+}
+
+// ── Bouton download ───────────────────────────────────────────────────────────
+
+class _DownloadButton extends StatelessWidget {
+  final DownloadStatus status;
+  final double progress;
+  final VoidCallback onTap;
+
+  const _DownloadButton({
+    required this.status,
+    required this.progress,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: switch (status) {
+          DownloadStatus.idle => const Icon(
+              Icons.cloud_download_outlined,
+              color: Colors.white70,
+              size: 20,
+            ),
+          DownloadStatus.downloading => Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(
+                  value: progress > 0 ? progress : null,
+                  strokeWidth: 2,
+                  color: Colors.white70,
+                ),
+                const Icon(Icons.close_rounded,
+                    color: Colors.white70, size: 12),
+              ],
+            ),
+          DownloadStatus.done => const Icon(
+              Icons.cloud_done_rounded,
+              color: Colors.greenAccent,
+              size: 20,
+            ),
+          DownloadStatus.failed => const Icon(
+              Icons.cloud_off_rounded,
+              color: Colors.redAccent,
+              size: 20,
+            ),
+        },
+      ),
     );
   }
 }

@@ -3,35 +3,53 @@
 // Service audio dédié au mini lecteur du reader screen.
 // Indépendant de AudioService (qui sert le full player).
 //
+// Source audio : QUL (qul.tarteel.ai) via QulAudioResolver.
+// Les URLs ne sont JAMAIS construites directement ici :
+// elles sont résolues par QulAudioResolver → QulApiClient.
+//
 // Modes de lecture :
 //   surah       — du verset sélectionné jusqu'à la fin de la sourate
 //   verseByVerse — un verset, puis pause (l'utilisateur avance manuellement)
 //   selection   — plage de versets sélectionnée (début → fin)
 //
 // Repeat : ×1 · ×2 · ×3 · ∞   (sur le verset en cours avant d'avancer)
-// Audio  : everyayah.com  (fichiers par ayah)
-// Persist: récitateur · mode · repeat  →  shared_preferences
+// Persist: récitateur · mode · repeat → shared_preferences
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'qul_audio/models/qul_reciter.dart';
+import 'qul_audio/qul_catalog_service.dart';
+import 'qul_audio/qul_audio_resolver.dart';
+import 'qul_audio/audio_download_manager.dart';
+import 'qul_audio/audio_playback_source.dart';
 
-// ── Modèles ──────────────────────────────────────────────────────────────────
+// ── Modèle récitateur (compatibilité UI) ─────────────────────────────────────
 
 class MiniReciter {
   final String name;
-  final String folder; // dossier sur https://everyayah.com/data/
-  const MiniReciter(this.name, this.folder);
+  /// Contient le qulId.toString() — utilisé comme clé d'identification.
+  final String folder;
+  /// Vrai si le récitateur est disponible sur le CDN QUL.
+  final bool isAvailable;
+  const MiniReciter(this.name, this.folder, {this.isAvailable = true});
 }
 
 enum MiniPlayMode { surah, verseByVerse, selection }
 
 enum MiniRepeatMode { x1, x2, x3, infinite }
 
-// ── Constantes ───────────────────────────────────────────────────────────────
+// ── Liste des récitateurs (depuis le catalogue QUL) ───────────────────────────
 
-const String _kEveryAyahBase = 'https://everyayah.com/data';
+/// Convertit le catalogue QUL en liste MiniReciter pour l'UI.
+/// Les récitateurs indisponibles sont marqués avec un suffixe.
+final List<MiniReciter> kMiniReciters = QulCatalogService.reciters
+    .where((r) => r.isAvailable)
+    .map((r) => MiniReciter(r.displayName, r.qulId.toString()))
+    .toList();
+
+// ── Constantes ───────────────────────────────────────────────────────────────
 
 /// Nombre de versets par sourate (Hafs, index 0 = sourate 1).
 const List<int> kSurahAyahCounts = [
@@ -49,57 +67,33 @@ const List<int> kSurahAyahCounts = [
   5,   4,   5,   6,
 ];
 
-const List<MiniReciter> kMiniReciters = [
-  MiniReciter('Mishary Alafasy',        'Alafasy_128kbps'),
-  MiniReciter('AbdulBasit Mujawwad',    'Abdul_Basit_Mujawwad_128kbps'),
-  MiniReciter('AbdulBasit Murattal',    'Abdul_Basit_Murattal_192kbps'),
-  MiniReciter('As-Sudais',              'Abdurrahmaan_As-Sudais_64kbps'),
-  MiniReciter('Ash-Shuraym',            'Saood_ash-Shuraym_128kbps'),
-  MiniReciter('Al-Hudhaify',            'Hudhaify_128kbps'),
-  MiniReciter('Maher Al-Muaiqly',       'MaherAlMuaiqly128kbps'),
-  MiniReciter('Mohamed Ayyoub',         'Muhammad_Ayyoub_128kbps'),
-  MiniReciter('Mohamed Jibreel',        'Muhammad_Jibreel_128kbps'),
-  MiniReciter('Nasser Al-Qatami',       'Nasser_Alqatami_128kbps'),
-  MiniReciter('Yasser Ad-Dussary',      'Yasser_Ad-Dussary_128kbps'),
-  MiniReciter('Al-Minshawy Murattal',   'Minshawy_Murattal_128kbps'),
-  MiniReciter('Al-Minshawy Mujawwad',   'Minshawy_Mujawwad_128kbps'),
-  MiniReciter('Ali Jaber',              'Ali_Jaber_64kbps'),
-  MiniReciter('Abu Bakr Ash-Shaatree',  'Abu_Bakr_Ash-Shaatree_64kbps'),
-  MiniReciter('Abdullah Basfar',        'Abdullah_Basfar_192kbps'),
-  MiniReciter('Hani Arrifai',           'Hani_Rifai_64kbps'),
-  MiniReciter('Al-Hussary Murattal',    'Husary_128kbps'),
-  MiniReciter('Saad Al-Ghamdi',         'Ghamadi_40kbps'),
-  MiniReciter('Ahmed Al-Ajmy',          'Ahmed_ibn_Ali_al-Ajamy_64kbps_QuranExplorer.Com'),
-  MiniReciter('Abdullah Al-Juhany',     'Abdullaah_3awwaad_Al-Juhaynee_128kbps'),
-];
-
 // ── Service ───────────────────────────────────────────────────────────────────
 
 class MiniPlayerService {
-  MiniPlayerService._() {
-    _init();
-  }
-
+  MiniPlayerService._() { _init(); }
   static final MiniPlayerService instance = MiniPlayerService._();
 
   // ── État public (ValueNotifiers) ──────────────────────────────────────────
 
-  final ValueNotifier<bool> isPlaying    = ValueNotifier(false);
-  final ValueNotifier<bool> isExpanded   = ValueNotifier(false);
-  final ValueNotifier<bool> isLoading    = ValueNotifier(false);
+  final ValueNotifier<bool> isPlaying   = ValueNotifier(false);
+  final ValueNotifier<bool> isExpanded  = ValueNotifier(false);
+  final ValueNotifier<bool> isLoading   = ValueNotifier(false);
 
   /// Clé du verset en cours : "surah:ayah" (ex : "2:255"), null si arrêté.
   final ValueNotifier<String?> currentAyahKey = ValueNotifier(null);
 
-  final ValueNotifier<MiniPlayMode>   playMode    = ValueNotifier(MiniPlayMode.surah);
-  final ValueNotifier<MiniRepeatMode> repeatMode  = ValueNotifier(MiniRepeatMode.x1);
+  final ValueNotifier<MiniPlayMode>   playMode   = ValueNotifier(MiniPlayMode.surah);
+  final ValueNotifier<MiniRepeatMode> repeatMode = ValueNotifier(MiniRepeatMode.x1);
   final ValueNotifier<MiniReciter>    currentReciter =
       ValueNotifier(kMiniReciters[0]);
 
-  // ── Sélection ────────────────────────────────────────────────────────────
+  /// Message d'erreur affiché quand l'audio est indisponible sur QUL.
+  final ValueNotifier<String?> unavailableMessage = ValueNotifier(null);
 
-  String? selectionStartKey; // "surah:ayah"
-  String? selectionEndKey;   // "surah:ayah"
+  // ── Sélection ─────────────────────────────────────────────────────────────
+
+  String? selectionStartKey;
+  String? selectionEndKey;
 
   bool get hasSelectionStart => selectionStartKey != null && selectionEndKey == null;
   bool get hasFullSelection  => selectionStartKey != null && selectionEndKey != null;
@@ -137,25 +131,21 @@ class MiniPlayerService {
     _loadPrefs();
   }
 
-  // ── URL ───────────────────────────────────────────────────────────────────
+  // ── Récitateur courant (QulReciter) ───────────────────────────────────────
 
-  String _ayahUrl(int surah, int ayah) {
-    final folder = currentReciter.value.folder;
-    final s = surah.toString().padLeft(3, '0');
-    final a = ayah.toString().padLeft(3, '0');
-    return '$_kEveryAyahBase/$folder/$s$a.mp3';
+  QulReciter? get _qulReciter {
+    final id = int.tryParse(currentReciter.value.folder);
+    return id != null ? QulCatalogService.instance.findByQulId(id) : null;
   }
 
-  // ── Calcul du dernier ayah selon le mode ──────────────────────────────────
+  // ── Calcul du dernier ayah selon le mode ─────────────────────────────────
 
   int _computeEndAyah(int surah, int startAyah) {
     switch (playMode.value) {
       case MiniPlayMode.surah:
         return kSurahAyahCounts[surah - 1];
-
       case MiniPlayMode.verseByVerse:
         return startAyah;
-
       case MiniPlayMode.selection:
         if (hasFullSelection) {
           final parts    = selectionEndKey!.split(':');
@@ -168,12 +158,10 @@ class MiniPlayerService {
 
   // ── Lecture ───────────────────────────────────────────────────────────────
 
-  /// Démarre la lecture à partir d'un verset donné.
-  /// En mode sélection avec plage complète, ignore [surah]/[ayah] et démarre
-  /// depuis le début de la sélection.
   Future<void> playFrom({required int surah, required int ayah}) async {
     _stopping    = false;
     _repeatCount = 0;
+    unavailableMessage.value = null;
 
     if (playMode.value == MiniPlayMode.selection && hasFullSelection) {
       final parts = selectionStartKey!.split(':');
@@ -186,22 +174,51 @@ class MiniPlayerService {
 
     _endAyah = _computeEndAyah(_curSurah, _curAyah);
     isExpanded.value = true;
+
+    // Précharger les URLs du chapitre en arrière-plan pour éviter la latence
+    final reciter = _qulReciter;
+    if (reciter != null) {
+      QulAudioResolver.instance.prefetch(reciter, _curSurah);
+    }
+
     await _playCurrent();
   }
 
   Future<void> _playCurrent() async {
     if (_stopping) return;
-    final url = _ayahUrl(_curSurah, _curAyah);
+
+    final reciter = _qulReciter;
+    if (reciter == null) {
+      unavailableMessage.value = 'Récitateur introuvable';
+      return;
+    }
+
+    // Résolution via QulAudioResolver (source unique : QUL)
+    final source = await AudioPlaybackSource.instance.forAyah(
+      reciter, _curSurah, _curAyah,
+    );
+
+    if (source == null) {
+      unavailableMessage.value =
+          '${reciter.name} : audio indisponible sur QUL pour $_curSurah:$_curAyah';
+      debugPrint('MiniPlayerService: indisponible $_curSurah:$_curAyah');
+      isLoading.value  = false;
+      isPlaying.value  = false;
+      currentAyahKey.value = null;
+      return;
+    }
+
+    unavailableMessage.value = null;
     currentAyahKey.value = '$_curSurah:$_curAyah';
     try {
-      await _player.setUrl(url);
+      await _player.setUrl(source.url);
       await _player.play();
     } catch (e) {
       debugPrint('MiniPlayerService: erreur $_curSurah:$_curAyah — $e');
     }
   }
 
-  // ── Gestion de la fin d'un verset ────────────────────────────────────────
+  // ── Gestion de la fin d'un verset ─────────────────────────────────────────
 
   void _onAyahCompleted() {
     if (_stopping) return;
@@ -209,7 +226,6 @@ class MiniPlayerService {
     _repeatCount++;
     final limit = _repeatLimit;
 
-    // Répéter si nécessaire (limit < 0 = infini)
     if (limit < 0 || _repeatCount < limit) {
       _player.seek(Duration.zero).then((_) {
         if (!_stopping) _player.play();
@@ -217,11 +233,9 @@ class MiniPlayerService {
       return;
     }
 
-    // Fin de la répétition → avancer
     _repeatCount = 0;
 
     if (playMode.value == MiniPlayMode.verseByVerse) {
-      // Mode V/V : s'arrête après chaque verset, attend l'action utilisateur
       isPlaying.value = false;
       return;
     }
@@ -230,7 +244,6 @@ class MiniPlayerService {
       _curAyah++;
       _playCurrent();
     } else {
-      // Fin de la plage
       isPlaying.value = false;
     }
   }
@@ -244,7 +257,7 @@ class MiniPlayerService {
     }
   }
 
-  // ── Contrôles ─────────────────────────────────────────────────────────────
+  // ── Contrôles ──────────────────────────────────────────────────────────────
 
   Future<void> playPause() async {
     if (_player.playing) {
@@ -258,12 +271,13 @@ class MiniPlayerService {
     _stopping = true;
     await _player.stop();
     await _player.seek(Duration.zero);
-    currentAyahKey.value = null;
-    isExpanded.value     = false;
-    isPlaying.value      = false;
-    _curSurah   = 0;
-    _curAyah    = 0;
-    _endAyah    = 0;
+    currentAyahKey.value     = null;
+    isExpanded.value         = false;
+    isPlaying.value          = false;
+    unavailableMessage.value = null;
+    _curSurah    = 0;
+    _curAyah     = 0;
+    _endAyah     = 0;
     _repeatCount = 0;
   }
 
@@ -307,7 +321,8 @@ class MiniPlayerService {
 
   void setReciter(MiniReciter reciter) {
     if (reciter.folder == currentReciter.value.folder) return;
-    currentReciter.value = reciter;
+    currentReciter.value     = reciter;
+    unavailableMessage.value = null;
     _savePrefs();
     if (currentAyahKey.value != null) {
       _repeatCount = 0;
@@ -322,8 +337,6 @@ class MiniPlayerService {
     selectionEndKey   = null;
   }
 
-  /// Définit la fin de plage. Si la sourate ne correspond pas au début,
-  /// recommence une nouvelle sélection. Inverse début/fin si nécessaire.
   void setSelectionEnd(int surah, int ayah) {
     if (selectionStartKey == null) {
       selectionStartKey = '$surah:$ayah';
@@ -334,13 +347,11 @@ class MiniPlayerService {
     final startAyah  = int.parse(startParts[1]);
 
     if (startSurah != surah) {
-      // Sourate différente : nouvelle sélection
       selectionStartKey = '$surah:$ayah';
       selectionEndKey   = null;
       return;
     }
 
-    // Garantit l'ordre start ≤ end
     if (ayah < startAyah) {
       selectionEndKey   = selectionStartKey;
       selectionStartKey = '$surah:$ayah';
@@ -354,14 +365,63 @@ class MiniPlayerService {
     selectionEndKey   = null;
   }
 
+  // ── Download ──────────────────────────────────────────────────────────────
+
+  /// Clé de téléchargement pour le contenu courant.
+  String? get currentDownloadKey {
+    final r = _qulReciter;
+    if (r?.quranComId == null || currentAyahKey.value == null) return null;
+    final qid = r!.quranComId!;
+    if (playMode.value == MiniPlayMode.verseByVerse) {
+      return AudioDownloadManager.ayahKey(qid, _curSurah, _curAyah);
+    }
+    return AudioDownloadManager.surahKey(qid, _curSurah);
+  }
+
+  /// Lance le téléchargement du contenu courant (verset ou sourate selon mode).
+  Future<void> downloadCurrent() async {
+    final r = _qulReciter;
+    if (r?.quranComId == null || currentAyahKey.value == null) return;
+
+    if (playMode.value == MiniPlayMode.verseByVerse) {
+      final url = await QulAudioResolver.instance.resolveAyah(r!, _curSurah, _curAyah);
+      if (url == null) return;
+      await AudioDownloadManager.instance.downloadAyah(
+        quranComId: r.quranComId!,
+        surah: _curSurah,
+        ayah:  _curAyah,
+        url:   url,
+      );
+    } else {
+      final url = await QulAudioResolver.instance.resolveSurah(r!, _curSurah);
+      if (url == null) return;
+      await AudioDownloadManager.instance.downloadSurah(
+        quranComId: r.quranComId!,
+        surah: _curSurah,
+        url:   url,
+      );
+    }
+  }
+
+  void cancelCurrentDownload() {
+    final key = currentDownloadKey;
+    if (key != null) AudioDownloadManager.instance.cancel(key);
+  }
+
+  Future<void> deleteCurrentDownload() async {
+    final key = currentDownloadKey;
+    if (key != null) await AudioDownloadManager.instance.delete(key);
+  }
+
   // ── Persistance ───────────────────────────────────────────────────────────
+  // Clé v2 pour éviter un conflit avec l'ancienne valeur (dossier everyayah).
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
 
-    final folder = prefs.getString('mini_reciter');
-    if (folder != null) {
-      final r = kMiniReciters.where((x) => x.folder == folder).firstOrNull;
+    final qulIdStr = prefs.getString('mini_reciter_qul_v1');
+    if (qulIdStr != null) {
+      final r = kMiniReciters.where((x) => x.folder == qulIdStr).firstOrNull;
       if (r != null) currentReciter.value = r;
     }
 
@@ -378,7 +438,7 @@ class MiniPlayerService {
 
   Future<void> _savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('mini_reciter', currentReciter.value.folder);
+    await prefs.setString('mini_reciter_qul_v1', currentReciter.value.folder);
     await prefs.setInt('mini_mode',   playMode.value.index);
     await prefs.setInt('mini_repeat', repeatMode.value.index);
   }

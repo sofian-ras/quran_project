@@ -18,9 +18,11 @@ class AyahSelectionOverlay extends StatefulWidget {
   final String? selectionStartKey;
   final String? selectionEndKey;
 
-  /// Appelé avec (surah, ayah, globalRect) sur long-press,
-  /// ou (-1, -1, null) sur tap simple.
-  final void Function(int surah, int ayah, Rect? globalRect) onAyahTapped;
+  /// Appelé avec (surah, ayah, globalRect) sur tap simple (verset ou -1 si vide).
+  final void Function(int surah, int ayah, Rect? globalRect) onAyahTap;
+
+  /// Appelé avec (surah, ayah, globalRect) sur long-press (verset ou -1 si vide).
+  final void Function(int surah, int ayah, Rect? globalRect) onAyahLongPress;
 
   const AyahSelectionOverlay({
     super.key,
@@ -28,7 +30,8 @@ class AyahSelectionOverlay extends StatefulWidget {
     required this.displaySize,
     required this.imageSize,
     required this.selectedVerseKey,
-    required this.onAyahTapped,
+    required this.onAyahTap,
+    required this.onAyahLongPress,
     this.playingAyahKey,
     this.selectionStartKey,
     this.selectionEndKey,
@@ -48,9 +51,15 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
   /// Rects de la plage sélectionnée — vert léger.
   List<Rect> _selectionRects = [];
 
-  // ── Geste tap ────────────────────────────────────────────────────────────
+  /// Position du dernier onTapDown pour l'identifier dans onTap.
+  Offset? _lastTapDownPos;
 
-  Future<void> _selectFromLocalPos(Offset localPos) async {
+  // ── Résolution position → verset ─────────────────────────────────────────
+
+  Future<void> _selectFromLocalPos(
+    Offset localPos,
+    void Function(int surah, int ayah, Rect? globalRect) callback,
+  ) async {
     final dx = localPos.dx.clamp(0.0, widget.displaySize.width);
     final dy = localPos.dy.clamp(0.0, widget.displaySize.height);
 
@@ -67,14 +76,13 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
 
     if (hit == null) {
       setState(() => _wordRects = []);
-      widget.onAyahTapped(-1, -1, null);
+      callback(-1, -1, null);
       return;
     }
 
     final surah = hit['surah']!;
     final ayah  = hit['ayah']!;
 
-    // Rects uniquement pour ancrer la bulle — plus de highlight jaune
     final rects = await QuranPagesHitboxDb.instance.getAyahRects(
       page: widget.page,
       surah: surah,
@@ -83,7 +91,6 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
 
     if (!mounted) return;
 
-    // Calcul du rect global pour positionner la bulle
     Rect? globalRect;
     if (rects.isNotEmpty) {
       final ro = context.findRenderObject() as RenderBox?;
@@ -104,7 +111,7 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
       }
     }
 
-    widget.onAyahTapped(surah, ayah, globalRect);
+    callback(surah, ayah, globalRect);
   }
 
   // ── Chargement des rects de lecture ──────────────────────────────────────
@@ -203,7 +210,13 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
             GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
           () => TapGestureRecognizer(),
           (TapGestureRecognizer instance) {
-            instance.onTap = () => widget.onAyahTapped(-1, -1, null);
+            instance.onTapDown = (d) => _lastTapDownPos = d.localPosition;
+            instance.onTap = () {
+              final pos = _lastTapDownPos;
+              if (pos != null) {
+                _selectFromLocalPos(pos, widget.onAyahTap);
+              }
+            };
           },
         ),
         LongPressGestureRecognizer:
@@ -212,7 +225,7 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
               duration: const Duration(milliseconds: 200)),
           (LongPressGestureRecognizer instance) {
             instance.onLongPressStart =
-                (d) => _selectFromLocalPos(d.localPosition);
+                (d) => _selectFromLocalPos(d.localPosition, widget.onAyahLongPress);
           },
         ),
       },

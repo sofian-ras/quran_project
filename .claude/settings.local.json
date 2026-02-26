@@ -14,7 +14,13 @@
       "WebFetch(domain:pub.dev)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(python -c \":*)",
-      "WebFetch(domain:api.quran.com)"
+      "WebFetch(domain:api.quran.com)",
+      "WebFetch(domain:everyayah.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.qurancdn.com)",
+      "WebFetch(domain:verses.quran.com)",
+      "WebFetch(domain:cdn.quran.com)",
+      "WebFetch(domain:quran.com)"
     ],
     "additionalDirectories": [
       "\\tmp"

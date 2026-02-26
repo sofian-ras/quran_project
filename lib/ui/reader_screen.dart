@@ -75,6 +75,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   // ── Mini lecteur ──────────────────────────────────────────────────────────
   String? _selectionStartKey;
   String? _selectionEndKey;
+  DateTime? _lastTapTime; // détection double tap
 
   final QuranPagePreloader _pagePreloader = QuranPagePreloader(range: 2);
 
@@ -574,12 +575,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
   }
 
-  void _onAyahTapped(int surah, int ayah, Rect? globalRect) {
-    // ── Tap simple : toggle UI + efface tout ──────────────────────────────────
-    if (surah == -1) {
+  // ── Tap simple ────────────────────────────────────────────────────────────
+
+  void _onAyahTap(int surah, int ayah, Rect? globalRect) {
+    // Double tap → tout effacer
+    final now = DateTime.now();
+    final isDouble = _lastTapTime != null &&
+        now.difference(_lastTapTime!) < const Duration(milliseconds: 300);
+    _lastTapTime = isDouble ? null : now;
+
+    if (isDouble) {
       AyahBubble.dismiss();
       setState(() {
-        _showUI            = !_showUI;
         _selectedVerseKey  = null;
         _selectionStartKey = null;
         _selectionEndKey   = null;
@@ -588,28 +595,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return;
     }
 
-    final svc = MiniPlayerService.instance;
+    AyahBubble.dismiss();
 
-    if (_selectionStartKey == null || _selectionEndKey != null) {
-      // ── 1er long press : début de sélection — PAS de bulle ────────────────
-      // (La bulle bloquerait le 2ème long press via l'arène de gestes.)
-      AyahBubble.dismiss();
+    // Plage complète → tout tap efface tout
+    if (_selectionEndKey != null) {
+      setState(() {
+        _selectedVerseKey  = null;
+        _selectionStartKey = null;
+        _selectionEndKey   = null;
+        MiniPlayerService.instance.clearSelection();
+      });
+      return;
+    }
+
+    if (surah == -1) {
+      // Tap sur zone vide (pas de plage)
+      final hadSelection = _selectionStartKey != null;
+      setState(() {
+        if (!hadSelection) _showUI = !_showUI;
+        _selectedVerseKey  = null;
+        _selectionStartKey = null;
+        _selectionEndKey   = null;
+        MiniPlayerService.instance.clearSelection();
+      });
+      return;
+    }
+
+    // Tap sur un verset : déplace la sélection si une est active
+    if (_selectionStartKey != null) {
+      final svc = MiniPlayerService.instance;
+      svc.setSelectionStart(surah, ayah);
       setState(() {
         _selectedVerseKey  = '$surah:$ayah';
         _selectionStartKey = '$surah:$ayah';
         _selectionEndKey   = null;
-      });
-      svc.setSelectionStart(surah, ayah);
-    } else {
-      // ── 2ème long press : fin de sélection + bulle ────────────────────────
-      svc.setSelectionEnd(surah, ayah);
-      setState(() {
-        _selectedVerseKey  = '$surah:$ayah';
-        _selectionStartKey = svc.selectionStartKey;
-        _selectionEndKey   = svc.selectionEndKey;
-        if (svc.playMode.value != MiniPlayMode.selection) {
-          svc.playMode.value = MiniPlayMode.selection;
-        }
       });
       if (globalRect != null) {
         AyahBubble.show(
@@ -619,10 +638,50 @@ class _ReaderScreenState extends State<ReaderScreen> {
           anchorGlobalRect: globalRect,
           onDismiss: () {
             if (mounted) setState(() => _selectedVerseKey = null);
-            // _selectionStartKey / _selectionEndKey conservés → range reste verte
           },
         );
       }
+    }
+  }
+
+  // ── Long press ────────────────────────────────────────────────────────────
+
+  void _onAyahLongPress(int surah, int ayah, Rect? globalRect) {
+    if (surah == -1) return; // long press sur zone vide → ignoré
+
+    final svc = MiniPlayerService.instance;
+    AyahBubble.dismiss();
+
+    if (_selectionStartKey == null || _selectionEndKey != null) {
+      // ── 1er long press : marque le début + affiche la bulle ─────────────────
+      svc.setSelectionStart(surah, ayah);
+      setState(() {
+        _selectedVerseKey  = '$surah:$ayah';
+        _selectionStartKey = '$surah:$ayah';
+        _selectionEndKey   = null;
+      });
+      if (globalRect != null) {
+        AyahBubble.show(
+          context,
+          surah: surah,
+          ayah: ayah,
+          anchorGlobalRect: globalRect,
+          onDismiss: () {
+            if (mounted) setState(() => _selectedVerseKey = null);
+          },
+        );
+      }
+    } else {
+      // ── 2ème long press : marque la fin, surbrille la plage, PAS de bulle ──
+      svc.setSelectionEnd(surah, ayah);
+      setState(() {
+        _selectedVerseKey  = null;
+        _selectionStartKey = svc.selectionStartKey;
+        _selectionEndKey   = svc.selectionEndKey;
+        if (svc.playMode.value != MiniPlayMode.selection) {
+          svc.playMode.value = MiniPlayMode.selection;
+        }
+      });
     }
   }
 
@@ -842,7 +901,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 displaySize: Size(imgW, imgH),
                 imageSize: imagePxSize,
                 selectedVerseKey: _selectedVerseKey,
-                onAyahTapped: _onAyahTapped,
+                onAyahTap: _onAyahTap,
+                onAyahLongPress: _onAyahLongPress,
                 playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
                 selectionStartKey: _selectionStartKey,
                 selectionEndKey:   _selectionEndKey,
