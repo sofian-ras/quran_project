@@ -23,7 +23,7 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
 
   static const String _defaultCity = 'Paris';
   static const String _defaultCountry = 'France';
-  static const String _defaultMethod = '2';
+  static const String _defaultMethod = '12';
 
   static const bool _defaultAdhanEnabled = false;
   static const String _defaultMuezzin = 'Abdulbaset';
@@ -36,20 +36,26 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
   String _muezzin = _defaultMuezzin;
 
   final List<Map<String, String>> _methods = const [
-    {'id': '2', 'label': 'ISNA (2)'},
-    {'id': '3', 'label': 'Muslim World League (3)'},
-    {'id': '4', 'label': 'Umm al-Qura, Makkah (4)'},
-    {'id': '5', 'label': 'Egyptian Authority (5)'},
-    {'id': '8', 'label': 'Gulf Region (8)'},
-    {'id': '9', 'label': 'Kuwait (9)'},
-    {'id': '10', 'label': 'Qatar (10)'},
-    {'id': '12', 'label': 'Turkey (12)'},
-    {'id': '13', 'label': 'Morocco (13)'},
-    {'id': '15', 'label': 'Moon Sighting Committee (15)'},
-    {'id': '16', 'label': 'Karachi (16)'},
-    {'id': '18', 'label': 'France (18)'},
-    {'id': '20', 'label': 'Tunisia (20)'},
-    {'id': '21', 'label': 'Algeria (21)'},
+    {'id': '2',  'label': 'ISNA'},
+    {'id': '3',  'label': 'Muslim World League'},
+    {'id': '4',  'label': 'Umm al-Qura, Makkah'},
+    {'id': '5',  'label': 'Egyptian Authority'},
+    {'id': '8',  'label': 'Gulf Region'},
+    {'id': '9',  'label': 'Kuwait'},
+    {'id': '10', 'label': 'Qatar'},
+    {'id': '11', 'label': 'Singapour (MUIS)'},
+    {'id': '12', 'label': 'UOIF – France'},
+    {'id': '13', 'label': 'Turkey (Diyanet)'},
+    {'id': '14', 'label': 'Russie'},
+    {'id': '15', 'label': 'Moon Sighting Committee'},
+    {'id': '16', 'label': 'Dubai'},
+    {'id': '17', 'label': 'Malaysia (JAKIM)'},
+    {'id': '18', 'label': 'Tunisie'},
+    {'id': '19', 'label': 'Algérie'},
+    {'id': '20', 'label': 'Indonésie (KEMENAG)'},
+    {'id': '21', 'label': 'Maroc'},
+    {'id': '22', 'label': 'Portugal'},
+    {'id': '23', 'label': 'Jordanie'},
   ];
 
   final List<String> _muezzins = const [

@@ -1,12 +1,58 @@
+// lib/ui/prayers_screen.dart
+//
+// Écran horaires de prière – redesign homogène avec l'app.
+// Palette teal/mosquée identique à prayer_times_card_v2.
+// Header : image mosquée + dégradé + étoiles + prière suivante + countdown live.
+// Liste : per-prayer rows avec toggle adhan + toggle notif.
+// Sections bas : son de l'adhan (muezzin + preview) + notifications.
+
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:just_audio/just_audio.dart';
-import 'prayer_settings_screen.dart';
 import '../services/location_service.dart';
+import 'widgets/location_picker_dialog.dart';
 
+// ── Palette ──────────────────────────────────────────────────────────────────
+const _kTeal  = Color(0xFF0E6B63);
+const _kTeal2 = Color(0xFF0B4F4A);
+const _kGold  = Color(0xFFFFD37A);
 
+const _kPrayerColors = <String, Color>{
+  'Fajr':    Color(0xFF818CF8),
+  'Dhuhr':   Color(0xFFFBBF24),
+  'Asr':     Color(0xFFFB923C),
+  'Maghrib': Color(0xFFF472B6),
+  'Isha':    Color(0xFFA78BFA),
+};
+
+// ── Muezzins & URLs ──────────────────────────────────────────────────────────
+const _kMuezzins = <String, String>{
+  'AbdulBaset':          'Abdul Basit Abdul Samad',
+  'AbdulBaset_Mujawwad': 'Abdul Basit (Mujawwad)',
+  'Sudais':              'Abdurrahman As-Sudais',
+  'Alafasy':             'Mishary Rashid Alafasy',
+  'Husary':              'Mahmoud Khalil Al-Husary',
+  'Minshawi':            'Mohamed Siddiq El-Minshawi',
+  'Ghamadi':             'Saad Al-Ghamdi',
+};
+
+const _kAdhanUrls = <String, String>{
+  'AbdulBaset':          'https://www.islamcan.com/audio/adhan/azan1.mp3',
+  'AbdulBaset_Mujawwad': 'https://www.islamcan.com/audio/adhan/azan2.mp3',
+  'Sudais':              'https://www.islamcan.com/audio/adhan/azan3.mp3',
+  'Alafasy':             'https://www.islamcan.com/audio/adhan/azan4.mp3',
+  'Husary':              'https://www.islamcan.com/audio/adhan/azan5.mp3',
+  'Minshawi':            'https://www.islamcan.com/audio/adhan/azan6.mp3',
+  'Ghamadi':             'https://www.islamcan.com/audio/adhan/azan7.mp3',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class PrayersScreen extends StatefulWidget {
   const PrayersScreen({super.key});
@@ -16,867 +62,1557 @@ class PrayersScreen extends StatefulWidget {
 }
 
 class _PrayersScreenState extends State<PrayersScreen> {
-  static const String _prefCity = 'prayer_city';
-  static const String _prefCountry = 'prayer_country';
-  static const String _prefMethod = 'prayer_method';
-
-  static const String _defaultCity = 'Paris';
-  static const String _defaultCountry = 'France';
-  static const String _defaultMethod = '2';
+  static const _prefMethod  = 'prayer_method';
+  static const _prefCity    = 'prayer_city';
+  static const _prefCountry = 'prayer_country';
+  static const _defMethod   = '12';
+  static const _defCity     = 'Paris';
+  static const _defCountry  = 'France';
 
   late Future<_PrayersData> _future;
-
-  String _methodLabel(String id) {
-    switch (id) {
-      case '2':
-        return 'ISNA (2)';
-      case '3':
-        return 'Muslim World League (3)';
-      case '4':
-        return 'Umm al-Qura (4)';
-      case '5':
-        return 'Egyptian Authority (5)';
-      case '8':
-        return 'Gulf Region (8)';
-      case '9':
-        return 'Kuwait (9)';
-      case '10':
-        return 'Qatar (10)';
-      case '12':
-        return 'Turkey (12)';
-      case '13':
-        return 'Morocco (13)';
-      case '15':
-        return 'Moon Sighting Committee (15)';
-      case '16':
-        return 'Karachi (16)';
-      case '18':
-        return 'France (18)';
-      case '20':
-        return 'Tunisia (20)';
-      case '21':
-        return 'Algeria (21)';
-      default:
-        return 'Méthode ($id)';
-    }
-  }
-
+  late final Stream<DateTime> _clock;
+  String _currentMethod = _defMethod;
 
   @override
   void initState() {
     super.initState();
+    _clock  = Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now())
+        .asBroadcastStream();
     _future = _loadPrayers();
+    _loadMethod();
   }
+
+  Future<void> _loadMethod() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final raw = (prefs.getString(_prefMethod) ?? _defMethod).trim();
+    setState(() => _currentMethod = raw.isEmpty ? _defMethod : raw);
+  }
+
+  Future<void> _saveMethod(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefMethod, id);
+    if (!mounted) return;
+    setState(() => _currentMethod = id);
+    _refresh();
+  }
+
+  void _showMethodSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const methods = <Map<String, String>>[
+      {'id': '2',  'label': 'ISNA'},
+      {'id': '3',  'label': 'Muslim World League'},
+      {'id': '4',  'label': 'Umm al-Qura, Makkah'},
+      {'id': '5',  'label': 'Egyptian Authority'},
+      {'id': '8',  'label': 'Gulf Region'},
+      {'id': '9',  'label': 'Kuwait'},
+      {'id': '10', 'label': 'Qatar'},
+      {'id': '11', 'label': 'Singapour (MUIS)'},
+      {'id': '12', 'label': 'UOIF – France'},
+      {'id': '13', 'label': 'Turkey (Diyanet)'},
+      {'id': '14', 'label': 'Russie'},
+      {'id': '15', 'label': 'Moon Sighting Committee'},
+      {'id': '16', 'label': 'Dubai'},
+      {'id': '17', 'label': 'Malaysia (JAKIM)'},
+      {'id': '18', 'label': 'Tunisie'},
+      {'id': '19', 'label': 'Algérie'},
+      {'id': '20', 'label': 'Indonésie (KEMENAG)'},
+      {'id': '21', 'label': 'Maroc'},
+      {'id': '22', 'label': 'Portugal'},
+      {'id': '23', 'label': 'Jordanie'},
+    ];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        final txtP = isDark ? Colors.white : const Color(0xFF0F172A);
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (_, scroll) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Text('Méthode de calcul',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: txtP)),
+              ),
+              Expanded(
+                child: ListView(
+                  controller: scroll,
+                  children: methods.map((m) {
+                    final sel = m['id'] == _currentMethod;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.fromLTRB(20, 2, 16, 2),
+                      leading: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: sel ? _kTeal : (isDark
+                              ? Colors.white.withValues(alpha: 0.07)
+                              : Colors.black.withValues(alpha: 0.04)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          sel ? Icons.check_rounded : Icons.calculate_outlined,
+                          color: sel ? Colors.white : (isDark ? Colors.white38 : Colors.black38),
+                          size: 18,
+                        ),
+                      ),
+                      title: Text(m['label']!,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                            color: sel ? _kTeal : txtP,
+                          )),
+                      onTap: () {
+                        _saveMethod(m['id']!);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showLocationPicker(BuildContext context) async {
+    await showDialog(
+      context: context,
+      builder: (_) => const LocationPickerDialog(),
+    );
+    _refresh();
+  }
+
+  // ── Data loading ───────────────────────────────────────────────────────────
 
   Future<_PrayersData> _loadPrayers() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs  = await SharedPreferences.getInstance();
+      final rawM   = (prefs.getString(_prefMethod) ?? _defMethod).trim();
+      final method = rawM.isEmpty ? _defMethod : rawM;
 
-      final methodRaw = (prefs.getString(_prefMethod) ?? _defaultMethod).trim();
-      final method = methodRaw.isEmpty ? _defaultMethod : methodRaw;
-
-      final location = await LocationService.getSavedOrCurrentLocation();
+      final loc = await LocationService.getSavedOrCurrentLocation();
 
       Uri uri;
-      if (!location.isManual && location.latitude != 0 && location.longitude != 0) {
+      if (!loc.isManual && loc.latitude != 0 && loc.longitude != 0) {
         uri = Uri.https('api.aladhan.com', '/v1/timings', {
-          'latitude': location.latitude.toString(),
-          'longitude': location.longitude.toString(),
-          'method': method,
+          'latitude':  loc.latitude.toString(),
+          'longitude': loc.longitude.toString(),
+          'method':    method,
         });
       } else {
-        final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
-        final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
-
+        final city    = (prefs.getString(_prefCity)    ?? _defCity).trim();
+        final country = (prefs.getString(_prefCountry) ?? _defCountry).trim();
         uri = Uri.https('api.aladhan.com', '/v1/timingsByCity', {
-          'city': city,
-          'country': country,
-          'method': method,
+          'city': city, 'country': country, 'method': method,
         });
       }
 
       final res = await http.get(uri);
-      if (res.statusCode != 200) {
-        final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
-        final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
-        return _PrayersData.error(city: city, country: country, method: method);
-      }
+      if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
 
-      final jsonBody = json.decode(res.body) as Map<String, dynamic>;
-      final data = jsonBody['data'] as Map<String, dynamic>;
+      final root    = json.decode(res.body) as Map<String, dynamic>;
+      final data    = root['data'] as Map<String, dynamic>;
       final timings = data['timings'] as Map<String, dynamic>;
 
-      final map = <String, String>{
-        'Fajr': (timings['Fajr'] ?? '').toString(),
-        'Dhuhr': (timings['Dhuhr'] ?? '').toString(),
-        'Asr': (timings['Asr'] ?? '').toString(),
-        'Maghrib': (timings['Maghrib'] ?? '').toString(),
-        'Isha': (timings['Isha'] ?? '').toString(),
-      };
+      // Hijri date
+      final hijri      = (data['date'] as Map?)?['hijri'] as Map?;
+      final hijriDay   = hijri?['day']?.toString() ?? '';
+      final hijriMonth = ((hijri?['month'] as Map?)?['en'] ?? '').toString();
+      final hijriYear  = hijri?['year']?.toString() ?? '';
+      final hijriLine  = (hijriDay.isNotEmpty && hijriMonth.isNotEmpty && hijriYear.isNotEmpty)
+          ? '$hijriDay $hijriMonth $hijriYear AH'
+          : '';
 
-      // Header: priorise la ville/pays de LocationService si dispo
-      final headerCity = (location.city.isNotEmpty)
-          ? location.city
-          : (prefs.getString(_prefCity) ?? _defaultCity).trim();
-      final headerCountry = (location.country.isNotEmpty)
-          ? location.country
-          : (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
+      final city    = loc.city.isNotEmpty    ? loc.city    : (prefs.getString(_prefCity)    ?? _defCity).trim();
+      final country = loc.country.isNotEmpty ? loc.country : (prefs.getString(_prefCountry) ?? _defCountry).trim();
 
       return _PrayersData(
-        city: headerCity,
-        country: headerCountry,
-        method: method,
-        times: map,
+        city: city, country: country, method: method, hijriLine: hijriLine,
+        times: {
+          'Fajr':    (timings['Fajr']    ?? '').toString(),
+          'Dhuhr':   (timings['Dhuhr']   ?? '').toString(),
+          'Asr':     (timings['Asr']     ?? '').toString(),
+          'Maghrib': (timings['Maghrib'] ?? '').toString(),
+          'Isha':    (timings['Isha']    ?? '').toString(),
+        },
       );
-    } catch (e) {
-      // En cas d'erreur réseau ou de parsing
+    } catch (_) {
       final prefs = await SharedPreferences.getInstance();
-      final city = (prefs.getString(_prefCity) ?? _defaultCity).trim();
-      final country = (prefs.getString(_prefCountry) ?? _defaultCountry).trim();
-      final method = (prefs.getString(_prefMethod) ?? _defaultMethod).trim();
-      return _PrayersData.error(city: city, country: country, method: method);
+      return _PrayersData.error(
+        city:    (prefs.getString(_prefCity)    ?? _defCity).trim(),
+        country: (prefs.getString(_prefCountry) ?? _defCountry).trim(),
+        method:  (prefs.getString(_prefMethod)  ?? _defMethod).trim(),
+      );
     }
   }
 
+  void _refresh() => setState(() { _future = _loadPrayers(); });
 
-  void _refresh() {
-    setState(() {
-      _future = _loadPrayers();
-    });
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  DateTime? _parseToday(String t, DateTime now) {
+    final parts = t.split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return DateTime(now.year, now.month, now.day, h, m);
   }
 
   String? _nextPrayer(Map<String, String> times) {
     if (times.isEmpty) return null;
     final now = DateTime.now();
-    for (final entry in times.entries) {
-      final time = _parseToday(entry.value, now);
-      if (time != null && time.isAfter(now)) {
-        return entry.key;
-      }
+    for (final e in times.entries) {
+      final t = _parseToday(e.value, now);
+      if (t != null && t.isAfter(now)) return e.key;
     }
     return times.keys.first;
   }
 
-  DateTime? _parseToday(String time, DateTime now) {
-    final parts = time.split(':');
-    if (parts.length < 2) return null;
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
-    if (hour == null || minute == null) return null;
-    return DateTime(now.year, now.month, now.day, hour, minute);
-  }
-
-  String _remainingTo(String time) {
+  String _countdown(String time) {
     final now = DateTime.now();
-    final dt = _parseToday(time, now);
-    if (dt == null) return '--:--';
-
-    var target = dt;
-    if (!target.isAfter(now)) {
-      target = target.add(const Duration(days: 1));
-    }
-
+    var target = _parseToday(time, now);
+    if (target == null) return '--:--';
+    if (!target.isAfter(now)) target = target.add(const Duration(days: 1));
     final diff = target.difference(now);
     final h = diff.inHours;
     final m = diff.inMinutes.remainder(60);
-    return '${h.toString().padLeft(2, '0')}h ${m.toString().padLeft(2, '0')}m';
+    final s = diff.inSeconds.remainder(60);
+    if (h > 0) return '${h}h ${m.toString().padLeft(2, '0')}m';
+    return '${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s';
   }
+
+  static String _methodLabel(String id) {
+    const labels = <String, String>{
+      '2':  'ISNA',
+      '3':  'Muslim World League',
+      '4':  'Umm al-Qura, Makkah',
+      '5':  'Egyptian Authority',
+      '8':  'Gulf Region',
+      '9':  'Kuwait',
+      '10': 'Qatar',
+      '11': 'Singapour (MUIS)',
+      '12': 'UOIF – France',
+      '13': 'Turkey (Diyanet)',
+      '14': 'Russie',
+      '15': 'Moon Sighting Committee',
+      '16': 'Dubai',
+      '17': 'Malaysia (JAKIM)',
+      '18': 'Tunisie',
+      '19': 'Algérie',
+      '20': 'Indonésie (KEMENAG)',
+      '21': 'Maroc',
+      '22': 'Portugal',
+      '23': 'Jordanie',
+    };
+    return labels[id] ?? 'Méthode $id';
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg     = isDark ? const Color(0xFF080E1A) : const Color(0xFFF0F4F8);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Prières'),
-        centerTitle: true,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(0xFF0EA5E9),
-                Color(0xFF0284C7),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _refresh,
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune_rounded),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PrayerSettingsScreen()),
-              );
-              _refresh();
-            },
-          ),
-        ],
-      ),
+      backgroundColor: bg,
       body: FutureBuilder<_PrayersData>(
         future: _future,
         builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          final loading  = snap.connectionState != ConnectionState.done;
+          final data     = snap.data;
+          final times    = data?.times ?? {};
+          final nextName = times.isEmpty ? null : _nextPrayer(times);
 
-          final data = snap.data;
-          if (data == null || data.times.isEmpty) {
-            return const Center(child: Text('Impossible de charger les horaires.'));
-          }
+          return CustomScrollView(
+            slivers: [
+              // ── HEADER ──────────────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: _PrayerHeader(
+                  isDark:          isDark,
+                  loading:         loading,
+                  data:            data,
+                  nextName:        nextName,
+                  clock:           _clock,
+                  countdown:       _countdown,
+                  bodyBg:          bg,
+                  onRefresh:       _refresh,
+                  onLocationTap:   () => _showLocationPicker(context),
+                ),
+              ),
 
-          final nextName = _nextPrayer(data.times) ?? 'Fajr';
-
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                // Header avec localisation et méthode
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Color(0xFF0EA5E9), // Bleu vif ciel
-                        Color(0xFF0284C7), // Bleu vif plus foncé
+              if (loading)
+                const SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(color: _kTeal),
+                  ),
+                )
+              else if (times.isEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.wifi_off_rounded, size: 52,
+                            color: isDark ? Colors.white30 : Colors.black26),
+                        const SizedBox(height: 14),
+                        Text('Impossible de charger les horaires',
+                            style: TextStyle(
+                                color: isDark ? Colors.white54 : Colors.black45,
+                                fontSize: 15)),
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(backgroundColor: _kTeal),
+                          onPressed: _refresh,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Réessayer'),
+                        ),
                       ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                )
+              else ...[
+                // ── METHOD CHIP ──────────────────────────────────────────────
+                if (data != null)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: Wrap(
                         children: [
-                          const Icon(Icons.location_on, size: 18, color: Colors.white),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${data.city}, ${data.country}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                              color: Colors.white,
+                          GestureDetector(
+                            onTap: () => _showMethodSheet(context),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.07)
+                                    : Colors.black.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.calculate_outlined,
+                                      size: 12,
+                                      color: isDark
+                                          ? Colors.white38
+                                          : Colors.black38),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _methodLabel(data.method),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark
+                                          ? Colors.white38
+                                          : Colors.black38,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Icon(Icons.keyboard_arrow_right_rounded,
+                                      size: 13,
+                                      color: isDark
+                                          ? Colors.white24
+                                          : Colors.black26),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _methodLabel(data.method),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white.withOpacity(0.85),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Liste de toutes les prières avec bords arrondis
-                Transform.translate(
-                  offset: const Offset(0, -16),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(24),
-                        topRight: Radius.circular(24),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, -2),
-                        ),
-                      ],
                     ),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      itemCount: data.times.length,
-                      itemBuilder: (context, index) {
-                        final entry = data.times.entries.elementAt(index);
-                        final name = entry.key;
-                        final time = entry.value;
-                        final isNext = name == nextName;
-                        final remaining = isNext ? _remainingTo(time) : null;
+                  ),
 
-                        return _PrayerCard(
-                          name: name,
-                          time: time,
-                          isNext: isNext,
-                          remaining: remaining,
-                          icon: _getPrayerIcon(name),
-                          onAdhanChanged: () => setState(() {}),
+                // ── PRAYER ROWS ──────────────────────────────────────────────
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (_, i) {
+                        final e      = times.entries.elementAt(i);
+                        final isNext = e.key == nextName;
+                        final isLast = i == times.length - 1;
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _PrayerRow(
+                              isDark:    isDark,
+                              name:      e.key,
+                              time:      e.value,
+                              isNext:    isNext,
+                              clock:     _clock,
+                              countdown: _countdown,
+                            ),
+                            // Séparateur léger entre les lignes non-carte
+                            if (!isNext && !isLast)
+                              Divider(
+                                height: 1,
+                                thickness: 0.5,
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.07)
+                                    : Colors.black.withValues(alpha: 0.06),
+                              ),
+                          ],
                         );
                       },
+                      childCount: times.length,
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 24),
-
-                // Section paramètres de notification
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Notifications',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(context).brightness == Brightness.dark 
-                              ? Colors.white 
-                              : const Color(0xFF0EA5E9),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // Activer notifications
-                      _NotificationToggle(
-                        title: 'Activer les notifications',
-                        subtitle: 'Recevoir une notification à chaque prière',
-                        prefKey: 'prayer_notifications_enabled',
-                        onChanged: (value) {
-                          setState(() {});
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Choix du muezzin
-                      FutureBuilder<bool>(
-                        future: _isAnyAdhanEnabled(),
-                        builder: (context, snap) {
-                          final enabled = snap.data ?? false;
-                          return _MuezzinSelector(enabled: enabled);
-                        },
-                      ),
-
-                      const SizedBox(height: 32),
-                    ],
+                // ── ADHAN SECTION ────────────────────────────────────────────
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: _AdhanSection(isDark: isDark),
                   ),
                 ),
+
+                // ── NOTIFICATION SECTION ─────────────────────────────────────
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: _NotifSection(isDark: isDark),
+                  ),
+                ),
+
+                SliverPadding(
+                  padding: EdgeInsets.only(
+                      bottom: 36 + MediaQuery.of(context).padding.bottom),
+                  sliver: const SliverToBoxAdapter(child: SizedBox.shrink()),
+                ),
               ],
-            ),
+            ],
           );
         },
       ),
     );
   }
-
-  Future<bool> _isAnyAdhanEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    final prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-    for (final prayer in prayers) {
-      if (prefs.getBool('prayer_adhan_${prayer.toLowerCase()}') ?? false) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  IconData _getPrayerIcon(String name) {
-    switch (name.toLowerCase()) {
-      case 'fajr':
-        return Icons.wb_twilight_rounded;
-      case 'dhuhr':
-        return Icons.wb_sunny_outlined;
-      case 'asr':
-        return Icons.wb_sunny;
-      case 'maghrib':
-        return Icons.nights_stay_rounded;
-      case 'isha':
-        return Icons.nightlight_round;
-      default:
-        return Icons.access_time_rounded;
-    }
-  }
 }
 
-// Widget pour une carte de prière avec switch adhan
-class _PrayerCard extends StatefulWidget {
-  final String name;
-  final String time;
-  final bool isNext;
-  final String? remaining;
-  final IconData icon;
-  final VoidCallback? onAdhanChanged;
+// ── HEADER ────────────────────────────────────────────────────────────────────
 
-  const _PrayerCard({
-    required this.name,
-    required this.time,
-    required this.isNext,
-    this.remaining,
-    required this.icon,
-    this.onAdhanChanged,
+class _PrayerHeader extends StatelessWidget {
+  final bool isDark;
+  final bool loading;
+  final _PrayersData? data;
+  final String? nextName;
+  final Stream<DateTime> clock;
+  final String Function(String) countdown;
+  final Color bodyBg;
+  final VoidCallback onRefresh;
+  final VoidCallback onLocationTap;
+
+  const _PrayerHeader({
+    required this.isDark,
+    required this.loading,
+    required this.data,
+    required this.nextName,
+    required this.clock,
+    required this.countdown,
+    required this.bodyBg,
+    required this.onRefresh,
+    required this.onLocationTap,
   });
 
   @override
-  State<_PrayerCard> createState() => _PrayerCardState();
+  Widget build(BuildContext context) {
+    final top      = MediaQuery.of(context).padding.top;
+    final nextTime = data?.times[nextName];
+
+    return SizedBox(
+      height: 268 + top,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Image mosquée de fond
+          Image.asset(
+            'assets/images/prieres/mosquee_fond_widget.webp',
+            fit: BoxFit.cover,
+          ),
+
+          // Dégradé teal
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end:   Alignment.bottomRight,
+                colors: [
+                  Color(0xEE0E6B63),
+                  Color(0xEE0B4F4A),
+                  Color(0xF0083B37),
+                ],
+              ),
+            ),
+          ),
+
+          // Étoiles
+          const IgnorePointer(
+            child: CustomPaint(painter: _StarfieldPainter()),
+          ),
+
+          // Contenu
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                children: [
+                  // ── Top bar ──────────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Horaires de prières',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded,
+                              color: Colors.white70, size: 22),
+                          onPressed: onRefresh,
+                          tooltip: 'Actualiser',
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // ── Prière suivante ───────────────────────────────────────
+                  if (!loading && nextName != null && nextTime != null) ...[
+                    Text(
+                      'PROCHAINE PRIÈRE',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 11,
+                        letterSpacing: 1.6,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      nextName!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    Text(
+                      nextTime,
+                      style: const TextStyle(
+                        color: _kGold,
+                        fontSize: 52,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1.5,
+                        height: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Countdown live
+                    StreamBuilder<DateTime>(
+                      stream: clock,
+                      builder: (_, __) => _CountdownPill(
+                          text: 'Dans ${countdown(nextTime)}'),
+                    ),
+                  ] else if (loading) ...[
+                    const SizedBox(height: 16),
+                    const CircularProgressIndicator(
+                        color: _kGold, strokeWidth: 2.5),
+                  ],
+
+                  const SizedBox(height: 16),
+
+                  // ── Localisation + date hijri ─────────────────────────────
+                  if (data != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        children: [
+                          GestureDetector(
+                            onTap: onLocationTap,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.location_on_rounded,
+                                    color: Colors.white60, size: 13),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${data!.city}, ${data!.country}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                const Icon(Icons.keyboard_arrow_right_rounded,
+                                    color: Colors.white38, size: 14),
+                              ],
+                            ),
+                          ),
+                          if (data!.hijriLine.isNotEmpty) ...[
+                            Text('·',
+                                style: TextStyle(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.35),
+                                    fontSize: 12)),
+                            Text(
+                              data!.hijriLine,
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 12),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Fondu de transition vers le body
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end:   Alignment.bottomCenter,
+                  colors: [Colors.transparent, bodyBg],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _PrayerCardState extends State<_PrayerCard> {
-  bool _adhanEnabled = false;
+// Pill de countdown
+class _CountdownPill extends StatelessWidget {
+  final String text;
+  const _CountdownPill({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.schedule_rounded, color: _kGold, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── PRAYER ROW ────────────────────────────────────────────────────────────────
+
+class _PrayerRow extends StatefulWidget {
+  final bool isDark;
+  final String name;
+  final String time;
+  final bool isNext;
+  final Stream<DateTime> clock;
+  final String Function(String) countdown;
+
+  const _PrayerRow({
+    required this.isDark,
+    required this.name,
+    required this.time,
+    required this.isNext,
+    required this.clock,
+    required this.countdown,
+  });
+
+  @override
+  State<_PrayerRow> createState() => _PrayerRowState();
+}
+
+class _PrayerRowState extends State<_PrayerRow> {
+  bool _adhanOn = false;
+  bool _notifOn = false;
+
+  static const _icons = <String, IconData>{
+    'Fajr':    Icons.wb_twilight_rounded,
+    'Dhuhr':   Icons.wb_sunny_outlined,
+    'Asr':     Icons.wb_sunny_rounded,
+    'Maghrib': Icons.nights_stay_rounded,
+    'Isha':    Icons.nightlight_round,
+  };
+
+  String get _adhanPref => 'prayer_adhan_${widget.name.toLowerCase()}';
+  String get _notifPref => 'prayer_notif_${widget.name.toLowerCase()}';
 
   @override
   void initState() {
     super.initState();
-    _loadAdhanState();
+    _load();
   }
 
-  Future<void> _loadAdhanState() async {
+  Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
-      _adhanEnabled = prefs.getBool('prayer_adhan_${widget.name.toLowerCase()}') ?? false;
+      _adhanOn = prefs.getBool(_adhanPref) ?? false;
+      _notifOn = prefs.getBool(_notifPref) ?? false;
     });
   }
 
-  Future<void> _setAdhanState(bool value) async {
+  Future<void> _setAdhan(bool v) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('prayer_adhan_${widget.name.toLowerCase()}', value);
-    setState(() {
-      _adhanEnabled = value;
-    });
-    widget.onAdhanChanged?.call();
+    await prefs.setBool(_adhanPref, v);
+    if (mounted) setState(() => _adhanOn = v);
   }
 
-  Color _getPrayerColor(String name) {
-    switch (name.toLowerCase()) {
-      case 'fajr':
-        return const Color(0xFF6366F1); // Indigo vif
-      case 'dhuhr':
-        return const Color(0xFFEAB308); // Jaune doré
-      case 'asr':
-        return const Color(0xFFF97316); // Orange vif
-      case 'maghrib':
-        return const Color(0xFFEC4899); // Rose vif
-      case 'isha':
-        return const Color(0xFF8B5CF6); // Violet vif
-      default:
-        return const Color(0xFF10B981); // Vert par défaut
-    }
+  Future<void> _setNotif(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_notifPref, v);
+    if (mounted) setState(() => _notifOn = v);
   }
+
+  // Vérifie si la prière est passée
+  bool _isPast() {
+    final now   = DateTime.now();
+    final parts = widget.time.split(':');
+    if (parts.length < 2) return false;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return false;
+    return DateTime(now.year, now.month, now.day, h, m).isBefore(now);
+  }
+
+  Widget _togglesColumn(Color color) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _IconToggle(
+            icon: Icons.volume_up_rounded,
+            value: _adhanOn,
+            color: color,
+            onChanged: _setAdhan,
+            tooltip: 'Adhan',
+          ),
+          const SizedBox(height: 4),
+          _IconToggle(
+            icon: Icons.notifications_rounded,
+            value: _notifOn,
+            color: color,
+            onChanged: _setNotif,
+            tooltip: 'Notification',
+          ),
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
-    final prayerColor = _getPrayerColor(widget.name);
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: widget.isNext
-          ? LinearGradient(
-              colors: [
-                prayerColor.withOpacity(0.15),
-                prayerColor.withOpacity(0.05),
-              ],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            )
-          : null,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    final color  = _kPrayerColors[widget.name] ?? _kTeal;
+    final isDark = widget.isDark;
+
+    // ── Carte : prière suivante ────────────────────────────────────────────
+    if (widget.isNext) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        margin: const EdgeInsets.only(bottom: 6),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Color.lerp(const Color(0xFF111827), color, 0.14)!
+              : Color.lerp(Colors.white, color, 0.07)!,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withValues(alpha: 0.50), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.18),
+              blurRadius: 18,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              // Icône avec fond dégradé
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [color, color.withValues(alpha: 0.55)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.32),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _icons[widget.name] ?? Icons.access_time_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Nom + countdown
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    StreamBuilder<DateTime>(
+                      stream: widget.clock,
+                      builder: (_, __) => Text(
+                        'Dans ${widget.countdown(widget.time)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: color.withValues(alpha: 0.80),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Heure
+              Text(
+                widget.time,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _togglesColumn(color),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ── Ligne épurée : autres prières ─────────────────────────────────────
+    final past       = _isPast();
+    final nameColor  = past
+        ? (isDark ? Colors.white.withValues(alpha: 0.30) : Colors.black.withValues(alpha: 0.25))
+        : (isDark ? Colors.white.withValues(alpha: 0.80) : const Color(0xFF374151));
+    final timeColor  = past
+        ? (isDark ? Colors.white.withValues(alpha: 0.22) : Colors.black.withValues(alpha: 0.20))
+        : (isDark ? Colors.white.withValues(alpha: 0.60) : const Color(0xFF64748B));
+    final iconColor  = past
+        ? (isDark ? Colors.white.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.18))
+        : color.withValues(alpha: 0.70);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
       child: Row(
         children: [
-          // Icône
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  prayerColor,
-                  prayerColor.withOpacity(0.7),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: prayerColor.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Icon(
-              widget.icon,
-              color: Colors.white,
-              size: 22,
-            ),
+          // Icône sans fond
+          Icon(
+            _icons[widget.name] ?? Icons.access_time_rounded,
+            color: iconColor,
+            size: 20,
           ),
           const SizedBox(width: 12),
-          // Nom et temps restant
+          // Nom
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.name,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: widget.isNext ? prayerColor : Theme.of(context).textTheme.bodyLarge?.color,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                if (widget.isNext && widget.remaining != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    'Dans ${widget.remaining}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: prayerColor.withOpacity(0.8),
-                    ),
-                  ),
-                ],
-              ],
+            child: Text(
+              widget.name,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: past ? FontWeight.w400 : FontWeight.w600,
+                color: nameColor,
+              ),
             ),
           ),
           // Heure
           Text(
             widget.time,
             style: TextStyle(
-              fontSize: widget.isNext ? 22 : 18,
-              fontWeight: FontWeight.w900,
-              color: widget.isNext ? prayerColor : Theme.of(context).textTheme.bodyLarge?.color,
-              letterSpacing: -0.5,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: timeColor,
+              letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(width: 12),
-          // Switch Adhan
-          Column(
-            children: [
-              Icon(
-                Icons.volume_up_rounded,
-                size: 16,
-                color: _adhanEnabled ? prayerColor : Colors.grey[400],
-              ),
-              const SizedBox(height: 2),
-              Transform.scale(
-                scale: 0.65,
-                child: Switch(
-                  value: _adhanEnabled,
-                  onChanged: _setAdhanState,
-                  activeColor: prayerColor,
-                ),
-              ),
-            ],
-          ),
+          const SizedBox(width: 10),
+          _togglesColumn(color),
         ],
       ),
     );
   }
 }
 
-// Widget pour toggle notification/adhan
-class _NotificationToggle extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final String prefKey;
-  final ValueChanged<bool>? onChanged;
+// Mini toggle icon (adhan / notif)
+class _IconToggle extends StatelessWidget {
+  final IconData icon;
+  final bool value;
+  final Color color;
+  final ValueChanged<bool> onChanged;
+  final String tooltip;
 
-  const _NotificationToggle({
-    required this.title,
-    required this.subtitle,
-    required this.prefKey,
-    this.onChanged,
+  const _IconToggle({
+    required this.icon,
+    required this.value,
+    required this.color,
+    required this.onChanged,
+    required this.tooltip,
   });
 
   @override
-  State<_NotificationToggle> createState() => _NotificationToggleState();
-}
-
-class _NotificationToggleState extends State<_NotificationToggle> {
-  bool _value = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadValue();
-  }
-
-  Future<void> _loadValue() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _value = prefs.getBool(widget.prefKey) ?? false;
-    });
-  }
-
-  Future<void> _setValue(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(widget.prefKey, value);
-    setState(() {
-      _value = value;
-    });
-    widget.onChanged?.call(value);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: SwitchListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        title: Text(
-          widget.title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text(
-          widget.subtitle,
-          style: TextStyle(
-            fontSize: 12, 
-            color: Theme.of(context).textTheme.bodySmall?.color,
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: () => onChanged(!value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 32,
+          height: 26,
+          decoration: BoxDecoration(
+            color: value
+                ? color.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: value
+                ? color
+                : Colors.grey.withValues(alpha: 0.45),
           ),
         ),
-        value: _value,
-        onChanged: _setValue,
-        activeColor: Theme.of(context).primaryColor,
       ),
     );
   }
 }
 
-// Widget pour sélectionner le muezzin
-class _MuezzinSelector extends StatefulWidget {
-  final bool enabled;
+// ── ADHAN SECTION ─────────────────────────────────────────────────────────────
 
-  const _MuezzinSelector({required this.enabled});
+class _AdhanSection extends StatefulWidget {
+  final bool isDark;
+  const _AdhanSection({required this.isDark});
 
   @override
-  State<_MuezzinSelector> createState() => _MuezzinSelectorState();
+  State<_AdhanSection> createState() => _AdhanSectionState();
 }
 
-class _MuezzinSelectorState extends State<_MuezzinSelector> {
-  String _selected = 'AbdulBaset';
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  String? _playingMuezzin;
+class _AdhanSectionState extends State<_AdhanSection> {
+  String _muezzin      = 'AbdulBaset';
+  bool   _adhanEnabled = false;
+  final AudioPlayer _player = AudioPlayer();
+  String? _playing;
+  String? _downloading;
 
-  static const Map<String, String> _muezzins = {
-    'AbdulBaset': 'Abdul Basit Abdul Samad',
-    'AbdulBaset_Mujawwad': 'Abdul Basit (Mujawwad)',
-    'Sudais': 'Abdurrahman As-Sudais',
-    'Alafasy': 'Mishary Rashid Alafasy',
-    'Husary': 'Mahmoud Khalil Al-Husary',
-    'Minshawi': 'Mohamed Siddiq El-Minshawi',
-    'Ghamadi': 'Saad Al-Ghamdi',
-  };
+  /// Retourne le chemin local du fichier adhan (télécharge si absent du cache).
+  Future<String> _getOrDownloadAdhan(String key) async {
+    final dir  = await getApplicationCacheDirectory();
+    final file = File('${dir.path}/adhan_$key.mp3');
+    if (!await file.exists()) {
+      final res = await http.get(Uri.parse(_kAdhanUrls[key]!));
+      if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
+      await file.writeAsBytes(res.bodyBytes);
+    }
+    return file.path;
+  }
 
-  // URLs d'exemple pour l'adhan de chaque muezzin (à adapter selon vos sources)
-  static const Map<String, String> _adhanUrls = {
-    'AbdulBaset': 'https://www.islamcan.com/audio/adhan/adhan-makkah.mp3',
-    'AbdulBaset_Mujawwad': 'https://www.islamcan.com/audio/adhan/adhan-makkah.mp3',
-    'Sudais': 'https://www.islamcan.com/audio/adhan/adhan-makkah.mp3',
-    'Alafasy': 'https://www.islamcan.com/audio/adhan/adhan-makkah.mp3',
-    'Husary': 'https://www.islamcan.com/audio/adhan/adhan-makkah.mp3',
-    'Minshawi': 'https://www.islamcan.com/audio/adhan/adhan-makkah.mp3',
-    'Ghamadi': 'https://www.islamcan.com/audio/adhan/adhan-makkah.mp3',
-  };
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _muezzin      = prefs.getString('prayer_muezzin') ?? 'AbdulBaset';
+      _adhanEnabled = prefs.getBool('adhan_enabled')    ?? false;
+    });
+  }
 
   @override
   void dispose() {
-    _audioPlayer.dispose();
+    _player.dispose();
     super.dispose();
   }
+
+  Future<void> _setEnabled(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('adhan_enabled', v);
+    if (mounted) setState(() => _adhanEnabled = v);
+  }
+
+  Future<void> _setMuezzin(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('prayer_muezzin', key);
+    if (mounted) setState(() => _muezzin = key);
+  }
+
+  Color get _accentColor => _kTeal;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bg     = isDark ? const Color(0xFF111827) : Colors.white;
+    final txtP   = isDark ? Colors.white : const Color(0xFF0F172A);
+    final txtS   = isDark ? Colors.white54 : Colors.black45;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionLabel(label: 'SON DE L\'ADHAN', isDark: isDark),
+
+        // Toggle global adhan
+        Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                blurRadius: 8, offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: SwitchListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            title: Text('Adhan à la prière',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: txtP)),
+            subtitle: Text("Jouer l'appel à la prière",
+                style: TextStyle(fontSize: 12, color: txtS)),
+            value: _adhanEnabled,
+            onChanged: _setEnabled,
+            activeThumbColor: Colors.white,
+            activeTrackColor: _accentColor,
+            inactiveThumbColor: Colors.grey.shade400,
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // Sélecteur muezzin
+        AnimatedOpacity(
+          opacity: _adhanEnabled ? 1.0 : 0.45,
+          duration: const Duration(milliseconds: 220),
+          child: GestureDetector(
+            onTap: _adhanEnabled ? () => _showMuezzinSheet(context) : null,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                    blurRadius: 8, offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // avatar icône muezzin
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_kTeal, _kTeal2],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kTeal.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.record_voice_over_rounded,
+                        color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Muezzin',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: txtP)),
+                        Text(_kMuezzins[_muezzin] ?? _muezzin,
+                            style: TextStyle(fontSize: 12, color: txtS)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      color: isDark ? Colors.white30 : Colors.black26),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showMuezzinSheet(BuildContext context) {
+    final isDark = widget.isDark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final txtP = isDark ? Colors.white : const Color(0xFF0F172A);
+          final txtS = isDark ? Colors.white54 : Colors.black45;
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Text(
+                  'Choisir un Muezzin',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: txtP,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: _kMuezzins.entries.map((e) {
+                    final sel         = e.key == _muezzin;
+                    final playing     = _playing == e.key;
+                    final downloading = _downloading == e.key;
+
+                    return ListTile(
+                      contentPadding:
+                          const EdgeInsets.fromLTRB(20, 4, 12, 4),
+                      leading: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? _kTeal
+                              : (isDark
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : Colors.black.withValues(alpha: 0.04)),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Icon(
+                          sel
+                              ? Icons.check_rounded
+                              : Icons.person_rounded,
+                          color: sel
+                              ? Colors.white
+                              : (isDark ? Colors.white38 : Colors.black38),
+                          size: 18,
+                        ),
+                      ),
+                      title: Text(
+                        e.value,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight:
+                              sel ? FontWeight.w700 : FontWeight.w500,
+                          color: sel ? _kTeal : txtP,
+                        ),
+                      ),
+                      subtitle: sel
+                          ? Text('Sélectionné',
+                              style:
+                                  TextStyle(fontSize: 11, color: txtS))
+                          : null,
+                      trailing: GestureDetector(
+                        onTap: () async {
+                          if (playing) {
+                            await _player.stop();
+                            setSheet(() => _playing = null);
+                            if (mounted) setState(() => _playing = null);
+                          } else {
+                            // Indique le téléchargement/chargement
+                            setSheet(() => _downloading = e.key);
+                            if (mounted) setState(() => _downloading = e.key);
+                            try {
+                              await _player.stop();
+                              final path = await _getOrDownloadAdhan(e.key);
+                              setSheet(() {
+                                _downloading = null;
+                                _playing = e.key;
+                              });
+                              if (mounted) {
+                                setState(() {
+                                  _downloading = null;
+                                  _playing = e.key;
+                                });
+                              }
+                              await _player.setFilePath(path);
+                              await _player.play();
+                              // Auto-stop après 30 s
+                              Future.delayed(const Duration(seconds: 30), () {
+                                _player.stop();
+                                if (mounted) {
+                                  setSheet(() => _playing = null);
+                                  setState(() => _playing = null);
+                                }
+                              });
+                            } catch (err) {
+                              setSheet(() {
+                                _downloading = null;
+                                _playing = null;
+                              });
+                              if (mounted) {
+                                setState(() {
+                                  _downloading = null;
+                                  _playing = null;
+                                });
+                              }
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Impossible de charger l\'aperçu audio'),
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: playing
+                                ? _kTeal.withValues(alpha: 0.15)
+                                : (isDark
+                                    ? Colors.white.withValues(alpha: 0.06)
+                                    : Colors.black.withValues(alpha: 0.04)),
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: downloading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _kTeal,
+                                  ),
+                                )
+                              : Icon(
+                                  playing
+                                      ? Icons.stop_rounded
+                                      : Icons.play_arrow_rounded,
+                                  color: _kTeal,
+                                  size: 22,
+                                ),
+                        ),
+                      ),
+                      onTap: () {
+                        _setMuezzin(e.key);
+                        _player.stop();
+                        setSheet(() => _playing = null);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              SizedBox(
+                  height: MediaQuery.of(context).padding.bottom + 10),
+            ],
+          );
+        },
+      ),
+    ).whenComplete(() {
+      _player.stop();
+      if (mounted) setState(() => _playing = null);
+    });
+  }
+}
+
+// ── NOTIFICATION SECTION ──────────────────────────────────────────────────────
+
+class _NotifSection extends StatefulWidget {
+  final bool isDark;
+  const _NotifSection({required this.isDark});
+
+  @override
+  State<_NotifSection> createState() => _NotifSectionState();
+}
+
+class _NotifSectionState extends State<_NotifSection> {
+  bool _enabled = false;
 
   @override
   void initState() {
     super.initState();
-    _loadSelected();
+    _load();
   }
 
-  Future<void> _loadSelected() async {
+  Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _selected = prefs.getString('prayer_muezzin') ?? 'AbdulBaset';
-    });
+    if (!mounted) return;
+    setState(() =>
+        _enabled = prefs.getBool('prayer_notifications_enabled') ?? false);
   }
 
-  Future<void> _setSelected(String? value) async {
-    if (value == null) return;
+  Future<void> _set(bool v) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('prayer_muezzin', value);
-    setState(() {
-      _selected = value;
-    });
+    await prefs.setBool('prayer_notifications_enabled', v);
+    if (mounted) setState(() => _enabled = v);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Opacity(
-        opacity: widget.enabled ? 1.0 : 0.5,
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: Icon(
-            Icons.record_voice_over_rounded,
-            color: widget.enabled ? Theme.of(context).primaryColor : Colors.grey,
-            size: 28,
+    final isDark = widget.isDark;
+    final bg     = isDark ? const Color(0xFF111827) : Colors.white;
+    final txtP   = isDark ? Colors.white : const Color(0xFF0F172A);
+    final txtS   = isDark ? Colors.white54 : Colors.black45;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionLabel(label: 'NOTIFICATIONS', isDark: isDark),
+
+        Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color:
+                    Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                blurRadius: 8, offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          title: const Text(
-            'Muezzin',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          child: Column(
+            children: [
+              SwitchListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                title: Text('Rappels de prière',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: txtP)),
+                subtitle: Text('Notification avant chaque prière',
+                    style: TextStyle(fontSize: 12, color: txtS)),
+                value: _enabled,
+                onChanged: _set,
+                activeThumbColor: Colors.white,
+                activeTrackColor: _kTeal,
+                inactiveThumbColor: Colors.grey.shade400,
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                child: _enabled
+                    ? Column(
+                        children: [
+                          Divider(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.black.withValues(alpha: 0.06),
+                            height: 1,
+                            indent: 16,
+                            endIndent: 16,
+                          ),
+                          ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            leading: Icon(Icons.access_time_rounded,
+                                color: isDark
+                                    ? Colors.white38
+                                    : Colors.black38,
+                                size: 22),
+                            title: Text('Délai avant la prière',
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: txtP)),
+                            subtitle: Text('5 minutes avant',
+                                style:
+                                    TextStyle(fontSize: 12, color: txtS)),
+                            trailing: Icon(Icons.chevron_right_rounded,
+                                color: isDark
+                                    ? Colors.white30
+                                    : Colors.black26),
+                            onTap: () {},
+                          ),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
           ),
-          subtitle: Text(
-            _muezzins[_selected] ?? _selected,
+        ),
+
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            'Les notifications nécessitent les permissions de l\'application. '
+            'Activez-les dans les réglages de votre téléphone si besoin.',
             style: TextStyle(
-              fontSize: 12, 
-              color: Theme.of(context).textTheme.bodySmall?.color,
+              fontSize: 11,
+              color: isDark ? Colors.white.withValues(alpha: 0.28) : Colors.black.withValues(alpha: 0.26),
+              height: 1.4,
             ),
           ),
-          trailing: Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 16,
-            color: Colors.grey[400],
-          ),
-          enabled: widget.enabled,
-          onTap: widget.enabled ? () => _showMuezzinPicker(context) : null,
+        ),
+      ],
+    );
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  final bool isDark;
+  const _SectionLabel({required this.label, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 10),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isDark ? Colors.white38 : Colors.black38,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.3,
         ),
       ),
     );
   }
-
-  void _showMuezzinPicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    child: Text(
-                      'Choisir un Muezzin',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                  ),
-                  const Divider(),
-                  ListView(
-                    shrinkWrap: true,
-                    children: _muezzins.entries.map((entry) {
-                      final isSelected = entry.key == _selected;
-                      final isPlaying = _playingMuezzin == entry.key;
-                      
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                        leading: Icon(
-                          isSelected ? Icons.check_circle : Icons.circle_outlined,
-                          color: isSelected ? const Color(0xFF0EA5E9) : Colors.grey,
-                        ),
-                        title: Text(
-                          entry.value,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                            color: isSelected 
-                                ? const Color(0xFF0EA5E9) 
-                                : Theme.of(context).textTheme.bodyLarge?.color,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          icon: Icon(
-                            isPlaying ? Icons.stop_circle : Icons.play_circle,
-                            color: const Color(0xFF0EA5E9),
-                            size: 32,
-                          ),
-                          onPressed: () async {
-                            if (isPlaying) {
-                              await _audioPlayer.stop();
-                              setModalState(() {
-                                _playingMuezzin = null;
-                              });
-                            } else {
-                              final url = _adhanUrls[entry.key];
-                              if (url != null) {
-                                try {
-                                  await _audioPlayer.stop();
-                                  await _audioPlayer.setUrl(url);
-                                  await _audioPlayer.play();
-                                  setModalState(() {
-                                    _playingMuezzin = entry.key;
-                                  });
-                                  // Arrêter automatiquement après 30 secondes
-                                  Future.delayed(const Duration(seconds: 30), () {
-                                    _audioPlayer.stop();
-                                    if (mounted) {
-                                      setModalState(() {
-                                        _playingMuezzin = null;
-                                      });
-                                    }
-                                  });
-                                } catch (e) {
-                                  // Erreur de chargement
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Impossible de charger l\'aperçu')),
-                                    );
-                                  }
-                                }
-                              }
-                            }
-                          },
-                        ),
-                        onTap: () {
-                          _setSelected(entry.key);
-                          _audioPlayer.stop();
-                          Navigator.pop(context);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ).whenComplete(() {
-      _audioPlayer.stop();
-      setState(() {
-        _playingMuezzin = null;
-      });
-    });
-  }
 }
+
+// ── STARFIELD PAINTER ─────────────────────────────────────────────────────────
+
+class _StarfieldPainter extends CustomPainter {
+  const _StarfieldPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const count = 65;
+    final rng   = math.Random(42);
+    final paint = Paint();
+    for (var i = 0; i < count; i++) {
+      final x  = rng.nextDouble() * size.width;
+      final y  = rng.nextDouble() * size.height;
+      final r  = rng.nextDouble() * 1.3 + 0.2;
+      final op = rng.nextDouble() * 0.5 + 0.12;
+      paint.color = Colors.white.withValues(alpha: op);
+      canvas.drawCircle(Offset(x, y), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
 
 class _PrayersData {
   final String city;
   final String country;
   final String method;
+  final String hijriLine;
   final Map<String, String> times;
 
   const _PrayersData({
     required this.city,
     required this.country,
     required this.method,
+    required this.hijriLine,
     required this.times,
   });
 
@@ -884,12 +1620,12 @@ class _PrayersData {
     required String city,
     required String country,
     required String method,
-  }) {
-    return _PrayersData(
-      city: city,
-      country: country,
-      method: method,
-      times: const {},
-    );
-  }
+  }) =>
+      _PrayersData(
+        city: city,
+        country: country,
+        method: method,
+        hijriLine: '',
+        times: const {},
+      );
 }

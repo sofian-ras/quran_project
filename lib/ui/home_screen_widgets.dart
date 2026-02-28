@@ -1,11 +1,9 @@
 part of 'home_screen.dart';
 
 class _HomeTopBar extends StatelessWidget {
-  final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
 
   const _HomeTopBar({
-    required this.onMenuTap,
     required this.onThemeTap,
   });
 
@@ -15,12 +13,6 @@ class _HomeTopBar extends StatelessWidget {
 
     return Row(
       children: [
-        IconButton(
-          onPressed: onMenuTap,
-          icon: const Icon(Icons.menu_rounded),
-          color: t.colorScheme.onBackground.withOpacity(0.75),
-        ),
-        const SizedBox(width: 6),
         Expanded(
           child: Text(
             'Ø§Ù„Ù‚Ø±Ø¢Ù† Ø§Ù„ÙƒØ±ÙŠÙ…',
@@ -54,14 +46,12 @@ class _HomeTopBar extends StatelessWidget {
 
 class _DribbbleHomeHeader extends StatelessWidget {
   final bool pauseTicker;
-  final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
   final Future<_PrayerHeaderData> prayerFuture;
   final int Function(List<(String, String)>) activeIndexFromTimes;
   final VoidCallback? onLocationTap;
 
   const _DribbbleHomeHeader({
-    required this.onMenuTap,
     required this.onThemeTap,
     required this.prayerFuture,
     required this.activeIndexFromTimes,
@@ -92,11 +82,6 @@ class _DribbbleHomeHeader extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  IconButton(
-                    onPressed: onMenuTap,
-                    icon: Icon(Icons.menu_rounded, color: fg),
-                  ),
-                  const SizedBox(width: 10),
                   const Spacer(),
                   const SizedBox(width: 10),
                   ValueListenableBuilder<ThemeMode>(
@@ -389,7 +374,6 @@ class _QuranEngagementCard extends StatelessWidget {
 
 class _HeaderWithEngagement extends StatelessWidget {
   final bool pausePrayerTicker;
-  final VoidCallback onMenuTap;
   final VoidCallback onThemeTap;
   final VoidCallback onContinue;
   final Future<_PrayerHeaderData> prayerFuture;
@@ -407,7 +391,6 @@ class _HeaderWithEngagement extends StatelessWidget {
 
   const _HeaderWithEngagement({
     required this.audio,
-    required this.onMenuTap,
     required this.onThemeTap,
     required this.onContinue,
     required this.prayerFuture,
@@ -428,7 +411,6 @@ class _HeaderWithEngagement extends StatelessWidget {
       children: [
         // Header prières
         _DribbbleHomeHeader(
-          onMenuTap: onMenuTap,
           onThemeTap: onThemeTap,
           prayerFuture: prayerFuture,
           activeIndexFromTimes: activeIndexFromTimes,

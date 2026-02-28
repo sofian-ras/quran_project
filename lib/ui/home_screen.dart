@@ -21,7 +21,6 @@ import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
 import 'surah_list_screen.dart';
 import 'translated_quran_screen.dart';
-import 'widgets/ios_side_menu.dart';
 import 'widgets/continue_reading_card.dart';
 import 'widgets/youtube_video_card.dart';
 import 'widgets/prayer_times_card_v2.dart';
@@ -95,10 +94,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   late Future<_PrayerHeaderData> _prayerFuture;
 
-  late AnimationController _menuController;
-  late Animation<double> _menuAnimation;
-  bool _isMenuOpen = false;
-  double _dragStartX = 0;
 
   
 
@@ -122,21 +117,7 @@ void initState() {
     setState(() => _statusBarGreen = shouldBeGreen);
   });
 
-  _menuController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 300),
-  );
-
-  _menuAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-    CurvedAnimation(parent: _menuController, curve: Curves.easeOutCubic),
-  );
 }
-
-  void _refreshPrayerHeader() {
-    setState(() {
-      _prayerFuture = _loadPrayerHeader();
-    });
-  }
 
 Future<void> _checkFirstLaunch() async {
   final isFirst = await LocationService.isFirstTime();
@@ -151,7 +132,6 @@ Future<void> _checkFirstLaunch() async {
   @override
   void dispose() {
     _scrollCtrl.dispose();
-    _menuController.dispose();
     super.dispose();
   }
 
@@ -283,45 +263,36 @@ Future<void> _checkFirstLaunch() async {
   }
 
   String _prayerMethodLabel(String id) {
-    switch (id) {
-      case '2':
-        return 'ISNA (2)';
-      case '3':
-        return 'Muslim World League (3)';
-      case '4':
-        return 'Umm al-Qura (4)';
-      case '5':
-        return 'Egyptian Authority (5)';
-      case '8':
-        return 'Gulf Region (8)';
-      case '9':
-        return 'Kuwait (9)';
-      case '10':
-        return 'Qatar (10)';
-      case '12':
-        return 'Turkey (12)';
-      case '13':
-        return 'Morocco (13)';
-      case '15':
-        return 'Moon Sighting Committee (15)';
-      case '16':
-        return 'Karachi (16)';
-      case '18':
-        return 'France (18)';
-      case '20':
-        return 'Tunisia (20)';
-      case '21':
-        return 'Algeria (21)';
-      default:
-        return 'Méthode ($id)';
-    }
+    const labels = <String, String>{
+      '2':  'ISNA',
+      '3':  'Muslim World League',
+      '4':  'Umm al-Qura, Makkah',
+      '5':  'Egyptian Authority',
+      '8':  'Gulf Region',
+      '9':  'Kuwait',
+      '10': 'Qatar',
+      '11': 'Singapour (MUIS)',
+      '12': 'UOIF – France',
+      '13': 'Turkey (Diyanet)',
+      '14': 'Russie',
+      '15': 'Moon Sighting Committee',
+      '16': 'Dubai',
+      '17': 'Malaysia (JAKIM)',
+      '18': 'Tunisie',
+      '19': 'Algérie',
+      '20': 'Indonésie (KEMENAG)',
+      '21': 'Maroc',
+      '22': 'Portugal',
+      '23': 'Jordanie',
+    };
+    return labels[id] ?? 'Méthode $id';
   }
 
   Future<_PrayerHeaderData> _loadPrayerHeader() async {
     final location = await LocationService.getSavedOrCurrentLocation();
     final prefs = await SharedPreferences.getInstance();
-    final methodRaw = (prefs.getString('prayer_method') ?? '2').trim();
-    final method = methodRaw.isEmpty ? '2' : methodRaw;
+    final methodRaw = (prefs.getString('prayer_method') ?? '12').trim();
+    final method = methodRaw.isEmpty ? '12' : methodRaw;
     final methodLabel = _prayerMethodLabel(method);
     // Utilise les coordonnées si disponibles, sinon l'API par ville
     Uri uri;
@@ -558,67 +529,6 @@ Future<void> _checkFirstLaunch() async {
     }
   }
 
-
-  void _openMenu() {
-    if (!_isMenuOpen) {
-      setState(() => _isMenuOpen = true);
-      _menuController.forward();
-    }
-  }
-
-  void _closeMenu() {
-    if (_isMenuOpen) {
-      _menuController.reverse().then((_) {
-        setState(() => _isMenuOpen = false);
-      });
-    }
-  }
-
-  void _handleDragStart(DragStartDetails details) {
-    _dragStartX = details.globalPosition.dx;
-    final screenWidth = MediaQuery.of(context).size.width * 0.8;
-    
-    // Ouvrir le menu si on commence près du bord gauche
-    if (_dragStartX < 50 && !_isMenuOpen) {
-      setState(() => _isMenuOpen = true);
-    }
-    // Permettre de glisser le menu si on est déjà dessus
-    else if (_isMenuOpen && _dragStartX < screenWidth) {
-      // Le menu est ouvert et on touche dessus - on peut le faire glisser
-    }
-  }
-
-  void _handleDragUpdate(DragUpdateDetails details) {
-    final screenWidth = MediaQuery.of(context).size.width * 0.8;
-    final currentX = details.globalPosition.dx;
-    
-    // Calculer la progression: 0 = fermé, 1 = ouvert
-    double progress;
-    
-    if (_isMenuOpen) {
-      // Menu déjà ouvert - calculer la progression basée sur la position actuelle
-      progress = (currentX / screenWidth).clamp(0.0, 1.0);
-    } else if (_dragStartX < 50) {
-      // Ouverture depuis le bord gauche
-      progress = (currentX / screenWidth).clamp(0.0, 1.0);
-    } else {
-      // Ignorer les drags qui ne commencent pas près du bord gauche si le menu est fermé
-      return;
-    }
-    
-    _menuController.value = progress;
-  }
-
-  void _handleDragEnd(DragEndDetails details) {
-    if (!_isMenuOpen) return;
-    
-    // Si plus de 50% ouvert, terminer l'ouverture, sinon fermer
-    if (_menuController.value > 0.5) {
-      _menuController.forward();
-    } else {
-      _closeMenu();
-    }
-  }
 
   void _cycleTheme() {
     final current = ThemeService.themeMode.value;
@@ -926,7 +836,6 @@ Future<void> _checkFirstLaunch() async {
                         [
                           _HeaderWithEngagement(
                             audio: _audio,
-                            onMenuTap: _openMenu,
                             onThemeTap: _cycleTheme,
                             onContinue: _openSurahListScreen,
                             onLocationTap: _showLocationPicker,
@@ -1019,39 +928,7 @@ Future<void> _checkFirstLaunch() async {
   }
 
   return Scaffold(
-    body: Stack(
-      children: [
-        IgnorePointer(
-          ignoring: _isMenuOpen,
-          child: GestureDetector(
-            onHorizontalDragStart: _handleDragStart,
-            onHorizontalDragUpdate: _handleDragUpdate,
-            onHorizontalDragEnd: _handleDragEnd,
-            child: _isLoading ? loading() : content(),
-          ),
-        ),
-        if (_isMenuOpen)
-          AnimatedBuilder(
-            animation: _menuAnimation,
-            builder: (context, child) {
-              final screenWidth = MediaQuery.of(context).size.width * 0.8;
-              return GestureDetector(
-                onHorizontalDragStart: _handleDragStart,
-                onHorizontalDragUpdate: _handleDragUpdate,
-                onHorizontalDragEnd: _handleDragEnd,
-                child: Transform.translate(
-                  offset: Offset(-screenWidth + (screenWidth * _menuAnimation.value), 0),
-                  child: RepaintBoundary(
-                    child: IOSSideMenu(
-                      onSettingsClosed: _refreshPrayerHeader,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
-    ),
+    body: _isLoading ? loading() : content(),
   );
  }
 }

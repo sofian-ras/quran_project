@@ -20,7 +20,8 @@
       "WebFetch(domain:api.qurancdn.com)",
       "WebFetch(domain:verses.quran.com)",
       "WebFetch(domain:cdn.quran.com)",
-      "WebFetch(domain:quran.com)"
+      "WebFetch(domain:quran.com)",
+      "Bash(python3 -c \":*)"
     ],
     "additionalDirectories": [
       "\\tmp"
