@@ -1,9 +1,11 @@
 // lib/services/audio_service.dart
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
+import 'download_service.dart';
 
 import '../surah_name.dart';
 import 'qul_audio/models/qul_reciter.dart';
@@ -118,7 +120,7 @@ class AudioService {
   Future<void> loadPlaylistAndPlay(int surahId) async {
     try {
       if (_playlist == null) {
-        _playlist = _createPlaylist();
+        _playlist = await _createPlaylist();
         _audioSourceReady = false;
       }
 
@@ -140,14 +142,31 @@ class AudioService {
     }
   }
 
-  ConcatenatingAudioSource _createPlaylist() {
-    final List<AudioSource> sources = [];
+  Future<ConcatenatingAudioSource> _createPlaylist() async {
+    final ds   = DownloadService.instance;
+    final base = currentServer.endsWith('/') ? currentServer : '$currentServer/';
+    final sources = <AudioSource>[];
     for (int i = 1; i <= 114; i++) {
-      final surahNum = i.toString().padLeft(3, '0');
-      final url = '$currentServer/$surahNum.mp3';
-      sources.add(AudioSource.uri(Uri.parse(url), tag: i));
+      final surahNum  = i.toString().padLeft(3, '0');
+      final localPath = await ds.quranAudioFilePath(currentServer, i);
+      if (await File(localPath).exists()) {
+        sources.add(AudioSource.uri(Uri.file(localPath), tag: i));
+      } else {
+        sources.add(AudioSource.uri(Uri.parse('$base$surahNum.mp3'), tag: i));
+      }
     }
     return ConcatenatingAudioSource(children: sources);
+  }
+
+  /// Remplace la source d'une sourate par un fichier local (sans interrompre la lecture).
+  Future<void> updateSurahSource(int surahId, String localPath) async {
+    if (_playlist == null) return;
+    final index = surahId - 1;
+    if (index < 0 || index >= _playlist!.length) return;
+    // Ne pas remplacer la source en cours de lecture
+    if (_player.currentIndex == index && _player.playing) return;
+    await _playlist!.removeAt(index);
+    await _playlist!.insert(index, AudioSource.uri(Uri.file(localPath), tag: surahId));
   }
 
   Future<void> play() => _player.play();

@@ -437,7 +437,8 @@ class _HeaderWithEngagement extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => RecitersGalleryScreen(reciters: reciters),
+                        fullscreenDialog: true,
+                        builder: (_) => const ReciterPickerScreen(),
                       ),
                     );
                   },

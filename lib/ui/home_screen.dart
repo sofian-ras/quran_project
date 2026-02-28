@@ -16,7 +16,7 @@ import '../services/reading_history_service.dart';
 import '../services/quran_translation_pack_service.dart';
 import 'package:sqflite/sqflite.dart';
 import '../surah_name.dart';
-import 'full_player_screen.dart';
+import 'reciter_picker_screen.dart';
 import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
 import 'surah_list_screen.dart';
@@ -32,7 +32,6 @@ import 'widgets/location_picker_dialog.dart';
 import '../services/location_service.dart';
 import 'prayers_screen.dart';
 import '../services/mp3quran_api.dart';
-import 'reciters_gallery_screen.dart';
 part 'home_screen_widgets.dart';
 
 
@@ -855,7 +854,6 @@ Future<void> _checkFirstLaunch() async {
 
                           _ExploreFeaturesSection(
                             features: const [
-                              _FeatureChipData(label: 'Player', imagePath: 'assets/images/Features/player.webp'),
                               _FeatureChipData(label: 'Duʿa', imagePath: 'assets/images/Features/dua.webp'),
                               _FeatureChipData(label: 'Hadith', imagePath: 'assets/images/Features/hadith.webp'),
                               _FeatureChipData(label: 'Qibla', imagePath: 'assets/images/Features/qibla.webp'),
@@ -864,20 +862,6 @@ Future<void> _checkFirstLaunch() async {
                             ],
                             onTap: (f) {
                               final ctx = NavigationService.navigatorKey.currentContext ?? context;
-                              if (f.label == 'Player') {
-                                _audio.isFullPlayerOpenNotifier.value = true;
-                                showModalBottomSheet(
-                                  context: ctx,
-                                  useSafeArea: true,
-                                  useRootNavigator: true,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.transparent,
-                                  builder: (_) => const FullPlayerScreen(),
-                                ).whenComplete(() {
-                                  _audio.isFullPlayerOpenNotifier.value = false;
-                                });
-                                return;
-                              }
                               if (f.label == 'Duʿa') {
                                 Navigator.of(ctx).push(
                                   MaterialPageRoute(builder: (_) => const DuaScreen()),

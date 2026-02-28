@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -344,5 +345,176 @@ class DownloadService {
   // Obtenir tous les téléchargements
   List<DownloadItem> getAllDownloads() {
     return _downloads.values.toList();
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  Méthodes Quran Audio (par serveur URL)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  static String _serverKey(String server) => server
+      .replaceAll(RegExp(r'https?://'), '')
+      .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
+      .replaceAll(RegExp(r'_+'), '_')
+      .replaceAll(RegExp(r'(^_+|_+$)'), '');
+
+  Future<String> quranAudioDir(String server) async =>
+      p.join(await _basePath, 'quran_audio', _serverKey(server));
+
+  Future<String> quranAudioFilePath(String server, int surahId) async {
+    final num = surahId.toString().padLeft(3, '0');
+    return p.join(await quranAudioDir(server), '$num.mp3');
+  }
+
+  Future<bool> isQuranAudioDownloaded(String server, int surahId) async =>
+      File(await quranAudioFilePath(server, surahId)).exists();
+
+  /// Taille en octets via HEAD request, ou null si indisponible.
+  Future<int?> fetchSurahSize(String server, int surahId) async {
+    try {
+      final num  = surahId.toString().padLeft(3, '0');
+      final base = server.endsWith('/') ? server : '$server/';
+      final resp = await _dio.head<void>(
+        '$base$num.mp3',
+        options: Options(receiveTimeout: const Duration(seconds: 10)),
+      );
+      final len = resp.headers.value('content-length');
+      return len != null ? int.tryParse(len) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Estime la taille totale pour une liste de sourates (échantillon 3 surahs).
+  Future<int?> estimateReciterSize(String server, List<int> surahIds) async {
+    if (surahIds.isEmpty) return null;
+    final samples = {surahIds.first, surahIds[surahIds.length ~/ 2], surahIds.last};
+    int total = 0, count = 0;
+    for (final id in samples) {
+      final sz = await fetchSurahSize(server, id);
+      if (sz != null) { total += sz; count++; }
+    }
+    if (count == 0) return null;
+    return (total / count * surahIds.length).round();
+  }
+
+  /// Télécharge une sourate. [progress] : null=inactif, 0.0–1.0=en cours.
+  /// Retourne le chemin local ou null si échec/annulation.
+  Future<String?> downloadQuranSurah(
+    String server,
+    int surahId, {
+    ValueNotifier<double?>? progress,
+    CancelToken? cancelToken,
+  }) async {
+    final path = await quranAudioFilePath(server, surahId);
+    if (await File(path).exists()) {
+      progress?.value = null;
+      return path;
+    }
+    final num  = surahId.toString().padLeft(3, '0');
+    final base = server.endsWith('/') ? server : '$server/';
+    try {
+      final dir = Directory(await quranAudioDir(server));
+      if (!await dir.exists()) await dir.create(recursive: true);
+      progress?.value = 0.0;
+      await _dio.download(
+        '$base$num.mp3',
+        path,
+        cancelToken: cancelToken,
+        options: Options(receiveTimeout: const Duration(minutes: 10)),
+        onReceiveProgress: (recv, total) {
+          if (total > 0) progress?.value = recv / total;
+        },
+      );
+      progress?.value = null;
+      return path;
+    } catch (e) {
+      if (e is! DioException || e.type != DioExceptionType.cancel) {
+        debugPrint('downloadQuranSurah $surahId: $e');
+      }
+      await File(path).delete().catchError((_) => File(path));
+      progress?.value = null;
+      return null;
+    }
+  }
+
+  Future<void> deleteQuranSurah(String server, int surahId) async {
+    final f = File(await quranAudioFilePath(server, surahId));
+    if (await f.exists()) await f.delete();
+  }
+
+  Future<void> deleteAllQuranAudio(String server) async {
+    final dir = Directory(await quranAudioDir(server));
+    if (await dir.exists()) await dir.delete(recursive: true);
+  }
+
+  /// Retourne les IDs triés des sourates téléchargées pour ce serveur.
+  Future<List<int>> listDownloadedSurahIds(String server) async {
+    final dir = Directory(await quranAudioDir(server));
+    if (!await dir.exists()) return [];
+    final result = <int>[];
+    await for (final e in dir.list()) {
+      if (e is File) {
+        final name = p.basename(e.path);
+        if (name.endsWith('.mp3')) {
+          final id = int.tryParse(name.replaceAll('.mp3', ''));
+          if (id != null) result.add(id);
+        }
+      }
+    }
+    result.sort();
+    return result;
+  }
+
+  // ── Métadonnées des récitateurs téléchargés ──────────────────────────────
+
+  static const _kDlRecitersKey = 'quran_downloaded_reciters';
+
+  Future<void> saveReciterDownloadInfo({
+    required String server,
+    required String name,
+    String? arabicName,
+    String? country,
+    String? asset,
+    required String moshafLabel,
+    required List<int> surahList,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key   = _serverKey(server);
+    final entry = jsonEncode({
+      'serverKey':   key,
+      'server':      server,
+      'name':        name,
+      'arabicName':  arabicName,
+      'country':     country,
+      'asset':       asset,
+      'moshafLabel': moshafLabel,
+      'surahList':   surahList,
+    });
+    final existing = prefs.getStringList(_kDlRecitersKey) ?? [];
+    final updated  = existing.where((e) {
+      try {
+        return (jsonDecode(e) as Map<String, dynamic>)['serverKey'] != key;
+      } catch (_) { return true; }
+    }).toList()..add(entry);
+    await prefs.setStringList(_kDlRecitersKey, updated);
+  }
+
+  Future<List<Map<String, dynamic>>> getDownloadedReciterInfos() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_kDlRecitersKey) ?? []).map((e) {
+      try { return jsonDecode(e) as Map<String, dynamic>; }
+      catch (_) { return <String, dynamic>{}; }
+    }).where((m) => m.isNotEmpty).toList();
+  }
+
+  Future<void> removeReciterDownloadInfo(String server) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key   = _serverKey(server);
+    final updated = (prefs.getStringList(_kDlRecitersKey) ?? []).where((e) {
+      try {
+        return (jsonDecode(e) as Map<String, dynamic>)['serverKey'] != key;
+      } catch (_) { return true; }
+    }).toList();
+    await prefs.setStringList(_kDlRecitersKey, updated);
   }
 }
