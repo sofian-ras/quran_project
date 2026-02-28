@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'ui/home_screen.dart';
 import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
@@ -14,6 +15,12 @@ import 'ui/bottom_nav_shell.dart';
 
 
 Future<void> main() async {
+  await JustAudioBackground.init(
+    androidNotificationChannelId: 'com.quran.app.audio',
+    androidNotificationChannelName: 'Coran Audio',
+    androidNotificationOngoing: false,
+    androidStopForegroundOnPause: true,
+  );
   WidgetsFlutterBinding.ensureInitialized();
 
   // Migration one-shot : quran_translation/ → qul/
@@ -83,10 +90,7 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      AudioService.instance.pause();
-    }
-    // Réapplique au retour au premier plan
+    // Réapplique le style au retour au premier plan
     if (state == AppLifecycleState.resumed) {
       _applyNavBarStyle();
     }

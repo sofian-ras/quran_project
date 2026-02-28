@@ -113,7 +113,7 @@ class _FullPlayerScreenState extends State<FullPlayerScreen> {
   void _openReciterPicker() {
     Navigator.of(context).push(PageRouteBuilder(
       pageBuilder: (_, anim, __) =>
-          const ReciterPickerScreen(pushPlayerOnSelect: false),
+          const ReciterPickerScreen(),
       transitionsBuilder: (_, anim, __, child) =>
           FadeTransition(opacity: anim, child: child),
       transitionDuration: const Duration(milliseconds: 220),

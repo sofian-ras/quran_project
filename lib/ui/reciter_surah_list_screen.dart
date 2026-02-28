@@ -278,7 +278,8 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final topPad  = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -301,6 +302,7 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
                     totalCount:       widget.surahList.length,
                     isDownloadingAll: _dlAllRunning,
                     onDownloadAll:    _dlAllRunning ? _cancelAll : _askAndDownloadAll,
+                    topPadding:       topPad,
                   ),
                 ),
                 SliverPadding(
@@ -353,6 +355,7 @@ class _ReciterHeader extends SliverPersistentHeaderDelegate {
   final int     totalCount;
   final bool    isDownloadingAll;
   final VoidCallback onDownloadAll;
+  final double  topPadding;
 
   _ReciterHeader({
     required this.name,
@@ -365,10 +368,11 @@ class _ReciterHeader extends SliverPersistentHeaderDelegate {
     required this.totalCount,
     required this.isDownloadingAll,
     required this.onDownloadAll,
+    required this.topPadding,
   });
 
-  @override double get minExtent => kToolbarHeight + 24;
-  @override double get maxExtent => 190;
+  @override double get minExtent => kToolbarHeight + topPadding;
+  @override double get maxExtent => kToolbarHeight + topPadding + 110;
 
   @override
   Widget build(BuildContext ctx, double shrinkOffset, bool overlaps) {
@@ -551,7 +555,8 @@ class _ReciterHeader extends SliverPersistentHeaderDelegate {
       old.isDark != isDark ||
       old.name != name ||
       old.downloadedCount != downloadedCount ||
-      old.isDownloadingAll != isDownloadingAll;
+      old.isDownloadingAll != isDownloadingAll ||
+      old.topPadding != topPadding;
 }
 
 // ── Ligne sourate ─────────────────────────────────────────────────────────────

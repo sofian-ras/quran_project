@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:rxdart/rxdart.dart';
 import 'download_service.dart';
 
@@ -143,16 +144,24 @@ class AudioService {
   }
 
   Future<ConcatenatingAudioSource> _createPlaylist() async {
-    final ds   = DownloadService.instance;
-    final base = currentServer.endsWith('/') ? currentServer : '$currentServer/';
+    final ds      = DownloadService.instance;
+    final base    = currentServer.endsWith('/') ? currentServer : '$currentServer/';
+    final reciter = currentReciterNotifier.value;
     final sources = <AudioSource>[];
     for (int i = 1; i <= 114; i++) {
-      final surahNum  = i.toString().padLeft(3, '0');
+      final surahNum = i.toString().padLeft(3, '0');
+      final url      = '$base$surahNum.mp3';
+      final tag = MediaItem(
+        id:     url,
+        title:  surahFr[i] ?? 'Sourate $i',
+        artist: reciter,
+        album:  'Coran',
+      );
       final localPath = await ds.quranAudioFilePath(currentServer, i);
       if (await File(localPath).exists()) {
-        sources.add(AudioSource.uri(Uri.file(localPath), tag: i));
+        sources.add(AudioSource.uri(Uri.file(localPath), tag: tag));
       } else {
-        sources.add(AudioSource.uri(Uri.parse('$base$surahNum.mp3'), tag: i));
+        sources.add(AudioSource.uri(Uri.parse(url), tag: tag));
       }
     }
     return ConcatenatingAudioSource(children: sources);
@@ -166,7 +175,12 @@ class AudioService {
     // Ne pas remplacer la source en cours de lecture
     if (_player.currentIndex == index && _player.playing) return;
     await _playlist!.removeAt(index);
-    await _playlist!.insert(index, AudioSource.uri(Uri.file(localPath), tag: surahId));
+    await _playlist!.insert(index, AudioSource.uri(Uri.file(localPath), tag: MediaItem(
+      id:     localPath,
+      title:  surahFr[surahId] ?? 'Sourate $surahId',
+      artist: currentReciterNotifier.value,
+      album:  'Coran',
+    )));
   }
 
   Future<void> play() => _player.play();

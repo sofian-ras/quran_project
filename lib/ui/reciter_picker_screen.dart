@@ -35,6 +35,17 @@ LinearGradient _bgGrad(bool dark) => LinearGradient(
 const _kPlay = Color(0xFF0E6B63);
 
 // ── Modèle ────────────────────────────────────────────────────────────────────
+class MoshafOption {
+  final String moshafRaw;
+  final String server;
+  final List<int> surahList;
+  const MoshafOption({
+    required this.moshafRaw,
+    required this.server,
+    required this.surahList,
+  });
+}
+
 class ReciterData {
   final int    id;
   final String name;
@@ -46,6 +57,7 @@ class ReciterData {
   final String moshafRaw;
   final int    surahTotal;
   final List<int> surahList;
+  final List<MoshafOption> allMoshafs;
 
   const ReciterData({
     required this.id,
@@ -58,6 +70,7 @@ class ReciterData {
     required this.moshafRaw,
     required this.surahTotal,
     required this.surahList,
+    this.allMoshafs = const [],
   });
 }
 
@@ -135,6 +148,23 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
       final moshafs = (r['moshaf'] as List?)?.cast<Map<String, dynamic>>() ?? [];
       if (moshafs.isEmpty || name.isEmpty) continue;
 
+      // Toutes les options de récitation
+      final allMoshafs = <MoshafOption>[];
+      for (final m in moshafs) {
+        final rawSrv = (m['server'] as String?) ?? '';
+        if (rawSrv.isEmpty) continue;
+        final srv    = rawSrv.endsWith('/') ? rawSrv : '$rawSrv/';
+        final mRaw   = (m['name'] as String?) ?? '';
+        final sStr   = (m['surah_list'] as String?) ?? '';
+        final sIds   = sStr.split(',')
+            .map((s) => int.tryParse(s.trim()))
+            .whereType<int>()
+            .toList();
+        allMoshafs.add(MoshafOption(moshafRaw: mRaw, server: srv, surahList: sIds));
+      }
+      if (allMoshafs.isEmpty) continue;
+
+      // Moshaf par défaut : Hafs (type 11) > Hafs par nom > premier
       Map<String, dynamic>? best;
       for (final m in moshafs) {
         if ((m['moshaf_type'] as int?) == 11) { best = m; break; }
@@ -166,6 +196,7 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
         moshafRaw:   moshafRaw,
         surahTotal:  total,
         surahList:   surahList,
+        allMoshafs:  allMoshafs,
       ));
     }
 
@@ -272,20 +303,51 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
   }
 
   void _openSurahList(ReciterData r) {
-    final label = _prettyMoshaf(r.moshafRaw);
+    if (r.allMoshafs.length > 1) {
+      _showMoshafPicker(r);
+    } else {
+      _navigateToSurahList(r, r.server, r.moshafRaw,
+          r.surahList.isEmpty ? List.generate(r.surahTotal, (i) => i + 1) : r.surahList);
+    }
+  }
+
+  void _navigateToSurahList(ReciterData r, String server, String moshafRaw, List<int> surahList) {
+    final label = _prettyMoshaf(moshafRaw);
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ReciterSurahListScreen(
         name:        r.name,
         arabicName:  r.arabicName,
         country:     r.country,
         asset:       r.asset,
-        server:      r.server,
+        server:      server,
         moshafLabel: label,
-        surahList:   r.surahList.isEmpty
-            ? List.generate(r.surahTotal, (i) => i + 1)
-            : r.surahList,
+        surahList:   surahList,
       ),
     )).then((_) => _loadDownloadedReciters());
+  }
+
+  void _showMoshafPicker(ReciterData r) {
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final entries  = r.allMoshafs
+        .map((m) => (label: _prettyMoshaf(m.moshafRaw), moshaf: m))
+        .toList();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _MoshafPickerSheet(
+        reciter:  r,
+        entries:  entries,
+        isDark:   isDark,
+        onSelect: (m) {
+          Navigator.of(context).pop();
+          final surahList = m.surahList.isEmpty
+              ? List.generate(114, (i) => i + 1)
+              : m.surahList;
+          _navigateToSurahList(r, m.server, m.moshafRaw, surahList);
+        },
+      ),
+    );
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -293,16 +355,23 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
   String _prettyMoshaf(String raw) {
     final s = raw.toLowerCase();
     String rv = '';
-    if (s.contains('hafs'))        { rv = 'Hafs'; }
-    else if (s.contains('warsh'))  { rv = 'Warsh'; }
-    else if (s.contains('khalaf')) { rv = 'Khalaf'; }
+    if      (s.contains('hafs'))                              { rv = 'Hafs'; }
+    else if (s.contains('warsh'))                             { rv = 'Warsh'; }
+    else if (s.contains('khalaf'))                            { rv = 'Khalaf'; }
+    else if (s.contains('shu\'bah') || s.contains('shu3ba')) { rv = "Shu'bah"; }
+    else if (s.contains('doori') || s.contains('al-doori'))  { rv = 'Ad-Doori'; }
+    else if (s.contains('soosi') || s.contains('assosi') ||
+             s.contains('sosi'))                              { rv = 'Soosi'; }
+    else if (s.contains('kasaa') || s.contains('kasaee') ||
+             s.contains('kasae'))                             { rv = "Kasaa'ee"; }
     String tp = '';
-    if (s.contains('murattal'))                                { tp = 'Murattal'; }
-    else if (s.contains('mujawwad') || s.contains('mujawad')) { tp = 'Mujawwad'; }
+    if      (s.contains('murattal'))                          { tp = 'Murattal'; }
+    else if (s.contains('mujawwad') || s.contains('mujawad')){ tp = 'Mujawwad'; }
+    // Suffixe de version (ex: "2020")
+    final ver = RegExp(r'\((\d{4})\)').firstMatch(raw)?.group(1);
     if (rv.isEmpty && tp.isEmpty) return raw;
-    if (tp.isEmpty) return rv;
-    if (rv.isEmpty) return tp;
-    return '$rv • $tp';
+    final base = [if (rv.isNotEmpty) rv, if (tp.isNotEmpty) tp].join(' • ');
+    return ver != null ? '$base ($ver)' : base;
   }
 
   bool _isActive(ReciterData r) =>
@@ -948,6 +1017,118 @@ class _EmptyState extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Sélecteur de riwaya (bottom sheet) ───────────────────────────────────────
+
+class _MoshafPickerSheet extends StatelessWidget {
+  final ReciterData reciter;
+  final List<({String label, MoshafOption moshaf})> entries;
+  final bool isDark;
+  final void Function(MoshafOption) onSelect;
+
+  const _MoshafPickerSheet({
+    required this.reciter,
+    required this.entries,
+    required this.isDark,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg  = isDark ? const Color(0xFF0B1025) : const Color(0xFFFFF7E8);
+    final fg  = isDark ? Colors.white            : const Color(0xFF0F172A);
+    final sub = isDark ? Colors.white54          : const Color(0xFF64748B);
+    final div = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: (isDark ? Colors.white : Colors.black)
+                    .withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Nom du récitateur
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+            child: Text(
+              reciter.name,
+              style: TextStyle(
+                  color: fg, fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (reciter.arabicName != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                reciter.arabicName!,
+                textDirection: TextDirection.rtl,
+                style: TextStyle(color: sub, fontSize: 13),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Text(
+              'Choisir une lecture',
+              style: TextStyle(color: sub, fontSize: 12),
+            ),
+          ),
+
+          Divider(color: div, height: 1),
+
+          // Liste des riwayat
+          ...entries.map((e) => InkWell(
+            onTap: () => onSelect(e.moshaf),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: div, width: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _kPlay.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      e.label,
+                      style: const TextStyle(
+                        color: _kPlay,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.arrow_forward_ios_rounded,
+                      size: 13, color: sub),
+                ],
+              ),
+            ),
+          )),
+
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+        ],
       ),
     );
   }
