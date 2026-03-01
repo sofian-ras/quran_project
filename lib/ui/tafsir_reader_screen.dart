@@ -178,7 +178,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
 
   Color get _bg {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return dark ? const Color(0xFF0A0F1A) : const Color(0xFFF9F4EC);
+    return dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7);
   }
 
   Color get _cardBg {
@@ -188,7 +188,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
 
   Color get _textPrimary {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return dark ? const Color(0xFFE8E0D0) : const Color(0xFF1A1A1A);
+    return dark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1810);
   }
 
   Color get _textSecondary {
@@ -234,7 +234,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
                             arabicVerses: _arabicVerses,
                             scrollCtrl: _scrollCtrl,
                             fontSize: _fontSize,
-                            cardBg: _cardBg,
+                            surah: _currentSurah,
                             textPrimary: _textPrimary,
                             textSecondary: _textSecondary,
                             dark: dark,
@@ -291,7 +291,7 @@ class _TopBar extends StatelessWidget {
     return Container(
       padding: EdgeInsets.fromLTRB(4, top + 4, 8, 4),
       decoration: BoxDecoration(
-        color: dark ? const Color(0xFF0A0F1A) : const Color(0xFFF9F4EC),
+        color: dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7),
         border: Border(
           bottom: BorderSide(
             color: dark
@@ -369,7 +369,7 @@ class _VersesList extends StatelessWidget {
   final Map<String, QVerse> arabicVerses;
   final ScrollController scrollCtrl;
   final double fontSize;
-  final Color cardBg;
+  final int surah;
   final Color textPrimary;
   final Color textSecondary;
   final bool dark;
@@ -381,7 +381,7 @@ class _VersesList extends StatelessWidget {
     required this.arabicVerses,
     required this.scrollCtrl,
     required this.fontSize,
-    required this.cardBg,
+    required this.surah,
     required this.textPrimary,
     required this.textSecondary,
     required this.dark,
@@ -391,26 +391,32 @@ class _VersesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = bookGradient.first;
     return ListView.builder(
       controller: scrollCtrl,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      itemCount: verses.length,
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
+      itemCount: verses.length + 1,
       itemBuilder: (context, i) {
-        final v = verses[i];
+        if (i == 0) {
+          return _SurahHeader(
+            surah: surah,
+            accentColor: accent,
+            dark: dark,
+            textPrimary: textPrimary,
+          );
+        }
+        final v = verses[i - 1];
         final ar = arabicVerses[v.verseKey];
-        // Crée ou réutilise la GlobalKey pour cet ayah
-        final vKey =
-            verseKeys.putIfAbsent(v.ayah, () => GlobalKey());
+        final vKey = verseKeys.putIfAbsent(v.ayah, () => GlobalKey());
         return _VerseBlock(
           key: vKey,
           verse: v,
           arabicVerse: ar,
           fontSize: fontSize,
-          cardBg: cardBg,
           textPrimary: textPrimary,
           textSecondary: textSecondary,
           dark: dark,
-          accentColor: bookGradient.first,
+          accentColor: accent,
         );
       },
     );
@@ -418,14 +424,13 @@ class _VersesList extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Single verse block
+// Single verse block — open book style (no card border)
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _VerseBlock extends StatelessWidget {
   final TafsirVerse verse;
   final QVerse? arabicVerse;
   final double fontSize;
-  final Color cardBg;
   final Color textPrimary;
   final Color textSecondary;
   final bool dark;
@@ -436,7 +441,6 @@ class _VerseBlock extends StatelessWidget {
     required this.verse,
     required this.arabicVerse,
     required this.fontSize,
-    required this.cardBg,
     required this.textPrimary,
     required this.textSecondary,
     required this.dark,
@@ -445,103 +449,53 @@ class _VerseBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: dark
-                ? Colors.black.withAlpha(60)
-                : Colors.black.withAlpha(12),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Ayah header ────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Badge verset (numéros occidentaux, en français)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: accentColor.withAlpha(dark ? 60 : 25),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: accentColor.withAlpha(dark ? 100 : 60),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    'Verset ${verse.ayah}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: dark
-                          ? Colors.white70
-                          : accentColor.withAlpha(220),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          // ── Séparateur ornemental : ─── ✦ Verset N ✦ ─────────────────────
+          _OrnamentalDivider(
+            number: verse.ayah,
+            accentColor: accentColor,
+            dark: dark,
           ),
+          const SizedBox(height: 22),
 
-          // ── Texte arabe du verset (si disponible) ─────────────────────────
+          // ── Texte arabe du verset ─────────────────────────────────────────
           if (arabicVerse?.ar != null && arabicVerse!.ar.isNotEmpty) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
                 arabicVerse!.ar,
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.center,
                 textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontFamily: 'UthmanTahaNaskh',
-                  fontSize: fontSize + 4,
+                  fontSize: fontSize + 7,
                   color: textPrimary,
-                  height: 2.0,
-                  letterSpacing: 0.5,
+                  height: 2.2,
+                  letterSpacing: 0.3,
+                  shadows: [
+                    Shadow(
+                      color: accentColor.withAlpha(dark ? 90 : 50),
+                      blurRadius: 14,
+                      offset: Offset.zero,
+                    ),
+                  ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 1,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            accentColor.withAlpha(dark ? 80 : 60),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 20),
+            _ThinDivider(accentColor: accentColor, dark: dark),
+            const SizedBox(height: 20),
           ] else ...[
             const SizedBox(height: 8),
           ],
 
-          // ── Texte du tafsir ────────────────────────────────────────────────
+          // ── Texte du tafsir ───────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
             child: Text(
               verse.text,
               textAlign: TextAlign.right,
@@ -549,8 +503,239 @@ class _VerseBlock extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'ScheherazadeNew',
                 fontSize: fontSize,
-                color: textPrimary.withAlpha(dark ? 220 : 210),
-                height: 1.9,
+                color: textPrimary.withAlpha(dark ? 215 : 200),
+                height: 2.1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Surah header at the top of the verses list
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _SurahHeader extends StatelessWidget {
+  final int surah;
+  final Color accentColor;
+  final bool dark;
+  final Color textPrimary;
+
+  const _SurahHeader({
+    required this.surah,
+    required this.accentColor,
+    required this.dark,
+    required this.textPrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final arName   = TafsirService.surahNames[surah - 1];
+    final frName   = surahFr[surah] ?? 'Sourate $surah';
+    final count    = TafsirService.surahAyahCounts[surah - 1];
+    final lineColor = accentColor.withAlpha(dark ? 100 : 70);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 8),
+      child: Column(
+        children: [
+          // Nom arabe
+          Text(
+            arName,
+            textDirection: TextDirection.rtl,
+            style: TextStyle(
+              fontFamily: 'UthmanTahaNaskh',
+              fontSize: 38,
+              color: textPrimary,
+              shadows: [
+                Shadow(
+                  color: accentColor.withAlpha(dark ? 110 : 60),
+                  blurRadius: 20,
+                  offset: Offset.zero,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Nom français en petites capitales
+          Text(
+            frName.toUpperCase(),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w300,
+              color: textPrimary.withAlpha(160),
+              letterSpacing: 3.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$count versets',
+            style: TextStyle(
+              fontSize: 11,
+              color: accentColor.withAlpha(dark ? 160 : 130),
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Ligne décorative
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.transparent, lineColor],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 14,
+                  color: accentColor.withAlpha(dark ? 180 : 140),
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [lineColor, Colors.transparent],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Ornamental verse-number divider  ─── ✦ Verset N ✦ ───
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _OrnamentalDivider extends StatelessWidget {
+  final int number;
+  final Color accentColor;
+  final bool dark;
+
+  const _OrnamentalDivider({
+    required this.number,
+    required this.accentColor,
+    required this.dark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lineColor  = accentColor.withAlpha(dark ? 90 : 65);
+    final labelColor = accentColor.withAlpha(dark ? 200 : 170);
+    final starColor  = accentColor.withAlpha(dark ? 140 : 110);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.transparent, lineColor],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('✦', style: TextStyle(fontSize: 8, color: starColor)),
+                const SizedBox(height: 4),
+                Text(
+                  'Verset $number',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: labelColor,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text('✦', style: TextStyle(fontSize: 8, color: starColor)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [lineColor, Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Thin divider between Quran verse and tafsir text  ──── ● ────
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _ThinDivider extends StatelessWidget {
+  final Color accentColor;
+  final bool dark;
+
+  const _ThinDivider({required this.accentColor, required this.dark});
+
+  @override
+  Widget build(BuildContext context) {
+    final lineColor = accentColor.withAlpha(dark ? 70 : 50);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 48),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.transparent, lineColor],
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: 5,
+            height: 5,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: accentColor.withAlpha(dark ? 130 : 90),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [lineColor, Colors.transparent],
+                ),
               ),
             ),
           ),
