@@ -166,6 +166,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
       isScrollControlled: true,
       builder: (ctx) => _SurahPickerSheet(
         currentSurah: _currentSurah,
+        accentColor: widget.book.gradient.first,
         onSelect: (s, a) {
           Navigator.pop(ctx);
           _changeSurah(s, ayah: a);
@@ -179,11 +180,6 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
   Color get _bg {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7);
-  }
-
-  Color get _cardBg {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return dark ? const Color(0xFF111827) : Colors.white;
   }
 
   Color get _textPrimary {
@@ -249,7 +245,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
         currentAyah: _currentAyah,
         totalAyahs: _totalAyahs,
         dark: dark,
-        bg: _cardBg,
+        accentColor: widget.book.gradient.first,
         onPrev:     _loading || _currentAyah <= 1           ? null : _prevVerse,
         onNext:     _loading || _currentAyah >= _totalAyahs  ? null : _nextVerse,
         onPicker: _showSurahPicker,
@@ -754,9 +750,9 @@ class _BottomNav extends StatelessWidget {
   final int currentAyah;
   final int totalAyahs;
   final bool dark;
-  final Color bg;
-  final VoidCallback? onPrev;   // verset précédent
-  final VoidCallback? onNext;   // verset suivant
+  final Color accentColor;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
   final VoidCallback onPicker;
 
   const _BottomNav({
@@ -764,7 +760,7 @@ class _BottomNav extends StatelessWidget {
     required this.currentAyah,
     required this.totalAyahs,
     required this.dark,
-    required this.bg,
+    required this.accentColor,
     required this.onPrev,
     required this.onNext,
     required this.onPicker,
@@ -772,85 +768,148 @@ class _BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).padding.bottom;
-    final textColor = dark ? Colors.white70 : const Color(0xFF1A1A1A);
-    final frName = surahFr[currentSurah] ?? 'Sourate $currentSurah';
+    final bottom    = MediaQuery.of(context).padding.bottom;
+    final bg        = dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7);
+    final textColor = dark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1810);
+    final frName    = surahFr[currentSurah] ?? 'Sourate $currentSurah';
+    final arName    = TafsirService.surahNames[currentSurah - 1];
 
     return Container(
-      padding: EdgeInsets.fromLTRB(8, 10, 8, bottom + 10),
-      decoration: BoxDecoration(
-        color: dark ? const Color(0xFF111827) : Colors.white,
-        border: Border(
-          top: BorderSide(
-            color:
-                dark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(12),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: EdgeInsets.fromLTRB(16, 0, 16, bottom + 12),
+      color: bg,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Suivant → à GAUCHE (lecture arabe RTL : avancer = aller à gauche)
-          _NavBtn(
-            icon: Icons.chevron_left_rounded,
-            label: 'Suivant',
-            enabled: onNext != null,
-            onTap: onNext,
-            textColor: textColor,
-            reverse: true,
-          ),
-
-          // Bouton central : ouvre le picker sourate + verset
-          GestureDetector(
-            onTap: onPicker,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: dark
-                    ? Colors.white.withAlpha(12)
-                    : Colors.black.withAlpha(7),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        frName,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
-                        ),
-                      ),
-                      Text(
-                        'Verset $currentAyah / $totalAyahs',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: textColor.withAlpha(140),
-                        ),
-                      ),
-                    ],
+          // ── Ornamental top separator ────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        Colors.transparent,
+                        accentColor.withAlpha(dark ? 60 : 45),
+                      ]),
+                    ),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.expand_less_rounded,
-                      size: 16, color: textColor.withAlpha(160)),
-                ],
-              ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    '✦',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: accentColor.withAlpha(dark ? 120 : 90),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        accentColor.withAlpha(dark ? 60 : 45),
+                        Colors.transparent,
+                      ]),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
-          // Précédent → à DROITE (lecture arabe RTL : reculer = aller à droite)
-          _NavBtn(
-            icon: Icons.chevron_right_rounded,
-            label: 'Précédent',
-            enabled: onPrev != null,
-            onTap: onPrev,
-            textColor: textColor,
+          // ── Navigation row ──────────────────────────────────────────────
+          Row(
+            children: [
+              // Suivant (gauche, RTL → avance dans la lecture)
+              _CircleNavBtn(
+                icon: Icons.chevron_left_rounded,
+                enabled: onNext != null,
+                accentColor: accentColor,
+                textColor: textColor,
+                dark: dark,
+                onTap: onNext,
+              ),
+              const SizedBox(width: 12),
+
+              // Picker central
+              Expanded(
+                child: GestureDetector(
+                  onTap: onPicker,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: accentColor.withAlpha(dark ? 22 : 14),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: accentColor.withAlpha(dark ? 55 : 38),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          arName,
+                          textDirection: TextDirection.rtl,
+                          style: TextStyle(
+                            fontFamily: 'UthmanTahaNaskh',
+                            fontSize: 22,
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          frName.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w300,
+                            color: textColor.withAlpha(140),
+                            letterSpacing: 2.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Verset $currentAyah / $totalAyahs',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: accentColor
+                                    .withAlpha(dark ? 180 : 150),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.expand_less_rounded,
+                              size: 12,
+                              color: accentColor
+                                  .withAlpha(dark ? 140 : 110),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Précédent (droite, RTL → recule dans la lecture)
+              _CircleNavBtn(
+                icon: Icons.chevron_right_rounded,
+                enabled: onPrev != null,
+                accentColor: accentColor,
+                textColor: textColor,
+                dark: dark,
+                onTap: onPrev,
+              ),
+            ],
           ),
         ],
       ),
@@ -858,43 +917,45 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
-class _NavBtn extends StatelessWidget {
+class _CircleNavBtn extends StatelessWidget {
   final IconData icon;
-  final String label;
   final bool enabled;
-  final VoidCallback? onTap;
+  final Color accentColor;
   final Color textColor;
-  final bool reverse;
+  final bool dark;
+  final VoidCallback? onTap;
 
-  const _NavBtn({
+  const _CircleNavBtn({
     required this.icon,
-    required this.label,
     required this.enabled,
-    required this.onTap,
+    required this.accentColor,
     required this.textColor,
-    this.reverse = false,
+    required this.dark,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = enabled ? textColor : textColor.withAlpha(60);
     return GestureDetector(
       onTap: enabled ? onTap : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: reverse
-              ? [
-                  Text(label, style: TextStyle(fontSize: 12, color: color)),
-                  const SizedBox(width: 2),
-                  Icon(icon, size: 22, color: color)
-                ]
-              : [
-                  Icon(icon, size: 22, color: color),
-                  const SizedBox(width: 2),
-                  Text(label, style: TextStyle(fontSize: 12, color: color))
-                ],
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled
+              ? accentColor.withAlpha(dark ? 35 : 20)
+              : Colors.transparent,
+          border: Border.all(
+            color: enabled
+                ? accentColor.withAlpha(dark ? 70 : 50)
+                : textColor.withAlpha(25),
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 24,
+          color: enabled ? textColor : textColor.withAlpha(35),
         ),
       ),
     );
@@ -907,10 +968,12 @@ class _NavBtn extends StatelessWidget {
 
 class _SurahPickerSheet extends StatefulWidget {
   final int currentSurah;
+  final Color accentColor;
   final void Function(int surah, int ayah) onSelect;
 
   const _SurahPickerSheet({
     required this.currentSurah,
+    required this.accentColor,
     required this.onSelect,
   });
 
@@ -919,14 +982,15 @@ class _SurahPickerSheet extends StatefulWidget {
 }
 
 class _SurahPickerSheetState extends State<_SurahPickerSheet> {
-  // null = étape 1 (liste sourates) ; non-null = étape 2 (liste versets)
+  // null = étape 1 (sourates) ; non-null = étape 2 (versets)
   int? _selectedSurah;
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final bg = dark ? const Color(0xFF111827) : Colors.white;
-    final textColor = dark ? Colors.white : const Color(0xFF1A1A1A);
+    final dark      = Theme.of(context).brightness == Brightness.dark;
+    final bg        = dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7);
+    final textColor = dark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1810);
+    final accent    = widget.accentColor;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -935,65 +999,120 @@ class _SurahPickerSheetState extends State<_SurahPickerSheet> {
       builder: (ctx, scrollCtrl) => Container(
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(40),
-              blurRadius: 30,
-              offset: const Offset(0, -8),
+              color: Colors.black.withAlpha(55),
+              blurRadius: 40,
+              offset: const Offset(0, -10),
             ),
           ],
         ),
         child: Column(
           children: [
-            // Handle
-            const SizedBox(height: 12),
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: dark ? Colors.white24 : Colors.black12,
-                  borderRadius: BorderRadius.circular(2),
+            // ── Handle ornemental ─────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(top: 14, bottom: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('✦',
+                      style: TextStyle(
+                          fontSize: 7,
+                          color: accent.withAlpha(dark ? 130 : 95))),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 32,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: accent.withAlpha(dark ? 110 : 75),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('✦',
+                      style: TextStyle(
+                          fontSize: 7,
+                          color: accent.withAlpha(dark ? 130 : 95))),
+                ],
+              ),
+            ),
+
+            // ── Breadcrumb étapes ─────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
+              child: Row(
+                children: [
+                  _StepChip(
+                    label: 'Sourate',
+                    number: '1',
+                    active: _selectedSurah == null,
+                    done: _selectedSurah != null,
+                    accent: accent,
+                    dark: dark,
+                    textColor: textColor,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 10,
+                      color: _selectedSurah != null
+                          ? accent.withAlpha(dark ? 180 : 150)
+                          : textColor.withAlpha(50),
+                    ),
+                  ),
+                  _StepChip(
+                    label: 'Verset',
+                    number: '2',
+                    active: _selectedSurah != null,
+                    done: false,
+                    accent: accent,
+                    dark: dark,
+                    textColor: textColor,
+                  ),
+                  if (_selectedSurah != null) ...[
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => setState(() => _selectedSurah = null),
+                      child: Row(
+                        children: [
+                          Icon(Icons.arrow_back_ios_new_rounded,
+                              size: 12,
+                              color: accent.withAlpha(dark ? 180 : 150)),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Retour',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: accent.withAlpha(dark ? 180 : 150),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // ── Séparateur ornemental ─────────────────────────────────────
+            Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    accent.withAlpha(dark ? 70 : 50),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
             const SizedBox(height: 4),
 
-            // ── En-tête ────────────────────────────────────────────────────
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  if (_selectedSurah != null)
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_ios_new_rounded,
-                          size: 18, color: textColor),
-                      onPressed: () =>
-                          setState(() => _selectedSurah = null),
-                    )
-                  else
-                    const SizedBox(width: 48),
-                  Expanded(
-                    child: Text(
-                      _selectedSurah == null
-                          ? 'Choisir une sourate'
-                          : 'Choisir un verset — ${surahFr[_selectedSurah!] ?? 'Sourate $_selectedSurah'}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Divider(
-                color: dark ? Colors.white12 : Colors.black12, height: 1),
-
-            // ── Contenu ────────────────────────────────────────────────────
+            // ── Contenu ───────────────────────────────────────────────────
             Expanded(
               child: _selectedSurah == null
                   ? _SurahList(
@@ -1001,16 +1120,16 @@ class _SurahPickerSheetState extends State<_SurahPickerSheet> {
                       currentSurah: widget.currentSurah,
                       dark: dark,
                       textColor: textColor,
-                      onSurahTap: (s) =>
-                          setState(() => _selectedSurah = s),
+                      accentColor: accent,
+                      onSurahTap: (s) => setState(() => _selectedSurah = s),
                     )
                   : _VerseGrid(
                       surah: _selectedSurah!,
                       scrollCtrl: scrollCtrl,
                       dark: dark,
                       textColor: textColor,
-                      onVerseTap: (a) =>
-                          widget.onSelect(_selectedSurah!, a),
+                      accentColor: accent,
+                      onVerseTap: (a) => widget.onSelect(_selectedSurah!, a),
                     ),
             ),
           ],
@@ -1027,6 +1146,7 @@ class _SurahList extends StatelessWidget {
   final int currentSurah;
   final bool dark;
   final Color textColor;
+  final Color accentColor;
   final void Function(int) onSurahTap;
 
   const _SurahList({
@@ -1034,6 +1154,7 @@ class _SurahList extends StatelessWidget {
     required this.currentSurah,
     required this.dark,
     required this.textColor,
+    required this.accentColor,
     required this.onSurahTap,
   });
 
@@ -1043,55 +1164,69 @@ class _SurahList extends StatelessWidget {
       controller: scrollCtrl,
       itemCount: 114,
       itemBuilder: (ctx, i) {
-        final surah = i + 1;
+        final surah    = i + 1;
         final selected = surah == currentSurah;
-        final frName = surahFr[surah] ?? 'Sourate $surah';
-        final arName = TafsirService.surahNames[i];
-        final verseCount = TafsirService.surahAyahCounts[i];
+        final frName   = surahFr[surah] ?? 'Sourate $surah';
+        final arName   = TafsirService.surahNames[i];
+        final count    = TafsirService.surahAyahCounts[i];
 
         return InkWell(
           onTap: () => onSurahTap(surah),
+          splashColor: accentColor.withAlpha(20),
+          highlightColor: accentColor.withAlpha(10),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
-            color: selected
-                ? (dark
-                    ? Colors.white.withAlpha(15)
-                    : Colors.black.withAlpha(6))
-                : null,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: selected
+                      ? accentColor.withAlpha(dark ? 200 : 180)
+                      : Colors.transparent,
+                  width: 3,
+                ),
+              ),
+            ),
             child: Row(
               children: [
-                // Badge numéro
+                // Badge numéro avec gradient si sélectionné
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    gradient: selected
+                        ? LinearGradient(
+                            colors: [
+                              accentColor.withAlpha(dark ? 180 : 160),
+                              accentColor.withAlpha(dark ? 120 : 100),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
                     color: selected
-                        ? const Color(0xFF1A5C42)
-                            .withAlpha(dark ? 160 : 60)
-                        : Colors.transparent,
+                        ? null
+                        : accentColor.withAlpha(dark ? 20 : 12),
                     border: Border.all(
-                      color: dark ? Colors.white12 : Colors.black12,
+                      color: selected
+                          ? accentColor.withAlpha(dark ? 200 : 180)
+                          : accentColor.withAlpha(dark ? 50 : 35),
+                      width: selected ? 0 : 1,
                     ),
                   ),
                   child: Text(
                     '$surah',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: selected
-                          ? (dark
-                              ? Colors.white
-                              : const Color(0xFF1A5C42))
-                          : textColor.withAlpha(160),
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : textColor.withAlpha(160),
                     ),
                   ),
                 ),
                 const SizedBox(width: 14),
 
-                // Noms (français principal + arabe secondaire)
+                // Nom français + nombre de versets
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1100,39 +1235,43 @@ class _SurahList extends StatelessWidget {
                         frName,
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: selected ? textColor : textColor.withAlpha(200),
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          color: selected ? textColor : textColor.withAlpha(210),
                         ),
                       ),
-                      Row(
-                        children: [
-                          Text(
-                            '$verseCount versets · ',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: textColor.withAlpha(100),
-                            ),
-                          ),
-                          Text(
-                            arName,
-                            style: TextStyle(
-                              fontFamily: 'ScheherazadeNew',
-                              fontSize: 13,
-                              color: textColor.withAlpha(100),
-                            ),
-                            textDirection: TextDirection.rtl,
-                          ),
-                        ],
+                      const SizedBox(height: 2),
+                      Text(
+                        '$count versets',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: accentColor.withAlpha(dark ? 140 : 110),
+                          letterSpacing: 0.3,
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                // Flèche
-                Icon(Icons.chevron_right_rounded,
-                    size: 20, color: textColor.withAlpha(80)),
+                // Nom arabe (naturel RTL, à droite)
+                Text(
+                  arName,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily: 'UthmanTahaNaskh',
+                    fontSize: 19,
+                    color: selected
+                        ? accentColor.withAlpha(dark ? 220 : 200)
+                        : textColor.withAlpha(120),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: selected
+                      ? accentColor.withAlpha(dark ? 180 : 160)
+                      : textColor.withAlpha(60),
+                ),
               ],
             ),
           ),
@@ -1149,6 +1288,7 @@ class _VerseGrid extends StatelessWidget {
   final ScrollController scrollCtrl;
   final bool dark;
   final Color textColor;
+  final Color accentColor;
   final void Function(int) onVerseTap;
 
   const _VerseGrid({
@@ -1156,50 +1296,165 @@ class _VerseGrid extends StatelessWidget {
     required this.scrollCtrl,
     required this.dark,
     required this.textColor,
+    required this.accentColor,
     required this.onVerseTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final count = TafsirService.surahAyahCounts[surah - 1];
-    return GridView.builder(
-      controller: scrollCtrl,
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 6,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 1,
-      ),
-      itemCount: count,
-      itemBuilder: (ctx, i) {
-        final ayah = i + 1;
-        return InkWell(
-          onTap: () => onVerseTap(ayah),
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: dark
-                  ? Colors.white.withAlpha(10)
-                  : Colors.black.withAlpha(5),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: dark ? Colors.white12 : Colors.black12,
-                width: 0.8,
+    final count  = TafsirService.surahAyahCounts[surah - 1];
+    final arName = TafsirService.surahNames[surah - 1];
+    final frName = surahFr[surah] ?? 'Sourate $surah';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Mini en-tête sourate
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  frName,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
               ),
+              Text(
+                arName,
+                textDirection: TextDirection.rtl,
+                style: TextStyle(
+                  fontFamily: 'UthmanTahaNaskh',
+                  fontSize: 19,
+                  color: accentColor.withAlpha(dark ? 200 : 170),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Grille des versets
+        Expanded(
+          child: GridView.builder(
+            controller: scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1,
             ),
-            child: Text(
-              '$ayah',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: textColor.withAlpha(200),
-              ),
+            itemCount: count,
+            itemBuilder: (ctx, i) {
+              final ayah = i + 1;
+              return InkWell(
+                onTap: () => onVerseTap(ayah),
+                borderRadius: BorderRadius.circular(50),
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        accentColor.withAlpha(dark ? 50 : 30),
+                        accentColor.withAlpha(dark ? 28 : 14),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: accentColor.withAlpha(dark ? 80 : 55),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    '$ayah',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textColor.withAlpha(210),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step chip (breadcrumb du picker)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _StepChip extends StatelessWidget {
+  final String label;
+  final String number;
+  final bool active;
+  final bool done;
+  final Color accent;
+  final bool dark;
+  final Color textColor;
+
+  const _StepChip({
+    required this.label,
+    required this.number,
+    required this.active,
+    required this.done,
+    required this.accent,
+    required this.dark,
+    required this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: (active || done)
+                ? accent.withAlpha(dark ? 200 : 180)
+                : Colors.transparent,
+            border: Border.all(
+              color: (active || done)
+                  ? accent.withAlpha(dark ? 220 : 200)
+                  : textColor.withAlpha(60),
             ),
           ),
-        );
-      },
+          child: Text(
+            done ? '✓' : number,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: (active || done) ? Colors.white : textColor.withAlpha(90),
+            ),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+            color: active
+                ? textColor
+                : done
+                    ? accent.withAlpha(dark ? 160 : 140)
+                    : textColor.withAlpha(80),
+          ),
+        ),
+      ],
     );
   }
 }
