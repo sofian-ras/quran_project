@@ -326,11 +326,22 @@ class _PrayersScreenState extends State<PrayersScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg     = isDark ? const Color(0xFF080E1A) : const Color(0xFFF0F4F8);
+    final gradColors = isDark
+        ? const [Color(0xFF020617), Color(0xFF0B1025), Color(0xFF1A0033), Color(0xFF2D1B4E)]
+        : const [Color(0xFFFFF7E8), Color(0xFFF7EEDB), Color(0xFFF2E4CC)];
+    final bg = gradColors.first;
 
     return Scaffold(
-      backgroundColor: bg,
-      body: FutureBuilder<_PrayersData>(
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: gradColors,
+          ),
+        ),
+      child: FutureBuilder<_PrayersData>(
         future: _future,
         builder: (context, snap) {
           final loading  = snap.connectionState != ConnectionState.done;
@@ -338,20 +349,24 @@ class _PrayersScreenState extends State<PrayersScreen> {
           final times    = data?.times ?? {};
           final nextName = times.isEmpty ? null : _nextPrayer(times);
 
+          final topPadding = MediaQuery.of(context).padding.top;
+
           return CustomScrollView(
             slivers: [
               // ── HEADER ──────────────────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: _PrayerHeader(
-                  isDark:          isDark,
-                  loading:         loading,
-                  data:            data,
-                  nextName:        nextName,
-                  clock:           _clock,
-                  countdown:       _countdown,
-                  bodyBg:          bg,
-                  onRefresh:       _refresh,
-                  onLocationTap:   () => _showLocationPicker(context),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _PrayerHeaderDelegate(
+                  isDark:        isDark,
+                  loading:       loading,
+                  data:          data,
+                  nextName:      nextName,
+                  clock:         _clock,
+                  countdown:     _countdown,
+                  bodyBg:        bg,
+                  topPadding:    topPadding,
+                  onRefresh:     _refresh,
+                  onLocationTap: () => _showLocationPicker(context),
                 ),
               ),
 
@@ -501,13 +516,14 @@ class _PrayersScreenState extends State<PrayersScreen> {
           );
         },
       ),
+      ), // Container
     );
   }
 }
 
-// ── HEADER ────────────────────────────────────────────────────────────────────
+// ── HEADER DELEGATE ────────────────────────────────────────────────────────────
 
-class _PrayerHeader extends StatelessWidget {
+class _PrayerHeaderDelegate extends SliverPersistentHeaderDelegate {
   final bool isDark;
   final bool loading;
   final _PrayersData? data;
@@ -515,10 +531,11 @@ class _PrayerHeader extends StatelessWidget {
   final Stream<DateTime> clock;
   final String Function(String) countdown;
   final Color bodyBg;
+  final double topPadding;
   final VoidCallback onRefresh;
   final VoidCallback onLocationTap;
 
-  const _PrayerHeader({
+  _PrayerHeaderDelegate({
     required this.isDark,
     required this.loading,
     required this.data,
@@ -526,189 +543,280 @@ class _PrayerHeader extends StatelessWidget {
     required this.clock,
     required this.countdown,
     required this.bodyBg,
+    required this.topPadding,
     required this.onRefresh,
     required this.onLocationTap,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final top      = MediaQuery.of(context).padding.top;
+  double get maxExtent => 268 + topPadding;
+
+  @override
+  double get minExtent => kToolbarHeight + topPadding;
+
+  @override
+  bool shouldRebuild(_PrayerHeaderDelegate old) =>
+      isDark != old.isDark ||
+      loading != old.loading ||
+      data != old.data ||
+      nextName != old.nextName ||
+      topPadding != old.topPadding;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final t        = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
     final nextTime = data?.times[nextName];
 
-    return SizedBox(
-      height: 268 + top,
+    return ClipRect(
       child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Image mosquée de fond
-          Image.asset(
+      fit: StackFit.expand,
+      children: [
+        // ── Mosque image (fade out as collapsed) ─────────────────────────────
+        Opacity(
+          opacity: (1 - t).clamp(0.0, 1.0),
+          child: Image.asset(
             'assets/images/prieres/mosquee_fond_widget.webp',
             fit: BoxFit.cover,
           ),
+        ),
 
-          // Dégradé teal
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end:   Alignment.bottomRight,
-                colors: [
-                  Color(0xEE0E6B63),
-                  Color(0xEE0B4F4A),
-                  Color(0xF0083B37),
-                ],
-              ),
+        // ── Teal gradient (always visible) ───────────────────────────────────
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end:   Alignment.bottomRight,
+              colors: [
+                Color(0xEE0E6B63),
+                Color(0xEE0B4F4A),
+                Color(0xF0083B37),
+              ],
             ),
           ),
+        ),
 
-          // Étoiles
-          const IgnorePointer(
+        // ── Stars (fade out quickly) ──────────────────────────────────────────
+        Opacity(
+          opacity: (1 - t * 2).clamp(0.0, 1.0),
+          child: const IgnorePointer(
             child: CustomPaint(painter: _StarfieldPainter()),
           ),
+        ),
 
-          // Contenu
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                children: [
-                  // ── Top bar ──────────────────────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          onPressed: () => Navigator.pop(context),
+        // ── Expanded content (fade out) ───────────────────────────────────────
+        Opacity(
+          opacity: (1 - t * 1.8).clamp(0.0, 1.0),
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(height: topPadding),
+              // Top bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'Horaires de prières',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
                         ),
-                        const Expanded(
-                          child: Text(
-                            'Horaires de prières',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.2,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded,
+                          color: Colors.white70, size: 22),
+                      onPressed: onRefresh,
+                      tooltip: 'Actualiser',
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // Next prayer
+              if (!loading && nextName != null && nextTime != null) ...[
+                Text(
+                  'PROCHAINE PRIÈRE',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 11,
+                    letterSpacing: 1.6,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  nextName!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                Text(
+                  nextTime,
+                  style: const TextStyle(
+                    color: _kGold,
+                    fontSize: 52,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1.5,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                StreamBuilder<DateTime>(
+                  stream: clock,
+                  builder: (_, __) =>
+                      _CountdownPill(text: 'Dans ${countdown(nextTime)}'),
+                ),
+              ] else if (loading) ...[
+                const SizedBox(height: 16),
+                const CircularProgressIndicator(color: _kGold, strokeWidth: 2.5),
+              ],
+
+              const SizedBox(height: 16),
+
+              // Location + hijri
+              if (data != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    children: [
+                      GestureDetector(
+                        onTap: onLocationTap,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.location_on_rounded,
+                                color: Colors.white60, size: 13),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${data!.city}, ${data!.country}',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 2),
+                            const Icon(Icons.keyboard_arrow_right_rounded,
+                                color: Colors.white38, size: 14),
+                          ],
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.refresh_rounded,
-                              color: Colors.white70, size: 22),
-                          onPressed: onRefresh,
-                          tooltip: 'Actualiser',
+                      ),
+                      if (data!.hijriLine.isNotEmpty) ...[
+                        Text('·',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.35),
+                                fontSize: 12)),
+                        Text(
+                          data!.hijriLine,
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 12),
                         ),
                       ],
-                    ),
+                    ],
                   ),
+                ),
+            ],
+            ), // Column
+          ), // SingleChildScrollView
+        ),
 
-                  const SizedBox(height: 10),
-
-                  // ── Prière suivante ───────────────────────────────────────
-                  if (!loading && nextName != null && nextTime != null) ...[
-                    Text(
-                      'PROCHAINE PRIÈRE',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.65),
-                        fontSize: 11,
-                        letterSpacing: 1.6,
-                        fontWeight: FontWeight.w600,
-                      ),
+        // ── Collapsed bar (fade in) ───────────────────────────────────────────
+        Opacity(
+          opacity: ((t - 0.5) * 2).clamp(0.0, 1.0),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: EdgeInsets.only(top: topPadding),
+              child: SizedBox(
+                height: kToolbarHeight,
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white, size: 20),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      nextName!,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                    Text(
-                      nextTime,
-                      style: const TextStyle(
-                        color: _kGold,
-                        fontSize: 52,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1.5,
-                        height: 1.0,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // Countdown live
-                    StreamBuilder<DateTime>(
-                      stream: clock,
-                      builder: (_, __) => _CountdownPill(
-                          text: 'Dans ${countdown(nextTime)}'),
-                    ),
-                  ] else if (loading) ...[
-                    const SizedBox(height: 16),
-                    const CircularProgressIndicator(
-                        color: _kGold, strokeWidth: 2.5),
-                  ],
-
-                  const SizedBox(height: 16),
-
-                  // ── Localisation + date hijri ─────────────────────────────
-                  if (data != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          GestureDetector(
-                            onTap: onLocationTap,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.location_on_rounded,
-                                    color: Colors.white60, size: 13),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${data!.city}, ${data!.country}',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(width: 2),
-                                const Icon(Icons.keyboard_arrow_right_rounded,
-                                    color: Colors.white38, size: 14),
-                              ],
+                          if (nextName != null && nextTime != null)
+                            Text(
+                              '$nextName  ·  $nextTime',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                          if (data!.hijriLine.isNotEmpty) ...[
-                            Text('·',
-                                style: TextStyle(
-                                    color:
-                                        Colors.white.withValues(alpha: 0.35),
-                                    fontSize: 12)),
+                          if (data?.hijriLine.isNotEmpty == true)
                             Text(
                               data!.hijriLine,
                               style: const TextStyle(
-                                  color: Colors.white54, fontSize: 12),
+                                color: Colors.white60,
+                                fontSize: 11,
+                              ),
                             ),
-                          ],
                         ],
                       ),
                     ),
-                ],
+                    if (nextTime != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: StreamBuilder<DateTime>(
+                          stream: clock,
+                          builder: (_, __) => Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              countdown(nextTime),
+                              style: const TextStyle(
+                                color: _kGold,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
+        ),
 
-          // Fondu de transition vers le body
-          Positioned(
-            bottom: 0, left: 0, right: 0,
+        // ── Bottom fade to body bg (fades out when collapsing) ────────────────
+        Positioned(
+          bottom: 0, left: 0, right: 0,
+          child: Opacity(
+            opacity: (1 - t * 1.5).clamp(0.0, 1.0),
             child: Container(
               height: 44,
               decoration: BoxDecoration(
@@ -720,9 +828,10 @@ class _PrayerHeader extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ), // Stack
+    ); // ClipRect
   }
 }
 
@@ -825,18 +934,7 @@ class _PrayerRowState extends State<_PrayerRow> {
     if (mounted) setState(() => _notifOn = v);
   }
 
-  // Vérifie si la prière est passée
-  bool _isPast() {
-    final now   = DateTime.now();
-    final parts = widget.time.split(':');
-    if (parts.length < 2) return false;
-    final h = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    if (h == null || m == null) return false;
-    return DateTime(now.year, now.month, now.day, h, m).isBefore(now);
-  }
-
-  Widget _togglesColumn(Color color) => Column(
+Widget _togglesColumn(Color color) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _IconToggle(
@@ -958,16 +1056,8 @@ class _PrayerRowState extends State<_PrayerRow> {
     }
 
     // ── Ligne épurée : autres prières ─────────────────────────────────────
-    final past       = _isPast();
-    final nameColor  = past
-        ? (isDark ? Colors.white.withValues(alpha: 0.30) : Colors.black.withValues(alpha: 0.25))
-        : (isDark ? Colors.white.withValues(alpha: 0.80) : const Color(0xFF374151));
-    final timeColor  = past
-        ? (isDark ? Colors.white.withValues(alpha: 0.22) : Colors.black.withValues(alpha: 0.20))
-        : (isDark ? Colors.white.withValues(alpha: 0.60) : const Color(0xFF64748B));
-    final iconColor  = past
-        ? (isDark ? Colors.white.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.18))
-        : color.withValues(alpha: 0.70);
+    final nameColor = isDark ? Colors.white.withValues(alpha: 0.80) : const Color(0xFF374151);
+    final timeColor = isDark ? Colors.white.withValues(alpha: 0.60) : const Color(0xFF64748B);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
@@ -976,7 +1066,7 @@ class _PrayerRowState extends State<_PrayerRow> {
           // Icône sans fond
           Icon(
             _icons[widget.name] ?? Icons.access_time_rounded,
-            color: iconColor,
+            color: _kTeal.withValues(alpha: 0.70),
             size: 20,
           ),
           const SizedBox(width: 12),
@@ -986,7 +1076,7 @@ class _PrayerRowState extends State<_PrayerRow> {
               widget.name,
               style: TextStyle(
                 fontSize: 15,
-                fontWeight: past ? FontWeight.w400 : FontWeight.w600,
+                fontWeight: FontWeight.w600,
                 color: nameColor,
               ),
             ),
