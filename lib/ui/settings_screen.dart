@@ -1,10 +1,20 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/app_usage_service.dart';
+import '../services/quran_image_service.dart';
+import '../theme/theme_service.dart';
 import 'bookmarks_screen.dart';
 import 'downloads_screen.dart';
 import 'favorites_screen.dart';
 import 'statistics_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+// ── Palette ────────────────────────────────────────────────────────────────────
+const _kTeal  = Color(0xFF0E6B63);
+const _kTeal2 = Color(0xFF0B4F4A);
+
+const _kVersion = '1.0.0';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,146 +24,747 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const String _prefMethod = 'prayer_method';
-  static const String _defaultMethod = '2';
+  // ── Prefs ──────────────────────────────────────────────────────────────────
+  static const _kTime24h = 'time_format_24h';
 
-  String _method = _defaultMethod;
+  bool _time24h = true;
 
-  final List<Map<String, String>> _methods = const [
-    {'id': '2', 'label': 'ISNA (2)'},
-    {'id': '3', 'label': 'Muslim World League (3)'},
-    {'id': '4', 'label': 'Umm al-Qura, Makkah (4)'},
-    {'id': '5', 'label': 'Egyptian General Authority (5)'},
-    {'id': '8', 'label': 'Gulf Region (8)'},
-    {'id': '9', 'label': 'Kuwait (9)'},
-    {'id': '10', 'label': 'Qatar (10)'},
-    {'id': '12', 'label': 'Turkey (12)'},
-    {'id': '13', 'label': 'Morocco (13)'},
-    {'id': '15', 'label': 'Moon Sighting Committee (15)'},
-    {'id': '16', 'label': 'Karachi (16)'},
-    {'id': '18', 'label': 'France (18)'},
-    {'id': '20', 'label': 'Tunisia (20)'},
-    {'id': '21', 'label': 'Algeria (21)'},
-  ];
+  // ── Quran download ─────────────────────────────────────────────────────────
+  bool   _quranReady       = false;
+  bool   _quranDownloading = false;
+  bool   _quranExtracting  = false;
+  double _quranProgress    = 0.0;
+  Timer? _pollTimer;
+
+  // ── Time tracker ───────────────────────────────────────────────────────────
+  int    _usageSeconds = 0;
+  Timer? _usageTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadMethod();
-  }
-
-  Future<void> _loadMethod() async {
-    final prefs = await SharedPreferences.getInstance();
-    final m = (prefs.getString(_prefMethod) ?? _defaultMethod).trim();
-    if (!mounted) return;
-    setState(() => _method = m.isEmpty ? _defaultMethod : m);
-  }
-
-  Future<void> _saveMethod(String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefMethod, value);
-    if (!mounted) return;
-    setState(() => _method = value);
-  }
-
-  String _methodLabel(String id) {
-    return _methods.firstWhere(
-      (e) => e['id'] == id,
-      orElse: () => {'label': 'ISNA (2)'},
-    )['label']!;
+    _loadPrefs();
+    _refreshQuranState();
+    _startPolling();
+    _startUsageTimer();
   }
 
   @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _usageTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _time24h = prefs.getBool(_kTime24h) ?? true);
+  }
+
+  Future<void> _setTime24h(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kTime24h, v);
+    if (!mounted) return;
+    setState(() => _time24h = v);
+  }
+
+  // ── Quran download ─────────────────────────────────────────────────────────
+  Future<void> _refreshQuranState() async {
+    final ready = await QuranImageService.areImagesDownloaded();
+    if (!mounted) return;
+    setState(() => _quranReady = ready);
+  }
+
+  void _startPolling() {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
+      final st = QuranImageService.getDownloadStatus();
+      final d  = st['isDownloading'] == true;
+      final e  = st['isExtracting']  == true;
+      final p  = (st['downloadProgress'] is double)
+          ? st['downloadProgress'] as double
+          : 0.0;
+      if (!mounted) return;
+      if (d != _quranDownloading || e != _quranExtracting || p != _quranProgress) {
+        setState(() {
+          _quranDownloading = d;
+          _quranExtracting  = e;
+          _quranProgress    = p;
+        });
+      }
+      if (!d && !e && _quranProgress >= 1.0 && !_quranReady) {
+        _refreshQuranState();
+      }
+    });
+  }
+
+  Future<void> _downloadQuran() async {
+    setState(() { _quranDownloading = true; _quranProgress = 0; });
+    try {
+      await QuranImageService.downloadAndExtractImages(
+        onDownloadProgress: (p) {
+          if (!mounted) return;
+          setState(() { _quranDownloading = true; _quranProgress = p; });
+        },
+        onExtractionProgress: (_) {
+          if (!mounted) return;
+          setState(() { _quranExtracting = true; _quranDownloading = false; });
+        },
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _quranDownloading = false; _quranExtracting = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Téléchargement échoué. Vérifie ta connexion.')),
+      );
+    }
+    if (mounted) _refreshQuranState();
+  }
+
+  // ── Usage timer ────────────────────────────────────────────────────────────
+  void _startUsageTimer() {
+    _usageSeconds = AppUsageService.totalSeconds;
+    _usageTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _usageSeconds = AppUsageService.totalSeconds);
+    });
+  }
+
+  // ── Theme helper ───────────────────────────────────────────────────────────
+  void _setTheme(ThemeMode mode) => ThemeService.setTheme(mode);
+
+  // ── Play Store ─────────────────────────────────────────────────────────────
+  Future<void> _openPlayStore() async {
+    const url = 'https://play.google.com/store/apps/details?id=com.quran.app';
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _push(Widget screen) => Navigator.of(context).push(
+    MaterialPageRoute(builder: (_) => screen),
+  );
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Paramètres'),
-        centerTitle: true,
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final bg      = isDark ? const Color(0xFF0A0F1A) : const Color(0xFFF2ECE5);
+    final txtP    = isDark ? Colors.white             : const Color(0xFF0F172A);
+    final txtS    = isDark ? Colors.white54           : Colors.black45;
+    final div     = isDark ? Colors.white10           : Colors.black.withValues(alpha: 0.06);
+
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeService.themeMode,
+      builder: (context, currentMode, _) {
+        return Scaffold(
+          backgroundColor: bg,
+          body: CustomScrollView(
+            slivers: [
+              // ── App bar ────────────────────────────────────────────────────
+              SliverAppBar(
+                pinned: true,
+                expandedHeight: 110,
+                backgroundColor: bg,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                flexibleSpace: FlexibleSpaceBar(
+                  titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  title: Text(
+                    'Paramètres',
+                    style: TextStyle(
+                      color: txtP,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  expandedTitleScale: 1.0,
+                ),
+              ),
+
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+
+                    // ── Apparence ─────────────────────────────────────────────
+                    _SectionHeader('Apparence', txtS),
+                    _Card(isDark: isDark, children: [
+
+                      // Thème – segmented selector
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                        child: Row(
+                          children: [
+                            const _IconBox(Icons.palette_rounded, Color(0xFF7C3AED)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Thème',
+                                      style: TextStyle(fontSize: 15,
+                                          fontWeight: FontWeight.w600, color: txtP)),
+                                  const SizedBox(height: 8),
+                                  _ThemeSelector(
+                                    current: currentMode,
+                                    isDark: isDark,
+                                    onSelect: _setTheme,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      Divider(height: 1, indent: 60, color: div),
+
+                      // Format heure
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                        child: Row(
+                          children: [
+                            const _IconBox(Icons.access_time_rounded, Color(0xFF0EA5E9)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Format horaire',
+                                      style: TextStyle(fontSize: 15,
+                                          fontWeight: FontWeight.w600, color: txtP)),
+                                  Text(_time24h ? '24 heures' : '12 heures (AM/PM)',
+                                      style: TextStyle(fontSize: 12, color: txtS)),
+                                ],
+                              ),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('12h',
+                                    style: TextStyle(fontSize: 12,
+                                        color: _time24h ? txtS : _kTeal,
+                                        fontWeight: FontWeight.w600)),
+                                Switch(
+                                  value: _time24h,
+                                  onChanged: _setTime24h,
+                                  activeThumbColor: _kTeal,
+                  activeTrackColor: _kTeal.withValues(alpha: 0.5),
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                Text('24h',
+                                    style: TextStyle(fontSize: 12,
+                                        color: _time24h ? _kTeal : txtS,
+                                        fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]),
+
+                    const SizedBox(height: 24),
+
+                    // ── Coran ─────────────────────────────────────────────────
+                    _SectionHeader('Coran', txtS),
+                    _Card(isDark: isDark, children: [
+                      _QuranDownloadTile(
+                        isDark: isDark,
+                        txtP: txtP,
+                        txtS: txtS,
+                        ready: _quranReady,
+                        downloading: _quranDownloading,
+                        extracting: _quranExtracting,
+                        progress: _quranProgress,
+                        onDownload: _downloadQuran,
+                      ),
+                    ]),
+
+                    const SizedBox(height: 24),
+
+                    // ── Ma bibliothèque ───────────────────────────────────────
+                    _SectionHeader('Ma bibliothèque', txtS),
+                    _Card(isDark: isDark, children: [
+                      _NavTile(
+                        icon: Icons.favorite_rounded,
+                        iconBg: const Color(0xFFE11D48),
+                        title: 'Favoris',
+                        subtitle: 'Ayahs et sourates sauvegardés',
+                        isDark: isDark, txtP: txtP, txtS: txtS,
+                        onTap: () => _push(const FavoritesScreen()),
+                      ),
+                      Divider(height: 1, indent: 60, color: div),
+                      _NavTile(
+                        icon: Icons.bookmark_rounded,
+                        iconBg: const Color(0xFF2563EB),
+                        title: 'Signets',
+                        subtitle: 'Marque-pages de lecture',
+                        isDark: isDark, txtP: txtP, txtS: txtS,
+                        onTap: () => _push(const BookmarksScreen()),
+                      ),
+                      Divider(height: 1, indent: 60, color: div),
+                      _NavTile(
+                        icon: Icons.bar_chart_rounded,
+                        iconBg: const Color(0xFF7C3AED),
+                        title: 'Statistiques',
+                        subtitle: 'Suivi de votre progression',
+                        isDark: isDark, txtP: txtP, txtS: txtS,
+                        onTap: () => _push(const StatisticsScreen()),
+                      ),
+                      Divider(height: 1, indent: 60, color: div),
+                      _NavTile(
+                        icon: Icons.cloud_download_rounded,
+                        iconBg: _kTeal,
+                        title: 'Téléchargements',
+                        subtitle: 'Récitations hors-ligne',
+                        isDark: isDark, txtP: txtP, txtS: txtS,
+                        onTap: () => _push(const DownloadsScreen()),
+                      ),
+                    ]),
+
+                    const SizedBox(height: 24),
+
+                    // ── Application ───────────────────────────────────────────
+                    _SectionHeader('Application', txtS),
+                    _Card(isDark: isDark, children: [
+
+                      // Temps passé
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            const _IconBox(Icons.timer_rounded, Color(0xFFF59E0B)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Temps passé sur l\'app',
+                                      style: TextStyle(fontSize: 15,
+                                          fontWeight: FontWeight.w600, color: txtP)),
+                                  Text(AppUsageService.formatDuration(_usageSeconds),
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          color: _kTeal,
+                                          fontWeight: FontWeight.w700)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      Divider(height: 1, indent: 60, color: div),
+
+                      // Évaluer
+                      _NavTile(
+                        icon: Icons.star_rounded,
+                        iconBg: const Color(0xFFF59E0B),
+                        title: 'Évaluer l\'application',
+                        subtitle: 'Disponible sur le Play Store',
+                        isDark: isDark, txtP: txtP, txtS: txtS,
+                        onTap: _openPlayStore,
+                      ),
+
+                      Divider(height: 1, indent: 60, color: div),
+
+                      // Version
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            _IconBox(Icons.info_outline_rounded,
+                                isDark ? Colors.white24 : Colors.black26),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Version',
+                                      style: TextStyle(fontSize: 15,
+                                          fontWeight: FontWeight.w600, color: txtP)),
+                                  Text(_kVersion,
+                                      style: TextStyle(fontSize: 12, color: txtS)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]),
+
+                    const SizedBox(height: 24),
+
+                    // ── À propos ──────────────────────────────────────────────
+                    _SectionHeader('À propos', txtS),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [_kTeal, _kTeal2],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _kTeal.withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 52, height: 52,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(Icons.auto_stories_rounded,
+                                color: Colors.white, size: 26),
+                          ),
+                          const SizedBox(width: 16),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Quran App',
+                                    style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white)),
+                                SizedBox(height: 6),
+                                Text(
+                                  'Une application conçue avec amour pour faciliter '
+                                  'la lecture, l\'écoute et la mémorisation du Saint Coran. '
+                                  'Qu\'Allah nous accorde la guidance et fasse de cette app '
+                                  'une sadaqa jariya.',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: Colors.white70,
+                                      height: 1.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    Center(
+                      child: Text(
+                        'v$_kVersion  ·  Fait pour la Oummah',
+                        style: TextStyle(fontSize: 11, color: txtS),
+                      ),
+                    ),
+                    SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+                  ]),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Theme selector widget ─────────────────────────────────────────────────────
+class _ThemeSelector extends StatelessWidget {
+  final ThemeMode current;
+  final bool isDark;
+  final ValueChanged<ThemeMode> onSelect;
+
+  const _ThemeSelector({
+    required this.current,
+    required this.isDark,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _ThemeChip(
+          icon: Icons.wb_sunny_rounded,
+          selected: current == ThemeMode.light,
+          isDark: isDark,
+          onTap: () => onSelect(ThemeMode.light),
+        ),
+        const SizedBox(width: 6),
+        _ThemeChip(
+          icon: Icons.nightlight_round,
+          selected: current == ThemeMode.dark,
+          isDark: isDark,
+          onTap: () => onSelect(ThemeMode.dark),
+        ),
+        const SizedBox(width: 6),
+        _ThemeChip(
+          icon: Icons.brightness_auto_rounded,
+          selected: current == ThemeMode.system,
+          isDark: isDark,
+          onTap: () => onSelect(ThemeMode.system),
+        ),
+      ],
+    );
+  }
+}
+
+class _ThemeChip extends StatelessWidget {
+  final IconData icon;
+  final bool selected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ThemeChip({
+    required this.icon,
+    required this.selected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: selected
+              ? _kTeal
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? _kTeal : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Icon(icon,
+            size: 18,
+            color: selected ? Colors.white : (isDark ? Colors.white54 : Colors.black45)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+    );
+  }
+}
+
+// ── Quran download tile ───────────────────────────────────────────────────────
+class _QuranDownloadTile extends StatelessWidget {
+  final bool isDark, ready, downloading, extracting;
+  final double progress;
+  final Color txtP, txtS;
+  final VoidCallback onDownload;
+
+  const _QuranDownloadTile({
+    required this.isDark,
+    required this.ready,
+    required this.downloading,
+    required this.extracting,
+    required this.progress,
+    required this.txtP,
+    required this.txtS,
+    required this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final busy   = downloading || extracting;
+    final label  = ready
+        ? 'Pages du Coran téléchargées ✓'
+        : busy
+            ? (extracting ? 'Extraction…' : 'Téléchargement…')
+            : 'Télécharger tout le Coran';
+    final sub    = ready
+        ? 'Lecture hors-ligne disponible'
+        : busy
+            ? (extracting
+                ? 'Décompression en cours…'
+                : '${(progress * 100).toStringAsFixed(0)} %')
+            : 'Images haute qualité (~200 Mo)';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ Nouveau réglage
-          ListTile(
-            leading: const Icon(Icons.calculate_rounded),
-            title: const Text('Méthode de calcul (prière)'),
-            subtitle: Text(_methodLabel(_method)),
-            trailing: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _method,
-                items: _methods
-                    .map((m) => DropdownMenuItem<String>(
-                          value: m['id'],
-                          child: Text(m['label']!),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v == null) return;
-                  _saveMethod(v);
-                },
+          Row(
+            children: [
+              _IconBox(
+                ready
+                    ? Icons.check_circle_rounded
+                    : busy
+                        ? Icons.downloading_rounded
+                        : Icons.download_for_offline_rounded,
+                ready ? const Color(0xFF16A34A) : _kTeal,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: TextStyle(fontSize: 15,
+                            fontWeight: FontWeight.w600, color: txtP)),
+                    Text(sub, style: TextStyle(fontSize: 12, color: txtS)),
+                  ],
+                ),
+              ),
+              if (!ready && !busy)
+                FilledButton(
+                  onPressed: onDownload,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _kTeal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    textStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('Lancer'),
+                ),
+            ],
+          ),
+          if (busy) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: extracting ? null : progress,
+                backgroundColor: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.black.withValues(alpha: 0.07),
+                valueColor: const AlwaysStoppedAnimation(_kTeal),
+                minHeight: 5,
               ),
             ),
-          ),
-
-          const Divider(height: 1),
-
-          _SettingsTile(
-            icon: Icons.cloud_download_rounded,
-            title: 'Téléchargements',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const DownloadsScreen()),
-            ),
-          ),
-          _SettingsTile(
-            icon: Icons.favorite_rounded,
-            title: 'Favoris',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-            ),
-          ),
-          _SettingsTile(
-            icon: Icons.bookmark_rounded,
-            title: 'Signets',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const BookmarksScreen()),
-            ),
-          ),
-          _SettingsTile(
-            icon: Icons.bar_chart_rounded,
-            title: 'Statistiques',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const StatisticsScreen()),
-            ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
+// ── Shared helpers ────────────────────────────────────────────────────────────
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  final Color txtS;
+  const _SectionHeader(this.label, this.txtS);
 
-class _SettingsTile extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 4, bottom: 8),
+    child: Text(
+      label.toUpperCase(),
+      style: TextStyle(
+        fontSize: 11, fontWeight: FontWeight.w700,
+        color: txtS, letterSpacing: 1.1,
+      ),
+    ),
+  );
+}
+
+class _Card extends StatelessWidget {
+  final bool isDark;
+  final List<Widget> children;
+  const _Card({required this.isDark, required this.children});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: isDark ? const Color(0xFF111827) : const Color(0xFFF6F1EB),
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(
+          color: isDark
+              ? Colors.black.withValues(alpha: 0.30)
+              : const Color(0xFF0E6B63).withValues(alpha: 0.10),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
+        ),
+        BoxShadow(
+          color: isDark
+              ? Colors.black.withValues(alpha: 0.15)
+              : const Color(0xFF0E6B63).withValues(alpha: 0.05),
+          blurRadius: 4,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(mainAxisSize: MainAxisSize.min, children: children),
+  );
+}
+
+class _IconBox extends StatelessWidget {
   final IconData icon;
-  final String title;
+  final Color color;
+  const _IconBox(this.icon, this.color);
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 36, height: 36,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Icon(icon, color: Colors.white, size: 18),
+  );
+}
+
+class _NavTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
+  final String title, subtitle;
+  final bool isDark;
+  final Color txtP, txtS;
   final VoidCallback onTap;
 
-  const _SettingsTile({
+  const _NavTile({
     required this.icon,
+    required this.iconBg,
     required this.title,
+    required this.subtitle,
+    required this.isDark,
+    required this.txtP,
+    required this.txtS,
     required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: onTap,
-    );
-  }
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          _IconBox(icon, iconBg),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600, color: txtP)),
+                Text(subtitle, style: TextStyle(fontSize: 12, color: txtS)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded,
+              color: isDark ? Colors.white24 : Colors.black26, size: 20),
+        ],
+      ),
+    ),
+  );
 }

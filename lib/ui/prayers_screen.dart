@@ -188,8 +188,11 @@ class _PrayersScreenState extends State<PrayersScreen> {
   }
 
   Future<void> _showLocationPicker(BuildContext context) async {
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
       builder: (_) => const LocationPickerDialog(),
     );
     _refresh();
@@ -328,7 +331,7 @@ class _PrayersScreenState extends State<PrayersScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final gradColors = isDark
         ? const [Color(0xFF020617), Color(0xFF0B1025), Color(0xFF1A0033), Color(0xFF2D1B4E)]
-        : const [Color(0xFFFFF7E8), Color(0xFFF7EEDB), Color(0xFFF2E4CC)];
+        : const [Color(0xFFF2ECE5), Color(0xFFF2ECE5), Color(0xFFF2ECE5)];
     final bg = gradColors.first;
 
     return Scaffold(

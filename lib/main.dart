@@ -6,6 +6,7 @@ import 'ui/home_screen.dart';
 import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
+import 'services/app_usage_service.dart';
 import 'services/audio_service.dart';
 import 'services/navigation_service.dart';
 import 'services/quran_translation_pack_service.dart';
@@ -44,6 +45,7 @@ Future<void> main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 150 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 200;
   await ThemeService.init();
+  await AppUsageService.init();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
@@ -90,9 +92,11 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Réapplique le style au retour au premier plan
     if (state == AppLifecycleState.resumed) {
       _applyNavBarStyle();
+      AppUsageService.onResume();
+    } else if (state == AppLifecycleState.paused) {
+      AppUsageService.onPause();
     }
   }
 
