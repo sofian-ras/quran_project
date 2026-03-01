@@ -1,4 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/tafsir_service.dart';
 import '../services/quran_text_db.dart';
 import '../surah_name.dart';
@@ -179,7 +182,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
 
   Color get _bg {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7);
+    return dark ? const Color(0xFF0C1220) : const Color(0xFFF5F0E6);
   }
 
   Color get _textPrimary {
@@ -197,24 +200,32 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final surahFrName = surahFr[_currentSurah] ?? 'Sourate $_currentSurah';
 
     return Scaffold(
       backgroundColor: _bg,
       body: Column(
         children: [
-          _TopBar(
-            book: widget.book,
-            surahName: surahFrName,
-            surahNumber: _currentSurah,
-            dark: dark,
-            fontSize: _fontSize,
+          TafsirGoldenHeader(
             onBack: () => Navigator.pop(context),
-            onSurahTap: _showSurahPicker,
-            onFontIncrease: () =>
-                setState(() => _fontSize = (_fontSize + 1.5).clamp(14, 28)),
-            onFontDecrease: () =>
-                setState(() => _fontSize = (_fontSize - 1.5).clamp(14, 28)),
+            titleAr: widget.book.nameAr,
+            titleLatin: widget.book.nameFr,
+            dark: dark,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _GoldIconBtn(
+                  icon: Icons.text_decrease_rounded,
+                  onTap: () => setState(
+                      () => _fontSize = (_fontSize - 1.5).clamp(14, 28)),
+                ),
+                _GoldIconBtn(
+                  icon: Icons.text_increase_rounded,
+                  onTap: () => setState(
+                      () => _fontSize = (_fontSize + 1.5).clamp(14, 28)),
+                ),
+                const SizedBox(width: 4),
+              ],
+            ),
           ),
           Expanded(
             child: _loading
@@ -235,6 +246,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
                             textSecondary: _textSecondary,
                             dark: dark,
                             bookGradient: widget.book.gradient,
+                            bookNameAr: widget.book.nameAr,
                             verseKeys: _verseKeys,
                           ),
           ),
@@ -254,107 +266,6 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Top bar
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _TopBar extends StatelessWidget {
-  final TafsirBook book;
-  final String surahName;   // Nom français
-  final int surahNumber;
-  final bool dark;
-  final double fontSize;
-  final VoidCallback onBack;
-  final VoidCallback onSurahTap;
-  final VoidCallback onFontIncrease;
-  final VoidCallback onFontDecrease;
-
-  const _TopBar({
-    required this.book,
-    required this.surahName,
-    required this.surahNumber,
-    required this.dark,
-    required this.fontSize,
-    required this.onBack,
-    required this.onSurahTap,
-    required this.onFontIncrease,
-    required this.onFontDecrease,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final top = MediaQuery.of(context).padding.top;
-    return Container(
-      padding: EdgeInsets.fromLTRB(4, top + 4, 8, 4),
-      decoration: BoxDecoration(
-        color: dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7),
-        border: Border(
-          bottom: BorderSide(
-            color: dark
-                ? Colors.white.withAlpha(15)
-                : const Color(0xFF1A1A1A).withAlpha(15),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(Icons.arrow_back_ios_new_rounded,
-                size: 18,
-                color: dark ? Colors.white70 : const Color(0xFF1A1A1A)),
-            onPressed: onBack,
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: onSurahTap,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    surahName,
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: dark ? Colors.white : const Color(0xFF1A1A1A),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Sourate $surahNumber',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: dark ? Colors.white38 : Colors.black38,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Icon(Icons.expand_more_rounded,
-                          size: 14,
-                          color: dark ? Colors.white38 : Colors.black38),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.text_decrease_rounded,
-                size: 18, color: dark ? Colors.white54 : Colors.black45),
-            onPressed: onFontDecrease,
-          ),
-          IconButton(
-            icon: Icon(Icons.text_increase_rounded,
-                size: 18, color: dark ? Colors.white54 : Colors.black45),
-            onPressed: onFontIncrease,
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Verses list
@@ -370,6 +281,7 @@ class _VersesList extends StatelessWidget {
   final Color textSecondary;
   final bool dark;
   final List<Color> bookGradient;
+  final String bookNameAr;
   final Map<int, GlobalKey> verseKeys;
 
   const _VersesList({
@@ -382,6 +294,7 @@ class _VersesList extends StatelessWidget {
     required this.textSecondary,
     required this.dark,
     required this.bookGradient,
+    required this.bookNameAr,
     required this.verseKeys,
   });
 
@@ -413,6 +326,7 @@ class _VersesList extends StatelessWidget {
           textSecondary: textSecondary,
           dark: dark,
           accentColor: accent,
+          bookNameAr: bookNameAr,
         );
       },
     );
@@ -425,12 +339,13 @@ class _VersesList extends StatelessWidget {
 
 class _VerseBlock extends StatelessWidget {
   final TafsirVerse verse;
-  final QVerse? arabicVerse;
-  final double fontSize;
-  final Color textPrimary;
-  final Color textSecondary;
-  final bool dark;
-  final Color accentColor;
+  final QVerse?     arabicVerse;
+  final double      fontSize;
+  final Color       textPrimary;
+  final Color       textSecondary;
+  final bool        dark;
+  final Color       accentColor;
+  final String      bookNameAr;
 
   const _VerseBlock({
     super.key,
@@ -441,70 +356,123 @@ class _VerseBlock extends StatelessWidget {
     required this.textSecondary,
     required this.dark,
     required this.accentColor,
+    required this.bookNameAr,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasArabic = arabicVerse?.ar != null && arabicVerse!.ar.isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Séparateur ornemental : ─── ✦ Verset N ✦ ─────────────────────
-          _OrnamentalDivider(
-            number: verse.ayah,
+          // ── Indicateur verset ornemental ──────────────────────────────────
+          _VerseIndicatorBox(
+            surah:      verse.surah,
+            ayah:       verse.ayah,
             accentColor: accentColor,
-            dark: dark,
+            dark:        dark,
           ),
           const SizedBox(height: 22),
 
-          // ── Texte arabe du verset ─────────────────────────────────────────
-          if (arabicVerse?.ar != null && arabicVerse!.ar.isNotEmpty) ...[
+          // ── Texte arabe du verset avec guillemets ─────────────────────────
+          if (hasArabic) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                arabicVerse!.ar,
-                textAlign: TextAlign.center,
-                textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontFamily: 'UthmanTahaNaskh',
-                  fontSize: fontSize + 7,
-                  color: textPrimary,
-                  height: 2.2,
-                  letterSpacing: 0.3,
-                  shadows: [
-                    Shadow(
-                      color: accentColor.withAlpha(dark ? 90 : 50),
-                      blurRadius: 14,
-                      offset: Offset.zero,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Stack(
+                children: [
+                  // Guillemets décoratifs
+                  Positioned(
+                    top: 0, right: 4,
+                    child: Text('«',
+                        style: TextStyle(
+                          fontFamily: 'UthmanTahaNaskh',
+                          fontSize: fontSize + 14,
+                          color: accentColor.withAlpha(dark ? 120 : 90),
+                          height: 1,
+                        )),
+                  ),
+                  Positioned(
+                    bottom: 0, left: 4,
+                    child: Text('»',
+                        style: TextStyle(
+                          fontFamily: 'UthmanTahaNaskh',
+                          fontSize: fontSize + 14,
+                          color: accentColor.withAlpha(dark ? 120 : 90),
+                          height: 1,
+                        )),
+                  ),
+                  // Texte arabe
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 28, vertical: 8),
+                    child: Text(
+                      arabicVerse!.ar,
+                      textAlign:     TextAlign.center,
+                      textDirection: TextDirection.rtl,
+                      style: TextStyle(
+                        fontFamily:   'UthmanTahaNaskh',
+                        fontSize:     fontSize + 7,
+                        color:        textPrimary,
+                        height:       2.2,
+                        letterSpacing: 0.3,
+                        shadows: [
+                          Shadow(
+                            color:      accentColor.withAlpha(dark ? 80 : 45),
+                            blurRadius: 14,
+                            offset:     Offset.zero,
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            _ThinDivider(accentColor: accentColor, dark: dark),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // ── Boutons d'action ────────────────────────────────────────────
+            _ActionButtons(
+              arabicText: arabicVerse!.ar,
+              tafsirText: verse.text,
+              bookNameAr: bookNameAr,
+              verseKey:   verse.verseKey,
+              accentColor: accentColor,
+              dark:        dark,
+              textPrimary: textPrimary,
+            ),
+            const SizedBox(height: 16),
           ] else ...[
             const SizedBox(height: 8),
           ],
+
+          // ── En-tête section tafsir ────────────────────────────────────────
+          _TafsirSectionTitle(
+            bookNameAr:  bookNameAr,
+            accentColor: accentColor,
+            dark:        dark,
+            textPrimary: textPrimary,
+          ),
+          const SizedBox(height: 12),
 
           // ── Texte du tafsir ───────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
             child: Text(
               verse.text,
-              textAlign: TextAlign.right,
+              textAlign:     TextAlign.right,
               textDirection: TextDirection.rtl,
               style: TextStyle(
                 fontFamily: 'ScheherazadeNew',
-                fontSize: fontSize,
-                color: textPrimary.withAlpha(dark ? 215 : 200),
-                height: 2.1,
+                fontSize:   fontSize,
+                color:      textPrimary.withAlpha(dark ? 215 : 200),
+                height:     2.1,
               ),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 28),
         ],
       ),
     );
@@ -617,129 +585,6 @@ class _SurahHeader extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Ornamental verse-number divider  ─── ✦ Verset N ✦ ───
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _OrnamentalDivider extends StatelessWidget {
-  final int number;
-  final Color accentColor;
-  final bool dark;
-
-  const _OrnamentalDivider({
-    required this.number,
-    required this.accentColor,
-    required this.dark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final lineColor  = accentColor.withAlpha(dark ? 90 : 65);
-    final labelColor = accentColor.withAlpha(dark ? 200 : 170);
-    final starColor  = accentColor.withAlpha(dark ? 140 : 110);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.transparent, lineColor],
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('✦', style: TextStyle(fontSize: 8, color: starColor)),
-                const SizedBox(height: 4),
-                Text(
-                  'Verset $number',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: labelColor,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text('✦', style: TextStyle(fontSize: 8, color: starColor)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [lineColor, Colors.transparent],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Thin divider between Quran verse and tafsir text  ──── ● ────
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _ThinDivider extends StatelessWidget {
-  final Color accentColor;
-  final bool dark;
-
-  const _ThinDivider({required this.accentColor, required this.dark});
-
-  @override
-  Widget build(BuildContext context) {
-    final lineColor = accentColor.withAlpha(dark ? 70 : 50);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 48),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.transparent, lineColor],
-                ),
-              ),
-            ),
-          ),
-          Container(
-            width: 5,
-            height: 5,
-            margin: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: accentColor.withAlpha(dark ? 130 : 90),
-            ),
-          ),
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [lineColor, Colors.transparent],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Bottom navigation
@@ -769,7 +614,7 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottom    = MediaQuery.of(context).padding.bottom;
-    final bg        = dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7);
+    final bg        = dark ? const Color(0xFF0C1220) : const Color(0xFFF5F0E6);
     final textColor = dark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1810);
     final frName    = surahFr[currentSurah] ?? 'Sourate $currentSurah';
     final arName    = TafsirService.surahNames[currentSurah - 1];
@@ -988,7 +833,7 @@ class _SurahPickerSheetState extends State<_SurahPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final dark      = Theme.of(context).brightness == Brightness.dark;
-    final bg        = dark ? const Color(0xFF0C1220) : const Color(0xFFF5EDD7);
+    final bg        = dark ? const Color(0xFF0C1220) : const Color(0xFFF5F0E6);
     final textColor = dark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1810);
     final accent    = widget.accentColor;
 
@@ -1530,4 +1375,653 @@ class _EmptyView extends StatelessWidget {
           ),
         ),
       );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TafsirGoldenHeader — plaque parchemin islamique (partagé entre les deux écrans)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class TafsirGoldenHeader extends StatelessWidget {
+  final VoidCallback? onBack;
+  final String   titleAr;
+  final String   titleLatin;
+  final bool     dark;
+  final Widget?  trailing;
+
+  const TafsirGoldenHeader({
+    super.key,
+    this.onBack,
+    required this.titleAr,
+    required this.titleLatin,
+    required this.dark,
+    this.trailing,
+  });
+
+  // Ink: brun presque noir (comme encre de manuscrit sur parchemin)
+  static const _ink    = Color(0xFF2A1B12);
+  static const _inkDim = Color(0xFF5A4030);
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top;
+
+    // Vertical gradient: warm golden top/bottom → lighter parchment centre
+    // Mimics the light coming from the top and the parchemin "matière" feel
+    final colors = dark
+        ? const [Color(0xFF2E1A02), Color(0xFF5C3D0A), Color(0xFF6B4E14),
+                 Color(0xFF5C3D0A), Color(0xFF2E1A02)]
+        : const [Color(0xFFC9A864), Color(0xFFDDCA9A), Color(0xFFE7D2A6),
+                 Color(0xFFDDCA9A), Color(0xFFC9A864)];
+
+    return Container(
+      padding: EdgeInsets.only(top: top),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin:  Alignment.topCenter,
+          end:    Alignment.bottomCenter,
+          colors: colors,
+          stops:  const [0.0, 0.25, 0.5, 0.75, 1.0],
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color:      Color(0x55000000),
+            blurRadius: 14,
+            offset:     Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // ── Background texture + vignette ────────────────────────────────
+          Positioned.fill(
+            child: CustomPaint(painter: _GoldenPatternPainter(dark: dark)),
+          ),
+
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Button row ────────────────────────────────────────────────
+              SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    if (onBack != null)
+                      IconButton(
+                        icon: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 20,
+                          color: dark ? const Color(0xFFD4BF98) : _ink,
+                        ),
+                        onPressed: onBack,
+                      )
+                    else
+                      const SizedBox(width: 48),
+                    const Spacer(),
+                    if (trailing != null) trailing!,
+                  ],
+                ),
+              ),
+
+              // ── Calligraphie centrée ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      titleAr,
+                      textDirection: TextDirection.rtl,
+                      textAlign:     TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'UthmanTahaNaskh',
+                        fontSize:   42,
+                        color:      dark ? const Color(0xFFE8D5B0) : _ink,
+                        height:     1.15,
+                        shadows: const [
+                          Shadow(
+                            color:      Color(0x22000000),
+                            blurRadius: 3,
+                            offset:     Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      titleLatin.toUpperCase(),
+                      style: TextStyle(
+                        fontSize:      9.5,
+                        color:         dark
+                            ? const Color(0xFFB8A070)
+                            : _inkDim,
+                        letterSpacing: 3.0,
+                        fontWeight:    FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Frise courbée au bas (transition douce vers le contenu) ───
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 30,
+                child: CustomPaint(
+                  size: const Size(double.infinity, 30),
+                  painter: _CurvedFrisePainter(dark: dark),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Frise décorative courbée (bas du header) ──────────────────────────────────
+// Légèrement arquée vers le bas pour une transition douce.
+
+class _CurvedFrisePainter extends CustomPainter {
+  final bool dark;
+  const _CurvedFrisePainter({required this.dark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = dark ? const Color(0xFFD4A864) : const Color(0xFF2A1B12);
+    final lp = Paint()
+      ..color = c.withAlpha(dark ? 80 : 62)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+    final fp = Paint()
+      ..color = c.withAlpha(dark ? 38 : 22)
+      ..style = PaintingStyle.fill;
+
+    const ct  = 4.0;   // Y-start of the band
+    const bh  = 10.0;  // band height
+    const d   = 5.0;   // downward curve depth
+    final cx  = size.width / 2;
+
+    // Filled parchment band between two arching curves
+    final fillPath = Path()
+      ..moveTo(0, ct)
+      ..quadraticBezierTo(cx, ct + d, size.width, ct)
+      ..lineTo(size.width, ct + bh)
+      ..quadraticBezierTo(cx, ct + bh + d, 0, ct + bh)
+      ..close();
+    canvas.drawPath(fillPath, fp);
+
+    // Top arch line
+    canvas.drawPath(
+      Path()..moveTo(0, ct)..quadraticBezierTo(cx, ct + d, size.width, ct),
+      lp,
+    );
+    // Bottom arch line
+    canvas.drawPath(
+      Path()..moveTo(0, ct + bh)..quadraticBezierTo(cx, ct + bh + d, size.width, ct + bh),
+      lp,
+    );
+
+    // Central diamond ornament at the lowest point of the arch
+    const oy = ct + d + bh / 2;
+    canvas.drawPath(
+      Path()
+        ..moveTo(cx, oy - 4.5)
+        ..lineTo(cx + 7.5, oy)
+        ..lineTo(cx, oy + 4.5)
+        ..lineTo(cx - 7.5, oy)
+        ..close(),
+      Paint()..color = c.withAlpha(dark ? 110 : 80)..style = PaintingStyle.fill,
+    );
+
+    // Flanking dots along the arch
+    final dotp = Paint()..color = c.withAlpha(dark ? 70 : 52)..style = PaintingStyle.fill;
+    for (final dx in [-52.0, -38.0, 38.0, 52.0]) {
+      canvas.drawCircle(Offset(cx + dx, ct + d + bh / 2), 1.5, dotp);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CurvedFrisePainter old) => old.dark != dark;
+}
+
+// ── Main background: crosshatch texture + corner stars + radial vignette ──────
+
+class _GoldenPatternPainter extends CustomPainter {
+  final bool dark;
+  const _GoldenPatternPainter({required this.dark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = dark ? const Color(0xFF000000) : const Color(0xFF1A0C00);
+
+    // ── 1. Diagonal crosshatch (simulates parchment grain / fibre) ────────
+    final meshPaint = Paint()
+      ..color = c.withAlpha(7)
+      ..strokeWidth = 0.5
+      ..style = PaintingStyle.stroke;
+    const diag = 16.0;
+    for (double x = -size.height; x < size.width + size.height; x += diag) {
+      canvas.drawLine(Offset(x, 0), Offset(x + size.height, size.height), meshPaint);
+    }
+    for (double x = -size.height; x < size.width + size.height; x += diag * 2) {
+      canvas.drawLine(
+          Offset(x + size.height, 0), Offset(x, size.height), meshPaint);
+    }
+
+    // ── 2. Corner 8-pointed stars ─────────────────────────────────────────
+    final starFill   = Paint()..color = c.withAlpha(25)..style = PaintingStyle.fill;
+    final starStroke = Paint()
+      ..color = c.withAlpha(45)
+      ..strokeWidth = 0.9
+      ..style = PaintingStyle.stroke;
+    const off = 30.0;
+    for (final corner in [
+      const Offset(off, off),
+      Offset(size.width - off, off),
+      Offset(off, size.height - off),
+      Offset(size.width - off, size.height - off),
+    ]) {
+      _drawStar8(canvas, corner, 15, 6.5, starFill, starStroke);
+    }
+
+    // ── 3. Mid-edge ornaments ─────────────────────────────────────────────
+    final edgeFill   = Paint()..color = c.withAlpha(15)..style = PaintingStyle.fill;
+    final edgeStroke = Paint()
+      ..color = c.withAlpha(25)
+      ..strokeWidth = 0.6
+      ..style = PaintingStyle.stroke;
+    _drawStar8(canvas, Offset(0, size.height / 2), 10, 4, edgeFill, edgeStroke);
+    _drawStar8(
+        canvas, Offset(size.width, size.height / 2), 10, 4, edgeFill, edgeStroke);
+
+    // ── 4. Radial vignette: edges slightly darker for parchemin depth ─────
+    final vignetteShader = RadialGradient(
+      center: Alignment.center,
+      radius: 0.75,
+      colors: [Colors.transparent, c.withAlpha(dark ? 50 : 35)],
+    ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..shader = vignetteShader,
+    );
+  }
+
+  void _drawStar8(Canvas canvas, Offset center, double outer, double inner,
+      Paint fill, Paint stroke) {
+    final path = Path();
+    for (int i = 0; i < 16; i++) {
+      final angle = i * math.pi / 8 - math.pi / 2;
+      final r = i.isEven ? outer : inner;
+      final pt = Offset(
+        center.dx + math.cos(angle) * r,
+        center.dy + math.sin(angle) * r,
+      );
+      i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
+    }
+    path.close();
+    canvas.drawPath(path, fill);
+    canvas.drawPath(path, stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GoldenPatternPainter old) => old.dark != dark;
+}
+
+// Petit bouton icône style or pour le header
+class _GoldIconBtn extends StatelessWidget {
+  final IconData     icon;
+  final VoidCallback onTap;
+
+  const _GoldIconBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 18, color: const Color(0xFF4A3F30).withAlpha(220)),
+      onPressed: onTap,
+      splashRadius: 20,
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Indicateur verset ornemental  (remplace _OrnamentalDivider)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _VerseIndicatorBox extends StatelessWidget {
+  final int   surah;
+  final int   ayah;
+  final Color accentColor;
+  final bool  dark;
+
+  const _VerseIndicatorBox({
+    required this.surah,
+    required this.ayah,
+    required this.accentColor,
+    required this.dark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Parchment-style colours matching the manuscript aesthetic
+    final bg          = dark ? const Color(0xFF1C2333) : const Color(0xFFFAF6EE);
+    const borderColor = Color(0xFFC8A97E); // medium gold
+    final textColor   = dark ? const Color(0xFFE8D5B0) : const Color(0xFF4A3F30);
+    final sepColor    = dark ? const Color(0xFFB08050) : const Color(0xFFC8A97E);
+    final surahName   = TafsirService.surahNames[surah - 1];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Stack(
+        children: [
+          // Base card with parchment background
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color:  bg,
+              border: Border.all(color: borderColor, width: 1.3),
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: dark
+                  ? []
+                  : [
+                      BoxShadow(
+                        color:      Colors.black.withAlpha(14),
+                        blurRadius: 6,
+                        offset:     const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              textDirection: TextDirection.rtl,
+              children: [
+                Text(
+                  surahName,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily: 'UthmanTahaNaskh',
+                    fontSize:   20,
+                    color:      textColor,
+                    height:     1.2,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    ' ─── ',
+                    style: TextStyle(color: sepColor, fontSize: 13),
+                  ),
+                ),
+                Text(
+                  'آية $ayah',
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily: 'UthmanTahaNaskh',
+                    fontSize:   20,
+                    color:      textColor,
+                    height:     1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Arabesque corner ornaments painted on top
+          Positioned.fill(
+            child: CustomPaint(painter: _VerseFrameCornerPainter()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Arabesque corner ornaments for the verse indicator box ────────────────────
+
+class _VerseFrameCornerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const c = Color(0xFFC8A97E);
+    final p = Paint()
+      ..color = c.withAlpha(180)
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final fp = Paint()
+      ..color = c.withAlpha(160)
+      ..style = PaintingStyle.fill;
+
+    const arm = 14.0;
+
+    void drawCorner(double x, double y, double sx, double sy) {
+      // L-arm going inward
+      canvas.drawLine(Offset(x, y + sy * arm), Offset(x, y), p);
+      canvas.drawLine(Offset(x, y), Offset(x + sx * arm, y), p);
+      // Tiny diamond ornament at vertex
+      canvas.drawPath(
+        Path()
+          ..moveTo(x, y - sy * 4)
+          ..lineTo(x + sx * 4, y)
+          ..lineTo(x, y + sy * 4)
+          ..lineTo(x - sx * 4, y)
+          ..close(),
+        fp,
+      );
+    }
+
+    drawCorner(0,          0,            1,  1);
+    drawCorner(size.width, 0,           -1,  1);
+    drawCorner(0,          size.height,  1, -1);
+    drawCorner(size.width, size.height, -1, -1);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Boutons d'action par verset (Copier / Partager)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _ActionButtons extends StatelessWidget {
+  final String arabicText;
+  final String tafsirText;
+  final String bookNameAr;
+  final String verseKey;
+  final Color  accentColor;
+  final bool   dark;
+  final Color  textPrimary;
+
+  const _ActionButtons({
+    required this.arabicText,
+    required this.tafsirText,
+    required this.bookNameAr,
+    required this.verseKey,
+    required this.accentColor,
+    required this.dark,
+    required this.textPrimary,
+  });
+
+  String get _fullText =>
+      '$arabicText\n\n── $bookNameAr ──\n$tafsirText\n\n[$verseKey]';
+
+  @override
+  Widget build(BuildContext context) {
+    // Golden manuscript palette
+    final chipBg     = dark ? const Color(0xFF4A2E06) : const Color(0xFFE8D5B3);
+    final chipBg2    = dark ? const Color(0xFF6B4510) : const Color(0xFFCFAF7E);
+    final chipBorder = dark ? const Color(0xFF8B6814) : const Color(0xFFC8A97E);
+    final labelColor = dark ? const Color(0xFFE8D5B0) : const Color(0xFF4A3F30);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _ActionChip(
+            icon:    Icons.copy_rounded,
+            label:   'Copier',
+            bg:      chipBg,
+            bg2:     chipBg2,
+            border:  chipBorder,
+            color:   labelColor,
+            onTap: () async {
+              await Clipboard.setData(ClipboardData(text: _fullText));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Copié dans le presse-papier'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+          const SizedBox(width: 12),
+          _ActionChip(
+            icon:   Icons.share_rounded,
+            label:  'Partager',
+            bg:     chipBg,
+            bg2:    chipBg2,
+            border: chipBorder,
+            color:  labelColor,
+            onTap:  () => Share.share(_fullText),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionChip extends StatelessWidget {
+  final IconData     icon;
+  final String       label;
+  final Color        bg;
+  final Color        bg2;
+  final Color        border;
+  final Color        color;
+  final VoidCallback onTap;
+
+  const _ActionChip({
+    required this.icon,
+    required this.label,
+    required this.bg,
+    required this.bg2,
+    required this.border,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin:  Alignment.topLeft,
+            end:    Alignment.bottomRight,
+            colors: [bg, bg2],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: border, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color:      Colors.black.withAlpha(18),
+              blurRadius: 4,
+              offset:     const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize:   12,
+                color:      color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// En-tête de section tafsir  "── تفسير ابن كثير ──  ◆"
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _TafsirSectionTitle extends StatelessWidget {
+  final String bookNameAr;
+  final Color  accentColor;
+  final bool   dark;
+  final Color  textPrimary;
+
+  const _TafsirSectionTitle({
+    required this.bookNameAr,
+    required this.accentColor,
+    required this.dark,
+    required this.textPrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lineColor  = accentColor.withAlpha(dark ? 60 : 45);
+    final titleColor = textPrimary.withAlpha(dark ? 200 : 180);
+    final diamondColor = accentColor.withAlpha(dark ? 160 : 130);
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 0.8,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                        colors: [Colors.transparent, lineColor]),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  bookNameAr,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily:  'UthmanTahaNaskh',
+                    fontSize:    20,
+                    color:       titleColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  height: 0.8,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                        colors: [lineColor, Colors.transparent]),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text('◆',
+            style: TextStyle(fontSize: 9, color: diamondColor)),
+      ],
+    );
+  }
 }

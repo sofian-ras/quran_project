@@ -11,6 +11,7 @@ class TafsirBook {
   final int id;        // quran.com tafsir resource ID
   final String slug;   // used for file naming
   final String nameAr;
+  final String nameFr; // translitération / titre français
   final String authorAr;
   final String descFr;
   final List<Color> gradient;
@@ -19,6 +20,7 @@ class TafsirBook {
     required this.id,
     required this.slug,
     required this.nameAr,
+    required this.nameFr,
     required this.authorAr,
     required this.descFr,
     required this.gradient,
@@ -47,43 +49,48 @@ class TafsirService {
 
   static const List<TafsirBook> catalog = [
     TafsirBook(
-      id: 14,   // quran.com: ar-tafsir-ibn-kathir
+      id: 14,
       slug: 'ibn_kathir',
       nameAr: 'تفسير ابن كثير',
+      nameFr: 'Tafsir Ibn Kathir',
       authorAr: 'ابن كثير الدمشقي',
       descFr: 'Le plus célèbre des tafsirs, commentaire exhaustif du Coran',
       gradient: [Color(0xFF0D3B2E), Color(0xFF1A5C42)],
     ),
     TafsirBook(
-      id: 16,   // quran.com: ar-tafsir-muyassar
+      id: 16,
       slug: 'muyassar',
       nameAr: 'التفسير الميسر',
+      nameFr: 'At-Tafsir Al-Muyassar',
       authorAr: 'مجمع الملك فهد',
       descFr: 'Tafsir simplifié du complexe du Roi Fahd',
       gradient: [Color(0xFF4A2800), Color(0xFF7A4800)],
     ),
     TafsirBook(
-      id: 91,   // quran.com: ar-tafseer-al-saddi
+      id: 91,
       slug: 'saadi',
       nameAr: 'تفسير السعدي',
+      nameFr: "Tafsir As-Sa'di",
       authorAr: 'عبد الرحمن السعدي',
-      descFr: 'Tafsir clair et bénéfique du Sheikh Al-Sa\'di',
+      descFr: "Tafsir clair et bénéfique du Sheikh Al-Sa'di",
       gradient: [Color(0xFF0A1A30), Color(0xFF1A3A60)],
     ),
     TafsirBook(
-      id: 15,   // quran.com: ar-tafsir-al-tabari (الجلالين absent de l'API)
+      id: 15,
       slug: 'tabari',
       nameAr: 'تفسير الطبري',
+      nameFr: 'Tafsir At-Tabari',
       authorAr: 'ابن جرير الطبري',
-      descFr: 'Fondement de l\'exégèse coranique, source des sources',
+      descFr: "Fondement de l'exégèse coranique, source des sources",
       gradient: [Color(0xFF3B0A18), Color(0xFF6B1A32)],
     ),
     TafsirBook(
-      id: 90,   // quran.com: ar-tafsir-al-qurtubi
+      id: 90,
       slug: 'qurtubi',
       nameAr: 'تفسير القرطبي',
+      nameFr: 'Tafsir Al-Qurtubi',
       authorAr: 'محمد القرطبي',
-      descFr: 'Tafsir encyclopédique de l\'imam Al-Qurtubi',
+      descFr: "Tafsir encyclopédique de l'imam Al-Qurtubi",
       gradient: [Color(0xFF1A1A00), Color(0xFF3A3A00)],
     ),
   ];

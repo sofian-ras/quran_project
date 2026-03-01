@@ -261,8 +261,8 @@ class _BottomTimesBar extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                Color(0xFF22C55E),
-                                Color(0xFF15803D),
+                                Color(0xFFFFD37A),
+                                Color(0xFFB07D2A),
                               ],
                             )
                           : null,

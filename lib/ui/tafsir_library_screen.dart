@@ -12,12 +12,9 @@ class TafsirLibraryScreen extends StatefulWidget {
 }
 
 class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
-  // slug → true/false
-  final Map<String, bool> _downloaded = {};
-  // slug → 0.0-1.0 (null = not downloading)
-  final Map<String, double> _progress = {};
-  // slug → CancelToken
-  final Map<String, CancelToken> _tokens = {};
+  final Map<String, bool>      _downloaded = {};
+  final Map<String, double>    _progress   = {};
+  final Map<String, CancelToken> _tokens   = {};
 
   @override
   void initState() {
@@ -41,20 +38,18 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
   }
 
   Future<void> _startDownload(TafsirBook book) async {
-    if (_progress.containsKey(book.slug)) return; // already downloading
-
+    if (_progress.containsKey(book.slug)) return;
     final token = CancelToken();
     setState(() {
-      _tokens[book.slug] = token;
+      _tokens[book.slug]   = token;
       _progress[book.slug] = 0.0;
     });
-
     try {
       await TafsirService.download(
         book,
         cancelToken: token,
-        onProgress: (progress, surah) {
-          if (mounted) setState(() => _progress[book.slug] = progress);
+        onProgress: (p, _) {
+          if (mounted) setState(() => _progress[book.slug] = p);
         },
       );
       if (mounted) {
@@ -87,17 +82,26 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
   }
 
   Future<void> _deleteBook(TafsirBook book) async {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _bg(ctx),
+        backgroundColor: dark ? const Color(0xFF1C2333) : const Color(0xFFF5EDD7),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Supprimer ?',
-            style: TextStyle(color: _textColor(ctx), fontWeight: FontWeight.w600)),
+        title: Text(
+          'Supprimer ?',
+          style: TextStyle(
+            color: dark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1810),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         content: Text(
           'Supprimer le téléchargement de « ${book.nameAr} » ?',
           textDirection: TextDirection.rtl,
-          style: TextStyle(color: _textColor(ctx).withAlpha(200), height: 1.5),
+          style: TextStyle(
+            color: dark ? const Color(0xFFB8A080) : const Color(0xFF5A3A20),
+            height: 1.5,
+          ),
         ),
         actions: [
           TextButton(
@@ -106,7 +110,8 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+            child: const Text('Supprimer',
+                style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -131,99 +136,49 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
     );
   }
 
-  // ── Colours ────────────────────────────────────────────────────────────────
-
-  static Color _bg(BuildContext ctx) {
-    final dark = Theme.of(ctx).brightness == Brightness.dark;
-    return dark ? const Color(0xFF0A0F1A) : const Color(0xFFF2ECE5);
-  }
-
-  static Color _textColor(BuildContext ctx) {
-    final dark = Theme.of(ctx).brightness == Brightness.dark;
-    return dark ? Colors.white : const Color(0xFF1A1A1A);
-  }
-
-  // ── Build ──────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final bg = _bg(context);
-    final textColor = _textColor(context);
+    final dark    = Theme.of(context).brightness == Brightness.dark;
+    final bg      = dark ? const Color(0xFF0C1220) : const Color(0xFFF5F0E6);
+    final padding = MediaQuery.of(context).padding;
 
     return Scaffold(
       backgroundColor: bg,
-      body: CustomScrollView(
-        slivers: [
-          // ── Header ──────────────────────────────────────────────────────────
-          SliverAppBar(
-            expandedHeight: 160,
-            pinned: true,
-            backgroundColor: dark ? const Color(0xFF0A0F1A) : const Color(0xFFF2ECE5),
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back_ios_new_rounded,
-                  color: dark ? Colors.white : const Color(0xFF1A1A1A), size: 20),
-              onPressed: () => Navigator.pop(context),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              collapseMode: CollapseMode.parallax,
-              background: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 80, 24, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Bibliothèque des Tafsirs',
-                      style: TextStyle(
-                        fontSize: 28,
-                        color: textColor,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Commentaires du Coran en arabe',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: textColor.withAlpha(140),
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+      body: Column(
+        children: [
+          // ── Ornate golden header ────────────────────────────────────────────
+          TafsirGoldenHeader(
+            onBack: () => Navigator.pop(context),
+            titleAr: 'التفاسير',
+            titleLatin: 'BIBLIOTHÈQUE DES TAFSIRS',
+            dark: dark,
           ),
 
-          // ── Grid ────────────────────────────────────────────────────────────
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(
-                16, 8, 16, MediaQuery.of(context).padding.bottom + 24),
-            sliver: SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final book = TafsirService.catalog[index];
-                  return _BookCard(
-                    book: book,
-                    isDownloaded: _downloaded[book.slug] ?? false,
-                    progress: _progress[book.slug],
-                    onDownload: () => _startDownload(book),
-                    onCancel: () => _cancelDownload(book),
-                    onOpen: () => _openBook(book),
-                    onDelete: () => _deleteBook(book),
-                  );
-                },
-                childCount: TafsirService.catalog.length,
-              ),
+          // ── Grid ───────────────────────────────────────────────────────────
+          Expanded(
+            child: GridView.builder(
+              padding: EdgeInsets.fromLTRB(
+                  16, 20, 16, padding.bottom + 24),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.62,
+                crossAxisCount:  2,
+                childAspectRatio: 0.60,
                 crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
+                mainAxisSpacing:  18,
               ),
+              itemCount: TafsirService.catalog.length,
+              itemBuilder: (ctx, i) {
+                final book = TafsirService.catalog[i];
+                return _BookCard(
+                  book:         book,
+                  dark:         dark,
+                  isDownloaded: _downloaded[book.slug] ?? false,
+                  progress:     _progress[book.slug],
+                  onDownload:   () => _startDownload(book),
+                  onCancel:     () => _cancelDownload(book),
+                  onOpen:       () => _openBook(book),
+                  onDelete:     () => _deleteBook(book),
+                );
+              },
             ),
           ),
         ],
@@ -238,8 +193,9 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
 
 class _BookCard extends StatelessWidget {
   final TafsirBook book;
-  final bool isDownloaded;
-  final double? progress; // null = not downloading
+  final bool       dark;
+  final bool       isDownloaded;
+  final double?    progress;
   final VoidCallback onDownload;
   final VoidCallback onCancel;
   final VoidCallback onOpen;
@@ -247,6 +203,7 @@ class _BookCard extends StatelessWidget {
 
   const _BookCard({
     required this.book,
+    required this.dark,
     required this.isDownloaded,
     required this.progress,
     required this.onDownload,
@@ -258,195 +215,283 @@ class _BookCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDownloading = progress != null;
+    // Parchment-style card: slightly darker than page background, subtle warm border
+    final cardBg      = dark ? const Color(0xFF1C2333) : const Color(0xFFEDE6D9);
+    final borderColor = dark
+        ? Colors.white.withAlpha(12)
+        : const Color(0xFFC8B89A).withAlpha(85);
+    final shadowColor = dark
+        ? Colors.black.withAlpha(60)
+        : Colors.black.withAlpha(18);
 
     return GestureDetector(
-      onTap: isDownloaded ? onOpen : (isDownloading ? null : onDownload),
+      onTap:      isDownloaded ? onOpen : (isDownloading ? null : onDownload),
       onLongPress: isDownloaded ? onDelete : null,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: book.gradient,
-          ),
+          color: cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: book.gradient.last.withAlpha(100),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color:      shadowColor,
+              blurRadius: 8,
+              offset:     const Offset(0, 3),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            children: [
-              // ── Decorative pattern ───────────────────────────────────────
-              Positioned.fill(child: _BookPattern()),
-
-              // ── Spine accent ─────────────────────────────────────────────
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 6,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withAlpha(40),
-                        Colors.white.withAlpha(10),
-                      ],
-                    ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Book cover image (≈ 60 % de la hauteur) ─────────────────────
+            Expanded(
+              flex: 6,
+              child: ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(17)),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+                  child: Image.asset(
+                    'assets/tafsir/${book.slug}.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) =>
+                        _BookCoverPlaceholder(book: book),
                   ),
                 ),
               ),
+            ),
 
-              // ── Content ──────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 20, 14, 16),
+            // ── Info (≈ 40 % de la hauteur) ──────────────────────────────────
+            Expanded(
+              flex: 4,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 12),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Gold ornament line top
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 1.5,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [
-                            Colors.transparent,
-                            const Color(0xFFD4AF37).withAlpha(200),
-                            Colors.transparent,
-                          ]),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Arabic title
-                    Expanded(
-                      child: Center(
-                        child: Text(
+                    // Titres
+                    Column(
+                      children: [
+                        Text(
                           book.nameAr,
                           textAlign: TextAlign.center,
                           textDirection: TextDirection.rtl,
-                          style: const TextStyle(
-                            fontFamily: 'ScheherazadeNew',
-                            fontSize: 22,
-                            color: Colors.white,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'UthmanTahaNaskh',
+                            fontSize:   20,
+                            color: dark
+                                ? const Color(0xFFE8D5B0)
+                                : const Color(0xFF4A3F30),
                             fontWeight: FontWeight.w700,
-                            height: 1.5,
+                            height: 1.2,
                           ),
                         ),
-                      ),
-                    ),
-
-                    // Author
-                    Text(
-                      book.authorAr,
-                      textAlign: TextAlign.center,
-                      textDirection: TextDirection.rtl,
-                      style: TextStyle(
-                        fontFamily: 'ScheherazadeNew',
-                        fontSize: 13,
-                        color: Colors.white.withAlpha(170),
-                        height: 1.4,
-                      ),
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    // Gold ornament line bottom
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 1.5,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [
-                            Colors.transparent,
-                            const Color(0xFFD4AF37).withAlpha(200),
-                            Colors.transparent,
-                          ]),
+                        const SizedBox(height: 2),
+                        Text(
+                          book.nameFr,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: dark
+                                ? const Color(0xFF9B8060)
+                                : const Color(0xFF8B7050),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
 
-                    const SizedBox(height: 14),
-
-                    // Action / status
-                    _ActionArea(
-                      isDownloaded: isDownloaded,
+                    // Statut
+                    _StatusChip(
+                      isDownloaded:  isDownloaded,
                       isDownloading: isDownloading,
-                      progress: progress,
-                      onDownload: onDownload,
-                      onCancel: onCancel,
-                      onOpen: onOpen,
+                      progress:      progress,
+                      dark:          dark,
+                      onCancel:      onCancel,
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Action area (download / progress / read)
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Placeholder quand l'image du livre n'est pas encore fournie ──────────────
 
-class _ActionArea extends StatelessWidget {
-  final bool isDownloaded;
-  final bool isDownloading;
-  final double? progress;
-  final VoidCallback onDownload;
+class _BookCoverPlaceholder extends StatelessWidget {
+  final TafsirBook book;
+  const _BookCoverPlaceholder({required this.book});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end:   Alignment.bottomRight,
+          colors: book.gradient,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color:      book.gradient.last.withAlpha(80),
+            blurRadius: 12,
+            offset:     const Offset(2, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Reliure (bande gauche)
+          Positioned(
+            left: 0, top: 0, bottom: 0,
+            width: 8,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(40),
+                borderRadius: const BorderRadius.only(
+                  topLeft:    Radius.circular(8),
+                  bottomLeft: Radius.circular(8),
+                ),
+              ),
+            ),
+          ),
+          // Motif diagonal subtil
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: CustomPaint(painter: _DiagonalPatternPainter()),
+            ),
+          ),
+          // Texte centré
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 1,
+                    color: Colors.white.withAlpha(90),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    book.nameAr,
+                    textAlign:     TextAlign.center,
+                    textDirection: TextDirection.rtl,
+                    style: const TextStyle(
+                      fontFamily:  'UthmanTahaNaskh',
+                      fontSize:    20,
+                      color:       Colors.white,
+                      fontWeight:  FontWeight.w700,
+                      height:      1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    book.authorAr,
+                    textAlign:     TextAlign.center,
+                    textDirection: TextDirection.rtl,
+                    style: TextStyle(
+                      fontFamily: 'ScheherazadeNew',
+                      fontSize:   12,
+                      color:      Colors.white.withAlpha(170),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 36,
+                    height: 1,
+                    color: Colors.white.withAlpha(90),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiagonalPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withAlpha(15)
+      ..strokeWidth = 0.8
+      ..style = PaintingStyle.stroke;
+    const spacing = 22.0;
+    for (double x = -size.height; x < size.width + size.height; x += spacing) {
+      canvas.drawLine(
+          Offset(x, 0), Offset(x + size.height, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
+// ── Status chip ──────────────────────────────────────────────────────────────
+
+class _StatusChip extends StatelessWidget {
+  final bool       isDownloaded;
+  final bool       isDownloading;
+  final double?    progress;
+  final bool       dark;
   final VoidCallback onCancel;
-  final VoidCallback onOpen;
 
-  const _ActionArea({
+  const _StatusChip({
     required this.isDownloaded,
     required this.isDownloading,
     required this.progress,
-    required this.onDownload,
+    required this.dark,
     required this.onCancel,
-    required this.onOpen,
   });
 
   @override
   Widget build(BuildContext context) {
     if (isDownloading) {
-      final pct = ((progress ?? 0) * 100).round();
       return Column(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.white.withAlpha(40),
-              color: const Color(0xFFD4AF37),
-              minHeight: 4,
+              backgroundColor: dark
+                  ? Colors.white.withAlpha(20)
+                  : const Color(0xFFE8D9C0),
+              color:     const Color(0xFFD4AF37),
+              minHeight: 3,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$pct%',
+                '${((progress ?? 0) * 100).round()}%',
                 style: const TextStyle(
-                    fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w600),
+                    fontSize: 10,
+                    color:    Color(0xFFD4AF37),
+                    fontWeight: FontWeight.w600),
               ),
               GestureDetector(
                 onTap: onCancel,
-                child: const Text(
+                child: Text(
                   'Annuler',
-                  style: TextStyle(fontSize: 11, color: Colors.white60),
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: dark ? Colors.white38 : Colors.black38),
                 ),
               ),
             ],
@@ -455,80 +500,73 @@ class _ActionArea extends StatelessWidget {
       );
     }
 
+    // Shared golden chip style (manuscript aesthetic)
+    final chipColors = dark
+        ? [const Color(0xFF4A2E06), const Color(0xFF6B4510)]
+        : [const Color(0xFFE8D5B3), const Color(0xFFCFAF7E)];
+    final chipBorder  = dark ? const Color(0xFF8B6814) : const Color(0xFFC8A97E);
+    final chipLabel   = dark ? const Color(0xFFE8D5B0) : const Color(0xFF4A3F30);
+
     if (isDownloaded) {
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.white.withAlpha(25),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withAlpha(50), width: 1),
+          gradient: LinearGradient(
+            begin:  Alignment.topLeft,
+            end:    Alignment.bottomRight,
+            colors: chipColors,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: chipBorder, width: 1.2),
         ),
-        child: const Row(
+        child: Row(
+          mainAxisSize:      MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.menu_book_rounded, color: Colors.white, size: 15),
-            SizedBox(width: 6),
+            Icon(Icons.check_circle_outline_rounded, size: 12, color: chipLabel),
+            const SizedBox(width: 5),
             Text(
-              'Lire',
-              style: TextStyle(
-                  color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+              'Hors ligne',
+              style: TextStyle(fontSize: 11, color: chipLabel,
+                  fontWeight: FontWeight.w600),
             ),
           ],
         ),
       );
     }
 
-    // Not downloaded
+    // Non téléchargé
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFD4AF37).withAlpha(40),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFD4AF37).withAlpha(120), width: 1),
+        gradient: LinearGradient(
+          begin:  Alignment.topLeft,
+          end:    Alignment.bottomRight,
+          colors: chipColors,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: chipBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color:      Colors.black.withAlpha(15),
+            blurRadius: 3,
+            offset:     const Offset(0, 2),
+          ),
+        ],
       ),
-      child: const Row(
+      child: Row(
+        mainAxisSize:      MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.download_rounded, color: Color(0xFFD4AF37), size: 15),
-          SizedBox(width: 6),
+          Icon(Icons.download_rounded, size: 12, color: chipLabel),
+          const SizedBox(width: 5),
           Text(
             'Télécharger',
-            style: TextStyle(
-                color: Color(0xFFD4AF37), fontSize: 12, fontWeight: FontWeight.w600),
+            style: TextStyle(fontSize: 11, color: chipLabel,
+                fontWeight: FontWeight.w600),
           ),
         ],
       ),
     );
   }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Subtle background pattern for book cover
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _BookPattern extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(painter: _PatternPainter());
-  }
-}
-
-class _PatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withAlpha(12)
-      ..strokeWidth = 0.8
-      ..style = PaintingStyle.stroke;
-
-    const spacing = 28.0;
-
-    // Diagonal lines
-    for (double x = -size.height; x < size.width + size.height; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x + size.height, size.height), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
 }
