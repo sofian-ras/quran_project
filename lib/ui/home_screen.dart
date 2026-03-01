@@ -775,9 +775,9 @@ Future<void> _checkFirstLaunch() async {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Color(0xFFFFF7E8), // beige clair en haut
-          Color(0xFFF7EEDB), // beige un peu plus chaud
-          Color(0xFFF2E4CC), // beige plus profond en bas
+          Color(0xFFF2ECE5),
+          Color(0xFFF2ECE5),
+          Color(0xFFF2ECE5),
         ],
       );
 
