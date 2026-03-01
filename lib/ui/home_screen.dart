@@ -18,6 +18,7 @@ import 'package:sqflite/sqflite.dart';
 import '../surah_name.dart';
 import 'reciter_picker_screen.dart';
 import 'reader_screen.dart';
+import 'tafsir_library_screen.dart';
 import 'screens/quran_loader.dart';
 import 'surah_list_screen.dart';
 import 'translated_quran_screen.dart';
@@ -891,6 +892,13 @@ Future<void> _checkFirstLaunch() async {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+                                  ),
+                                );
+                              } else if (item.title == 'Tafsir Session') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TafsirLibraryScreen(),
                                   ),
                                 );
                               }

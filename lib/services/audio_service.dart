@@ -266,6 +266,9 @@ class AudioService {
   int? _seqEndAyah;
 
   Future<void> stopAyah() async {
+    // Invalide tout _playAyahInternal en cours d'attente async.
+    _ayahPlayToken++;
+
     await _ayahSeqSub?.cancel();
     _ayahSeqSub = null;
     _seqSurah = null;
@@ -576,17 +579,52 @@ class AudioService {
     });
   }
 
+  // Génération courante — s'incrémente à chaque nouvel appel.
+  // Permet d'annuler silencieusement tout appel obsolète après un await.
+  int _ayahPlayToken = 0;
+
   Future<void> _playAyahInternal(int surah, int ayah) async {
-    final reciter = currentAyahReciterNotifier.value;
-    final url = await QulAudioResolver.instance.resolveAyah(reciter, surah, ayah);
-    if (url == null) return;
+    final myToken = ++_ayahPlayToken;
 
-    currentAyahKeyNotifier.value = '$surah:$ayah';
-    currentAyahTitleNotifier.value =
-        'S${surah.toString().padLeft(3, '0')}:${ayah.toString().padLeft(3, '0')} • ${reciter.displayName}';
+    try {
+      final reciter = currentAyahReciterNotifier.value;
+      final url = await QulAudioResolver.instance.resolveAyah(reciter, surah, ayah);
 
-    await _ayahPlayer.setAudioSource(AudioSource.uri(Uri.parse(url)));
-    await _ayahPlayer.play();
+      // Un appel plus récent a démarré → on abandonne celui-ci.
+      if (myToken != _ayahPlayToken || _disposed) return;
+      if (url == null) return;
+
+      currentAyahKeyNotifier.value = '$surah:$ayah';
+      currentAyahTitleNotifier.value =
+          'S${surah.toString().padLeft(3, '0')}:${ayah.toString().padLeft(3, '0')} • ${reciter.displayName}';
+
+      // Stop uniquement si le player est actif (loading/buffering/ready).
+      // Si déjà en completed/idle, on évite le stop() pour réduire la latence
+      // entre versets lors de la lecture séquentielle.
+      final ps = _ayahPlayer.processingState;
+      if (ps != ProcessingState.completed && ps != ProcessingState.idle) {
+        await _ayahPlayer.stop();
+        if (myToken != _ayahPlayToken) return;
+      }
+
+      // just_audio_background exige un MediaItem tag sur chaque AudioSource.
+      await _ayahPlayer.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(url),
+          tag: MediaItem(
+            id: '$surah:$ayah',
+            title: 'Sourate $surah · Verset $ayah',
+            artist: reciter.displayName,
+            album: 'Coran',
+          ),
+        ),
+      );
+      if (myToken != _ayahPlayToken) return;
+
+      await _ayahPlayer.play();
+    } catch (e) {
+      debugPrint('Erreur audio (_playAyahInternal): $e');
+    }
   }
 
   bool _disposed = false;

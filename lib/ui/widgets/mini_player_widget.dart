@@ -221,32 +221,40 @@ class MiniPlayerWidget extends StatelessWidget {
       valueListenable: svc.isPlaying,
       builder: (_, playing, __) => ValueListenableBuilder<bool>(
         valueListenable: svc.isLoading,
-        builder: (_, loading, __) {
-          if (loading) {
-            return SizedBox(
-              width: size,
-              height: size,
-              child: const CircularProgressIndicator(
-                strokeWidth: 2,
+        builder: (_, loading, __) => ValueListenableBuilder<bool>(
+          valueListenable: svc.isRangeAutoAdvancing,
+          builder: (_, autoAdvancing, __) {
+            // Pendant une transition automatique entre versets (range/sourate),
+            // on masque le spinner et on affiche le bouton pause : la plage
+            // est toujours en cours de lecture conceptuellement.
+            if (loading && !autoAdvancing) {
+              return SizedBox(
+                width: size,
+                height: size,
+                child: const CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              );
+            }
+            // autoAdvancing → forcer l'icône pause (la séquence joue encore).
+            final showPause = playing || autoAdvancing;
+            return GestureDetector(
+              onTap: () {
+                if (svc.currentAyahKey.value != null || autoAdvancing) {
+                  svc.playPause();
+                } else {
+                  svc.playFrom(surah: currentSurah, ayah: 1);
+                }
+              },
+              child: Icon(
+                showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
                 color: Colors.white,
+                size: size,
               ),
             );
-          }
-          return GestureDetector(
-            onTap: () {
-              if (svc.currentAyahKey.value != null) {
-                svc.playPause();
-              } else {
-                svc.playFrom(surah: currentSurah, ayah: 1);
-              }
-            },
-            child: Icon(
-              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: size,
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }

@@ -16,8 +16,10 @@
 // Persist: récitateur · mode · repeat → shared_preferences
 
 import 'dart:async';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'qul_audio/models/qul_reciter.dart';
 import 'qul_audio/qul_catalog_service.dart';
@@ -75,9 +77,15 @@ class MiniPlayerService {
 
   // ── État public (ValueNotifiers) ──────────────────────────────────────────
 
-  final ValueNotifier<bool> isPlaying   = ValueNotifier(false);
-  final ValueNotifier<bool> isExpanded  = ValueNotifier(false);
-  final ValueNotifier<bool> isLoading   = ValueNotifier(false);
+  final ValueNotifier<bool> isPlaying           = ValueNotifier(false);
+  final ValueNotifier<bool> isExpanded          = ValueNotifier(false);
+  final ValueNotifier<bool> isLoading           = ValueNotifier(false);
+
+  /// Vrai pendant la transition automatique entre deux versets consécutifs
+  /// (range/sourate). Permet à l'UI de ne pas afficher le spinner de
+  /// chargement et de montrer à la place le bouton pause (la plage joue
+  /// toujours conceptuellement).
+  final ValueNotifier<bool> isRangeAutoAdvancing = ValueNotifier(false);
 
   /// Clé du verset en cours : "surah:ayah" (ex : "2:255"), null si arrêté.
   final ValueNotifier<String?> currentAyahKey = ValueNotifier(null);
@@ -108,6 +116,10 @@ class MiniPlayerService {
   int  _repeatCount = 0;
   bool _stopping    = false;
 
+  // Génération courante — s'incrémente à chaque _playCurrent.
+  // Permet d'annuler tout appel obsolète après un await.
+  int _playToken = 0;
+
   StreamSubscription<ProcessingState>? _processingStateSub;
   StreamSubscription<bool>?            _playingSub;
 
@@ -128,7 +140,28 @@ class MiniPlayerService {
       }
     });
 
+    // Capture les erreurs just_audio (ex: 403, cleartext http, timeout…)
+    _player.playbackEventStream.listen(
+      (_) {},
+      onError: (Object e, StackTrace _) {
+        debugPrint('MiniPlayerService: playbackEventStream error: $e');
+        unavailableMessage.value = 'Erreur audio : $e';
+        isLoading.value = false;
+        isPlaying.value = false;
+      },
+    );
+
+    _configureAudioSession();
     _loadPrefs();
+  }
+
+  Future<void> _configureAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+    } catch (e) {
+      debugPrint('MiniPlayerService: AudioSession config error: $e');
+    }
   }
 
   // ── Récitateur courant (QulReciter) ───────────────────────────────────────
@@ -161,6 +194,7 @@ class MiniPlayerService {
   Future<void> playFrom({required int surah, required int ayah}) async {
     _stopping    = false;
     _repeatCount = 0;
+    isRangeAutoAdvancing.value = false;
     unavailableMessage.value = null;
 
     if (playMode.value == MiniPlayMode.selection && hasFullSelection) {
@@ -185,10 +219,16 @@ class MiniPlayerService {
   }
 
   Future<void> _playCurrent() async {
-    if (_stopping) return;
+    if (_stopping) {
+      isRangeAutoAdvancing.value = false;
+      return;
+    }
+
+    final myToken = ++_playToken;
 
     final reciter = _qulReciter;
     if (reciter == null) {
+      isRangeAutoAdvancing.value = false;
       unavailableMessage.value = 'Récitateur introuvable';
       return;
     }
@@ -198,7 +238,14 @@ class MiniPlayerService {
       reciter, _curSurah, _curAyah,
     );
 
+    // Un appel plus récent a démarré → abandonner celui-ci.
+    if (myToken != _playToken || _stopping) {
+      isRangeAutoAdvancing.value = false;
+      return;
+    }
+
     if (source == null) {
+      isRangeAutoAdvancing.value = false;
       unavailableMessage.value =
           '${reciter.name} : audio indisponible sur QUL pour $_curSurah:$_curAyah';
       debugPrint('MiniPlayerService: indisponible $_curSurah:$_curAyah');
@@ -211,11 +258,57 @@ class MiniPlayerService {
     unavailableMessage.value = null;
     currentAyahKey.value = '$_curSurah:$_curAyah';
     try {
-      await _player.setUrl(source.url);
+      // Stop uniquement si le player est en train de charger/lire.
+      // Si déjà en completed/idle (verset terminé naturellement), on saute
+      // le stop() pour ne pas ajouter de délai inutile entre les versets.
+      final ps = _player.processingState;
+      if (ps != ProcessingState.completed && ps != ProcessingState.idle) {
+        await _player.stop();
+        if (myToken != _playToken) {
+          isRangeAutoAdvancing.value = false;
+          return;
+        }
+      }
+
+      // just_audio_background exige un MediaItem tag sur chaque AudioSource.
+      await _player.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(source.url),
+          tag: MediaItem(
+            id: '$_curSurah:$_curAyah',
+            title: 'Sourate $_curSurah · Verset $_curAyah',
+            artist: reciter.displayName,
+            album: 'Coran',
+          ),
+        ),
+      );
+      if (myToken != _playToken) {
+        isRangeAutoAdvancing.value = false;
+        return;
+      }
+
       await _player.play();
+      // La lecture a démarré : l'auto-transition est terminée.
+      isRangeAutoAdvancing.value = false;
+
+      // Précharger l'URL du verset suivant en arrière-plan pendant que
+      // le courant joue, pour réduire la latence au passage au suivant.
+      _prefetchNextSource(reciter);
     } catch (e) {
+      isRangeAutoAdvancing.value = false;
       debugPrint('MiniPlayerService: erreur $_curSurah:$_curAyah — $e');
+      unavailableMessage.value = 'Erreur lecture : $e';
+      isLoading.value = false;
+      isPlaying.value = false;
     }
+  }
+
+  /// Résout et met en cache l'URL du verset suivant de façon silencieuse.
+  void _prefetchNextSource(QulReciter reciter) {
+    final next = _curAyah + 1;
+    if (next > _endAyah) return;
+    // Fire-and-forget : on ne bloque pas la lecture courante
+    AudioPlaybackSource.instance.forAyah(reciter, _curSurah, next);
   }
 
   // ── Gestion de la fin d'un verset ─────────────────────────────────────────
@@ -242,6 +335,9 @@ class MiniPlayerService {
 
     if (_curAyah < _endAyah) {
       _curAyah++;
+      // Signale à l'UI qu'on passe automatiquement au verset suivant :
+      // ne pas afficher le spinner de chargement pendant cette transition.
+      isRangeAutoAdvancing.value = true;
       _playCurrent();
     } else {
       isPlaying.value = false;
@@ -260,6 +356,14 @@ class MiniPlayerService {
   // ── Contrôles ──────────────────────────────────────────────────────────────
 
   Future<void> playPause() async {
+    // Si aucune source chargée, (re)lancer le verset courant
+    if (currentAyahKey.value == null) {
+      if (_curSurah > 0 && _curAyah > 0) {
+        _stopping = false;
+        await _playCurrent();
+      }
+      return;
+    }
     if (_player.playing) {
       await _player.pause();
     } else {
@@ -269,6 +373,8 @@ class MiniPlayerService {
 
   Future<void> stop() async {
     _stopping = true;
+    _playToken++; // Invalide tout _playCurrent en cours d'attente async.
+    isRangeAutoAdvancing.value = false;
     await _player.stop();
     await _player.seek(Duration.zero);
     currentAyahKey.value     = null;
