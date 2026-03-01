@@ -47,7 +47,7 @@ class TafsirService {
 
   static const List<TafsirBook> catalog = [
     TafsirBook(
-      id: 22,
+      id: 14,   // quran.com: ar-tafsir-ibn-kathir
       slug: 'ibn_kathir',
       nameAr: 'تفسير ابن كثير',
       authorAr: 'ابن كثير الدمشقي',
@@ -55,7 +55,7 @@ class TafsirService {
       gradient: [Color(0xFF0D3B2E), Color(0xFF1A5C42)],
     ),
     TafsirBook(
-      id: 16,
+      id: 16,   // quran.com: ar-tafsir-muyassar
       slug: 'muyassar',
       nameAr: 'التفسير الميسر',
       authorAr: 'مجمع الملك فهد',
@@ -63,7 +63,7 @@ class TafsirService {
       gradient: [Color(0xFF4A2800), Color(0xFF7A4800)],
     ),
     TafsirBook(
-      id: 93,
+      id: 91,   // quran.com: ar-tafseer-al-saddi
       slug: 'saadi',
       nameAr: 'تفسير السعدي',
       authorAr: 'عبد الرحمن السعدي',
@@ -71,15 +71,15 @@ class TafsirService {
       gradient: [Color(0xFF0A1A30), Color(0xFF1A3A60)],
     ),
     TafsirBook(
-      id: 74,
-      slug: 'jalalayn',
-      nameAr: 'تفسير الجلالين',
-      authorAr: 'السيوطي والمحلي',
-      descFr: 'Commentaire concis des deux Jalal',
+      id: 15,   // quran.com: ar-tafsir-al-tabari (الجلالين absent de l'API)
+      slug: 'tabari',
+      nameAr: 'تفسير الطبري',
+      authorAr: 'ابن جرير الطبري',
+      descFr: 'Fondement de l\'exégèse coranique, source des sources',
       gradient: [Color(0xFF3B0A18), Color(0xFF6B1A32)],
     ),
     TafsirBook(
-      id: 90,
+      id: 90,   // quran.com: ar-tafsir-al-qurtubi
       slug: 'qurtubi',
       nameAr: 'تفسير القرطبي',
       authorAr: 'محمد القرطبي',
