@@ -176,11 +176,12 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
             ),
           ),
 
-          // ── Grille scrollable ────────────────────────────────────────────────
-          Positioned.fill(
+          // ── Grille scrollable — clippée sous la ligne ───────────────────────
+          Positioned(
+            top: bannerH + 90, bottom: 0, left: 0, right: 0,
             child: GridView.builder(
               padding: EdgeInsets.fromLTRB(
-                  16, bannerH + 130, 16, padding.bottom + 24),
+                  16, 16, 16, padding.bottom + 24),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount:   2,
                 childAspectRatio: 0.60,
@@ -204,21 +205,22 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
             ),
           ),
 
-          // ── Titre fixe + long trait (au-dessus du scroll) ──────────────────
+          // ── Titre fixe + long trait ─────────────────────────────────────────
           Positioned(
             top: bannerH, left: 0, right: 0,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 10),
-                _SectionTitle(dark: dark),
-                const SizedBox(height: 8),
-                Container(
-                  height: 1.5,
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  color: const Color(0xFFC8A97E),
-                ),
-              ],
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 10),
+                  _SectionTitle(dark: dark),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 1.5,
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    color: const Color(0xFFC8A97E),
+                  ),
+                  const SizedBox(height: 8),
+                ],
             ),
           ),
 
