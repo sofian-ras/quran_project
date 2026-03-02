@@ -301,7 +301,7 @@ class _BookCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDownloading = progress != null;
     // Parchment-style card: slightly darker than page background, subtle warm border
-    final cardBg      = dark ? const Color(0xFF1C2333) : const Color(0xFFEDE6D9);
+    const cardBg      = Colors.transparent;
     final borderColor = dark
         ? Colors.white.withAlpha(12)
         : const Color(0xFFC8B89A).withAlpha(85);

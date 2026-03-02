@@ -208,6 +208,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      extendBody: true,
       body: Stack(
         children: [
           // ── Fond image plein écran ──────────────────────────────────────────
