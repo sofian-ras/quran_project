@@ -206,43 +206,30 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
-              // ── Drag handle ──────────────────────────────────
-              const SizedBox(height: 10),
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white12 : Colors.black12,
-                    borderRadius: BorderRadius.circular(2),
+              // ── Image header (FittedBox pour masquer les marges transparentes) ──
+              SizedBox(
+                height: 120,
+                width: double.infinity,
+                child: ClipRect(
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: Image.asset('assets/images/tafsir/tafsir_header3.webp'),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
 
-              // ── En-tête sobre ────────────────────────────────
+              // ── Barre d'actions ───────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Text(
-                      '$_surahName · ${widget.ayah}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                        color: isDark
-                            ? const Color(0xFFF5D278).withValues(alpha: 0.85)
-                            : const Color(0xFF8B6914),
-                      ),
-                    ),
-                    const Spacer(),
                     _IconBtn(
                       icon: _isPlaying
                           ? Icons.pause_rounded
@@ -274,7 +261,19 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
                       isDark: isDark,
                       onTap: _share,
                     ),
-                    const SizedBox(width: 6),
+                    const Spacer(),
+                    Text(
+                      '$_surahName · ${widget.ayah}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                        color: isDark
+                            ? const Color(0xFFF5D278).withValues(alpha: 0.85)
+                            : const Color(0xFF8B6914),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     _IconBtn(
                       icon: Icons.close,
                       color: isDark ? Colors.white38 : Colors.black26,
@@ -284,7 +283,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // ── Contenu scrollable ───────────────────────────
               Expanded(

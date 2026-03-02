@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -199,35 +198,29 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final dark    = Theme.of(context).brightness == Brightness.dark;
+    final padding = MediaQuery.of(context).padding;
+    final screen  = MediaQuery.of(context).size;
+    // fond_tafsir.webp : 1035×1631 — banderole courbée, bas max Y=181
+    const double imgH        = 1631.0;
+    const double bannerHImg  =  181.0;
+    final bannerH = screen.height * (bannerHImg / imgH);
 
     return Scaffold(
-      backgroundColor: _bg,
-      body: Column(
+      backgroundColor: Colors.transparent,
+      body: Stack(
         children: [
-          TafsirGoldenHeader(
-            onBack: () => Navigator.pop(context),
-            titleAr: widget.book.nameAr,
-            titleLatin: widget.book.nameFr,
-            dark: dark,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _GoldIconBtn(
-                  icon: Icons.text_decrease_rounded,
-                  onTap: () => setState(
-                      () => _fontSize = (_fontSize - 1.5).clamp(14, 28)),
-                ),
-                _GoldIconBtn(
-                  icon: Icons.text_increase_rounded,
-                  onTap: () => setState(
-                      () => _fontSize = (_fontSize + 1.5).clamp(14, 28)),
-                ),
-                const SizedBox(width: 4),
-              ],
+          // ── Fond image plein écran ──────────────────────────────────────────
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/tafsir/fond_tafsir.webp',
+              fit: BoxFit.fill,
             ),
           ),
-          Expanded(
+
+          // ── Contenu ────────────────────────────────────────────────────────
+          Positioned(
+            top: bannerH, left: 0, right: 0, bottom: 0,
             child: _loading
                 ? _LoadingView(bg: _bg)
                 : _error != null
@@ -249,6 +242,35 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
                             bookNameAr: widget.book.nameAr,
                             verseKeys: _verseKeys,
                           ),
+          ),
+
+          // ── Barre de navigation (back + taille police) ─────────────────────
+          Positioned(
+            top: padding.top, left: 0, right: 0,
+            child: SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        size: 20, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                  _GoldIconBtn(
+                    icon: Icons.text_decrease_rounded,
+                    onTap: () => setState(
+                        () => _fontSize = (_fontSize - 1.5).clamp(14, 28)),
+                  ),
+                  _GoldIconBtn(
+                    icon: Icons.text_increase_rounded,
+                    onTap: () => setState(
+                        () => _fontSize = (_fontSize + 1.5).clamp(14, 28)),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -1377,298 +1399,7 @@ class _EmptyView extends StatelessWidget {
       );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// TafsirGoldenHeader — plaque parchemin islamique (partagé entre les deux écrans)
-// ══════════════════════════════════════════════════════════════════════════════
-
-class TafsirGoldenHeader extends StatelessWidget {
-  final VoidCallback? onBack;
-  final String   titleAr;
-  final String   titleLatin;
-  final bool     dark;
-  final Widget?  trailing;
-
-  const TafsirGoldenHeader({
-    super.key,
-    this.onBack,
-    required this.titleAr,
-    required this.titleLatin,
-    required this.dark,
-    this.trailing,
-  });
-
-  // Ink: brun presque noir (comme encre de manuscrit sur parchemin)
-  static const _ink    = Color(0xFF2A1B12);
-  static const _inkDim = Color(0xFF5A4030);
-
-  @override
-  Widget build(BuildContext context) {
-    final top = MediaQuery.of(context).padding.top;
-
-    // Vertical gradient: warm golden top/bottom → lighter parchment centre
-    // Mimics the light coming from the top and the parchemin "matière" feel
-    final colors = dark
-        ? const [Color(0xFF2E1A02), Color(0xFF5C3D0A), Color(0xFF6B4E14),
-                 Color(0xFF5C3D0A), Color(0xFF2E1A02)]
-        : const [Color(0xFFC9A864), Color(0xFFDDCA9A), Color(0xFFE7D2A6),
-                 Color(0xFFDDCA9A), Color(0xFFC9A864)];
-
-    return Container(
-      padding: EdgeInsets.only(top: top),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin:  Alignment.topCenter,
-          end:    Alignment.bottomCenter,
-          colors: colors,
-          stops:  const [0.0, 0.25, 0.5, 0.75, 1.0],
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color:      Color(0x55000000),
-            blurRadius: 14,
-            offset:     Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // ── Background texture + vignette ────────────────────────────────
-          Positioned.fill(
-            child: CustomPaint(painter: _GoldenPatternPainter(dark: dark)),
-          ),
-
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── Button row ────────────────────────────────────────────────
-              SizedBox(
-                height: 48,
-                child: Row(
-                  children: [
-                    if (onBack != null)
-                      IconButton(
-                        icon: Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          size: 20,
-                          color: dark ? const Color(0xFFD4BF98) : _ink,
-                        ),
-                        onPressed: onBack,
-                      )
-                    else
-                      const SizedBox(width: 48),
-                    const Spacer(),
-                    if (trailing != null) trailing!,
-                  ],
-                ),
-              ),
-
-              // ── Calligraphie centrée ──────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      titleAr,
-                      textDirection: TextDirection.rtl,
-                      textAlign:     TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'UthmanTahaNaskh',
-                        fontSize:   42,
-                        color:      dark ? const Color(0xFFE8D5B0) : _ink,
-                        height:     1.15,
-                        shadows: const [
-                          Shadow(
-                            color:      Color(0x22000000),
-                            blurRadius: 3,
-                            offset:     Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      titleLatin.toUpperCase(),
-                      style: TextStyle(
-                        fontSize:      9.5,
-                        color:         dark
-                            ? const Color(0xFFB8A070)
-                            : _inkDim,
-                        letterSpacing: 3.0,
-                        fontWeight:    FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Frise courbée au bas (transition douce vers le contenu) ───
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 30,
-                child: CustomPaint(
-                  size: const Size(double.infinity, 30),
-                  painter: _CurvedFrisePainter(dark: dark),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Frise décorative courbée (bas du header) ──────────────────────────────────
-// Légèrement arquée vers le bas pour une transition douce.
-
-class _CurvedFrisePainter extends CustomPainter {
-  final bool dark;
-  const _CurvedFrisePainter({required this.dark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = dark ? const Color(0xFFD4A864) : const Color(0xFF2A1B12);
-    final lp = Paint()
-      ..color = c.withAlpha(dark ? 80 : 62)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-    final fp = Paint()
-      ..color = c.withAlpha(dark ? 38 : 22)
-      ..style = PaintingStyle.fill;
-
-    const ct  = 4.0;   // Y-start of the band
-    const bh  = 10.0;  // band height
-    const d   = 5.0;   // downward curve depth
-    final cx  = size.width / 2;
-
-    // Filled parchment band between two arching curves
-    final fillPath = Path()
-      ..moveTo(0, ct)
-      ..quadraticBezierTo(cx, ct + d, size.width, ct)
-      ..lineTo(size.width, ct + bh)
-      ..quadraticBezierTo(cx, ct + bh + d, 0, ct + bh)
-      ..close();
-    canvas.drawPath(fillPath, fp);
-
-    // Top arch line
-    canvas.drawPath(
-      Path()..moveTo(0, ct)..quadraticBezierTo(cx, ct + d, size.width, ct),
-      lp,
-    );
-    // Bottom arch line
-    canvas.drawPath(
-      Path()..moveTo(0, ct + bh)..quadraticBezierTo(cx, ct + bh + d, size.width, ct + bh),
-      lp,
-    );
-
-    // Central diamond ornament at the lowest point of the arch
-    const oy = ct + d + bh / 2;
-    canvas.drawPath(
-      Path()
-        ..moveTo(cx, oy - 4.5)
-        ..lineTo(cx + 7.5, oy)
-        ..lineTo(cx, oy + 4.5)
-        ..lineTo(cx - 7.5, oy)
-        ..close(),
-      Paint()..color = c.withAlpha(dark ? 110 : 80)..style = PaintingStyle.fill,
-    );
-
-    // Flanking dots along the arch
-    final dotp = Paint()..color = c.withAlpha(dark ? 70 : 52)..style = PaintingStyle.fill;
-    for (final dx in [-52.0, -38.0, 38.0, 52.0]) {
-      canvas.drawCircle(Offset(cx + dx, ct + d + bh / 2), 1.5, dotp);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _CurvedFrisePainter old) => old.dark != dark;
-}
-
-// ── Main background: crosshatch texture + corner stars + radial vignette ──────
-
-class _GoldenPatternPainter extends CustomPainter {
-  final bool dark;
-  const _GoldenPatternPainter({required this.dark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = dark ? const Color(0xFF000000) : const Color(0xFF1A0C00);
-
-    // ── 1. Diagonal crosshatch (simulates parchment grain / fibre) ────────
-    final meshPaint = Paint()
-      ..color = c.withAlpha(7)
-      ..strokeWidth = 0.5
-      ..style = PaintingStyle.stroke;
-    const diag = 16.0;
-    for (double x = -size.height; x < size.width + size.height; x += diag) {
-      canvas.drawLine(Offset(x, 0), Offset(x + size.height, size.height), meshPaint);
-    }
-    for (double x = -size.height; x < size.width + size.height; x += diag * 2) {
-      canvas.drawLine(
-          Offset(x + size.height, 0), Offset(x, size.height), meshPaint);
-    }
-
-    // ── 2. Corner 8-pointed stars ─────────────────────────────────────────
-    final starFill   = Paint()..color = c.withAlpha(25)..style = PaintingStyle.fill;
-    final starStroke = Paint()
-      ..color = c.withAlpha(45)
-      ..strokeWidth = 0.9
-      ..style = PaintingStyle.stroke;
-    const off = 30.0;
-    for (final corner in [
-      const Offset(off, off),
-      Offset(size.width - off, off),
-      Offset(off, size.height - off),
-      Offset(size.width - off, size.height - off),
-    ]) {
-      _drawStar8(canvas, corner, 15, 6.5, starFill, starStroke);
-    }
-
-    // ── 3. Mid-edge ornaments ─────────────────────────────────────────────
-    final edgeFill   = Paint()..color = c.withAlpha(15)..style = PaintingStyle.fill;
-    final edgeStroke = Paint()
-      ..color = c.withAlpha(25)
-      ..strokeWidth = 0.6
-      ..style = PaintingStyle.stroke;
-    _drawStar8(canvas, Offset(0, size.height / 2), 10, 4, edgeFill, edgeStroke);
-    _drawStar8(
-        canvas, Offset(size.width, size.height / 2), 10, 4, edgeFill, edgeStroke);
-
-    // ── 4. Radial vignette: edges slightly darker for parchemin depth ─────
-    final vignetteShader = RadialGradient(
-      center: Alignment.center,
-      radius: 0.75,
-      colors: [Colors.transparent, c.withAlpha(dark ? 50 : 35)],
-    ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..shader = vignetteShader,
-    );
-  }
-
-  void _drawStar8(Canvas canvas, Offset center, double outer, double inner,
-      Paint fill, Paint stroke) {
-    final path = Path();
-    for (int i = 0; i < 16; i++) {
-      final angle = i * math.pi / 8 - math.pi / 2;
-      final r = i.isEven ? outer : inner;
-      final pt = Offset(
-        center.dx + math.cos(angle) * r,
-        center.dy + math.sin(angle) * r,
-      );
-      i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
-    }
-    path.close();
-    canvas.drawPath(path, fill);
-    canvas.drawPath(path, stroke);
-  }
-
-  @override
-  bool shouldRepaint(covariant _GoldenPatternPainter old) => old.dark != dark;
-}
-
-// Petit bouton icône style or pour le header
+// Petit bouton icône style or pour la navigation
 class _GoldIconBtn extends StatelessWidget {
   final IconData     icon;
   final VoidCallback onTap;

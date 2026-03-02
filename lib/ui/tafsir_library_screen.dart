@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../services/tafsir_service.dart';
 import 'tafsir_reader_screen.dart';
 
@@ -139,28 +140,49 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final dark    = Theme.of(context).brightness == Brightness.dark;
-    final bg      = dark ? const Color(0xFF0C1220) : const Color(0xFFF5F0E6);
     final padding = MediaQuery.of(context).padding;
+    final screen  = MediaQuery.of(context).size;
+    // fond_tafsir.webp : 1035×1631 — banderole courbée, bas max Y=181
+    const double imgH       = 1631.0;
+    const double bannerHImg =  181.0;
+    final bannerH = screen.height * (bannerHImg / imgH);
 
     return Scaffold(
-      backgroundColor: bg,
-      body: Column(
+      backgroundColor: Colors.transparent,
+      body: Stack(
         children: [
-          // ── Ornate golden header ────────────────────────────────────────────
-          TafsirGoldenHeader(
-            onBack: () => Navigator.pop(context),
-            titleAr: 'التفاسير',
-            titleLatin: 'BIBLIOTHÈQUE DES TAFSIRS',
-            dark: dark,
+          // ── Fond image plein écran ──────────────────────────────────────────
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/tafsir/fond_tafsir.webp',
+              fit: BoxFit.fill,
+            ),
           ),
 
-          // ── Grid ───────────────────────────────────────────────────────────
-          Expanded(
+          // ── "Tafsir" centré dans la banderole ──────────────────────────────
+          Positioned(
+            top: padding.top + 4, left: 0, right: 0,
+            height: bannerH - padding.top - 10,
+            child: const Center(
+              child: Text(
+                'Tafsir',
+                style: TextStyle(
+                  fontSize:      18,
+                  color:         Color(0xFF6B3E18),
+                  letterSpacing: 3.0,
+                  fontWeight:    FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+
+          // ── Grille scrollable ────────────────────────────────────────────────
+          Positioned.fill(
             child: GridView.builder(
               padding: EdgeInsets.fromLTRB(
-                  16, 20, 16, padding.bottom + 24),
+                  16, bannerH + 130, 16, padding.bottom + 24),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount:  2,
+                crossAxisCount:   2,
                 childAspectRatio: 0.60,
                 crossAxisSpacing: 14,
                 mainAxisSpacing:  18,
@@ -181,8 +203,69 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
               },
             ),
           ),
+
+          // ── Titre fixe + long trait (au-dessus du scroll) ──────────────────
+          Positioned(
+            top: bannerH, left: 0, right: 0,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 10),
+                _SectionTitle(dark: dark),
+                const SizedBox(height: 8),
+                Container(
+                  height: 1.5,
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  color: const Color(0xFFC8A97E),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Bouton retour ───────────────────────────────────────────────────
+          Positioned(
+            top: padding.top, left: 0, right: 0,
+            child: SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        size: 20, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+// ── Titre التفاسير + SVG calligraphie ─────────────────────────────────────────
+
+class _SectionTitle extends StatelessWidget {
+  final bool dark;
+  const _SectionTitle({required this.dark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 70,
+          child: SvgPicture.asset(
+            'assets/images/tafsir/rabbi__header_h56.svg',
+            fit: BoxFit.contain,
+            colorFilter: const ColorFilter.mode(
+              Color(0xFF6B3E18),
+              BlendMode.srcIn,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
