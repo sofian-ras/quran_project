@@ -27,8 +27,9 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
   Map<String, QVerse> _arabicVerses = {};
   bool _loading = true;
   String? _error;
-  double _fontSize = 18;
+  final double _fontSize = 18;
   final ScrollController _scrollCtrl = ScrollController();
+  bool _searchVisible = false;
 
   // Clés GlobalKey pour chaque verset (permettent de scroller vers un ayah)
   final Map<int, GlobalKey> _verseKeys = {};
@@ -177,6 +178,13 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
     );
   }
 
+  void _showSearchSheet() => setState(() => _searchVisible = true);
+
+  void _closeSearch() {
+    FocusScope.of(context).unfocus();
+    setState(() => _searchVisible = false);
+  }
+
   // ── Colors ─────────────────────────────────────────────────────────────────
 
   Color get _bg {
@@ -219,6 +227,23 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
             ),
           ),
 
+          // ── Nom du tafsir dans la banderole ────────────────────────────────
+          Positioned(
+            top: padding.top + 4, left: 0, right: 0,
+            height: bannerH - padding.top - 10,
+            child: Center(
+              child: Text(
+                widget.book.nameFr,
+                style: const TextStyle(
+                  fontSize:      18,
+                  color:         Color(0xFF6B3E18),
+                  letterSpacing: 3.0,
+                  fontWeight:    FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+
           // ── Contenu ────────────────────────────────────────────────────────
           Positioned(
             top: bannerH, left: 0, right: 0, bottom: 0,
@@ -254,22 +279,46 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 20, color: Colors.white),
+                        size: 20, color: Color(0xFF6B3E18)),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const Spacer(),
-                  _GoldIconBtn(
-                    icon: Icons.text_decrease_rounded,
-                    onTap: () => setState(
-                        () => _fontSize = (_fontSize - 1.5).clamp(14, 28)),
+                  IconButton(
+                    icon: const Icon(Icons.search_rounded,
+                        size: 22, color: Color(0xFF6B3E18)),
+                    onPressed: _showSearchSheet,
                   ),
-                  _GoldIconBtn(
-                    icon: Icons.text_increase_rounded,
-                    onTap: () => setState(
-                        () => _fontSize = (_fontSize + 1.5).clamp(14, 28)),
-                  ),
-                  const SizedBox(width: 4),
                 ],
+              ),
+            ),
+          ),
+
+          // ── Barrière recherche ──────────────────────────────────────────────
+          if (_searchVisible)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _closeSearch,
+                child: const ColoredBox(color: Color(0x80000000)),
+              ),
+            ),
+
+          // ── Panneau de recherche (toujours dans l'arbre pour AnimatedSlide) ──
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: AnimatedSlide(
+              offset: _searchVisible ? Offset.zero : const Offset(0, -1),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOut,
+              child: IgnorePointer(
+                ignoring: !_searchVisible,
+                child: _SearchSheet(
+                  accentColor: widget.book.gradient.first,
+                  onNavigate: (surah, ayah) {
+                    _closeSearch();
+                    _changeSurah(surah, ayah: ayah);
+                  },
+                ),
               ),
             ),
           ),
@@ -634,197 +683,116 @@ class _BottomNav extends StatelessWidget {
     required this.onPicker,
   });
 
+  static const _theme = Color(0xFF6B3E18);
+
   @override
   Widget build(BuildContext context) {
     final bottom    = MediaQuery.of(context).padding.bottom;
-    final bg        = dark ? const Color(0xFF0C1220) : const Color(0xFFF5F0E6);
     final textColor = dark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1810);
-    final frName    = surahFr[currentSurah] ?? 'Sourate $currentSurah';
     final arName    = TafsirService.surahNames[currentSurah - 1];
+    final dimColor  = _theme.withAlpha(dark ? 55 : 38);
 
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, bottom + 12),
-      color: bg,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      padding: EdgeInsets.fromLTRB(0, 0, 0, bottom),
+      decoration: BoxDecoration(
+        gradient: dark
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFEDD8A0), Color(0xFFF8EDD8)],
+              ),
+        color: dark ? const Color(0xFF0C1220) : null,
+        border: Border(top: BorderSide(color: dimColor, width: 0.5)),
+      ),
+      child: Row(
         children: [
-          // ── Ornamental top separator ────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [
-                        Colors.transparent,
-                        accentColor.withAlpha(dark ? 60 : 45),
-                      ]),
-                    ),
+          // ── ← Verset précédent ────────────────────────────────────────
+          GestureDetector(
+            onTap: onPrev,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 11,
+                    color: onPrev != null ? _theme : dimColor,
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(
-                    '✦',
+                  const SizedBox(width: 5),
+                  Text(
+                    'V. ${currentAyah > 1 ? currentAyah - 1 : "–"}',
                     style: TextStyle(
-                      fontSize: 8,
-                      color: accentColor.withAlpha(dark ? 120 : 90),
+                      fontSize: 12,
+                      color: onPrev != null ? _theme : dimColor,
+                      letterSpacing: 0.3,
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Container(
-                    height: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [
-                        accentColor.withAlpha(dark ? 60 : 45),
-                        Colors.transparent,
-                      ]),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
-          // ── Navigation row ──────────────────────────────────────────────
-          Row(
-            children: [
-              // Suivant (gauche, RTL → avance dans la lecture)
-              _CircleNavBtn(
-                icon: Icons.chevron_left_rounded,
-                enabled: onNext != null,
-                accentColor: accentColor,
-                textColor: textColor,
-                dark: dark,
-                onTap: onNext,
-              ),
-              const SizedBox(width: 12),
-
-              // Picker central
-              Expanded(
-                child: GestureDetector(
-                  onTap: onPicker,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: accentColor.withAlpha(dark ? 22 : 14),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: accentColor.withAlpha(dark ? 55 : 38),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          arName,
-                          textDirection: TextDirection.rtl,
-                          style: TextStyle(
-                            fontFamily: 'UthmanTahaNaskh',
-                            fontSize: 22,
-                            color: textColor,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          frName.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w300,
-                            color: textColor.withAlpha(140),
-                            letterSpacing: 2.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Verset $currentAyah / $totalAyahs',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: accentColor
-                                    .withAlpha(dark ? 180 : 150),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.expand_less_rounded,
-                              size: 12,
-                              color: accentColor
-                                  .withAlpha(dark ? 140 : 110),
-                            ),
-                          ],
-                        ),
-                      ],
+          // ── Centre : nom sourate (tappable → picker) ──────────────────
+          Expanded(
+            child: GestureDetector(
+              onTap: onPicker,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Text(
+                    arName,
+                    textDirection: TextDirection.rtl,
+                    style: TextStyle(
+                      fontFamily: 'UthmanTahaNaskh',
+                      fontSize: 19,
+                      color: textColor,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 1),
+                  Text(
+                    'verset $currentAyah / $totalAyahs',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: _theme.withAlpha(dark ? 160 : 130),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ),
-              const SizedBox(width: 12),
+            ),
+          ),
 
-              // Précédent (droite, RTL → recule dans la lecture)
-              _CircleNavBtn(
-                icon: Icons.chevron_right_rounded,
-                enabled: onPrev != null,
-                accentColor: accentColor,
-                textColor: textColor,
-                dark: dark,
-                onTap: onPrev,
+          // ── Verset suivant → ──────────────────────────────────────────
+          GestureDetector(
+            onTap: onNext,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'V. ${currentAyah < totalAyahs ? currentAyah + 1 : "–"}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: onNext != null ? _theme : dimColor,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 11,
+                    color: onNext != null ? _theme : dimColor,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CircleNavBtn extends StatelessWidget {
-  final IconData icon;
-  final bool enabled;
-  final Color accentColor;
-  final Color textColor;
-  final bool dark;
-  final VoidCallback? onTap;
-
-  const _CircleNavBtn({
-    required this.icon,
-    required this.enabled,
-    required this.accentColor,
-    required this.textColor,
-    required this.dark,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: enabled
-              ? accentColor.withAlpha(dark ? 35 : 20)
-              : Colors.transparent,
-          border: Border.all(
-            color: enabled
-                ? accentColor.withAlpha(dark ? 70 : 50)
-                : textColor.withAlpha(25),
-          ),
-        ),
-        child: Icon(
-          icon,
-          size: 24,
-          color: enabled ? textColor : textColor.withAlpha(35),
-        ),
       ),
     );
   }
@@ -1003,6 +971,240 @@ class _SurahPickerSheetState extends State<_SurahPickerSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Feuille de recherche sourate + verset
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _SearchSheet extends StatefulWidget {
+  final Color accentColor;
+  final void Function(int surah, int ayah) onNavigate;
+
+  const _SearchSheet({required this.accentColor, required this.onNavigate});
+
+  @override
+  State<_SearchSheet> createState() => _SearchSheetState();
+}
+
+class _SearchSheetState extends State<_SearchSheet> {
+  final _surahCtrl = TextEditingController();
+  final _ayahCtrl  = TextEditingController();
+  List<String> _suggestions = [];
+  int? _resolvedSurah;
+
+  @override
+  void initState() {
+    super.initState();
+    _surahCtrl.addListener(_onSurahChanged);
+  }
+
+  @override
+  void dispose() {
+    _surahCtrl.dispose();
+    _ayahCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSurahChanged() {
+    final q = _surahCtrl.text.trim();
+    if (q.isEmpty) {
+      setState(() { _suggestions = []; _resolvedSurah = null; });
+      return;
+    }
+    final asNum = int.tryParse(q);
+    if (asNum != null) {
+      setState(() {
+        _resolvedSurah = (asNum >= 1 && asNum <= 114) ? asNum : null;
+        _suggestions   = [];
+      });
+      return;
+    }
+    // Filtre sur les noms arabes
+    final matches = <String>[];
+    for (int i = 0; i < 114; i++) {
+      if (TafsirService.surahNames[i].contains(q)) {
+        matches.add('${i + 1} — ${TafsirService.surahNames[i]}');
+        if (matches.length >= 6) break;
+      }
+    }
+    setState(() { _suggestions = matches; _resolvedSurah = null; });
+  }
+
+  void _selectSurah(String option) {
+    final num = int.tryParse(option.split(' ').first);
+    setState(() {
+      _resolvedSurah = num;
+      _suggestions   = [];
+    });
+    _surahCtrl.text = option;
+    _surahCtrl.selection =
+        TextSelection.collapsed(offset: option.length);
+  }
+
+  void _navigate() {
+    final surah = _resolvedSurah;
+    if (surah == null) return;
+    final maxAyahs = TafsirService.surahAyahCounts[surah - 1];
+    final ayah = (int.tryParse(_ayahCtrl.text.trim()) ?? 1).clamp(1, maxAyahs);
+    widget.onNavigate(surah, ayah);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark      = Theme.of(context).brightness == Brightness.dark;
+    final bg        = dark ? const Color(0xFF0C1220) : const Color(0xFFF5F0E6);
+    final textColor = dark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1810);
+    final accent    = widget.accentColor;
+    final topPad    = MediaQuery.of(context).padding.top;
+
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: accent.withAlpha(60)),
+    );
+    final inputDeco = InputDecoration(
+      filled: true,
+      fillColor: accent.withAlpha(dark ? 20 : 12),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: accent, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+    );
+
+    return Container(
+      width: double.infinity,
+        padding: EdgeInsets.fromLTRB(20, topPad + 12, 20, 24),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(55),
+              blurRadius: 40,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              'Aller à un verset',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // ── Sourate ───────────────────────────────────────────────────
+            Text('Sourate',
+                style: TextStyle(fontSize: 12, color: textColor.withAlpha(150))),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _surahCtrl,
+              style: TextStyle(color: textColor, fontSize: 15),
+              textDirection: TextDirection.rtl,
+              decoration: inputDeco.copyWith(
+                hintText: 'Numéro ou nom en arabe',
+                hintStyle: TextStyle(
+                    color: textColor.withAlpha(80),
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal),
+              ),
+            ),
+
+            // ── Suggestions ───────────────────────────────────────────────
+            if (_suggestions.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 190),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: accent.withAlpha(50)),
+                ),
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  shrinkWrap: true,
+                  itemCount: _suggestions.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: accent.withAlpha(30),
+                    indent: 12,
+                    endIndent: 12,
+                  ),
+                  itemBuilder: (_, i) => InkWell(
+                    onTap: () => _selectSurah(_suggestions[i]),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 11),
+                      child: Text(
+                        _suggestions[i],
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(color: textColor, fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+
+            // ── Verset ────────────────────────────────────────────────────
+            Text('Verset',
+                style: TextStyle(fontSize: 12, color: textColor.withAlpha(150))),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _ayahCtrl,
+              keyboardType: TextInputType.number,
+              style: TextStyle(color: textColor, fontSize: 15),
+              decoration: inputDeco.copyWith(
+                hintText: _resolvedSurah != null
+                    ? '1 – ${TafsirService.surahAyahCounts[_resolvedSurah! - 1]}'
+                    : 'Numéro de verset',
+                hintStyle: TextStyle(
+                    color: textColor.withAlpha(80),
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // ── Bouton ────────────────────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _resolvedSurah != null ? _navigate : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  disabledBackgroundColor: accent.withAlpha(60),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text(
+                  'Aller au verset',
+                  style: TextStyle(
+                    color: dark ? Colors.black87 : Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
     );
   }
 }
@@ -1400,23 +1602,6 @@ class _EmptyView extends StatelessWidget {
       );
 }
 
-// Petit bouton icône style or pour la navigation
-class _GoldIconBtn extends StatelessWidget {
-  final IconData     icon;
-  final VoidCallback onTap;
-
-  const _GoldIconBtn({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(icon, size: 18, color: const Color(0xFF4A3F30).withAlpha(220)),
-      onPressed: onTap,
-      splashRadius: 20,
-    );
-  }
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Indicateur verset ornemental  (remplace _OrnamentalDivider)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1436,66 +1621,31 @@ class _VerseIndicatorBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Parchment-style colours matching the manuscript aesthetic
-    final bg          = dark ? const Color(0xFF1C2333) : const Color(0xFFFAF6EE);
-    const borderColor = Color(0xFFC8A97E); // medium gold
+    const borderColor = Color(0xFFC8A97E);
     final textColor   = dark ? const Color(0xFFE8D5B0) : const Color(0xFF4A3F30);
-    final sepColor    = dark ? const Color(0xFFB08050) : const Color(0xFFC8A97E);
-    final surahName   = TafsirService.surahNames[surah - 1];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Stack(
         children: [
-          // Base card with parchment background
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
-              color:  bg,
-              border: Border.all(color: borderColor, width: 1.3),
+              color:        Colors.transparent,
+              border:       Border.all(color: borderColor, width: 1.3),
               borderRadius: BorderRadius.circular(4),
-              boxShadow: dark
-                  ? []
-                  : [
-                      BoxShadow(
-                        color:      Colors.black.withAlpha(14),
-                        blurRadius: 6,
-                        offset:     const Offset(0, 2),
-                      ),
-                    ],
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              textDirection: TextDirection.rtl,
-              children: [
-                Text(
-                  surahName,
-                  textDirection: TextDirection.rtl,
-                  style: TextStyle(
-                    fontFamily: 'UthmanTahaNaskh',
-                    fontSize:   20,
-                    color:      textColor,
-                    height:     1.2,
-                  ),
+            child: Center(
+              child: Text(
+                'آية $ayah',
+                textDirection: TextDirection.rtl,
+                style: TextStyle(
+                  fontFamily: 'UthmanTahaNaskh',
+                  fontSize:   20,
+                  color:      textColor,
+                  height:     1.2,
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    ' ─── ',
-                    style: TextStyle(color: sepColor, fontSize: 13),
-                  ),
-                ),
-                Text(
-                  'آية $ayah',
-                  textDirection: TextDirection.rtl,
-                  style: TextStyle(
-                    fontFamily: 'UthmanTahaNaskh',
-                    fontSize:   20,
-                    color:      textColor,
-                    height:     1.2,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           // Arabesque corner ornaments painted on top

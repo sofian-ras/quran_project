@@ -233,7 +233,7 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 20, color: Colors.white),
+                        size: 20, color: Color(0xFF6B3E18)),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
