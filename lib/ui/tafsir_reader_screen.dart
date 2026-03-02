@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/tafsir_service.dart';
 import '../services/quran_text_db.dart';
 import '../surah_name.dart';
@@ -266,6 +267,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
                             dark: dark,
                             bookGradient: widget.book.gradient,
                             bookNameAr: widget.book.nameAr,
+                            bookSlug:   widget.book.slug,
                             verseKeys: _verseKeys,
                           ),
           ),
@@ -354,6 +356,7 @@ class _VersesList extends StatelessWidget {
   final bool dark;
   final List<Color> bookGradient;
   final String bookNameAr;
+  final String bookSlug;
   final Map<int, GlobalKey> verseKeys;
 
   const _VersesList({
@@ -367,6 +370,7 @@ class _VersesList extends StatelessWidget {
     required this.dark,
     required this.bookGradient,
     required this.bookNameAr,
+    required this.bookSlug,
     required this.verseKeys,
   });
 
@@ -399,6 +403,7 @@ class _VersesList extends StatelessWidget {
           dark: dark,
           accentColor: accent,
           bookNameAr: bookNameAr,
+          bookSlug: bookSlug,
         );
       },
     );
@@ -418,6 +423,7 @@ class _VerseBlock extends StatelessWidget {
   final bool        dark;
   final Color       accentColor;
   final String      bookNameAr;
+  final String      bookSlug;
 
   const _VerseBlock({
     super.key,
@@ -429,6 +435,7 @@ class _VerseBlock extends StatelessWidget {
     required this.dark,
     required this.accentColor,
     required this.bookNameAr,
+    required this.bookSlug,
   });
 
   @override
@@ -440,12 +447,17 @@ class _VerseBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Indicateur verset ornemental ──────────────────────────────────
+          // ── Cadre verset : actions ────────────────────────────────────────
           _VerseIndicatorBox(
-            surah:      verse.surah,
-            ayah:       verse.ayah,
+            surah:       verse.surah,
+            ayah:        verse.ayah,
+            verseKey:    verse.verseKey,
             accentColor: accentColor,
             dark:        dark,
+            arabicText:  arabicVerse?.ar,
+            tafsirText:  verse.text,
+            bookNameAr:  bookNameAr,
+            bookSlug:    bookSlug,
           ),
           const SizedBox(height: 22),
 
