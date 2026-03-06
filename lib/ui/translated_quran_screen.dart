@@ -8,11 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
 
-import '../hizb_juzz.dart';
 import '../services/quran_translation_pack_service.dart';
 import '../services/verse_favorites_service.dart';
 import '../services/audio_service.dart';
-import '../services/quran_image_service.dart';
 import '../services/reading_history_service.dart';
 import '../services/qul_audio/qul_audio_resolver.dart';
 import '../surah_name.dart';
@@ -226,7 +224,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -251,7 +249,6 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
             unselectedLabelColor: isDark ? Colors.white.withOpacity(0.55) : Colors.black.withOpacity(0.50),
             tabs: const [
               Tab(text: 'Sourates'),
-              Tab(text: 'Juz'),
               Tab(text: 'Favoris'),
             ],
           ),
@@ -259,7 +256,6 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
         body: TabBarView(
           children: [
             _SurahTab(preferOffline: widget.preferOffline),
-            _JuzTab(preferOffline: widget.preferOffline),
             const _FavoritesTab(),
           ],
         ),
@@ -409,13 +405,6 @@ class _SurahTabState extends State<_SurahTab> {
     _loadSurahs();
   }
 
-  static int _pageToJuz(int page) {
-    for (int i = juzzMap.length - 1; i >= 0; i--) {
-      if (juzzMap[i]['start_page']! <= page) return juzzMap[i]['juz']!;
-    }
-    return 1;
-  }
-
   // Page de début de chaque sourate dans le mushaf (index 0 = sourate 1).
   static const List<int> _surahStartPages = [
     1,   2,   50,  77,  106, 128, 151, 177, 187, 208,
@@ -434,23 +423,16 @@ class _SurahTabState extends State<_SurahTab> {
 
   Future<void> _loadSurahs() async {
     final List<Map<String, dynamic>> flat = [];
-    int lastJuz = 0;
 
     for (int i = 0; i < 114; i++) {
       final id   = i + 1;
       final page = _surahStartPages[i];
-      final juz  = _pageToJuz(page);
-      if (juz != lastJuz) {
-        flat.add({'type': 'juz', 'juz': juz});
-        lastJuz = juz;
-      }
       flat.add({
         'type': 'surah',
         'id': id,
         'nameAr': TafsirService.surahNames[i],
         'page': page,
         'ayahCount': TafsirService.surahAyahCounts[i],
-        'juz': juz,
       });
     }
 
@@ -481,8 +463,6 @@ class _SurahTabState extends State<_SurahTab> {
     final titleColor = isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90);
     final subColor = isDark ? Colors.white.withOpacity(0.65) : Colors.black.withOpacity(0.60);
     final dividerColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07);
-    final juzHeaderBg = isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04);
-    final juzHeaderColor = isDark ? Colors.white.withOpacity(0.50) : Colors.black.withOpacity(0.45);
     final accentColor = isDark ? const Color(0xFF7986CB) : const Color(0xFF3949AB);
     final badgeFill = isDark ? const Color(0xFF2A3A6A) : const Color(0xFFE8EAF6);
     final badgeText = isDark ? Colors.white.withOpacity(0.90) : const Color(0xFF3949AB);
@@ -535,61 +515,6 @@ class _SurahTabState extends State<_SurahTab> {
 
           final item = _items[index - 1]; // décalage de 1 à cause de l'en-tête
 
-          if (item['type'] == 'juz') {
-            final juzNum = item['juz'] as int;
-            final juzPage = juzzMap.firstWhere((j) => j['juz'] == juzNum)['start_page']!;
-            return InkWell(
-              onTap: () async {
-                try {
-                  final file = await QuranImageService.getPageFile('hafs', juzPage);
-                  if (!context.mounted) return;
-                  await precacheImage(FileImage(file), context);
-                } catch (_) {}
-                if (!context.mounted) return;
-                try {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ReaderScreen(initialPage: juzPage, reading: 'hafs'),
-                    ),
-                  );
-                } catch (_) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const QuranLoader()),
-                  );
-                }
-              },
-              child: Container(
-                color: juzHeaderBg,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                child: Row(
-                  children: [
-                    Text(
-                      'Juz $juzNum',
-                      style: TextStyle(
-                        color: juzHeaderColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '—  p. $juzPage',
-                      style: TextStyle(
-                        color: juzHeaderColor.withOpacity(0.7),
-                        fontSize: 11,
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(Icons.chevron_right_rounded, size: 14, color: juzHeaderColor.withOpacity(0.5)),
-                  ],
-                ),
-              ),
-            );
-          }
-
           // Surah item
           final surahId = item['id'] as int;
           final nameAr = (item['nameAr'] ?? '').toString();
@@ -603,13 +528,10 @@ class _SurahTabState extends State<_SurahTab> {
           final meaning = surahMeaning[surahId];
           final isVisited = _visitedSurahIds.contains(surahId);
 
-          // Séparateur fin sauf juste après un header de Juz (décalage +1 d'index)
-          final prevItem = index > 1 ? _items[index - 2] : null;
-          final prevIsJuz = index == 1 || (prevItem != null && prevItem['type'] == 'juz');
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (!prevIsJuz)
+              if (index > 1)
                 Divider(height: 1, thickness: 0.5, indent: 68, endIndent: 16, color: dividerColor),
               ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -754,75 +676,6 @@ class _OctagonPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _OctagonPainter old) =>
       old.fill != fill || old.border != border;
-}
-
-class _JuzTab extends StatelessWidget {
-  final bool preferOffline;
-  const _JuzTab({required this.preferOffline});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF);
-    final titleColor = isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90);
-    final subColor = isDark ? Colors.white.withOpacity(0.65) : Colors.black.withOpacity(0.60);
-    final dividerColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07);
-
-    return Container(
-      color: bg,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: juzzMap.length,
-        separatorBuilder: (_, __) => Divider(height: 1, thickness: 0.5, color: dividerColor),
-        itemBuilder: (context, i) {
-          final juz = juzzMap[i]['juz']!;
-          final startPage = juzzMap[i]['start_page']!;
-          final endPage = i + 1 < juzzMap.length ? juzzMap[i + 1]['start_page']! - 1 : 604;
-          final pageCount = endPage - startPage + 1;
-
-          return ListTile(
-            contentPadding: const EdgeInsets.symmetric(vertical: 4),
-            leading: Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isDark ? Colors.white.withOpacity(0.18) : Colors.black.withOpacity(0.12),
-                  width: 1,
-                ),
-              ),
-              child: Text(
-                '$juz',
-                style: TextStyle(color: titleColor, fontWeight: FontWeight.w700, fontSize: 13),
-              ),
-            ),
-            title: Text(
-              'Juz $juz',
-              style: TextStyle(color: titleColor, fontWeight: FontWeight.w700),
-            ),
-            subtitle: Text(
-              'Pages $startPage – $endPage  •  $pageCount pages',
-              style: TextStyle(color: subColor, fontSize: 12),
-            ),
-            trailing: Icon(Icons.chevron_right_rounded, color: subColor, size: 20),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TranslatedJuzScreen(
-                    juzNumber: juz,
-                    preferOffline: preferOffline,
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
 }
 
 class TranslatedSurahScreen extends StatefulWidget {
@@ -1056,6 +909,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     });
   }
   final ScrollController _scrollController = ScrollController();
+  late final Listenable _audioListenable;
   int _selectedAyah = 1;
 
   int _repeatTimes = 1;
@@ -1098,10 +952,16 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
     AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.continuous;
     _repeatTimes = 1;
+    _audioListenable = Listenable.merge([
+      AudioService.instance.currentAyahKeyNotifier,
+      AudioService.instance.ayahPlayModeNotifier,
+      AudioService.instance.isAyahPlayingNotifier,
+      AudioService.instance.currentAyahReciterNotifier,
+      AudioService.instance.ayahSpeedNotifier,
+    ]);
 
     Future.microtask(() async {
-      await _loadFavorites();
-      await _loadArabicImmediate();
+      await Future.wait([_loadFavorites(), _loadArabicImmediate()]);
       _attachAyahListener();
       _loadTranslationsBackground();
     });
@@ -1216,14 +1076,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   Future<void> _loadTranslationsBackground() async {
     try {
       final lang = AppLang.fr;
-      bool packReady = await QuranTranslationPackService.isPackReady(lang);
+      final packReady = await QuranTranslationPackService.isPackReady(lang);
 
-      // Téléchargement automatique si le pack n'est pas encore présent
+      // Téléchargement automatique en arrière-plan (sans bloquer les traductions)
       if (!packReady) {
-        try {
-          await QuranTranslationPackService.downloadPack(lang);
-          packReady = await QuranTranslationPackService.isPackReady(lang);
-        } catch (_) {} // échec silencieux → fallback réseau
+        QuranTranslationPackService.downloadPack(lang).catchError((_) {});
       }
 
       if (packReady) {
@@ -2584,13 +2441,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final merged = Listenable.merge([
-      AudioService.instance.currentAyahKeyNotifier,
-      AudioService.instance.ayahPlayModeNotifier,
-      AudioService.instance.isAyahPlayingNotifier,
-      AudioService.instance.currentAyahReciterNotifier,
-      AudioService.instance.ayahSpeedNotifier,
-    ]);
+    final merged = _audioListenable;
 
     final fg = _text(isDark);
     final subtle = _muted(isDark);

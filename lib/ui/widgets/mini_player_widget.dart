@@ -243,6 +243,11 @@ class MiniPlayerWidget extends StatelessWidget {
               onTap: () {
                 if (svc.currentAyahKey.value != null || autoAdvancing) {
                   svc.playPause();
+                } else if (svc.selectionStartKey != null) {
+                  final parts = svc.selectionStartKey!.split(':');
+                  final s = int.tryParse(parts[0]) ?? currentSurah;
+                  final a = int.tryParse(parts.length > 1 ? parts[1] : '1') ?? 1;
+                  svc.playFrom(surah: s, ayah: a);
                 } else {
                   svc.playFrom(surah: currentSurah, ayah: 1);
                 }

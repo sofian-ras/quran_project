@@ -1,8 +1,7 @@
-import 'dart:async';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../services/tafsir_service.dart';
+import '../services/tafsir_download_manager.dart';
 import 'tafsir_reader_screen.dart';
 
 class TafsirLibraryScreen extends StatefulWidget {
@@ -13,22 +12,43 @@ class TafsirLibraryScreen extends StatefulWidget {
 }
 
 class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
-  final Map<String, bool>      _downloaded = {};
-  final Map<String, double>    _progress   = {};
-  final Map<String, CancelToken> _tokens   = {};
+  final Map<String, bool> _downloaded = {};
+  final Map<String, VoidCallback> _listeners = {};
 
   @override
   void initState() {
     super.initState();
     _checkAll();
+    _setupListeners();
   }
 
   @override
   void dispose() {
-    for (final t in _tokens.values) {
-      t.cancel();
+    for (final book in TafsirService.catalog) {
+      final cb = _listeners[book.slug];
+      if (cb != null) {
+        TafsirDownloadManager.instance.progressFor(book.slug).removeListener(cb);
+      }
     }
     super.dispose();
+  }
+
+  /// Écoute chaque ValueNotifier de progression pour rafraîchir l'UI.
+  void _setupListeners() {
+    for (final book in TafsirService.catalog) {
+      void listener() {
+        if (!mounted) return;
+        setState(() {});
+        // Quand le téléchargement se termine (null), vérifier si installé
+        if (TafsirDownloadManager.instance.progressFor(book.slug).value == null) {
+          TafsirService.isDownloaded(book).then((ok) {
+            if (mounted) setState(() => _downloaded[book.slug] = ok);
+          });
+        }
+      }
+      _listeners[book.slug] = listener;
+      TafsirDownloadManager.instance.progressFor(book.slug).addListener(listener);
+    }
   }
 
   Future<void> _checkAll() async {
@@ -38,48 +58,13 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
     }
   }
 
-  Future<void> _startDownload(TafsirBook book) async {
-    if (_progress.containsKey(book.slug)) return;
-    final token = CancelToken();
-    setState(() {
-      _tokens[book.slug]   = token;
-      _progress[book.slug] = 0.0;
-    });
-    try {
-      await TafsirService.download(
-        book,
-        cancelToken: token,
-        onProgress: (p, _) {
-          if (mounted) setState(() => _progress[book.slug] = p);
-        },
-      );
-      if (mounted) {
-        setState(() {
-          _downloaded[book.slug] = true;
-          _progress.remove(book.slug);
-          _tokens.remove(book.slug);
-        });
-        _showSnack('${book.nameAr} téléchargé avec succès');
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _progress.remove(book.slug);
-          _tokens.remove(book.slug);
-        });
-        if (e is! DioException || e.type != DioExceptionType.cancel) {
-          _showSnack('Erreur lors du téléchargement');
-        }
-      }
-    }
+  void _startDownload(TafsirBook book) {
+    TafsirDownloadManager.instance.start(book);
+    setState(() {}); // affiche immédiatement la barre de progression
   }
 
   void _cancelDownload(TafsirBook book) {
-    _tokens[book.slug]?.cancel();
-    setState(() {
-      _progress.remove(book.slug);
-      _tokens.remove(book.slug);
-    });
+    TafsirDownloadManager.instance.cancel(book.slug);
   }
 
   Future<void> _deleteBook(TafsirBook book) async {
@@ -130,14 +115,7 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
     );
   }
 
-  void _showSnack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-    );
-  }
-
-  @override
+@override
   Widget build(BuildContext context) {
     final dark    = Theme.of(context).brightness == Brightness.dark;
     final padding = MediaQuery.of(context).padding;
@@ -195,7 +173,7 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
                   book:         book,
                   dark:         dark,
                   isDownloaded: _downloaded[book.slug] ?? false,
-                  progress:     _progress[book.slug],
+                  progress:     TafsirDownloadManager.instance.progressFor(book.slug).value,
                   onDownload:   () => _startDownload(book),
                   onCancel:     () => _cancelDownload(book),
                   onOpen:       () => _openBook(book),

@@ -110,6 +110,7 @@ class QulApiClient {
     try {
       final resp = await _dio.get(
         '$_base/recitations/$quranComId/by_chapter/$surah',
+        queryParameters: {'per_page': 300},
       );
       final data  = resp.data as Map<String, dynamic>;
       final files = data['audio_files'] as List<dynamic>?;

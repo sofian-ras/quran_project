@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import '../../services/quran_ayah_metadata_db.dart';
 import '../../services/quran_text_db.dart';
 import '../../services/quran_translation_pack_service.dart';
 import '../../services/verse_favorites_service.dart';
@@ -83,19 +84,42 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   }
 
   Future<void> _load() async {
-    await QuranTranslationPackService.migrateLegacyToQulIfNeeded();
-    final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
-    final fav = await VerseFavoritesService.instance.isFavorite(_verseKey);
+    // Phase 1 : arabe depuis la DB bundlée + favoris en parallèle → affichage immédiat
+    final results = await Future.wait([
+      QuranAyahMetadataDb.instance.getVerseText(widget.surah, widget.ayah),
+      VerseFavoritesService.instance.isFavorite(_verseKey),
+    ]);
+    final ar  = (results[0] as String?) ?? '';
+    final fav = results[1] as bool;
+
     if (!mounted) return;
     setState(() {
-      _verse = verse;
+      _verse = QVerse(
+        verseKey: _verseKey,
+        surah:    widget.surah,
+        ayah:     widget.ayah,
+        ar:       ar,
+        fr:       '',
+        tafsir:   null,
+      );
       _isFavorite = fav;
-      _loading = false;
+      _loading    = false;
     });
-    // Tafsir local absent → cache SharedPreferences ou fetch online
-    final hasLocal = verse?.tafsir != null && verse!.tafsir!.isNotEmpty;
+
+    // Phase 2 : traduction FR depuis le pack installé (arrière-plan, silencieux)
+    try {
+      await QuranTranslationPackService.migrateLegacyToQulIfNeeded();
+      final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
+      if (verse != null && verse.fr.isNotEmpty && mounted) {
+        setState(() => _verse = verse);
+      }
+    } catch (_) {}
+
+    // Phase 3 : tafsir — cache local ou fetch en ligne
+    if (!mounted) return;
+    final hasLocal = _verse?.tafsir != null && _verse!.tafsir!.isNotEmpty;
     if (!hasLocal) {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs  = await SharedPreferences.getInstance();
       final cached = prefs.getString(_tafsirCacheKey);
       if (cached != null && cached.isNotEmpty) {
         if (!mounted) return;
@@ -213,18 +237,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
           ),
           child: Column(
             children: [
-              // ── Image header (FittedBox pour masquer les marges transparentes) ──
-              SizedBox(
-                height: 120,
-                width: double.infinity,
-                child: ClipRect(
-                  child: FittedBox(
-                    fit: BoxFit.cover,
-                    child: Image.asset('assets/images/tafsir/tafsir_header3.webp'),
-                  ),
-                ),
-              ),
-
+              const SizedBox(height: 8),
               // ── Barre d'actions ───────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),

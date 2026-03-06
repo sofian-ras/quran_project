@@ -39,6 +39,21 @@ class QuranAyahMetadataDb {
     return _db!;
   }
 
+  /// Retourne le texte arabe d'un seul verset, ou null s'il n'existe pas.
+  Future<String?> getVerseText(int surah, int ayah) async {
+    final db = await _open();
+    final rows = await db.query(
+      'verses',
+      columns: ['text'],
+      where: 'surah_number = ? AND ayah_number = ?',
+      whereArgs: [surah, ayah],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final text = rows.first['text'] as String?;
+    return (text != null && text.isNotEmpty) ? text : null;
+  }
+
   /// Retourne une map verse_key → texte arabe pour toute une sourate.
   Future<Map<String, String>> getSurahTexts(int surah) async {
     final db = await _open();

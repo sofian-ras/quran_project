@@ -159,7 +159,11 @@ class TafsirService {
         }
 
         final url = '$_base/tafsirs/${book.id}/by_chapter/$surah';
-        final resp = await dio.get(url, cancelToken: cancelToken);
+        final resp = await dio.get(
+          url,
+          queryParameters: {'per_page': 300},
+          cancelToken: cancelToken,
+        );
 
         final data = resp.data as Map<String, dynamic>;
         final list = (data['tafsirs'] as List?) ?? [];

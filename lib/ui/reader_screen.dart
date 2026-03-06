@@ -214,6 +214,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    AyahBubble.dismiss();
     MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
     _preloadDebounce?.cancel();
     _saveTimer?.cancel();

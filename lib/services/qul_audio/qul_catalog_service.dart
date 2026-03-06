@@ -47,11 +47,6 @@ class QulCatalogService {
     QulReciter(qulId: 418, quranComId: null, name: 'Ali Abdur-Rahman al-Huthaify'),
     QulReciter(qulId: 356, quranComId: null, name: 'Nasser al-Qatami'),
     QulReciter(qulId: 388, quranComId: null, name: 'Bandar Baleela'),
-    QulReciter(qulId: 328, quranComId: 60,   name: 'Abdur-Rashid Sufi', style: 'Soosi'),
-    QulReciter(qulId: 360, quranComId: 110,  name: 'Abdur-Rashid Sufi', style: "Kasaa'ee"),
-    QulReciter(qulId: 363, quranComId: 111,  name: 'Abdur-Rashid Sufi', style: 'Ad-Doori'),
-    QulReciter(qulId: 364, quranComId: 112,  name: 'Abdur-Rashid Sufi', style: "Shu'bah"),
-    QulReciter(qulId: 378, quranComId: 137,  name: 'Abdur-Rashid Sufi', style: 'Soosi (2020)'),
     QulReciter(qulId: 404, quranComId: null, name: 'Abdullah Ali Jabir'),
     QulReciter(qulId: 421, quranComId: null, name: 'Hady Toure'),
   ];
