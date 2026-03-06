@@ -1,5 +1,4 @@
 // lib/ui/translated_quran_screen.dart
-import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show ImageFilter;
 import 'package:path_provider/path_provider.dart';
@@ -17,6 +16,8 @@ import '../services/quran_image_service.dart';
 import '../services/reading_history_service.dart';
 import '../services/qul_audio/qul_audio_resolver.dart';
 import '../surah_name.dart';
+import '../services/tafsir_service.dart' show TafsirService;
+import '../services/quran_ayah_metadata_db.dart';
 import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
 
@@ -415,59 +416,30 @@ class _SurahTabState extends State<_SurahTab> {
     return 1;
   }
 
+  // Page de début de chaque sourate dans le mushaf (index 0 = sourate 1).
+  static const List<int> _surahStartPages = [
+    1,   2,   50,  77,  106, 128, 151, 177, 187, 208,
+    221, 235, 249, 255, 262, 267, 282, 293, 305, 312,
+    322, 332, 342, 350, 359, 367, 377, 385, 396, 404,
+    411, 415, 418, 428, 434, 440, 446, 453, 458, 467,
+    477, 483, 489, 496, 499, 502, 507, 511, 515, 518,
+    520, 523, 526, 528, 531, 534, 537, 542, 545, 549,
+    551, 553, 554, 556, 558, 560, 562, 564, 566, 568,
+    570, 572, 574, 575, 577, 578, 580, 582, 583, 585,
+    586, 587, 587, 589, 590, 591, 591, 592, 593, 594,
+    595, 595, 596, 596, 597, 597, 598, 598, 599, 599,
+    600, 600, 601, 601, 601, 602, 602, 602, 603, 603,
+    603, 604, 604, 604,
+  ];
+
   Future<void> _loadSurahs() async {
-    final raw = await rootBundle.loadString('assets/data/quran_data.json');
-    final decoded = jsonDecode(raw);
-
-    final List<dynamic> quranData;
-    if (decoded is List) {
-      quranData = decoded;
-    } else if (decoded is Map<String, dynamic>) {
-      if (decoded['data'] is List) {
-        quranData = decoded['data'] as List;
-      } else if (decoded['quran'] is List) {
-        quranData = decoded['quran'] as List;
-      } else if (decoded['verses'] is List) {
-        quranData = decoded['verses'] as List;
-      } else {
-        quranData = decoded.values.toList();
-      }
-    } else {
-      quranData = const [];
-    }
-
-    final Map<int, int> ayahCounts = {};
-    final Map<int, int> startPage = {};
-    final Map<int, String> arName = {};
-
-    for (final v in quranData) {
-      if (v is! Map) continue;
-
-      final surahRaw = v['surah'];
-      final pageRaw = v['page'];
-
-      final int? id = (surahRaw is int) ? surahRaw : int.tryParse('$surahRaw');
-      if (id == null) continue;
-
-      final int page = (pageRaw is int) ? pageRaw : (int.tryParse('$pageRaw') ?? 1);
-
-      ayahCounts[id] = (ayahCounts[id] ?? 0) + 1;
-      startPage[id] ??= page;
-
-      final name = v['sura_name'];
-      if (name != null && arName[id] == null) {
-        arName[id] = name.toString();
-      }
-    }
-
-    final ids = ayahCounts.keys.toList()..sort();
-
     final List<Map<String, dynamic>> flat = [];
     int lastJuz = 0;
 
-    for (final id in ids) {
-      final page = startPage[id] ?? 1;
-      final juz = _pageToJuz(page);
+    for (int i = 0; i < 114; i++) {
+      final id   = i + 1;
+      final page = _surahStartPages[i];
+      final juz  = _pageToJuz(page);
       if (juz != lastJuz) {
         flat.add({'type': 'juz', 'juz': juz});
         lastJuz = juz;
@@ -475,9 +447,9 @@ class _SurahTabState extends State<_SurahTab> {
       flat.add({
         'type': 'surah',
         'id': id,
-        'nameAr': arName[id] ?? 'سورة $id',
+        'nameAr': TafsirService.surahNames[i],
         'page': page,
-        'ayahCount': ayahCounts[id] ?? 0,
+        'ayahCount': TafsirService.surahAyahCounts[i],
         'juz': juz,
       });
     }
@@ -1129,8 +1101,9 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
     Future.microtask(() async {
       await _loadFavorites();
-      await _load();
+      await _loadArabicImmediate();
       _attachAyahListener();
+      _loadTranslationsBackground();
     });
   }
 
@@ -1212,6 +1185,96 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
       if (t.trim().isEmpty) empty++;
     }
     return empty >= (_tafsir.length * 0.85);
+  }
+
+  // Phase 1 : charge l'arabe depuis la DB bundlée → affichage immédiat sans spinner
+  Future<void> _loadArabicImmediate() async {
+    try {
+      final texts = await QuranAyahMetadataDb.instance.getSurahTexts(widget.surahNumber);
+      final count = TafsirService.surahAyahCounts[widget.surahNumber - 1];
+      _arabic = List.generate(count, (i) => texts['${widget.surahNumber}:${i + 1}'] ?? '');
+      _translation = List.filled(_arabic.length, '');
+      _tafsir      = List.filled(_arabic.length, '');
+      _selectedAyah = _selectedAyah.clamp(1, _arabic.isEmpty ? 1 : _arabic.length);
+      _loopStartAyah ??= _selectedAyah;
+      _loopEndAyah   ??= (_selectedAyah + 1).clamp(1, _arabic.isEmpty ? 1 : _arabic.length);
+    } catch (_) {}
+
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (_arabic.isEmpty) _error = 'Erreur de chargement du texte arabe';
+    });
+    if (_arabic.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _setSelectedAyah(_selectedAyah, scroll: true, center: true);
+      });
+    }
+  }
+
+  // Phase 2 : charge les traductions en arrière-plan (pas de spinner)
+  Future<void> _loadTranslationsBackground() async {
+    try {
+      final lang = AppLang.fr;
+      bool packReady = await QuranTranslationPackService.isPackReady(lang);
+
+      // Téléchargement automatique si le pack n'est pas encore présent
+      if (!packReady) {
+        try {
+          await QuranTranslationPackService.downloadPack(lang);
+          packReady = await QuranTranslationPackService.isPackReady(lang);
+        } catch (_) {} // échec silencieux → fallback réseau
+      }
+
+      if (packReady) {
+        final dbPath = await QuranTranslationPackService.getDbPath(lang);
+        final db = await openDatabase(dbPath, readOnly: true);
+        final rows = await db.query(
+          'verses',
+          columns: ['ayah', 'ar', 'fr', 'tafsir'],
+          where: 'surah = ?',
+          whereArgs: [widget.surahNumber],
+          orderBy: 'ayah ASC',
+        );
+        await db.close();
+
+        if (rows.isNotEmpty && mounted) {
+          setState(() {
+            _arabic      = rows.map((r) => (r['ar']     as String?) ?? '').toList();
+            _translation = rows.map((r) => (r['fr']     as String?) ?? '').toList();
+            _tafsir      = rows.map((r) => (r['tafsir'] as String?) ?? '').toList();
+            _normalizeLengths();
+          });
+          await _refreshSurahDownloadedFlag();
+          return;
+        }
+      }
+
+      // Fallback réseau : traduction + tafsir en parallèle
+      final results = await Future.wait([
+        _dio.get('$_alquranBase/surah/${widget.surahNumber}/quran-uthmani'),
+        _dio.get('$_quranEncBase/translation/sura/$_translationKey/${widget.surahNumber}'),
+        _dio.get('$_quranEncBase/translation/sura/$_tafsirKey/${widget.surahNumber}'),
+      ]);
+
+      if (!mounted) return;
+      final arAyahs  = (results[0].data['data']['ayahs'] as List);
+      final trAyahs  = _extractQuranEncList(results[1].data);
+      final tafAyahs = _extractQuranEncList(results[2].data);
+
+      setState(() {
+        _arabic      = arAyahs.map((e)  => (e['text']        ?? '').toString()).toList();
+        _translation = trAyahs.map((e)  => _stripHtml((e['translation'] ?? '').toString())).toList();
+        _tafsir      = tafAyahs.map((e) => _stripHtml((e['translation'] ?? '').toString())).toList();
+        _normalizeLengths();
+      });
+
+      await _refreshSurahDownloadedFlag();
+      if (_isTafsirMostlyEmpty()) {
+        await _loadTafsirOnlineFallback();
+        if (mounted) setState(_normalizeLengths);
+      }
+    } catch (_) {} // silencieux : l'arabe est déjà affiché
   }
 
   Future<void> _load() async {

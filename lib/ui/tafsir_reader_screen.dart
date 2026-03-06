@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/tafsir_service.dart';
 import '../services/quran_text_db.dart';
+import '../services/quran_ayah_metadata_db.dart';
 import '../surah_name.dart';
 
 class TafsirReaderScreen extends StatefulWidget {
@@ -63,11 +64,47 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
       final verses = await TafsirService.getSurah(widget.book, surah);
 
       Map<String, QVerse> arVerses = {};
+
+      // Source primaire : DB bundlée (toujours disponible, aucun téléchargement)
+      try {
+        final metaTexts =
+            await QuranAyahMetadataDb.instance.getSurahTexts(surah);
+        for (final v in verses) {
+          final ar = metaTexts[v.verseKey] ?? '';
+          if (ar.isNotEmpty) {
+            arVerses[v.verseKey] = QVerse(
+              verseKey: v.verseKey,
+              surah: v.surah,
+              ayah: v.ayah,
+              ar: ar,
+              fr: '',
+              tafsir: null,
+            );
+          }
+        }
+      } catch (_) {}
+
+      // Supplément : QuranTextDb si un pack est téléchargé (ajoute la traduction FR)
       try {
         final db = QuranTextDb.instance;
         if (await db.isReady()) {
           final keys = verses.map((v) => v.verseKey).toList();
-          arVerses = await db.getVersesByKeys(keys);
+          final dbVerses = await db.getVersesByKeys(keys);
+          for (final entry in dbVerses.entries) {
+            final existing = arVerses[entry.key];
+            if (existing != null) {
+              arVerses[entry.key] = QVerse(
+                verseKey: existing.verseKey,
+                surah: existing.surah,
+                ayah: existing.ayah,
+                ar: existing.ar.isNotEmpty ? existing.ar : entry.value.ar,
+                fr: entry.value.fr,
+                tafsir: entry.value.tafsir,
+              );
+            } else {
+              arVerses[entry.key] = entry.value;
+            }
+          }
         }
       } catch (_) {}
 
