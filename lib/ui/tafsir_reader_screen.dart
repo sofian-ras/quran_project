@@ -517,17 +517,6 @@ class _VerseBlock extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // ── Boutons d'action ────────────────────────────────────────────
-            _ActionButtons(
-              arabicText: arabicVerse!.ar,
-              tafsirText: verse.text,
-              bookNameAr: bookNameAr,
-              verseKey:   verse.verseKey,
-              accentColor: accentColor,
-              dark:        dark,
-              textPrimary: textPrimary,
-            ),
-            const SizedBox(height: 16),
           ] else ...[
             const SizedBox(height: 8),
           ],
@@ -1618,49 +1607,154 @@ class _EmptyView extends StatelessWidget {
 // Indicateur verset ornemental  (remplace _OrnamentalDivider)
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _VerseIndicatorBox extends StatelessWidget {
-  final int   surah;
-  final int   ayah;
-  final Color accentColor;
-  final bool  dark;
+class _VerseIndicatorBox extends StatefulWidget {
+  final int     surah;
+  final int     ayah;
+  final String  verseKey;
+  final Color   accentColor;
+  final bool    dark;
+  final String? arabicText;
+  final String  tafsirText;
+  final String  bookNameAr;
+  final String  bookSlug;
 
   const _VerseIndicatorBox({
     required this.surah,
     required this.ayah,
+    required this.verseKey,
     required this.accentColor,
     required this.dark,
+    required this.arabicText,
+    required this.tafsirText,
+    required this.bookNameAr,
+    required this.bookSlug,
   });
+
+  @override
+  State<_VerseIndicatorBox> createState() => _VerseIndicatorBoxState();
+}
+
+class _VerseIndicatorBoxState extends State<_VerseIndicatorBox> {
+  bool _isFav = false;
+  static const _favKey = 'tafsir_favorites';
+
+  String get _itemKey => '${widget.bookSlug}:${widget.verseKey}';
+
+  String get _shareText {
+    final buf = StringBuffer();
+    final ar = widget.arabicText;
+    if (ar != null && ar.isNotEmpty) {
+      buf.writeln(ar);
+      buf.writeln();
+    }
+    buf.writeln('── ${widget.bookNameAr} ──');
+    buf.writeln(widget.tafsirText);
+    buf.write('[${widget.verseKey}]');
+    return buf.toString();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFav();
+  }
+
+  Future<void> _loadFav() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list  = prefs.getStringList(_favKey) ?? [];
+    if (mounted) setState(() => _isFav = list.contains(_itemKey));
+  }
+
+  Future<void> _toggleFav() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list  = (prefs.getStringList(_favKey) ?? []).toList();
+    if (_isFav) {
+      list.remove(_itemKey);
+    } else {
+      list.add(_itemKey);
+    }
+    await prefs.setStringList(_favKey, list);
+    if (mounted) setState(() => _isFav = !_isFav);
+  }
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: _shareText));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Copié dans le presse-papier'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     const borderColor = Color(0xFFC8A97E);
-    final textColor   = dark ? const Color(0xFFE8D5B0) : const Color(0xFF4A3F30);
+    const iconColor   = Color(0xFFC8A97E);
+    final textColor   = widget.dark
+        ? const Color(0xFFE8D5B0)
+        : const Color(0xFF4A3F30);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Stack(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color:        Colors.transparent,
               border:       Border.all(color: borderColor, width: 1.3),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Center(
-              child: Text(
-                'آية $ayah',
-                textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontFamily: 'UthmanTahaNaskh',
-                  fontSize:   20,
-                  color:      textColor,
-                  height:     1.2,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => Share.share(_shareText),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    child: Icon(Icons.share_rounded,
+                        size: 18, color: iconColor),
+                  ),
                 ),
-              ),
+                GestureDetector(
+                  onTap: _copy,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    child: Icon(Icons.content_copy_rounded,
+                        size: 18, color: iconColor),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _toggleFav,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    child: Icon(
+                      _isFav
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      size: 18,
+                      color: _isFav
+                          ? const Color(0xFFE8B04A)
+                          : iconColor,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'آية ${widget.ayah}',
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily: 'UthmanTahaNaskh',
+                    fontSize:   18,
+                    color:      textColor,
+                    height:     1.2,
+                  ),
+                ),
+              ],
             ),
           ),
-          // Arabesque corner ornaments painted on top
           Positioned.fill(
             child: CustomPaint(painter: _VerseFrameCornerPainter()),
           ),
@@ -1711,142 +1805,6 @@ class _VerseFrameCornerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter _) => false;
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Boutons d'action par verset (Copier / Partager)
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _ActionButtons extends StatelessWidget {
-  final String arabicText;
-  final String tafsirText;
-  final String bookNameAr;
-  final String verseKey;
-  final Color  accentColor;
-  final bool   dark;
-  final Color  textPrimary;
-
-  const _ActionButtons({
-    required this.arabicText,
-    required this.tafsirText,
-    required this.bookNameAr,
-    required this.verseKey,
-    required this.accentColor,
-    required this.dark,
-    required this.textPrimary,
-  });
-
-  String get _fullText =>
-      '$arabicText\n\n── $bookNameAr ──\n$tafsirText\n\n[$verseKey]';
-
-  @override
-  Widget build(BuildContext context) {
-    // Golden manuscript palette
-    final chipBg     = dark ? const Color(0xFF4A2E06) : const Color(0xFFE8D5B3);
-    final chipBg2    = dark ? const Color(0xFF6B4510) : const Color(0xFFCFAF7E);
-    final chipBorder = dark ? const Color(0xFF8B6814) : const Color(0xFFC8A97E);
-    final labelColor = dark ? const Color(0xFFE8D5B0) : const Color(0xFF4A3F30);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _ActionChip(
-            icon:    Icons.copy_rounded,
-            label:   'Copier',
-            bg:      chipBg,
-            bg2:     chipBg2,
-            border:  chipBorder,
-            color:   labelColor,
-            onTap: () async {
-              await Clipboard.setData(ClipboardData(text: _fullText));
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Copié dans le presse-papier'),
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-          const SizedBox(width: 12),
-          _ActionChip(
-            icon:   Icons.share_rounded,
-            label:  'Partager',
-            bg:     chipBg,
-            bg2:    chipBg2,
-            border: chipBorder,
-            color:  labelColor,
-            onTap:  () => Share.share(_fullText),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionChip extends StatelessWidget {
-  final IconData     icon;
-  final String       label;
-  final Color        bg;
-  final Color        bg2;
-  final Color        border;
-  final Color        color;
-  final VoidCallback onTap;
-
-  const _ActionChip({
-    required this.icon,
-    required this.label,
-    required this.bg,
-    required this.bg2,
-    required this.border,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin:  Alignment.topLeft,
-            end:    Alignment.bottomRight,
-            colors: [bg, bg2],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: border, width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color:      Colors.black.withAlpha(18),
-              blurRadius: 4,
-              offset:     const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize:   12,
-                color:      color,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
