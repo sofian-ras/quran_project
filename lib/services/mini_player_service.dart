@@ -16,7 +16,10 @@
 // Persist: récitateur · mode · repeat → shared_preferences
 
 import 'dart:async';
+import 'dart:io';
 import 'package:audio_session/audio_session.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
@@ -98,6 +101,10 @@ class MiniPlayerService {
   /// Message d'erreur affiché quand l'audio est indisponible sur QUL.
   final ValueNotifier<String?> unavailableMessage = ValueNotifier(null);
 
+  /// Progression du pré-téléchargement de la sourate : null = inactif, 0.0–1.0 = en cours.
+  final ValueNotifier<double?> prepProgress = ValueNotifier(null);
+  int _prepToken = 0;
+
   // ── Sélection ─────────────────────────────────────────────────────────────
 
   String? selectionStartKey;
@@ -122,6 +129,11 @@ class MiniPlayerService {
 
   StreamSubscription<ProcessingState>? _processingStateSub;
   StreamSubscription<bool>?            _playingSub;
+  StreamSubscription<int?>?            _indexSub;
+
+  // Non-null en mode playlist (surah/selection) : index playlist → numéro d'ayah.
+  // Null en mode source unique (verseByVerse).
+  List<int>? _playlistAyahs;
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -131,6 +143,10 @@ class MiniPlayerService {
           state == ProcessingState.loading || state == ProcessingState.buffering;
       if (state == ProcessingState.completed) {
         _onAyahCompleted();
+      }
+      // En mode playlist, la piste suivante est prête → fin de la micro-transition
+      if (state == ProcessingState.ready && _playlistAyahs != null) {
+        isRangeAutoAdvancing.value = false;
       }
     });
 
@@ -209,13 +225,193 @@ class MiniPlayerService {
     _endAyah = _computeEndAyah(_curSurah, _curAyah);
     isExpanded.value = true;
 
-    // Précharger les URLs du chapitre en arrière-plan pour éviter la latence
     final reciter = _qulReciter;
-    if (reciter != null) {
-      QulAudioResolver.instance.prefetch(reciter, _curSurah);
+    if (reciter == null) {
+      unavailableMessage.value = 'Récitateur introuvable';
+      return;
     }
 
-    await _playCurrent();
+    // verseByVerse : un seul verset → streaming direct, pas de pré-téléchargement
+    if (playMode.value == MiniPlayMode.verseByVerse) {
+      QulAudioResolver.instance.prefetch(reciter, _curSurah);
+      await _playCurrent();
+      return;
+    }
+
+    // surah / selection : pré-télécharger tous les versets avant de lire
+    await _prepareAndPlay(reciter, _curSurah, _curAyah);
+  }
+
+  // ── Pré-téléchargement ────────────────────────────────────────────────────
+
+  /// Vérifie si tous les versets d'une sourate sont déjà en cache local.
+  bool _allAyahsDownloaded(int qid, int surah, int total) {
+    final mgr = AudioDownloadManager.instance;
+    for (int i = 1; i <= total; i++) {
+      if (!mgr.isDownloaded(AudioDownloadManager.ayahKey(qid, surah, i))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Télécharge tous les versets manquants de la sourate (lots de 5 en parallèle),
+  /// affiche la progression dans [prepProgress], puis lance [_playCurrent].
+  Future<void> _prepareAndPlay(QulReciter reciter, int surah, int startAyah) async {
+    final qid   = reciter.quranComId;
+    if (qid == null) {
+      // Récitateur sans ID quran.com → streaming direct
+      await _playCurrent();
+      return;
+    }
+
+    final myToken = ++_prepToken;
+    final total   = kSurahAyahCounts[surah - 1];
+    final mgr     = AudioDownloadManager.instance;
+
+    // Si tout est déjà téléchargé → lecture immédiate
+    if (_allAyahsDownloaded(qid, surah, total)) {
+      prepProgress.value = null;
+      if (myToken == _prepToken && !_stopping) await _playCurrent();
+      return;
+    }
+
+    // Précharger toutes les URLs en un seul appel API
+    prepProgress.value = 0.0;
+    await QulAudioResolver.instance.prefetch(reciter, surah);
+    if (myToken != _prepToken) { prepProgress.value = null; return; }
+
+    // Collecter les versets manquants
+    final pending = <int>[];
+    int done = 0;
+    for (int i = 1; i <= total; i++) {
+      if (mgr.isDownloaded(AudioDownloadManager.ayahKey(qid, surah, i))) {
+        done++;
+      } else {
+        pending.add(i);
+      }
+    }
+    prepProgress.value = done / total;
+
+    // Téléchargement par lots de 5 en parallèle
+    const batchSize = 5;
+    for (int i = 0; i < pending.length; i += batchSize) {
+      if (myToken != _prepToken) { prepProgress.value = null; return; }
+
+      final batch = pending.skip(i).take(batchSize).toList();
+      await Future.wait(batch.map((ayah) async {
+        final url = await QulAudioResolver.instance.resolveAyah(reciter, surah, ayah);
+        if (url != null && myToken == _prepToken) {
+          await mgr.downloadAyah(quranComId: qid, surah: surah, ayah: ayah, url: url);
+        }
+      }));
+
+      done += batch.length;
+      if (myToken == _prepToken) {
+        prepProgress.value = (done / total).clamp(0.0, 1.0);
+      }
+    }
+
+    if (myToken != _prepToken) { prepProgress.value = null; return; }
+    prepProgress.value = null;
+    if (!_stopping) await _startPlaylistMode(reciter, surah, startAyah);
+  }
+
+  /// Annule le pré-téléchargement en cours et replie le mini lecteur.
+  void cancelPrep() {
+    ++_prepToken;
+    prepProgress.value = null;
+    isExpanded.value   = false;
+  }
+
+  // ── Playlist gapless (surah / selection) ─────────────────────────────────
+
+  /// Construit un [ConcatenatingAudioSource] à partir des fichiers locaux
+  /// et lance la lecture. just_audio gère les transitions sans coupure entre
+  /// les versets — aucun stop()/setAudioSource() entre chaque piste.
+  Future<void> _startPlaylistMode(
+      QulReciter reciter, int surah, int startAyah) async {
+    final qid = reciter.quranComId!;
+    final mgr = AudioDownloadManager.instance;
+
+    // Chemin de base des fichiers (mirrors AudioDownloadManager._baseDir())
+    final docs       = await getApplicationDocumentsDirectory();
+    final reciterDir = p.join(docs.path, 'qul_audio', qid.toString());
+
+    // Facteur de répétition par verset
+    final isInfinite = repeatMode.value == MiniRepeatMode.infinite;
+    final factor     = switch (repeatMode.value) {
+      MiniRepeatMode.x1       => 1,
+      MiniRepeatMode.x2       => 2,
+      MiniRepeatMode.x3       => 3,
+      MiniRepeatMode.infinite => 1, // géré par LoopMode.one
+    };
+
+    // Construire la playlist de startAyah → _endAyah
+    final sources = <AudioSource>[];
+    _playlistAyahs = [];
+
+    for (int ayah = startAyah; ayah <= _endAyah; ayah++) {
+      final key  = AudioDownloadManager.ayahKey(qid, surah, ayah);
+      final path = p.join(reciterDir, '${surah}_$ayah.mp3');
+      // Utilise le fichier local si disponible
+      if (!mgr.isDownloaded(key) || !await File(path).exists()) continue;
+
+      for (int r = 0; r < factor; r++) {
+        sources.add(AudioSource.uri(
+          Uri.file(path),
+          tag: MediaItem(
+            id:     '$surah:$ayah:$r',
+            title:  'Sourate $surah · Verset $ayah',
+            artist: reciter.displayName,
+            album:  'Coran',
+          ),
+        ));
+        _playlistAyahs!.add(ayah);
+      }
+    }
+
+    if (sources.isEmpty) {
+      _clearPlaylist();
+      unavailableMessage.value = '${reciter.name} : audio introuvable';
+      return;
+    }
+
+    // Suivi du verset courant via l'index playlist
+    _indexSub?.cancel();
+    _indexSub = _player.currentIndexStream.listen((idx) {
+      if (idx == null || _playlistAyahs == null) return;
+      if (idx < _playlistAyahs!.length) {
+        final ayah = _playlistAyahs![idx];
+        if (ayah != _curAyah) {
+          _curAyah             = ayah;
+          currentAyahKey.value = '$_curSurah:$ayah';
+          // Micro-transition entre pistes → masquer le spinner
+          isRangeAutoAdvancing.value = true;
+        }
+      }
+    });
+
+    // Mode de boucle : ∞ répète la piste courante, sinon lecture unique
+    await _player.setLoopMode(isInfinite ? LoopMode.one : LoopMode.off);
+
+    unavailableMessage.value = null;
+    currentAyahKey.value     = '$surah:$startAyah';
+    _curAyah                 = startAyah;
+
+    await _player.setAudioSource(
+      ConcatenatingAudioSource(useLazyPreparation: true, children: sources),
+      initialIndex:    0,
+      initialPosition: Duration.zero,
+    );
+    await _player.play();
+  }
+
+  /// Libère les ressources du mode playlist.
+  void _clearPlaylist() {
+    _indexSub?.cancel();
+    _indexSub      = null;
+    _playlistAyahs = null;
   }
 
   Future<void> _playCurrent() async {
@@ -316,6 +512,15 @@ class MiniPlayerService {
   void _onAyahCompleted() {
     if (_stopping) return;
 
+    // Mode playlist (surah/selection) : la playlist entière est terminée.
+    if (_playlistAyahs != null) {
+      _clearPlaylist();
+      isPlaying.value            = false;
+      isRangeAutoAdvancing.value = false;
+      return;
+    }
+
+    // Mode source unique (verseByVerse) : gestion repeat + arrêt.
     _repeatCount++;
     final limit = _repeatLimit;
 
@@ -326,22 +531,8 @@ class MiniPlayerService {
       return;
     }
 
-    _repeatCount = 0;
-
-    if (playMode.value == MiniPlayMode.verseByVerse) {
-      isPlaying.value = false;
-      return;
-    }
-
-    if (_curAyah < _endAyah) {
-      _curAyah++;
-      // Signale à l'UI qu'on passe automatiquement au verset suivant :
-      // ne pas afficher le spinner de chargement pendant cette transition.
-      isRangeAutoAdvancing.value = true;
-      _playCurrent();
-    } else {
-      isPlaying.value = false;
-    }
+    _repeatCount    = 0;
+    isPlaying.value = false;
   }
 
   int get _repeatLimit {
@@ -356,7 +547,8 @@ class MiniPlayerService {
   // ── Contrôles ──────────────────────────────────────────────────────────────
 
   Future<void> playPause() async {
-    // Si aucune source chargée, (re)lancer le verset courant
+    if (prepProgress.value != null) return; // Préparation en cours → ignorer
+
     if (currentAyahKey.value == null) {
       if (_curSurah > 0 && _curAyah > 0) {
         _stopping = false;
@@ -372,11 +564,14 @@ class MiniPlayerService {
   }
 
   Future<void> stop() async {
+    ++_prepToken;             // Annule tout pré-téléchargement en cours.
+    prepProgress.value = null;
+    _clearPlaylist();         // Arrête le suivi de l'index playlist.
     _stopping = true;
-    _playToken++; // Invalide tout _playCurrent en cours d'attente async.
+    _playToken++;
     isRangeAutoAdvancing.value = false;
+    await _player.setLoopMode(LoopMode.off);
     await _player.stop();
-    await _player.seek(Duration.zero);
     currentAyahKey.value     = null;
     isExpanded.value         = false;
     isPlaying.value          = false;
@@ -390,24 +585,44 @@ class MiniPlayerService {
   Future<void> nextVerse() async {
     if (_curSurah == 0) return;
     final maxAyah = kSurahAyahCounts[_curSurah - 1];
-    if (_curAyah < maxAyah) {
-      _curAyah++;
-      _repeatCount = 0;
-      _endAyah     = _computeEndAyah(_curSurah, _curAyah);
-      _stopping    = false;
-      await _playCurrent();
+    if (_curAyah >= maxAyah) return;
+
+    if (_playlistAyahs != null) {
+      // Mode playlist : seek vers la première occurrence du verset suivant
+      final idx = _playlistAyahs!.indexOf(_curAyah + 1);
+      if (idx >= 0) {
+        _repeatCount = 0;
+        await _player.seek(Duration.zero, index: idx);
+        if (!_player.playing) await _player.play();
+      }
+      return;
     }
+
+    _curAyah++;
+    _repeatCount = 0;
+    _endAyah     = _computeEndAyah(_curSurah, _curAyah);
+    _stopping    = false;
+    await _playCurrent();
   }
 
   Future<void> prevVerse() async {
-    if (_curSurah == 0) return;
-    if (_curAyah > 1) {
-      _curAyah--;
-      _repeatCount = 0;
-      _endAyah     = _computeEndAyah(_curSurah, _curAyah);
-      _stopping    = false;
-      await _playCurrent();
+    if (_curSurah == 0 || _curAyah <= 1) return;
+
+    if (_playlistAyahs != null) {
+      final idx = _playlistAyahs!.indexOf(_curAyah - 1);
+      if (idx >= 0) {
+        _repeatCount = 0;
+        await _player.seek(Duration.zero, index: idx);
+        if (!_player.playing) await _player.play();
+      }
+      return;
     }
+
+    _curAyah--;
+    _repeatCount = 0;
+    _endAyah     = _computeEndAyah(_curSurah, _curAyah);
+    _stopping    = false;
+    await _playCurrent();
   }
 
   void cycleMode() {
@@ -430,9 +645,11 @@ class MiniPlayerService {
     currentReciter.value     = reciter;
     unavailableMessage.value = null;
     _savePrefs();
-    if (currentAyahKey.value != null) {
+    if (_curSurah > 0 && _curAyah > 0) {
       _repeatCount = 0;
-      _playCurrent();
+      _clearPlaylist();
+      // Relance la préparation depuis le verset courant avec le nouveau récitateur
+      playFrom(surah: _curSurah, ayah: _curAyah);
     }
   }
 
@@ -552,6 +769,7 @@ class MiniPlayerService {
   void dispose() {
     _processingStateSub?.cancel();
     _playingSub?.cancel();
+    _indexSub?.cancel();
     _player.dispose();
   }
 }

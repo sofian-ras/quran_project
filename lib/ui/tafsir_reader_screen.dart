@@ -36,12 +36,20 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
   // Clés GlobalKey pour chaque verset (permettent de scroller vers un ayah)
   final Map<int, GlobalKey> _verseKeys = {};
 
+  // Compteur de chargement — protège contre les courses asynchrones :
+  // un chargement abandonne s'il n'est plus le plus récent.
+  int _loadToken = 0;
+
+  // Favoris — chargés une fois au démarrage, mutés via _toggleFavorite.
+  Set<String> _favorites = {};
+
   int get _totalAyahs => TafsirService.surahAyahCounts[_currentSurah - 1];
 
   @override
   void initState() {
     super.initState();
     _currentSurah = widget.initialSurah;
+    _loadFavorites();
     _loadSurah(_currentSurah);
   }
 
@@ -51,7 +59,39 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
     super.dispose();
   }
 
+  // ── Favoris ───────────────────────────────────────────────────────────────
+
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list  = prefs.getStringList('tafsir_favorites') ?? [];
+    if (mounted) setState(() => _favorites = list.toSet());
+  }
+
+  Future<void> _toggleFavorite(String itemKey) async {
+    final newFav = !_favorites.contains(itemKey);
+    // Mise à jour optimiste immédiate pour une réponse UI instantanée
+    setState(() {
+      if (newFav) {
+        _favorites.add(itemKey);
+      } else {
+        _favorites.remove(itemKey);
+      }
+    });
+    // Persistance en arrière-plan
+    final prefs = await SharedPreferences.getInstance();
+    final list  = (prefs.getStringList('tafsir_favorites') ?? []).toList();
+    if (newFav) {
+      list.add(itemKey);
+    } else {
+      list.remove(itemKey);
+    }
+    await prefs.setStringList('tafsir_favorites', list);
+  }
+
+  // ── Chargement ─────────────────────────────────────────────────────────────
+
   Future<void> _loadSurah(int surah) async {
+    final myToken = ++_loadToken;
     setState(() {
       _loading = true;
       _error = null;
@@ -62,67 +102,24 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
 
     try {
       final verses = await TafsirService.getSurah(widget.book, surah);
+      if (myToken != _loadToken) return; // requête abandonnée (sourate changée)
 
-      Map<String, QVerse> arVerses = {};
-
-      // Source primaire : DB bundlée (toujours disponible, aucun téléchargement)
-      try {
-        final metaTexts =
-            await QuranAyahMetadataDb.instance.getSurahTexts(surah);
-        for (final v in verses) {
-          final ar = metaTexts[v.verseKey] ?? '';
-          if (ar.isNotEmpty) {
-            arVerses[v.verseKey] = QVerse(
-              verseKey: v.verseKey,
-              surah: v.surah,
-              ayah: v.ayah,
-              ar: ar,
-              fr: '',
-              tafsir: null,
-            );
-          }
-        }
-      } catch (_) {}
-
-      // Supplément : QuranTextDb si un pack est téléchargé (ajoute la traduction FR)
-      try {
-        final db = QuranTextDb.instance;
-        if (await db.isReady()) {
-          final keys = verses.map((v) => v.verseKey).toList();
-          final dbVerses = await db.getVersesByKeys(keys);
-          for (final entry in dbVerses.entries) {
-            final existing = arVerses[entry.key];
-            if (existing != null) {
-              arVerses[entry.key] = QVerse(
-                verseKey: existing.verseKey,
-                surah: existing.surah,
-                ayah: existing.ayah,
-                ar: existing.ar.isNotEmpty ? existing.ar : entry.value.ar,
-                fr: entry.value.fr,
-                tafsir: entry.value.tafsir,
-              );
-            } else {
-              arVerses[entry.key] = entry.value;
-            }
-          }
-        }
-      } catch (_) {}
+      final arVerses = await _fetchArabicVerses(surah, verses);
+      if (myToken != _loadToken) return;
 
       if (mounted) {
         final target = _targetAyah > 0 ? _targetAyah : 1;
         setState(() {
-          _verses      = verses;
+          _verses       = verses;
           _arabicVerses = arVerses;
-          _loading     = false;
-          _currentAyah = target.clamp(1, TafsirService.surahAyahCounts[surah - 1]);
+          _loading      = false;
+          _currentAyah  = target.clamp(1, TafsirService.surahAyahCounts[surah - 1]);
         });
 
-        // Scroll vers le haut d'abord
         if (_scrollCtrl.hasClients) {
           _scrollCtrl.jumpTo(0);
         }
 
-        // Puis scroll vers l'ayah cible (si pas le premier)
         if (_targetAyah > 1) {
           _scrollToAyah(_targetAyah);
         } else {
@@ -139,30 +136,81 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
     }
   }
 
+  /// Charge le texte arabe depuis la DB bundlée (source primaire) puis enrichit
+  /// avec QuranTextDb si disponible (traduction FR + tafsir pack téléchargé).
+  Future<Map<String, QVerse>> _fetchArabicVerses(
+      int surah, List<TafsirVerse> verses) async {
+    final arVerses = <String, QVerse>{};
+
+    // Source primaire : DB bundlée (toujours disponible, aucun téléchargement)
+    try {
+      final metaTexts = await QuranAyahMetadataDb.instance.getSurahTexts(surah);
+      for (final v in verses) {
+        final ar = metaTexts[v.verseKey] ?? '';
+        if (ar.isNotEmpty) {
+          arVerses[v.verseKey] = QVerse(
+            verseKey: v.verseKey,
+            surah:    v.surah,
+            ayah:     v.ayah,
+            ar:       ar,
+            fr:       '',
+            tafsir:   null,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('TafsirReader: metadata DB error — $e');
+    }
+
+    // Source complémentaire : QuranTextDb (traduction FR si pack disponible)
+    try {
+      final db = QuranTextDb.instance;
+      if (await db.isReady()) {
+        final keys     = verses.map((v) => v.verseKey).toList();
+        final dbVerses = await db.getVersesByKeys(keys);
+        for (final entry in dbVerses.entries) {
+          final existing = arVerses[entry.key];
+          if (existing != null) {
+            arVerses[entry.key] = QVerse(
+              verseKey: existing.verseKey,
+              surah:    existing.surah,
+              ayah:     existing.ayah,
+              ar:       existing.ar.isNotEmpty ? existing.ar : entry.value.ar,
+              fr:       entry.value.fr,
+              tafsir:   entry.value.tafsir,
+            );
+          } else {
+            arVerses[entry.key] = entry.value;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('TafsirReader: QuranTextDb error — $e');
+    }
+
+    return arVerses;
+  }
+
   void _scrollToAyah(int ayah) {
-    // Double frame : laisse le ListView construire ses items visibles
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        // Estimation grossière pour forcer le build des items lointains
-        final approxOffset = (ayah - 1) * 320.0;
-        if (_scrollCtrl.hasClients) {
-          _scrollCtrl.jumpTo(
-            approxOffset.clamp(0.0, _scrollCtrl.position.maxScrollExtent),
-          );
-        }
-        // Précision avec ensureVisible après le jump
-        await Future.delayed(const Duration(milliseconds: 50));
-        final key = _verseKeys[ayah];
-        if (key?.currentContext != null && mounted) {
-          Scrollable.ensureVisible(
-            key!.currentContext!,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-            alignment: 0.1,
-          );
-        }
-        _targetAyah = 0;
-      });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_scrollCtrl.hasClients) return;
+      // Saut approximatif pour déclencher le build de l'item cible
+      // (ListView.builder ne construit les items que si leur zone est visible)
+      final maxExt = _scrollCtrl.position.maxScrollExtent;
+      _scrollCtrl.jumpTo(((ayah - 1) * 320.0).clamp(0.0, maxExt));
+      // Attente de la frame suivante pour que l'item soit positionné
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      final key = _verseKeys[ayah];
+      if (key?.currentContext != null) {
+        await Scrollable.ensureVisible(
+          key!.currentContext!,
+          duration: const Duration(milliseconds: 300),
+          curve:    Curves.easeOut,
+          alignment: 0.1,
+        );
+      }
+      _targetAyah = 0;
     });
   }
 
@@ -294,18 +342,20 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
                     : _verses.isEmpty
                         ? const _EmptyView()
                         : _VersesList(
-                            verses: _verses,
-                            arabicVerses: _arabicVerses,
-                            scrollCtrl: _scrollCtrl,
-                            fontSize: _fontSize,
-                            surah: _currentSurah,
-                            textPrimary: _textPrimary,
+                            verses:        _verses,
+                            arabicVerses:  _arabicVerses,
+                            scrollCtrl:    _scrollCtrl,
+                            fontSize:      _fontSize,
+                            surah:         _currentSurah,
+                            textPrimary:   _textPrimary,
                             textSecondary: _textSecondary,
-                            dark: dark,
-                            bookGradient: widget.book.gradient,
-                            bookNameAr: widget.book.nameAr,
-                            bookSlug:   widget.book.slug,
-                            verseKeys: _verseKeys,
+                            dark:          dark,
+                            bookGradient:  widget.book.gradient,
+                            bookNameAr:    widget.book.nameAr,
+                            bookSlug:      widget.book.slug,
+                            verseKeys:     _verseKeys,
+                            favorites:     _favorites,
+                            onToggleFav:   _toggleFavorite,
                           ),
           ),
 
@@ -395,6 +445,8 @@ class _VersesList extends StatelessWidget {
   final String bookNameAr;
   final String bookSlug;
   final Map<int, GlobalKey> verseKeys;
+  final Set<String> favorites;
+  final void Function(String key) onToggleFav;
 
   const _VersesList({
     required this.verses,
@@ -409,6 +461,8 @@ class _VersesList extends StatelessWidget {
     required this.bookNameAr,
     required this.bookSlug,
     required this.verseKeys,
+    required this.favorites,
+    required this.onToggleFav,
   });
 
   @override
@@ -441,6 +495,8 @@ class _VersesList extends StatelessWidget {
           accentColor: accent,
           bookNameAr: bookNameAr,
           bookSlug: bookSlug,
+          favorites: favorites,
+          onToggleFav: onToggleFav,
         );
       },
     );
@@ -461,6 +517,8 @@ class _VerseBlock extends StatelessWidget {
   final Color       accentColor;
   final String      bookNameAr;
   final String      bookSlug;
+  final Set<String> favorites;
+  final void Function(String key) onToggleFav;
 
   const _VerseBlock({
     super.key,
@@ -473,11 +531,14 @@ class _VerseBlock extends StatelessWidget {
     required this.accentColor,
     required this.bookNameAr,
     required this.bookSlug,
+    required this.favorites,
+    required this.onToggleFav,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasArabic = arabicVerse?.ar != null && arabicVerse!.ar.isNotEmpty;
+    final itemKey   = '$bookSlug:${verse.verseKey}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -494,7 +555,8 @@ class _VerseBlock extends StatelessWidget {
             arabicText:  arabicVerse?.ar,
             tafsirText:  verse.text,
             bookNameAr:  bookNameAr,
-            bookSlug:    bookSlug,
+            isFav:       favorites.contains(itemKey),
+            onToggleFav: () => onToggleFav(itemKey),
           ),
           const SizedBox(height: 22),
 
@@ -531,11 +593,10 @@ class _VerseBlock extends StatelessWidget {
                       textAlign:     TextAlign.center,
                       textDirection: TextDirection.rtl,
                       style: TextStyle(
-                        fontFamily:    'UthmanTahaNaskh',
-                        fontSize:      fontSize + 9,
-                        color:         const Color(0xFF4A3F30),
-                        height:        2.4,
-                        letterSpacing: 0,
+                        fontFamily: 'UthmanTahaNaskh',
+                        fontSize:   fontSize + 9,
+                        color:      const Color(0xFF4A3F30),
+                        height:     2.4,
                         shadows: [
                           Shadow(
                             color:      const Color(0xFFC8A97E).withAlpha(55),
@@ -1523,16 +1584,17 @@ class _EmptyView extends StatelessWidget {
 // Indicateur verset ornemental  (remplace _OrnamentalDivider)
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _VerseIndicatorBox extends StatefulWidget {
-  final int     surah;
-  final int     ayah;
-  final String  verseKey;
-  final Color   accentColor;
-  final bool    dark;
-  final String? arabicText;
-  final String  tafsirText;
-  final String  bookNameAr;
-  final String  bookSlug;
+class _VerseIndicatorBox extends StatelessWidget {
+  final int          surah;
+  final int          ayah;
+  final String       verseKey;
+  final Color        accentColor;
+  final bool         dark;
+  final String?      arabicText;
+  final String       tafsirText;
+  final String       bookNameAr;
+  final bool         isFav;
+  final VoidCallback onToggleFav;
 
   const _VerseIndicatorBox({
     required this.surah,
@@ -1543,59 +1605,26 @@ class _VerseIndicatorBox extends StatefulWidget {
     required this.arabicText,
     required this.tafsirText,
     required this.bookNameAr,
-    required this.bookSlug,
+    required this.isFav,
+    required this.onToggleFav,
   });
-
-  @override
-  State<_VerseIndicatorBox> createState() => _VerseIndicatorBoxState();
-}
-
-class _VerseIndicatorBoxState extends State<_VerseIndicatorBox> {
-  bool _isFav = false;
-  static const _favKey = 'tafsir_favorites';
-
-  String get _itemKey => '${widget.bookSlug}:${widget.verseKey}';
 
   String get _shareText {
     final buf = StringBuffer();
-    final ar = widget.arabicText;
+    final ar = arabicText;
     if (ar != null && ar.isNotEmpty) {
       buf.writeln(ar);
       buf.writeln();
     }
-    buf.writeln('── ${widget.bookNameAr} ──');
-    buf.writeln(widget.tafsirText);
-    buf.write('[${widget.verseKey}]');
+    buf.writeln('── $bookNameAr ──');
+    buf.writeln(tafsirText);
+    buf.write('[$verseKey]');
     return buf.toString();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFav();
-  }
-
-  Future<void> _loadFav() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list  = prefs.getStringList(_favKey) ?? [];
-    if (mounted) setState(() => _isFav = list.contains(_itemKey));
-  }
-
-  Future<void> _toggleFav() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list  = (prefs.getStringList(_favKey) ?? []).toList();
-    if (_isFav) {
-      list.remove(_itemKey);
-    } else {
-      list.add(_itemKey);
-    }
-    await prefs.setStringList(_favKey, list);
-    if (mounted) setState(() => _isFav = !_isFav);
-  }
-
-  Future<void> _copy() async {
+  Future<void> _copy(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: _shareText));
-    if (mounted) {
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Copié dans le presse-papier'),
         behavior: SnackBarBehavior.floating,
@@ -1631,7 +1660,7 @@ class _VerseIndicatorBoxState extends State<_VerseIndicatorBox> {
                   ),
                 ),
                 GestureDetector(
-                  onTap: _copy,
+                  onTap: () => _copy(context),
                   child: const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     child: Icon(Icons.content_copy_rounded,
@@ -1639,16 +1668,16 @@ class _VerseIndicatorBoxState extends State<_VerseIndicatorBox> {
                   ),
                 ),
                 GestureDetector(
-                  onTap: _toggleFav,
+                  onTap: onToggleFav,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 2),
                     child: Icon(
-                      _isFav
+                      isFav
                           ? Icons.bookmark_rounded
                           : Icons.bookmark_border_rounded,
                       size: 18,
-                      color: _isFav
+                      color: isFav
                           ? const Color(0xFFE8B04A)
                           : iconColor,
                     ),
@@ -1665,7 +1694,7 @@ class _VerseIndicatorBoxState extends State<_VerseIndicatorBox> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'آية ${widget.ayah}',
+                    'آية $ayah',
                     textDirection: TextDirection.rtl,
                     style: const TextStyle(
                       fontFamily: 'UthmanTahaNaskh',

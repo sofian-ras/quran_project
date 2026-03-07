@@ -112,6 +112,59 @@ class MiniPlayerWidget extends StatelessWidget {
             _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
           ],
         ),
+        // Ligne 2.5 : barre de pré-téléchargement
+        ValueListenableBuilder<double?>(
+          valueListenable: svc.prepProgress,
+          builder: (_, prep, __) {
+            if (prep == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: prep,
+                            minHeight: 3,
+                            backgroundColor: Colors.white.withValues(alpha: 0.15),
+                            valueColor:
+                                const AlwaysStoppedAnimation<Color>(Colors.white70),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${(prep * 100).round()}%',
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: svc.cancelPrep,
+                        child: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white38,
+                          size: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Préparation de la lecture…',
+                    style: TextStyle(color: Colors.white38, fontSize: 10),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
         // Ligne 3 : message d'indisponibilité
         ValueListenableBuilder<String?>(
           valueListenable: svc.unavailableMessage,
@@ -217,48 +270,60 @@ class MiniPlayerWidget extends StatelessWidget {
   // ── Bouton play/pause ─────────────────────────────────────────────────────
 
   Widget _buildPlayBtn(MiniPlayerService svc, {double size = 26}) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: svc.isPlaying,
-      builder: (_, playing, __) => ValueListenableBuilder<bool>(
-        valueListenable: svc.isLoading,
-        builder: (_, loading, __) => ValueListenableBuilder<bool>(
-          valueListenable: svc.isRangeAutoAdvancing,
-          builder: (_, autoAdvancing, __) {
-            // Pendant une transition automatique entre versets (range/sourate),
-            // on masque le spinner et on affiche le bouton pause : la plage
-            // est toujours en cours de lecture conceptuellement.
-            if (loading && !autoAdvancing) {
-              return SizedBox(
-                width: size,
-                height: size,
-                child: const CircularProgressIndicator(
-                  strokeWidth: 2,
+    return ValueListenableBuilder<double?>(
+      valueListenable: svc.prepProgress,
+      builder: (_, prep, __) => ValueListenableBuilder<bool>(
+        valueListenable: svc.isPlaying,
+        builder: (_, playing, __) => ValueListenableBuilder<bool>(
+          valueListenable: svc.isLoading,
+          builder: (_, loading, __) => ValueListenableBuilder<bool>(
+            valueListenable: svc.isRangeAutoAdvancing,
+            builder: (_, autoAdvancing, __) {
+              // Pendant la préparation : spinner avec progression circulaire.
+              if (prep != null) {
+                return SizedBox(
+                  width: size,
+                  height: size,
+                  child: CircularProgressIndicator(
+                    value: prep > 0 ? prep : null,
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                );
+              }
+              // Pendant le buffering just_audio (hors auto-transition).
+              if (loading && !autoAdvancing) {
+                return SizedBox(
+                  width: size,
+                  height: size,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                );
+              }
+              final showPause = playing || autoAdvancing;
+              return GestureDetector(
+                onTap: () {
+                  if (svc.currentAyahKey.value != null || autoAdvancing) {
+                    svc.playPause();
+                  } else if (svc.selectionStartKey != null) {
+                    final parts = svc.selectionStartKey!.split(':');
+                    final s = int.tryParse(parts[0]) ?? currentSurah;
+                    final a = int.tryParse(parts.length > 1 ? parts[1] : '1') ?? 1;
+                    svc.playFrom(surah: s, ayah: a);
+                  } else {
+                    svc.playFrom(surah: currentSurah, ayah: 1);
+                  }
+                },
+                child: Icon(
+                  showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   color: Colors.white,
+                  size: size,
                 ),
               );
-            }
-            // autoAdvancing → forcer l'icône pause (la séquence joue encore).
-            final showPause = playing || autoAdvancing;
-            return GestureDetector(
-              onTap: () {
-                if (svc.currentAyahKey.value != null || autoAdvancing) {
-                  svc.playPause();
-                } else if (svc.selectionStartKey != null) {
-                  final parts = svc.selectionStartKey!.split(':');
-                  final s = int.tryParse(parts[0]) ?? currentSurah;
-                  final a = int.tryParse(parts.length > 1 ? parts[1] : '1') ?? 1;
-                  svc.playFrom(surah: s, ayah: a);
-                } else {
-                  svc.playFrom(surah: currentSurah, ayah: 1);
-                }
-              },
-              child: Icon(
-                showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: size,
-              ),
-            );
-          },
+            },
+          ),
         ),
       ),
     );
