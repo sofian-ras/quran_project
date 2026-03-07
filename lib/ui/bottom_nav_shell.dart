@@ -19,8 +19,11 @@ class BottomNavShell extends StatefulWidget {
 class _BottomNavShellState extends State<BottomNavShell> {
   int _index = 0;
 
-  // Permet de conserver le state/scroll de chaque tab (même avec IndexedStack,
-  // ça aide surtout si certains widgets utilisent PageStorageKey).
+  // Onglets déjà visités : seuls ceux-ci sont construits dans l'IndexedStack.
+  // Les autres restent un SizedBox.shrink() jusqu'à leur première visite,
+  // évitant d'initialiser tous les écrans au démarrage.
+  final Set<int> _visitedTabs = {0};
+
   final PageStorageBucket _bucket = PageStorageBucket();
 
   late final List<Widget> _pages = <Widget>[
@@ -57,12 +60,11 @@ class _BottomNavShellState extends State<BottomNavShell> {
   }
 
   void _onTabChanged(int i) {
-    if (i == _index) {
-      // Optionnel: si l'utilisateur retape l'onglet courant,
-      // tu peux ajouter un comportement plus tard (scroll-to-top, etc.).
-      return;
-    }
-    setState(() => _index = i);
+    if (i == _index) return;
+    setState(() {
+      _visitedTabs.add(i);
+      _index = i;
+    });
   }
 
   @override
@@ -75,7 +77,12 @@ class _BottomNavShellState extends State<BottomNavShell> {
           bucket: _bucket,
           child: IndexedStack(
             index: _index,
-            children: _pages,
+            children: List.generate(
+              _pages.length,
+              (i) => _visitedTabs.contains(i)
+                  ? _pages[i]
+                  : const SizedBox.shrink(),
+            ),
           ),
         ),
         bottomNavigationBar: ModernBottomNavBar(

@@ -45,179 +45,6 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
     super.dispose();
   }
 
-  Future<void> _showPackDialog() async {
-    final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    bool frReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
-    bool enReady = await QuranTranslationPackService.isPackReady(AppLang.en);
-
-    CancelToken? cancelToken;
-    bool downloading = false;
-    double progress = 0.0;
-    AppLang? downloadingLang;
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: !downloading,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (ctx, setStateDialog) {
-            Future<void> startDownload(AppLang lang) async {
-              if (downloading) return;
-
-              setStateDialog(() {
-                downloading = true;
-                downloadingLang = lang;
-                progress = 0.0;
-                cancelToken = CancelToken();
-              });
-
-              try {
-                await QuranTranslationPackService.downloadPack(
-                  lang,
-                  cancelToken: cancelToken,
-                  onProgress: (p) => setStateDialog(() => progress = p),
-                );
-
-                frReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
-                enReady = await QuranTranslationPackService.isPackReady(AppLang.en);
-
-                setStateDialog(() {
-                  downloading = false;
-                  downloadingLang = null;
-                  cancelToken = null;
-                  progress = 1.0;
-                });
-              } catch (e) {
-                final cancelled = cancelToken?.isCancelled == true;
-
-                setStateDialog(() {
-                  downloading = false;
-                  downloadingLang = null;
-                  cancelToken = null;
-                });
-
-                if (!cancelled && ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(content: Text(isEn ? 'Download failed: $e' : 'Téléchargement échoué : $e')),
-                  );
-                }
-              }
-            }
-
-            void cancelDownload() => cancelToken?.cancel('cancelled');
-
-            Widget packRow({
-              required String title,
-              required bool ready,
-              required AppLang lang,
-            }) {
-              final status = ready ? (isEn ? 'Installed' : 'Installé') : (isEn ? 'Not installed' : 'Non installé');
-              final canDownload = !ready && !downloading;
-
-              return Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F1734) : Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            status,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: (isDark ? Colors.white : Colors.black).withOpacity(0.65),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: canDownload ? () => startDownload(lang) : null,
-                      child: Text(isEn ? 'Download' : 'Télécharger'),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return AlertDialog(
-              backgroundColor: isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF),
-              title: Text(isEn ? 'Offline translation packs' : 'Packs de traduction offline'),
-              content: SizedBox(
-                width: 420,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    packRow(
-                      title: isEn ? 'French translation (SQLite)' : 'Traduction Français (SQLite)',
-                      ready: frReady,
-                      lang: AppLang.fr,
-                    ),
-                    const SizedBox(height: 10),
-                    packRow(
-                      title: isEn ? 'English translation (SQLite)' : 'Traduction Anglais (SQLite)',
-                      ready: enReady,
-                      lang: AppLang.en,
-                    ),
-                    if (downloading) ...[
-                      const SizedBox(height: 14),
-                      LinearProgressIndicator(value: progress),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${(progress * 100).toStringAsFixed(0)}%  '
-                              '${(downloadingLang == AppLang.fr) ? "FR" : "EN"}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: (isDark ? Colors.white : Colors.black).withOpacity(0.7),
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: cancelDownload,
-                            child: Text(isEn ? 'Cancel' : 'Annuler'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: downloading ? null : () => Navigator.pop(ctx),
-                  child: Text(isEn ? 'Close' : 'Fermer'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
@@ -237,13 +64,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
           backgroundColor: isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF),
           foregroundColor: isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90),
           elevation: 0,
-          actions: [
-            IconButton(
-              tooltip: isEn ? 'Offline packs' : 'Packs offline',
-              icon: const Icon(Icons.cloud_download_rounded),
-              onPressed: _showPackDialog,
-            ),
-          ],
+          actions: const [],
           bottom: TabBar(
             labelColor: isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90),
             unselectedLabelColor: isDark ? Colors.white.withOpacity(0.55) : Colors.black.withOpacity(0.50),
@@ -467,53 +288,13 @@ class _SurahTabState extends State<_SurahTab> {
     final badgeFill = isDark ? const Color(0xFF2A3A6A) : const Color(0xFFE8EAF6);
     final badgeText = isDark ? Colors.white.withOpacity(0.90) : const Color(0xFF3949AB);
 
-    const totalSurahs = 114;
-    final visitedCount = _visitedSurahIds.length;
-    final progress = visitedCount / totalSurahs;
-
     return Container(
       color: bg,
       child: ListView.builder(
         padding: const EdgeInsets.only(bottom: 24),
-        // +1 pour la barre de progression en en-tête
-        itemCount: _items.length + 1,
+        itemCount: _items.length,
         itemBuilder: (context, index) {
-          // ─── En-tête : barre de progression ───
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        isEn ? 'Progress' : 'Progression',
-                        style: TextStyle(color: subColor, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '$visitedCount / $totalSurahs ${isEn ? 'surahs' : 'sourates'}',
-                        style: TextStyle(color: subColor, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 4,
-                      backgroundColor: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07),
-                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final item = _items[index - 1]; // décalage de 1 à cause de l'en-tête
+          final item = _items[index];
 
           // Surah item
           final surahId = item['id'] as int;
@@ -678,6 +459,126 @@ class _OctagonPainter extends CustomPainter {
       old.fill != fill || old.border != border;
 }
 
+// ── Mushaf-style ornamental frame around surah name ──────────────────────────
+class _SurahFramePainter extends CustomPainter {
+  final Color color;
+  const _SurahFramePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    const r = 6.0; // inset
+    // Outer rect
+    canvas.drawRect(Rect.fromLTRB(0, 0, size.width, size.height), paint);
+    // Inner rect
+    canvas.drawRect(Rect.fromLTRB(r, r, size.width - r, size.height - r), paint);
+
+    void diamond(Offset center, double half) {
+      final path = Path()
+        ..moveTo(center.dx, center.dy - half)
+        ..lineTo(center.dx + half, center.dy)
+        ..lineTo(center.dx, center.dy + half)
+        ..lineTo(center.dx - half, center.dy)
+        ..close();
+      canvas.drawPath(path, paint..style = PaintingStyle.fill);
+    }
+
+    const d = 4.5;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // Corners (outer rect)
+    diamond(const Offset(0, 0), d);
+    diamond(Offset(size.width, 0), d);
+    diamond(Offset(0, size.height), d);
+    diamond(Offset(size.width, size.height), d);
+
+    // Mid-edge (outer rect)
+    diamond(Offset(cx, 0), d);
+    diamond(Offset(cx, size.height), d);
+    diamond(Offset(0, cy), d);
+    diamond(Offset(size.width, cy), d);
+  }
+
+  @override
+  bool shouldRepaint(_SurahFramePainter old) => old.color != color;
+}
+
+class _SurahNameFrame extends StatelessWidget {
+  final String nameAr;
+  final Color frameColor;
+  final Color textColor;
+
+  const _SurahNameFrame({required this.nameAr, required this.frameColor, required this.textColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: CustomPaint(
+        painter: _SurahFramePainter(frameColor),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+          child: Text(
+            nameAr,
+            textDirection: TextDirection.rtl,
+            style: TextStyle(
+              fontSize: 30,
+              fontFamily: 'ScheherazadeNew',
+              fontWeight: FontWeight.w600,
+              color: textColor,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BasmalaTitle extends StatelessWidget {
+  final Color color;
+  final double fontSize;
+  const _BasmalaTitle({required this.color, required this.fontSize});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontFamily: 'ScheherazadeNew',
+            fontWeight: FontWeight.w500,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(width: 40, height: 0.8, color: color.withValues(alpha: 0.45)),
+            const SizedBox(width: 5),
+            Container(
+              width: 4, height: 4,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.55), shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 5),
+            Container(width: 40, height: 0.8, color: color.withValues(alpha: 0.45)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class TranslatedSurahScreen extends StatefulWidget {
   final int surahNumber;
   final String surahNameFr;
@@ -698,7 +599,8 @@ class TranslatedSurahScreen extends StatefulWidget {
   State<TranslatedSurahScreen> createState() => _TranslatedSurahScreenState();
 }
 
-class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
+class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
+    with SingleTickerProviderStateMixin {
   bool _surahDownloaded = false;
   bool _checkingSurahDownloaded = false;
   bool _downloadingSurah = false;
@@ -876,12 +778,14 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
   bool _showArabic = true;
   bool _showTranslation = true;
-  double _fontArabic = 20;
+  bool _showTajweed = true;
+  // 0 = blanc · 1 = papier · 2 = sombre
+  int _localTheme = 1;
+  double _fontArabic = 22;
   double _fontTranslation = 16;
   double _fontTafsir = 14;
 
   Set<String> _favoriteKeys = <String>{};
-  String? _openTafsirKey;
 
   // --- Auto-center precise (no more "approxItem") ---
   final Map<int, GlobalKey> _ayahItemKeys = <int, GlobalKey>{};
@@ -909,6 +813,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     });
   }
   final ScrollController _scrollController = ScrollController();
+  // 0.0 = barres visibles · 1.0 = barres cachées
+  final ValueNotifier<double> _barProgress = ValueNotifier(0.0);
+  double _lastScrollOffset = 0.0;
+  late AnimationController _snapController;
+  late Animation<double> _snapAnim;
   late final Listenable _audioListenable;
   int _selectedAyah = 1;
 
@@ -965,6 +874,31 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
       _attachAyahListener();
       _loadTranslationsBackground();
     });
+
+    _snapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    )..addListener(() => _barProgress.value = _snapAnim.value);
+
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    _snapController.stop();
+    final offset = _scrollController.offset;
+    final delta = offset - _lastScrollOffset;
+    _lastScrollOffset = offset;
+    if (offset <= 0) {
+      _barProgress.value = 0.0;
+      return;
+    }
+    _barProgress.value = (_barProgress.value + delta / 90.0).clamp(0.0, 1.0);
+  }
+
+  void _snapBars(bool hide) {
+    _snapAnim = Tween<double>(begin: _barProgress.value, end: hide ? 1.0 : 0.0)
+        .animate(CurvedAnimation(parent: _snapController, curve: Curves.easeOut));
+    _snapController.forward(from: 0);
   }
 
   void _attachAyahListener() {
@@ -996,14 +930,18 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   void dispose() {
     AudioService.instance.currentAyahKeyNotifier.removeListener(_onCurrentAyahChanged);
     _scrollController.dispose();
+    _snapController.dispose();
+    _barProgress.dispose();
     super.dispose();
   }
 
-  Color _bg(bool isDark) => isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF);
-  Color _text(bool isDark) => isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90);
-  Color _muted(bool isDark) => isDark ? Colors.white.withOpacity(0.62) : Colors.black.withOpacity(0.58);
-  Color _border(bool isDark) => isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08);
-  Color _accent(bool isDark) => isDark ? const Color(0xFFE3C880) : const Color(0xFFB37A2A);
+  // Couleurs pilotées par _localTheme (0=blanc, 1=papier, 2=sombre)
+  bool get _isDark => _localTheme == 2;
+  Color _bg(bool _) => _isDark ? const Color(0xFF0B1025) : (_localTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
+  Color _text(bool _) => _isDark ? Colors.white.withValues(alpha: 0.92) : Colors.black.withValues(alpha: 0.90);
+  Color _muted(bool _) => _isDark ? Colors.white.withValues(alpha: 0.62) : Colors.black.withValues(alpha: 0.58);
+  Color _border(bool _) => _isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.08);
+  Color _accent(bool _) => _isDark ? const Color(0xFFE3C880) : const Color(0xFFB37A2A);
 
   Future<void> _loadFavorites() async {
     final favs = await VerseFavoritesService.instance.getFavorites();
@@ -1363,152 +1301,275 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   }
 
   void _showSettingsSheet() {
+    const green = Color(0xFF43A047);
+    const sheetBg = Color(0xFFF8FAFB);
+    const labelC = Color(0xFF1C1C1E);
+    const sectionC = Color(0xFF8E8E93);
+    const divC = Color(0xFFE5E7EB);
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) {
-        return SafeArea(
-          child: StatefulBuilder(
-            builder: (context, setStateSheet) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              final accent = _accent(isDark);
-              final fg = _text(isDark);
-              final subtle = _muted(isDark);
-              final border = _border(isDark);
+        return StatefulBuilder(
+          builder: (_, setS) {
 
-              InputDecoration deco(String label) => InputDecoration(
-                    labelText: label,
-                    labelStyle: TextStyle(color: subtle, fontWeight: FontWeight.w700),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: border)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accent.withOpacity(0.7))),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  );
+            // ── Thème card ────────────────────────────────────────────
+            Widget themeCard({
+              required int idx,
+              required String label,
+              required Color bg,
+              required Color fgC,
+            }) {
+              final selected = _localTheme == idx;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setS(() => _localTheme = idx);
+                    setState(() => _localTheme = idx);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selected ? green : divC,
+                        width: selected ? 2 : 1,
+                      ),
+                      boxShadow: selected
+                          ? [BoxShadow(color: green.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 2))]
+                          : [],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'بِسْمِ',
+                          style: TextStyle(
+                            fontFamily: 'ScheherazadeNew',
+                            fontSize: 18,
+                            color: selected ? green : fgC.withValues(alpha: 0.55),
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: selected ? green : sectionC,
+                            fontSize: 12,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
 
+            // ── Ligne toggle ──────────────────────────────────────────
+            Widget toggleRow({
+              required IconData icon,
+              required String label,
+              required String subtitle,
+              required bool value,
+              required ValueChanged<bool> onChanged,
+            }) {
               return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text('Arabe', style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
-                            value: _showArabic,
-                            onChanged: (v) {
-                              setStateSheet(() => _showArabic = v);
-                              if (mounted) setState(() {});
-                            },
-                          ),
-                        ),
-                        Expanded(
-                          child: SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text('Traduction', style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
-                            value: _showTranslation,
-                            onChanged: (v) {
-                              setStateSheet(() => _showTranslation = v);
-                              if (mounted) setState(() {});
-                            },
-                          ),
-                        ),
-                      ],
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: value
+                            ? green.withValues(alpha: 0.10)
+                            : const Color(0xFFEEF0F2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(icon, size: 18,
+                          color: value ? green : sectionC),
                     ),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      value: _translationKey,
-                      dropdownColor: isDark ? const Color(0xFF0F1734) : Colors.white,
-                      decoration: deco('Traduction (API)'),
-                      style: TextStyle(color: fg, fontWeight: FontWeight.w700),
-                      items: _translationOptions.entries
-                          .map((e) => DropdownMenuItem<String>(value: e.value, child: Text(e.key, style: TextStyle(color: fg))))
-                          .toList(),
-                      onChanged: (v) async {
-                        if (v == null) return;
-                        setStateSheet(() => _translationKey = v);
-                        setState(() => _translationKey = v);
-                        await _load();
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(label,
+                              style: const TextStyle(
+                                  color: labelC,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600)),
+                          Text(subtitle,
+                              style: const TextStyle(
+                                  color: sectionC, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: value,
+                      onChanged: (v) {
+                        onChanged(v);
+                        if (mounted) setState(() {});
                       },
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      value: _tafsirKey,
-                      dropdownColor: isDark ? const Color(0xFF0F1734) : Colors.white,
-                      decoration: deco('Tafsir (API)'),
-                      style: TextStyle(color: fg, fontWeight: FontWeight.w700),
-                      items: _tafsirOptions.entries
-                          .map((e) => DropdownMenuItem<String>(value: e.value, child: Text(e.key, style: TextStyle(color: fg))))
-                          .toList(),
-                      onChanged: (v) async {
-                        if (v == null) return;
-                        setStateSheet(() => _tafsirKey = v);
-                        setState(() => _tafsirKey = v);
-                        await _load();
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        const Text('Taille arabe'),
-                        Expanded(
-                          child: Slider(
-                            min: 10,
-                            max: 56,
-                            value: _fontArabic,
-                            activeColor: accent,
-                            inactiveColor: accent.withOpacity(0.2),
-                            onChanged: (v) {
-                              setStateSheet(() => _fontArabic = v);
-                              if (mounted) setState(() {});
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const Text('Taille traduction'),
-                        Expanded(
-                          child: Slider(
-                            min: 12,
-                            max: 22,
-                            value: _fontTranslation,
-                            activeColor: accent,
-                            inactiveColor: accent.withOpacity(0.2),
-                            onChanged: (v) {
-                              setStateSheet(() => _fontTranslation = v);
-                              if (mounted) setState(() {});
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const Text('Taille tafsir'),
-                        Expanded(
-                          child: Slider(
-                            min: 12,
-                            max: 20,
-                            value: _fontTafsir,
-                            activeColor: accent,
-                            inactiveColor: accent.withOpacity(0.2),
-                            onChanged: (v) {
-                              setStateSheet(() => _fontTafsir = v);
-                              if (mounted) setState(() {});
-                            },
-                          ),
-                        ),
-                      ],
+                      activeTrackColor: green,
+                      activeColor: green,
                     ),
                   ],
                 ),
               );
-            },
-          ),
+            }
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: sheetBg,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle
+                    Center(
+                      child: Container(
+                        width: 40, height: 4,
+                        decoration: BoxDecoration(
+                          color: divC,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text('Affichage',
+                        style: TextStyle(color: labelC, fontSize: 18, fontWeight: FontWeight.w700)),
+
+                    // ── THÈME ────────────────────────────────────────
+                    const Padding(
+                      padding: EdgeInsets.only(top: 22, bottom: 10),
+                      child: Text('THÈME', style: TextStyle(color: sectionC, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                    ),
+                    Row(
+                      children: [
+                        themeCard(idx: 0, label: 'Blanc', bg: Colors.white, fgC: Colors.black),
+                        const SizedBox(width: 10),
+                        themeCard(idx: 1, label: 'Papier', bg: const Color(0xFFF3E8C0), fgC: Colors.black),
+                        const SizedBox(width: 10),
+                        themeCard(idx: 2, label: 'Sombre', bg: const Color(0xFF0B1025), fgC: Colors.white),
+                      ],
+                    ),
+
+                    // ── TAILLE DU TEXTE ──────────────────────────────
+                    const Padding(
+                      padding: EdgeInsets.only(top: 22, bottom: 4),
+                      child: Text('TAILLE DU TEXTE', style: TextStyle(color: sectionC, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.text_fields_rounded, size: 15, color: sectionC),
+                        Expanded(
+                          child: SliderTheme(
+                            data: SliderTheme.of(_).copyWith(
+                              activeTrackColor: green,
+                              thumbColor: green,
+                              inactiveTrackColor: divC,
+                              overlayColor: green.withValues(alpha: 0.12),
+                              trackHeight: 3,
+                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                            ),
+                            child: Slider(
+                              min: 16,
+                              max: 36,
+                              value: _fontArabic.clamp(16, 36),
+                              onChanged: (v) {
+                                setS(() {
+                                  _fontArabic = v;
+                                  _fontTranslation = (v * 0.76).clamp(12, 26);
+                                  _fontTafsir = (v * 0.68).clamp(11, 24);
+                                });
+                                if (mounted) { setState(() {
+                                  _fontArabic = v;
+                                  _fontTranslation = (v * 0.76).clamp(12, 26);
+                                  _fontTafsir = (v * 0.68).clamp(11, 24);
+                                }); }
+                              },
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.text_fields_rounded, size: 22, color: sectionC),
+                      ],
+                    ),
+                    // Aperçu live
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _localTheme == 2 ? const Color(0xFF12192E) : (_localTheme == 0 ? const Color(0xFFF5F5F5) : const Color(0xFFEDE0B8)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: _fontArabic,
+                          fontFamily: 'ScheherazadeNew',
+                          fontWeight: FontWeight.w600,
+                          color: _localTheme == 2 ? Colors.white.withValues(alpha: 0.88) : Colors.black.withValues(alpha: 0.82),
+                          height: 1.6,
+                        ),
+                      ),
+                    ),
+
+                    // ── OPTIONS ──────────────────────────────────────
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16, bottom: 6),
+                      child: Text('OPTIONS', style: TextStyle(color: sectionC, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: divC),
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                            child: toggleRow(
+                              icon: Icons.palette_outlined,
+                              label: 'Couleurs tajwīd',
+                              subtitle: 'Coloriser les règles de récitation',
+                              value: _showTajweed,
+                              onChanged: (v) => setS(() => _showTajweed = v),
+                            ),
+                          ),
+                          const Divider(height: 1, indent: 64, color: divC),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                            child: toggleRow(
+                              icon: Icons.translate_rounded,
+                              label: 'Traduction',
+                              subtitle: 'Afficher la traduction française',
+                              value: _showTranslation,
+                              onChanged: (v) => setS(() => _showTranslation = v),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -2054,81 +2115,116 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     });
   }
 
-  void _toggleTafsir(int ayah) {
-    final key = _verseKey(ayah);
-    setState(() => _openTafsirKey = (_openTafsirKey == key) ? null : key);
-  }
-
   void _showVerseActions({
     required int ayah,
     required String ar,
     required String tr,
+    String taf = '',
   }) {
     final key = _verseKey(ayah);
     final isFav = _favoriteKeys.contains(key);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = _text(isDark);
+    final subtle = _muted(isDark);
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       showDragHandle: true,
       builder: (_) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.play_arrow_rounded),
-                title: const Text('Lire ce verset'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _setSelectedAyah(ayah, center: true);
-                  AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.single;
-                  setState(() => _repeatTimes = 1);
-                  AudioService.instance.playAyah(widget.surahNumber, ayah);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_play_rounded),
-                title: const Text('Lire en continu (de ce verset à la fin)'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _setSelectedAyah(ayah, center: true);
-                  setState(() => _repeatTimes = 1);
-                  AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.continuous;
-                  AudioService.instance.playAyahRange(
-                    surah: widget.surahNumber,
-                    startAyah: ayah,
-                    endAyah: _arabic.length,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.copy_all_rounded),
-                title: const Text('Copier arabe + traduction'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Clipboard.setData(ClipboardData(text: '$ar\n\n$tr'));
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.share_rounded),
-                title: const Text('Partager'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Share.share('$ar\n\n$tr');
-                },
-              ),
-              ListTile(
-                leading: Icon(isFav ? Icons.favorite : Icons.favorite_border),
-                title: Text(isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleFavorite(ayah);
-                },
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── En-tête : numéro + sourate ──────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Row(
+                    children: [
+                      Text(
+                        '${widget.surahNameFr}  ·  verset $ayah',
+                        style: TextStyle(color: subtle, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                // ── Actions principales ─────────────────────────────────
+                ListTile(
+                  leading: const Icon(Icons.play_arrow_rounded),
+                  title: const Text('Écouter ce verset'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _setSelectedAyah(ayah, center: true);
+                    AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.single;
+                    setState(() => _repeatTimes = 1);
+                    AudioService.instance.playAyah(widget.surahNumber, ayah);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.playlist_play_rounded),
+                  title: const Text('Écouter en continu'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _setSelectedAyah(ayah, center: true);
+                    setState(() => _repeatTimes = 1);
+                    AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.continuous;
+                    AudioService.instance.playAyahRange(
+                      surah: widget.surahNumber,
+                      startAyah: ayah,
+                      endAyah: _arabic.length,
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      color: isFav ? Colors.redAccent : null),
+                  title: Text(isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _toggleFavorite(ayah);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.copy_all_rounded),
+                  title: const Text('Copier arabe + traduction'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Clipboard.setData(ClipboardData(text: '$ar\n\n$tr'));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.share_rounded),
+                  title: const Text('Partager'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Share.share('$ar\n\n$tr');
+                  },
+                ),
+                // ── Tafsir (expandable) ─────────────────────────────────
+                if (taf.trim().isNotEmpty)
+                  ExpansionTile(
+                    leading: const Icon(Icons.menu_book_rounded),
+                    title: const Text('Tafsir'),
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                    childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                    children: [
+                      Text(
+                        taf.trim(),
+                        style: TextStyle(
+                          fontSize: _fontTafsir,
+                          height: 1.55,
+                          fontFamily: 'serif',
+                          color: fg.withValues(alpha: isDark ? 0.78 : 0.74),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -2146,6 +2242,10 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
   }
 
   List<InlineSpan> _parseTajweedSpans(String input, Color fallback) {
+    if (!_showTajweed) {
+      final plain = input.replaceAll(RegExp(r'<[^>]+>'), '');
+      return [TextSpan(text: plain, style: TextStyle(color: fallback))];
+    }
     final spans = <InlineSpan>[];
     final regex = RegExp(
       "<rulee?\\s+class=['\\\"]?([^\\s>]+)['\\\"]?>(.*?)</rulee?>",
@@ -2439,7 +2539,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = _isDark;
 
     final merged = _audioListenable;
 
@@ -2447,20 +2547,10 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
     final subtle = _muted(isDark);
     final border = _border(isDark);
 
+    final topPad = MediaQuery.of(context).padding.top;
+    final appBarH = topPad + 44;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.surahNumber}. ${widget.surahNameFr}', style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
-        backgroundColor: _bg(isDark),
-        foregroundColor: fg,
-        elevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Affichage',
-            onPressed: _showSettingsSheet,
-            icon: const Icon(Icons.tune_rounded),
-          ),
-        ],
-      ),
       body: Container(
         color: _bg(isDark),
         child: _loading
@@ -2469,7 +2559,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                 ? Center(child: Text(_error ?? 'Aucun verset', style: TextStyle(color: subtle)))
                 : Stack(
                     children: [
-                      AnimatedBuilder(
+                      NotificationListener<ScrollEndNotification>(
+                        onNotification: (_) {
+                          _snapBars(_barProgress.value > 0.35);
+                          return false;
+                        },
+                        child: AnimatedBuilder(
                         animation: merged,
                         builder: (_, __) {
                           final currentKey = AudioService.instance.currentAyahKeyNotifier.value;
@@ -2478,29 +2573,31 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
 
                           return ListView.builder(
                             controller: _scrollController,
-                            padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 140),
+                            padding: EdgeInsets.fromLTRB(16, appBarH + 12, 16, MediaQuery.of(context).padding.bottom + 140),
                         itemCount: _arabic.length + 1,
                         itemBuilder: (context, i) {
                           if (i == 0) {
+                            final frameColor = isDark
+                                ? Colors.white.withValues(alpha: 0.30)
+                                : const Color(0xFFA07840).withValues(alpha: 0.65);
                             return Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    widget.surahNameAr,
-                                    textDirection: TextDirection.rtl,
-                                    style: TextStyle(
-                                      fontSize: 28,
-                                      fontFamily: 'ScheherazadeNew',
-                                      fontWeight: FontWeight.w600,
-                                      color: fg,
-                                    ),
+                                  _SurahNameFrame(
+                                    nameAr: widget.surahNameAr,
+                                    frameColor: frameColor,
+                                    textColor: fg,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(widget.surahNameFr, style: TextStyle(color: subtle, fontWeight: FontWeight.w600)),
-                                  const SizedBox(height: 10),
-                                  Divider(height: 1, thickness: 1, color: border),
+                                  if (_shouldShowBasmalaForThisSurah()) ...[
+                                    const SizedBox(height: 20),
+                                    _BasmalaTitle(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.55)
+                                          : const Color(0xFF7A5C30).withValues(alpha: 0.80),
+                                      fontSize: _fontArabic,
+                                    ),
+                                  ],
                                 ],
                               ),
                             );
@@ -2522,18 +2619,37 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                             key: _keyForAyah(ayaNum),
                             onTap: () {
                               _setSelectedAyah(ayaNum, center: false);
-                              _toggleTafsir(ayaNum);
+                              _showVerseActions(ayah: ayaNum, ar: ar, tr: tr, taf: taf);
                             },
-                            onLongPress: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
                             child: Container(
                               color: highlight,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Row(
                                     children: [
-                                      Text('$ayaNum', style: TextStyle(color: subtle, fontWeight: FontWeight.w900)),
+                                      // Numéro de verset en badge
+                                      Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: isPlayingThis
+                                              ? _accent(isDark).withValues(alpha: 0.18)
+                                              : (isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.06)),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '$ayaNum',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: isPlayingThis ? _accent(isDark) : subtle,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                       if (isPlayingThis) ...[
                                         const SizedBox(width: 8),
                                         Text(
@@ -2542,26 +2658,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                               : mode == AyahPlayMode.continuous
                                                   ? 'CONTINU'
                                                   : 'LECTURE',
-                                          style: TextStyle(color: subtle, fontWeight: FontWeight.w900, fontSize: 11),
+                                          style: TextStyle(color: _accent(isDark), fontWeight: FontWeight.w700, fontSize: 10),
                                         ),
                                       ],
                                       const Spacer(),
-                                      IconButton(
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                        iconSize: 18,
-                                        onPressed: () => _toggleFavorite(ayaNum),
-                                        icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: isFav ? Colors.redAccent : subtle),
-                                      ),
-                                      IconButton(
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                        iconSize: 18,
-                                        onPressed: () => _showVerseActions(ayah: ayaNum, ar: ar, tr: tr),
-                                        icon: Icon(Icons.more_horiz_rounded, color: subtle),
-                                      ),
+                                      if (isFav)
+                                        Icon(Icons.favorite, size: 15, color: Colors.redAccent.withValues(alpha: 0.8)),
                                     ],
                                   ),
                                   if (_showArabic) ...[
@@ -2591,33 +2693,9 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                           ),
                                         );
 
-                                        final showBasmala = (ayaNum == 1 && _shouldShowBasmalaForThisSurah());
-
-                                        return Column(
-                                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                                          children: [
-                                            if (showBasmala) ...[
-                                              const SizedBox(height: 6),
-                                              Center(
-                                                child: Text(
-                                                  'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
-                                                  textDirection: TextDirection.rtl,
-                                                  style: TextStyle(
-                                                    fontSize: _fontArabic,
-                                                    height: 2.2,
-                                                    fontFamily: 'ScheherazadeNew',
-                                                    fontWeight: FontWeight.w600,
-                                                    color: fg,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                            ],
-                                            RichText(
-                                              textDirection: TextDirection.rtl,
-                                              text: TextSpan(style: style, children: spans),
-                                            ),
-                                          ],
+                                        return RichText(
+                                          textDirection: TextDirection.rtl,
+                                          text: TextSpan(style: style, children: spans),
                                         );
                                       },
                                     ),
@@ -2636,37 +2714,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        _openTafsirKey == key ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                                        size: 18,
-                                        color: subtle,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text('Tafsir', style: TextStyle(color: subtle, fontWeight: FontWeight.w700, fontSize: 12)),
-                                    ],
-                                  ),
-                                  AnimatedSize(
-                                    duration: const Duration(milliseconds: 200),
-                                    curve: Curves.easeOut,
-                                    child: (_openTafsirKey == key)
-                                        ? Padding(
-                                            padding: const EdgeInsets.only(top: 10),
-                                            child: Text(
-                                              taf.trim().isEmpty ? 'Tafsir indisponible.' : taf,
-                                              style: TextStyle(
-                                                fontSize: _fontTafsir,
-                                                height: 1.45,
-                                                fontFamily: 'serif',
-                                                fontWeight: FontWeight.w500,
-                                                color: fg.withValues(alpha: isDark ? 0.78 : 0.74),
-                                              ),
-                                            ),
-                                          )
-                                        : const SizedBox.shrink(),
-                                  ),
                                   const SizedBox(height: 12),
                                   Divider(height: 1, thickness: 1, color: border),
                                 ],
@@ -2677,25 +2724,72 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen> {
                       );
                     },
                   ),
+                  ),
                   // ── Lecteur flottant ──────────────────────────────────
                   Positioned(
                     left: 14,
                     right: 14,
                     bottom: MediaQuery.of(context).padding.bottom + 14,
-                    child: AnimatedBuilder(
-                      animation: merged,
-                      builder: (_, __) {
-                        final currentKey = AudioService.instance.currentAyahKeyNotifier.value;
-                        final mode     = AudioService.instance.ayahPlayModeNotifier.value;
-                        final isPlaying = AudioService.instance.isAyahPlayingNotifier.value;
-                        _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
-                        return _ayahBottomBar(
-                          isDark: isDark,
-                          mode: mode,
-                          isPlaying: isPlaying,
-                          currentKey: currentKey,
-                        );
-                      },
+                    child: ValueListenableBuilder<double>(
+                      valueListenable: _barProgress,
+                      builder: (_, progress, child) => Transform.translate(
+                        offset: Offset(0, 200 * progress),
+                        child: child,
+                      ),
+                      child: AnimatedBuilder(
+                        animation: merged,
+                        builder: (_, __) {
+                          final currentKey = AudioService.instance.currentAyahKeyNotifier.value;
+                          final mode     = AudioService.instance.ayahPlayModeNotifier.value;
+                          final isPlaying = AudioService.instance.isAyahPlayingNotifier.value;
+                          _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
+                          return _ayahBottomBar(
+                            isDark: isDark,
+                            mode: mode,
+                            isPlaying: isPlaying,
+                            currentKey: currentKey,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  // ── Barre de navigation custom ────────────────────────
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: ValueListenableBuilder<double>(
+                      valueListenable: _barProgress,
+                      builder: (_, progress, child) => Transform.translate(
+                        offset: Offset(0, -appBarH * progress),
+                        child: child,
+                      ),
+                      child: Container(
+                        color: _bg(isDark),
+                        padding: EdgeInsets.fromLTRB(4, topPad, 4, 0),
+                        child: SizedBox(
+                          height: 44,
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: fg),
+                                onPressed: () => Navigator.of(context).maybePop(),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  '${widget.surahNumber}. ${widget.surahNameFr}',
+                                  style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 16),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.settings_outlined, size: 20, color: fg),
+                                onPressed: _showSettingsSheet,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],

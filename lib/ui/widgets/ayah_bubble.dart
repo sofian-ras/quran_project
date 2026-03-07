@@ -94,15 +94,19 @@ class _BubbleLayout extends StatelessWidget {
 
     return Stack(
       children: [
-        // Barrière plein écran : absorbe les taps hors bulle et empêche
-        // AyahSelectionOverlay (HitTestBehavior.opaque) de concurrencer
-        // les InkWells de la bulle dans l'arène des gestes.
-        // Étant dans l'overlay (testé en premier), la barrière gagne toujours
-        // contre AyahSelectionOverlay (arbre principal) → la bulle ne peut
-        // pas être re-montrée par un tap sur le verset en arrière-plan.
+        // Barrière plein écran : intercepte les taps hors bulle.
+        // HitTestBehavior.translucent → la barrière s'enregistre dans l'arène
+        // mais retourne false au hit-test, ce qui laisse AyahSelectionOverlay
+        // (arbre principal) s'y inscrire également.
+        //   • Tap  : TapGestureRecognizer barrière est premier dans la liste
+        //            → il gagne → onDismiss ✓
+        //   • Long press : seul LongPressGestureRecognizer d'AyahSelectionOverlay
+        //            est dans l'arène → il gagne → 2e long press fonctionne ✓
+        //   • InkWells de la bulle : testés avant la barrière (au-dessus dans
+        //            le Stack) → gagnent sans compétition ✓
         Positioned.fill(
           child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            behavior: HitTestBehavior.translucent,
             onTap: onDismiss,
           ),
         ),

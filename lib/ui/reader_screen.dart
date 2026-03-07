@@ -673,16 +673,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
         );
       }
     } else {
-      // ── 2ème long press : marque la fin, surbrille la plage, PAS de bulle ──
+      // ── 2ème long press : marque la fin, surbrille la plage, bulle pour jouer ──
       svc.setSelectionEnd(surah, ayah);
       setState(() {
-        _selectedVerseKey  = null;
+        _selectedVerseKey  = '$surah:$ayah';
         _selectionStartKey = svc.selectionStartKey;
         _selectionEndKey   = svc.selectionEndKey;
         if (svc.playMode.value != MiniPlayMode.selection) {
           svc.playMode.value = MiniPlayMode.selection;
         }
       });
+      if (globalRect != null) {
+        AyahBubble.show(
+          context,
+          surah: surah,
+          ayah: ayah,
+          anchorGlobalRect: globalRect,
+          onDismiss: () {
+            if (mounted) setState(() => _selectedVerseKey = null);
+          },
+        );
+      }
     }
   }
 

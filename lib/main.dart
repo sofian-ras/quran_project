@@ -10,33 +10,36 @@ import 'services/app_usage_service.dart';
 import 'services/audio_service.dart';
 import 'services/navigation_service.dart';
 import 'services/quran_translation_pack_service.dart';
-import 'services/quran_text_db.dart';
 import 'ui/bottom_nav_shell.dart';
 
 
 
 Future<void> main() async {
-  await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.quran.app.audio',
-    androidNotificationChannelName: 'Coran Audio',
-    androidNotificationOngoing: false,
-    androidStopForegroundOnPause: true,
-  );
+  // Doit être le premier appel — requis avant tout channel platform.
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Migration one-shot : quran_translation/ → qul/
-  await QuranTranslationPackService.migrateLegacyToQulIfNeeded();
-  // Diagnostic (supprimable une fois confirmé)
-  final dbReady = await QuranTextDb.instance.isReady();
-  // ignore: avoid_print
-  print('[QuranTextDb] ready? $dbReady');
+  // Inits bloquantes parallélisées : JustAudioBackground (lent) + ThemeService
+  // (nécessaire avant runApp pour éviter le flash de thème).
+  await Future.wait([
+    JustAudioBackground.init(
+      androidNotificationChannelId: 'com.quran.app.audio',
+      androidNotificationChannelName: 'Coran Audio',
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: true,
+    ),
+    ThemeService.init(),
+  ]);
+
+  // Opérations non-bloquantes : lancées en arrière-plan sans retarder runApp.
+  AppUsageService.init();
+  QuranTranslationPackService.migrateLegacyToQulIfNeeded();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
       statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: Color(0x33000000), // 80 % transparent
+      systemNavigationBarColor: Color(0x33000000),
       systemNavigationBarDividerColor: Colors.transparent,
       systemNavigationBarIconBrightness: Brightness.light,
       systemNavigationBarContrastEnforced: false,
@@ -44,14 +47,10 @@ Future<void> main() async {
   );
   PaintingBinding.instance.imageCache.maximumSizeBytes = 150 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 200;
-  await ThemeService.init();
-  await AppUsageService.init();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
   runApp(const QuranApp());
 }
 
