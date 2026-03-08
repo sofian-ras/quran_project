@@ -5,7 +5,6 @@ import 'dart:ui' show ImageFilter;
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
@@ -344,7 +343,6 @@ class _SurahTabState extends State<_SurahTab> {
   List<Map<String, dynamic>> _items = [];
   Set<int> _visitedSurahIds = {};
   bool _loading = true;
-  int _tqsTheme = 1; // 0=blanc 1=papier 2=sombre
 
   @override
   void initState() {
@@ -358,7 +356,6 @@ class _SurahTabState extends State<_SurahTab> {
     if (!mounted) return;
     final t = p.getInt('tqs_theme') ?? 1;
     _tqsThemeNotifier.value = t;
-    setState(() => _tqsTheme = t);
   }
 
   // Page de début de chaque sourate dans le mushaf (index 0 = sourate 1).
@@ -476,7 +473,7 @@ class _SurahTabState extends State<_SurahTab> {
               juz: juz,
               surah: surah,
               ayah: ayah,
-              tqsTheme: _tqsTheme,
+              tqsTheme: tqsTheme,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -523,62 +520,68 @@ class _SurahTabState extends State<_SurahTab> {
                     ),
                   ),
                 ).then((_) => _loadTheme()),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 32,
-                        child: Text(
-                          '$surahId',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: isVisited ? accentColor : subColor,
-                            fontSize: surahId > 99 ? 11 : 13,
-                            fontWeight: FontWeight.w600,
+                child: Stack(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 32,
+                            child: Text(
+                              '$surahId',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: isVisited ? accentColor : subColor,
+                                fontSize: surahId > 99 ? 11 : 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // ── Nom + infos ────────────────────────
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(nameTr, style: TextStyle(color: titleColor, fontWeight: FontWeight.w700, fontSize: 15)),
-                            const SizedBox(height: 2),
-                            if (meaning != null) ...[
-                              Text('"$meaning"', style: TextStyle(color: subColor.withValues(alpha: 0.75), fontSize: 11, fontStyle: FontStyle.italic)),
-                              const SizedBox(height: 1),
-                            ],
-                            Row(
+                          const SizedBox(width: 8),
+                          // ── Nom fr + infos ─────────────────────
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
+                                Text(nameTr, style: TextStyle(color: titleColor, fontWeight: FontWeight.w700, fontSize: 15)),
+                                const SizedBox(height: 2),
+                                if (meaning != null) ...[
+                                  Text('"$meaning"', style: TextStyle(color: subColor.withValues(alpha: 0.75), fontSize: 11, fontStyle: FontStyle.italic)),
+                                  const SizedBox(height: 1),
+                                ],
                                 Text('$ayahCount ${isEn ? 'verses' : 'versets'}  ·  $revLabel',
                                     style: TextStyle(color: subColor, fontSize: 11)),
-                                const Spacer(),
-                                Text('$page',
-                                    style: TextStyle(color: subColor.withValues(alpha: 0.55), fontSize: 9.5)),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 10),
+                          // ── Nom arabe à droite ──────────────────
+                          Text(
+                            nameAr,
+                            textDirection: TextDirection.rtl,
+                            style: TextStyle(
+                              color: isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF4A3820),
+                              fontSize: 20,
+                              fontFamily: 'ScheherazadeNew',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      // ── Nom arabe ──────────────────────────
-                      Text(
-                        nameAr,
-                        textDirection: TextDirection.rtl,
-                        style: TextStyle(
-                          color: isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF4A3820),
-                          fontSize: 22,
-                          fontFamily: 'ScheherazadeNew',
-                          fontWeight: FontWeight.w600,
-                        ),
+                    ),
+                    // ── Numéro de page coin bas droite ─────────
+                    Positioned(
+                      bottom: 4,
+                      right: 8,
+                      child: Text(
+                        'p.$page',
+                        style: TextStyle(color: subColor.withValues(alpha: 0.45), fontSize: 9),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -719,7 +722,6 @@ class _JuzBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = tqsTheme == 2;
-    final lineColor = isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230);
     final bg = isDark ? const Color(0xFF0B1025) : (tqsTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
     final textColor = isDark ? const Color(0xFFD4A855) : const Color(0xFF7A5420);
 
@@ -730,8 +732,6 @@ class _JuzBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Row(
           children: [
-            _diamond(lineColor),
-            const SizedBox(width: 8),
             Text(
               'Juz $juz',
               style: TextStyle(
@@ -741,9 +741,7 @@ class _JuzBanner extends StatelessWidget {
                 letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(child: _thinLine(lineColor)),
-            const SizedBox(width: 10),
+            const Spacer(),
             Text(
               'S.$surah · v.$ayah',
               style: TextStyle(
@@ -752,46 +750,13 @@ class _JuzBanner extends StatelessWidget {
                 color: textColor.withValues(alpha: 0.7),
               ),
             ),
-            const SizedBox(width: 8),
-            _diamond(lineColor),
           ],
         ),
       ),
     );
   }
-
-  Widget _thinLine(Color c) => Container(height: 0.8, color: c.withValues(alpha: 0.5));
-
-  Widget _diamond(Color c) {
-    return SizedBox(
-      width: 7, height: 7,
-      child: CustomPaint(painter: _DiamondPainter(c)),
-    );
-  }
 }
 
-class _DiamondPainter extends CustomPainter {
-  final Color color;
-  const _DiamondPainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    canvas.drawPath(
-      Path()
-        ..moveTo(cx, 0)
-        ..lineTo(size.width, cy)
-        ..lineTo(cx, size.height)
-        ..lineTo(0, cy)
-        ..close(),
-      Paint()..color = color..style = PaintingStyle.fill,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_DiamondPainter old) => old.color != color;
-}
 
 class TranslatedSurahScreen extends StatefulWidget {
   final int surahNumber;
@@ -1008,91 +973,31 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     return _ayahItemKeys.putIfAbsent(ayah, () => GlobalKey());
   }
 
-  // Estimation grossière pour le premier jump (amène des items proches dans le cache)
-  double _roughOffset(int ayah) {
+  // Calcule l'offset initial à partir des longueurs réelles des textes arabes chargés
+  double _computeInitialOffset(int ayah) {
     if (ayah <= 1 || _arabic.isEmpty) return 0;
-    double offset = 120.0;
-    for (int i = 0; i < (ayah - 1).clamp(0, _arabic.length); i++) {
-      final lines = (_arabic[i].length / 14.0).ceil().clamp(1, 30);
-      offset += 28.0 + lines * 36.0 + 72.0;
+    double offset = 120.0; // header (SVG sourate + basmala)
+    final limit = (ayah - 1).clamp(0, _arabic.length);
+    for (int i = 0; i < limit; i++) {
+      // Le texte coranique UTF-16 inclut les harakats (diacritiques),
+      // ~3 code units par caractère visuel → diviser par 30 pour les lignes visuelles
+      final lines = (_arabic[i].length / 30.0).ceil().clamp(1, 30);
+      offset += 28.0 + lines * 38.0 + 70.0;
     }
     return offset;
   }
 
   void _ensureAyahCentered(int ayah) {
-    if (!mounted || !_scrollController.hasClients) return;
-    // Jump grossier pour amener des items proches dans le cache (cacheExtent: 3000)
-    _scrollController.jumpTo(
-      _roughOffset(ayah).clamp(0.0, _scrollController.position.maxScrollExtent),
-    );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refineScroll(ayah));
-  }
-
-  void _refineScroll(int ayah) {
     if (!mounted) return;
-
-    // Si le verset cible est déjà rendu → ensureVisible direct
-    final targetObj = _ayahItemKeys[ayah]?.currentContext?.findRenderObject();
-    if (targetObj != null) {
-      Scrollable.ensureVisible(
-        _ayahItemKeys[ayah]!.currentContext!,
-        alignment: 0.1,
-        duration: Duration.zero,
-      );
-      return;
-    }
-
-    // Trouver le verset rendu le plus proche du cible
-    int anchorAyah = -1;
-    RenderObject? anchorObj;
-    for (int d = 1; d < _arabic.length; d++) {
-      for (final c in [ayah - d, ayah + d]) {
-        if (c < 1 || c > _arabic.length) continue;
-        final obj = _ayahItemKeys[c]?.currentContext?.findRenderObject();
-        if (obj != null) {
-          anchorAyah = c;
-          anchorObj = obj;
-          break;
-        }
-      }
-      if (anchorAyah != -1) break;
-    }
-    if (anchorAyah == -1 || anchorObj == null) return;
-
-    // Offset exact de l'ancre dans le scroll view
-    final viewport = RenderAbstractViewport.of(anchorObj);
-    final anchorScrollOffset = viewport.getOffsetToReveal(anchorObj, 0.0).offset;
-
-    // Somme des hauteurs réelles (ou estimées) entre ancre et cible
-    double delta = 0;
-    final lo = math.min(anchorAyah, ayah);
-    final hi = math.max(anchorAyah, ayah);
-    for (int i = lo; i < hi; i++) {
-      final obj = _ayahItemKeys[i]?.currentContext?.findRenderObject() as RenderBox?;
-      if (obj != null) {
-        delta += obj.size.height;
-      } else if (i >= 1 && i <= _arabic.length) {
-        final lines = (_arabic[i - 1].length / 14.0).ceil().clamp(1, 30);
-        delta += 28.0 + lines * 36.0 + 72.0;
-      }
-    }
-
-    final dest = anchorAyah < ayah
-        ? anchorScrollOffset + delta
-        : anchorScrollOffset - delta;
-
-    _scrollController.jumpTo(dest.clamp(0.0, _scrollController.position.maxScrollExtent));
-
-    // Dernière passe : ensureVisible si l'item est maintenant rendu
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final ctx = _ayahItemKeys[ayah]?.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(ctx, alignment: 0.1, duration: Duration.zero);
-      }
+      if (ctx == null) return;
+      Scrollable.ensureVisible(ctx, alignment: 0.1, duration: Duration.zero);
     });
   }
-  late final ScrollController _scrollController;
+
+  late ScrollController _scrollController;
   // 0.0 = barres visibles · 1.0 = barres cachées
   final ValueNotifier<double> _barProgress = ValueNotifier(0.0);
   double _lastScrollOffset = 0.0;
@@ -1309,13 +1214,31 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     } catch (_) {}
 
     if (!mounted) return;
+
+    // Recréer le contrôleur avec l'offset calculé depuis le texte arabe réel.
+    // _loading est encore true → le ListView n'est pas encore attaché → dispose safe.
+    if (_selectedAyah > 1 && _arabic.isNotEmpty) {
+      _scrollController.removeListener(_onScroll);
+      _scrollController.dispose();
+      _scrollController = ScrollController(
+        initialScrollOffset: _computeInitialOffset(_selectedAyah),
+      );
+      _scrollController.addListener(_onScroll);
+    }
+
     setState(() {
       _loading = false;
       if (_arabic.isEmpty) _error = 'Erreur de chargement du texte arabe';
     });
-    if (_arabic.isNotEmpty) {
+
+    // Micro-correction au premier frame (l'estimation peut être légèrement décalée)
+    if (_arabic.isNotEmpty && _selectedAyah > 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _setSelectedAyah(_selectedAyah, scroll: true, center: true);
+        if (!mounted) return;
+        final ctx = _ayahItemKeys[_selectedAyah]?.currentContext;
+        if (ctx != null) {
+          Scrollable.ensureVisible(ctx, alignment: 0.1, duration: Duration.zero);
+        }
       });
     }
   }
@@ -2919,11 +2842,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                                   widget.surahNameAr,
                                                   textDirection: TextDirection.rtl,
                                                   textAlign: TextAlign.center,
-                                                  style: TextStyle(
+                                                  style: const TextStyle(
                                                     fontSize: 16,
                                                     fontFamily: 'ScheherazadeNew',
                                                     fontWeight: FontWeight.w600,
-                                                    color: fg,
+                                                    color: Color(0xFF2C1A0E),
                                                     height: 1.0,
                                                   ),
                                                 ),
