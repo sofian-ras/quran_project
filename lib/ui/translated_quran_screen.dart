@@ -24,6 +24,8 @@ import 'screens/quran_loader.dart';
 
 // Notifier partagé entre la liste et l'en-tête (0=blanc, 1=papier, 2=sombre)
 final _tqsThemeNotifier = ValueNotifier<int>(1);
+// Progression du scroll de la liste des sourates (0.0 = visible, 1.0 = caché)
+final _surahListScrollProgress = ValueNotifier<double>(0.0);
 
 class TranslatedQuranScreen extends StatefulWidget {
   final bool preferOffline;
@@ -68,49 +70,107 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Coran',
-                style: TextStyle(
-                  color: fg,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 20,
+        backgroundColor: bg,
+        body: ValueListenableBuilder<double>(
+          valueListenable: _surahListScrollProgress,
+          builder: (context, progress, child) {
+            final topPad = MediaQuery.of(context).padding.top;
+            const titleH = 56.0;
+            const tabH   = 46.0;
+            final fixedH = topPad + titleH;
+            final tabSlide = tabH * progress;
+
+            return Stack(
+              children: [
+                // ── Contenu : remonte au fur et à mesure que les onglets disparaissent ──
+                Positioned(
+                  top: fixedH + tabH - tabSlide,
+                  left: 0, right: 0, bottom: 0,
+                  child: child!,
                 ),
-              ),
-              const SizedBox(width: 8),
-              SvgPicture.asset(
-                'assets/images/navbar/Quran_Kareem.svg',
-                height: 20,
-                colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
-              ),
+                // ── Onglets : glissent vers le haut et se cachent derrière le titre ──
+                Positioned(
+                  top: fixedH - tabSlide,
+                  left: 0, right: 0,
+                  height: tabH,
+                  child: Container(
+                    color: bg,
+                    child: TabBar(
+                      labelColor: fg,
+                      unselectedLabelColor: isDark
+                          ? Colors.white.withValues(alpha: 0.55)
+                          : Colors.black.withValues(alpha: 0.50),
+                      dividerColor: Colors.transparent,
+                      tabs: const [
+                        Tab(text: 'Sourates'),
+                        Tab(text: 'Favoris'),
+                      ],
+                    ),
+                  ),
+                ),
+                // ── Titre fixe (toujours visible, au-dessus des onglets) ──────────────
+                Positioned(
+                  top: 0, left: 0, right: 0,
+                  height: fixedH,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: tqsTheme == 2
+                            ? [const Color(0xFF1C2E52), const Color(0xFF0B1025)]
+                            : tqsTheme == 0
+                                ? [const Color(0xFFE8E2D8), Colors.white]
+                                : [const Color(0xFFBF8E48), const Color(0xFFF3E8C0)],
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(height: topPad),
+                        SizedBox(
+                          height: titleH,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Coran',
+                                    style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 20),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  SvgPicture.asset(
+                                    'assets/images/navbar/Quran_Kareem.svg',
+                                    height: 20,
+                                    colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
+                                  ),
+                                ],
+                              ),
+                              Positioned(
+                                right: 4,
+                                child: IconButton(
+                                  icon: Icon(Icons.settings_outlined, color: fg, size: 22),
+                                  onPressed: () => _showThemeSheet(context, tqsTheme, bg, fg),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+          child: TabBarView(
+            children: [
+              _SurahTab(preferOffline: widget.preferOffline),
+              const _FavoritesTab(),
             ],
           ),
-          backgroundColor: bg,
-          foregroundColor: fg,
-          elevation: 0,
-          actions: [
-            IconButton(
-              icon: Icon(Icons.settings_outlined, color: fg, size: 22),
-              onPressed: () => _showThemeSheet(context, tqsTheme, bg, fg),
-            ),
-          ],
-          bottom: TabBar(
-            labelColor: fg,
-            unselectedLabelColor: isDark ? Colors.white.withValues(alpha: 0.55) : Colors.black.withValues(alpha: 0.50),
-            tabs: const [
-              Tab(text: 'Sourates'),
-              Tab(text: 'Favoris'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            _SurahTab(preferOffline: widget.preferOffline),
-            const _FavoritesTab(),
-          ],
         ),
       ),
     );
@@ -332,23 +392,40 @@ class _SurahTab extends StatefulWidget {
   State<_SurahTab> createState() => _SurahTabState();
 }
 
-// Les 27 sourates médinoises (toutes les autres sont mecquoises)
-const _medinanSurahs = <int>{
-  2, 3, 4, 5, 8, 9, 13, 22, 24, 33, 47, 48,
-  49, 55, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 76, 98, 110,
-};
 
 class _SurahTabState extends State<_SurahTab> {
   /// Liste aplatie : chaque item est soit {'type':'juz','juz':N} soit {'type':'surah',...}
   List<Map<String, dynamic>> _items = [];
   Set<int> _visitedSurahIds = {};
   bool _loading = true;
+  final _scrollCtrl = ScrollController();
+  double _lastScrollOffset = 0;
 
   @override
   void initState() {
     super.initState();
     _loadSurahs();
     _loadTheme();
+    _scrollCtrl.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final offset = _scrollCtrl.offset;
+    final delta = offset - _lastScrollOffset;
+    _lastScrollOffset = offset;
+    if (offset <= 0) {
+      _surahListScrollProgress.value = 0.0;
+      return;
+    }
+    _surahListScrollProgress.value =
+        (_surahListScrollProgress.value + delta / 80.0).clamp(0.0, 1.0);
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTheme() async {
@@ -457,6 +534,7 @@ class _SurahTabState extends State<_SurahTab> {
     return Container(
       color: bg,
       child: ListView.builder(
+        controller: _scrollCtrl,
         padding: const EdgeInsets.only(bottom: 24),
         itemCount: _items.length,
         itemBuilder: (context, index) {
@@ -494,11 +572,7 @@ class _SurahTabState extends State<_SurahTab> {
           final nameAr = (item['nameAr'] ?? '').toString();
           final nameTr = isEn ? (surahEn[surahId] ?? 'Surah $surahId') : (surahFr[surahId] ?? 'Sourate $surahId');
           final ayahCount = item['ayahCount'] as int;
-          final page = item['page'] as int;
-          final isMadinan = _medinanSurahs.contains(surahId);
-          final revLabel = isEn
-              ? (isMadinan ? 'Medinan' : 'Meccan')
-              : (isMadinan ? 'Médinoise' : 'Mecquoise');
+
           final meaning = surahMeaning[surahId];
           final isVisited = _visitedSurahIds.contains(surahId);
 
@@ -552,7 +626,7 @@ class _SurahTabState extends State<_SurahTab> {
                                   Text('"$meaning"', style: TextStyle(color: subColor.withValues(alpha: 0.75), fontSize: 11, fontStyle: FontStyle.italic)),
                                   const SizedBox(height: 1),
                                 ],
-                                Text('$ayahCount ${isEn ? 'verses' : 'versets'}  ·  $revLabel',
+                                Text('$ayahCount ${isEn ? 'verses' : 'versets'}',
                                     style: TextStyle(color: subColor, fontSize: 11)),
                               ],
                             ),
@@ -570,15 +644,6 @@ class _SurahTabState extends State<_SurahTab> {
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    // ── Numéro de page coin bas droite ─────────
-                    Positioned(
-                      bottom: 4,
-                      right: 8,
-                      child: Text(
-                        'p.$page',
-                        style: TextStyle(color: subColor.withValues(alpha: 0.45), fontSize: 9),
                       ),
                     ),
                   ],
@@ -949,6 +1014,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   }
 
   bool _loading = true;
+  bool _contentReady = false;
   String? _error;
 
   List<String> _arabic = [];
@@ -1228,19 +1294,21 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
 
     setState(() {
       _loading = false;
+      _contentReady = false;
       if (_arabic.isEmpty) _error = 'Erreur de chargement du texte arabe';
     });
 
-    // Micro-correction au premier frame (l'estimation peut être légèrement décalée)
-    if (_arabic.isNotEmpty && _selectedAyah > 1) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
+    // Attendre que le ListView soit construit, corriger la position, puis révéler le contenu
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_arabic.isNotEmpty && _selectedAyah > 1) {
         final ctx = _ayahItemKeys[_selectedAyah]?.currentContext;
         if (ctx != null) {
           Scrollable.ensureVisible(ctx, alignment: 0.1, duration: Duration.zero);
         }
-      });
-    }
+      }
+      setState(() => _contentReady = true);
+    });
   }
 
   // Phase 2 : charge les traductions en arrière-plan (pas de spinner)
@@ -1309,6 +1377,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     if (!mounted) return;
     setState(() {
       _loading = true;
+      _contentReady = false;
       _error = null;
     });
 
@@ -2366,13 +2435,17 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       backgroundColor: isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       showDragHandle: true,
-      builder: (_) {
+      builder: (ctx) {
+        final maxH = MediaQuery.of(ctx).size.height * 0.85;
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                 // ── En-tête : numéro + sourate ──────────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -2457,9 +2530,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                     ],
                   ),
               ],
-            ),
-          ),
-        );
+                ), // Column
+              ), // Padding
+            ), // SingleChildScrollView
+          ), // ConstrainedBox
+        ); // SafeArea
       },
     );
   }
@@ -2786,11 +2861,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     return Scaffold(
       body: Container(
         color: _bg(isDark),
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : (_arabic.isEmpty)
-                ? Center(child: Text(_error ?? 'Aucun verset', style: TextStyle(color: subtle)))
-                : Stack(
+        child: Stack(
+          children: [
+            if (!_loading && _arabic.isNotEmpty)
+              AnimatedOpacity(
+                opacity: _contentReady ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 220),
+                child: Stack(
                     children: [
                       NotificationListener<ScrollEndNotification>(
                         onNotification: (_) {
@@ -2806,7 +2883,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
 
                           return ListView.builder(
                             controller: _scrollController,
-                            cacheExtent: 3000,
+                            cacheExtent: 50000,
                             padding: EdgeInsets.fromLTRB(16, appBarH + 12, 16, MediaQuery.of(context).padding.bottom + 140),
                         itemCount: _arabic.length + 1,
                         itemBuilder: (context, i) {
@@ -3048,6 +3125,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                   ),
                 ],
               ),
+              ), // AnimatedOpacity
+            if (_loading || !_contentReady)
+              const Center(child: CircularProgressIndicator()),
+            if (!_loading && _arabic.isEmpty)
+              Center(child: Text(_error ?? 'Aucun verset', style: TextStyle(color: subtle))),
+          ],
+        ), // outer Stack
       ),
     );
   }
