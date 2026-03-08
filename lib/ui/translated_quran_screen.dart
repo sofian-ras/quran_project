@@ -641,6 +641,7 @@ class _SurahTabState extends State<_SurahTab> {
                                       Text(
                                         nameAr,
                                         textDirection: TextDirection.rtl,
+                                        locale: const Locale('ar'),
                                         style: TextStyle(
                                           fontFamily: 'ScheherazadeNew',
                                           fontSize: 20,
@@ -762,6 +763,7 @@ class _SurahTabState extends State<_SurahTab> {
                                   Text(
                                     nameAr,
                                     textDirection: TextDirection.rtl,
+                                    locale: const Locale('ar'),
                                     style: TextStyle(
                                       fontFamily: 'ScheherazadeNew',
                                       fontSize: 22,

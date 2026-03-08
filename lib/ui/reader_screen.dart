@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/quran_loader.dart';
 import '../services/quran_image_service.dart';
@@ -63,6 +64,7 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   late int currentPage;
   String currentReading = 'hafs';
+  int _readerTheme = 1; // 0=blanc, 1=papier, 2=sombre
   late PageController _pageController;
 
   List<Map<String, dynamic>> fullSurahList = [];
@@ -88,6 +90,37 @@ class _ReaderScreenState extends State<ReaderScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  Color get _themeBg => _readerTheme == 2
+      ? const Color(0xFF0B1025)
+      : (_readerTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
+
+  ColorFilter? get _themeFilter => _readerTheme == 2
+      ? const ColorFilter.matrix([
+          -1, 0, 0, 0, 255,
+           0,-1, 0, 0, 255,
+           0, 0,-1, 0, 255,
+           0, 0, 0, 1,   0,
+        ])
+      : (_readerTheme == 1
+          ? const ColorFilter.mode(Color(0xFFF3E8C0), BlendMode.multiply)
+          : null);
+
+  Color get _themeIconColor => _readerTheme == 2 ? Colors.white60 : Colors.black45;
+
+  Future<void> _loadReaderTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _readerTheme = prefs.getInt('reader_theme') ?? 1);
+  }
+
+  Future<void> _cycleReaderTheme() async {
+    final next = (_readerTheme + 1) % 3;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('reader_theme', next);
+    if (!mounted) return;
+    setState(() => _readerTheme = next);
   }
 
   Future<void> _refreshBookmarkStatus([int? page]) async {
@@ -130,6 +163,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageController.addListener(_onPageScroll);
 
     _initApp();
+    _loadReaderTheme();
     _refreshBookmarkStatus(currentPage);
     MiniPlayerService.instance.currentAyahKey.addListener(_onPlayingAyahChanged);
     () async {
@@ -394,14 +428,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
             '');
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _themeBg,
       extendBody: true,
       extendBodyBehindAppBar: true,
       body: Stack(
           children: [
            Positioned.fill(
             child: ColoredBox(
-              color: Colors.white, // fond fixe, ne suit pas le thème
+              color: _themeBg,
               child: PageView.builder(
                 controller: _pageController,
                 reverse: true,
@@ -488,16 +522,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       Opacity(
                         opacity: 0.5,
                         child: IconButton(
-                          icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black54),
+                          icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
                           onPressed: () => Navigator.pop(context),
                         ),
                       ),
                       Text(
                         '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Colors.black54,
+                          color: _themeIconColor,
                           fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Opacity(
+                        opacity: 0.6,
+                        child: IconButton(
+                          icon: Icon(
+                            _readerTheme == 0
+                                ? Icons.light_mode_outlined
+                                : _readerTheme == 1
+                                    ? Icons.brightness_medium_outlined
+                                    : Icons.dark_mode_outlined,
+                            size: 20,
+                            color: _themeIconColor,
+                          ),
+                          onPressed: _cycleReaderTheme,
                         ),
                       ),
                       Opacity(
@@ -506,7 +555,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           icon: Icon(
                             _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                             size: 24,
-                            color: _isBookmarked ? Colors.amber : Colors.black54,
+                            color: _isBookmarked ? Colors.amber : _themeIconColor,
                           ),
                           onPressed: () async {
                             try {
@@ -766,7 +815,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             children: [
               TextButton.icon(
                 onPressed: _showSurahSelection,
-                icon: const Icon(Icons.menu_book, color: Colors.white, size: 18),
+                icon: Icon(Icons.menu_book, color: _themeIconColor, size: 18),
                 label: Text(
                   fullSurahList.isEmpty
                       ? ''
@@ -774,32 +823,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           (s) => s['page'] <= currentPage,
                           orElse: () => fullSurahList.first,
                         )['nameFr'],
-                  style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
                 ),
               ),
               InkWell(
                 onTap: _jumpToPageDialog,
                 child: CircleAvatar(
                   radius: 18,
-                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                  backgroundColor: _themeIconColor.withValues(alpha: 0.15),
                   child: Text(
                     '$currentPage',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
                   ),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
-                    _imageCache.clear();
-                    _preloadPages(currentPage);
-                  });
-                },
-                icon: Icon(Icons.auto_stories, color: Colors.brown.shade100, size: 18),
-                label: Text(
-                  currentReading.toUpperCase(),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ),
             ],
@@ -818,27 +853,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               onPressed: _showSurahSelection,
-              icon: const Icon(Icons.menu_book, color: Colors.black54, size: 20),
+              icon: Icon(Icons.menu_book, color: _themeIconColor, size: 20),
               label: Text(
                 surahNameFr,
-                style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  currentReading = (currentReading == 'hafs') ? 'warsh' : 'hafs';
-                  _imageCache.clear();
-                  _preloadPages(currentPage);
-                });
-              },
-              icon: Icon(Icons.auto_stories, color: Colors.brown.shade300),
-              label: Text(
-                currentReading.toUpperCase(),
-                style: TextStyle(color: Colors.brown.shade400, fontWeight: FontWeight.bold),
+                style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -851,7 +869,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 backgroundColor: Colors.transparent,
                 child: Text(
                   '$currentPage',
-                  style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -867,14 +885,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
         final displaySize = Size(constraints.maxWidth, constraints.maxHeight);
         const imagePxSize = Size(1024, 1657); // taille réelle PNG Hafs 1024px
 
+        Widget wrapFilter(Widget child) => _themeFilter != null
+            ? ColorFiltered(colorFilter: _themeFilter!, child: child)
+            : child;
+
         if (isLandscape) {
           return SingleChildScrollView(
-            child: Image.file(
+            child: wrapFilter(Image.file(
               imageFile,
               width: constraints.maxWidth,
               fit: BoxFit.fitWidth,
               filterQuality: FilterQuality.high,
-            ),
+            )),
           );
         }
 
@@ -897,11 +919,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
         return Stack(
           children: [
             Center(
-              child: Image.file(
+              child: wrapFilter(Image.file(
                 imageFile,
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.high,
-              ),
+              )),
             ),
             Positioned(
               left: offsetX,
