@@ -743,21 +743,14 @@ class _SurahTabState extends State<_SurahTab> {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             // ── Numéro ──────────────────────────────
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: accentColor.withValues(alpha: isDark ? 0.18 : 0.10),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                '$surahId',
-                                style: TextStyle(
-                                  color: accentColor,
-                                  fontSize: surahId > 99 ? 10 : 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            Text(
+                              '﴾$surahId﴿',
+                              style: TextStyle(
+                                color: accentColor,
+                                fontSize: surahId > 99 ? 13 : 15,
+                                fontFamily: 'ScheherazadeNew',
+                                fontWeight: FontWeight.w600,
+                                height: 1,
                               ),
                             ),
                             // ── Noms centrés ─────────────────────────
@@ -910,7 +903,7 @@ class _BasmalaTitle extends StatelessWidget {
   }
 }
 
-// ── Badge verset (médaillon islamique octogonal) ──────────────────────────
+// ── Badge verset (parenthèses ornementales arabes) ────────────────────────
 class _VerseBadge extends StatelessWidget {
   final int number;
   final Color color;
@@ -919,67 +912,17 @@ class _VerseBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 30,
-      height: 30,
-      child: CustomPaint(
-        painter: _VerseBadgePainter(color),
-        child: Center(
-          child: Text(
-            '$number',
-            style: TextStyle(
-              color: color,
-              fontSize: number > 99 ? 7.5 : (number > 9 ? 8.5 : 9.5),
-              fontWeight: FontWeight.w700,
-              height: 1,
-            ),
-          ),
-        ),
+    return Text(
+      '﴾$number﴿',
+      style: TextStyle(
+        color: color,
+        fontSize: number > 99 ? 13 : 15,
+        fontFamily: 'ScheherazadeNew',
+        fontWeight: FontWeight.w600,
+        height: 1,
       ),
     );
   }
-}
-
-class _VerseBadgePainter extends CustomPainter {
-  final Color color;
-  const _VerseBadgePainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.width / 2 - 1.5;
-
-    final stroke = Paint()
-      ..color = color
-      ..strokeWidth = 0.65
-      ..style = PaintingStyle.stroke;
-
-    // Outer circle
-    canvas.drawCircle(Offset(cx, cy), r, stroke);
-    // Inner circle
-    canvas.drawCircle(Offset(cx, cy), r * 0.68, stroke);
-
-    // 8 tiny filled diamonds around the outer circle
-    for (int i = 0; i < 8; i++) {
-      final angle = (i * math.pi * 2) / 8 - math.pi / 2;
-      final tx = cx + r * math.cos(angle);
-      final ty = cy + r * math.sin(angle);
-      const d = 1.8;
-      canvas.drawPath(
-        Path()
-          ..moveTo(tx, ty - d)
-          ..lineTo(tx + d, ty)
-          ..lineTo(tx, ty + d)
-          ..lineTo(tx - d, ty)
-          ..close(),
-        Paint()..color = color..style = PaintingStyle.fill,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_VerseBadgePainter old) => old.color != color;
 }
 
 // ── Bandeau de séparation de Juz ─────────────────────────────────────────
