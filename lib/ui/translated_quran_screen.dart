@@ -1,5 +1,6 @@
 // lib/ui/translated_quran_screen.dart
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
@@ -8,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/quran_translation_pack_service.dart';
 import '../services/verse_favorites_service.dart';
 import '../services/audio_service.dart';
@@ -242,12 +244,42 @@ class _SurahTabState extends State<_SurahTab> {
     603, 604, 604, 604,
   ];
 
+  // juz N → (surahId du début, ayah du début)
+  static const _juzStarts = <int, (int, int)>{
+    1:  (1,   1),   2:  (2,   142), 3:  (2,   253),
+    4:  (3,   92),  5:  (4,   24),  6:  (4,   148),
+    7:  (5,   82),  8:  (6,   111), 9:  (7,   87),
+    10: (8,   41),  11: (9,   93),  12: (11,  5),
+    13: (12,  52),  14: (15,  1),   15: (17,  1),
+    16: (18,  75),  17: (21,  1),   18: (23,  1),
+    19: (25,  20),  20: (27,  55),  21: (29,  45),
+    22: (33,  31),  23: (36,  22),  24: (39,  32),
+    25: (41,  47),  26: (46,  1),   27: (51,  31),
+    28: (58,  1),   29: (67,  1),   30: (78,  1),
+  };
+
   Future<void> _loadSurahs() async {
     final List<Map<String, dynamic>> flat = [];
+
+    // Grouper les juz par surah d'insertion
+    final Map<int, List<int>> juzBefore = {}; // surahId → liste de juz
+    for (final entry in _juzStarts.entries) {
+      final surahId = entry.value.$1;
+      juzBefore.putIfAbsent(surahId, () => []).add(entry.key);
+    }
 
     for (int i = 0; i < 114; i++) {
       final id   = i + 1;
       final page = _surahStartPages[i];
+
+      // Insérer les juz qui commencent dans (ou avant) cette sourate
+      if (juzBefore.containsKey(id)) {
+        for (final juz in juzBefore[id]!) {
+          final (s, a) = _juzStarts[juz]!;
+          flat.add({'type': 'juz', 'juz': juz, 'surah': s, 'ayah': a});
+        }
+      }
+
       flat.add({
         'type': 'surah',
         'id': id,
@@ -285,8 +317,6 @@ class _SurahTabState extends State<_SurahTab> {
     final subColor = isDark ? Colors.white.withOpacity(0.65) : Colors.black.withOpacity(0.60);
     final dividerColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07);
     final accentColor = isDark ? const Color(0xFF7986CB) : const Color(0xFF3949AB);
-    final badgeFill = isDark ? const Color(0xFF2A3A6A) : const Color(0xFFE8EAF6);
-    final badgeText = isDark ? Colors.white.withOpacity(0.90) : const Color(0xFF3949AB);
 
     return Container(
       color: bg,
@@ -296,7 +326,32 @@ class _SurahTabState extends State<_SurahTab> {
         itemBuilder: (context, index) {
           final item = _items[index];
 
-          // Surah item
+          // ── Juz banner ───────────────────────────────────────────
+          if (item['type'] == 'juz') {
+            final juz   = item['juz']   as int;
+            final surah = item['surah'] as int;
+            final ayah  = item['ayah']  as int;
+            final nameAr = TafsirService.surahNames[surah - 1];
+            final nameFr = isEn ? (surahEn[surah] ?? 'Surah $surah') : (surahFr[surah] ?? 'Sourate $surah');
+            return _JuzBanner(
+              juz: juz,
+              isDark: isDark,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TranslatedSurahScreen(
+                    surahNumber: surah,
+                    surahNameFr: nameFr,
+                    surahNameAr: nameAr,
+                    preferOffline: widget.preferOffline,
+                    initialAyah: ayah,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          // ── Surah item ───────────────────────────────────────────
           final surahId = item['id'] as int;
           final nameAr = (item['nameAr'] ?? '').toString();
           final nameTr = isEn ? (surahEn[surahId] ?? 'Surah $surahId') : (surahFr[surahId] ?? 'Sourate $surahId');
@@ -309,73 +364,78 @@ class _SurahTabState extends State<_SurahTab> {
           final meaning = surahMeaning[surahId];
           final isVisited = _visitedSurahIds.contains(surahId);
 
+          final badgeLineColor = isVisited ? accentColor : (isDark ? const Color(0xFF7986CB) : const Color(0xFF8B7340));
+          final badgeFillColor = isVisited ? accentColor.withOpacity(0.12) : (isDark ? const Color(0xFF1A2540) : const Color(0xFFF5EDD8));
+
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (index > 1)
-                Divider(height: 1, thickness: 0.5, indent: 68, endIndent: 16, color: dividerColor),
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: _OctagonBadge(
-                  number: surahId,
-                  fillColor: isVisited ? accentColor.withOpacity(0.15) : badgeFill,
-                  textColor: isVisited ? accentColor : badgeText,
-                  borderColor: isVisited ? accentColor.withOpacity(0.50) : Colors.transparent,
+              if (index > 0)
+                Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16, color: dividerColor),
+              InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TranslatedSurahScreen(
+                      surahNumber: surahId,
+                      surahNameFr: nameTr,
+                      surahNameAr: nameAr,
+                      preferOffline: widget.preferOffline,
+                    ),
+                  ),
                 ),
-                title: Text(
-                  nameTr,
-                  style: TextStyle(color: titleColor, fontWeight: FontWeight.w700),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      if (meaning != null)
-                        Text(
-                          '"$meaning"',
-                          style: TextStyle(
-                            color: subColor.withOpacity(0.75),
-                            fontSize: 11,
-                            fontStyle: FontStyle.italic,
-                          ),
+                      // ── Badge mushaf ───────────────────────
+                      _QuranBadge(
+                        number: surahId,
+                        lineColor: badgeLineColor,
+                        fillColor: badgeFillColor,
+                        textColor: isVisited ? accentColor : (isDark ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF5C4A20)),
+                      ),
+                      const SizedBox(width: 12),
+                      // ── Nom + infos ────────────────────────
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(nameTr, style: TextStyle(color: titleColor, fontWeight: FontWeight.w700, fontSize: 15)),
+                            const SizedBox(height: 2),
+                            if (meaning != null) ...[
+                              Text('"$meaning"', style: TextStyle(color: subColor.withValues(alpha: 0.75), fontSize: 11, fontStyle: FontStyle.italic)),
+                              const SizedBox(height: 1),
+                            ],
+                            Row(
+                              children: [
+                                Text('$ayahCount ${isEn ? 'verses' : 'versets'}  ·  $revLabel',
+                                    style: TextStyle(color: subColor, fontSize: 11)),
+                                const Spacer(),
+                                Text('$page',
+                                    style: TextStyle(color: subColor.withValues(alpha: 0.55), fontSize: 9.5)),
+                              ],
+                            ),
+                          ],
                         ),
-                      const SizedBox(height: 1),
+                      ),
+                      const SizedBox(width: 10),
+                      // ── Nom arabe ──────────────────────────
                       Text(
-                        '$ayahCount ${isEn ? 'verses' : 'versets'}  ·  $revLabel  ·  p. $page',
-                        style: TextStyle(color: subColor, fontSize: 11),
+                        nameAr,
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(
+                          color: isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF4A3820),
+                          fontSize: 22,
+                          fontFamily: 'ScheherazadeNew',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      nameAr,
-                      textDirection: TextDirection.rtl,
-                      style: TextStyle(
-                        color: titleColor.withOpacity(0.85),
-                        fontSize: 15,
-                        fontFamily: 'UthmanTahaNaskh',
-                      ),
-                    ),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TranslatedSurahScreen(
-                        surahNumber: surahId,
-                        surahNameFr: nameTr,
-                        surahNameAr: nameAr,
-                        preferOffline: widget.preferOffline,
-                      ),
-                    ),
-                  );
-                },
               ),
             ],
           );
@@ -385,34 +445,35 @@ class _SurahTabState extends State<_SurahTab> {
   }
 }
 
-// ─── Badge octogonal pour le numéro de sourate ────────────────────────────
-class _OctagonBadge extends StatelessWidget {
+// ─── Badge numéro de sourate ───────────────────────────────────────────────
+class _QuranBadge extends StatelessWidget {
   final int number;
+  final Color lineColor;
   final Color fillColor;
   final Color textColor;
-  final Color borderColor;
 
-  const _OctagonBadge({
+  const _QuranBadge({
     required this.number,
+    required this.lineColor,
     required this.fillColor,
     required this.textColor,
-    required this.borderColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 38,
-      height: 38,
+      width: 42,
+      height: 42,
       child: CustomPaint(
-        painter: _OctagonPainter(fill: fillColor, border: borderColor),
+        painter: _QuranBadgePainter(lineColor: lineColor, fillColor: fillColor),
         child: Center(
           child: Text(
             '$number',
             style: TextStyle(
               color: textColor,
-              fontSize: number > 99 ? 9.5 : 11,
+              fontSize: number > 99 ? 8.5 : (number > 9 ? 10.5 : 12),
               fontWeight: FontWeight.w700,
+              height: 1,
             ),
           ),
         ),
@@ -421,112 +482,144 @@ class _OctagonBadge extends StatelessWidget {
   }
 }
 
-class _OctagonPainter extends CustomPainter {
-  final Color fill;
-  final Color border;
-  const _OctagonPainter({required this.fill, required this.border});
+class _QuranBadgePainter extends CustomPainter {
+  final Color lineColor;
+  final Color fillColor;
+  const _QuranBadgePainter({required this.lineColor, required this.fillColor});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final c = w * 0.26;
-    final path = Path()
-      ..moveTo(c, 0)
-      ..lineTo(w - c, 0)
-      ..lineTo(w, c)
-      ..lineTo(w, h - c)
-      ..lineTo(w - c, h)
-      ..lineTo(c, h)
-      ..lineTo(0, h - c)
-      ..lineTo(0, c)
-      ..close();
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r  = cx - 3.5; // rayon du cercle
 
-    canvas.drawPath(path, Paint()..color = fill..style = PaintingStyle.fill);
-    if (border != Colors.transparent) {
+    // Remplissage
+    canvas.drawCircle(
+      Offset(cx, cy), r,
+      Paint()..color = fillColor..style = PaintingStyle.fill,
+    );
+    // Contour fin
+    canvas.drawCircle(
+      Offset(cx, cy), r,
+      Paint()..color = lineColor..strokeWidth = 0.9..style = PaintingStyle.stroke,
+    );
+
+    // 4 losanges aux points cardinaux (N E S O)
+    final lp = Paint()..color = lineColor..style = PaintingStyle.fill;
+    const d = 3.0;
+    for (int i = 0; i < 4; i++) {
+      final angle = i * math.pi / 2 - math.pi / 2;
+      final tx = cx + r * math.cos(angle);
+      final ty = cy + r * math.sin(angle);
       canvas.drawPath(
-        path,
-        Paint()
-          ..color = border
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2,
+        Path()
+          ..moveTo(tx, ty - d)
+          ..lineTo(tx + d, ty)
+          ..lineTo(tx, ty + d)
+          ..lineTo(tx - d, ty)
+          ..close(),
+        lp,
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _OctagonPainter old) =>
-      old.fill != fill || old.border != border;
+  bool shouldRepaint(_QuranBadgePainter old) =>
+      old.lineColor != lineColor || old.fillColor != fillColor;
 }
 
-// ── Mushaf-style ornamental frame around surah name ──────────────────────────
+// ── Mushaf ornamental frame ────────────────────────────────────────────────
 class _SurahFramePainter extends CustomPainter {
-  final Color color;
-  const _SurahFramePainter(this.color);
+  final Color lineColor;
+  final Color bandFill;
+  const _SurahFramePainter({required this.lineColor, required this.bandFill});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.0
+    final w = size.width;
+    final h = size.height;
+    final cx = w / 2;
+
+    // Fond très léger
+    canvas.drawRect(
+      Rect.fromLTRB(0, 0, w, h),
+      Paint()..color = bandFill..style = PaintingStyle.fill,
+    );
+
+    // Bordure fine unique
+    final stroke = Paint()
+      ..color = lineColor
+      ..strokeWidth = 0.9
       ..style = PaintingStyle.stroke;
+    canvas.drawRect(Rect.fromLTRB(0, 0, w, h), stroke);
 
-    const r = 6.0; // inset
-    // Outer rect
-    canvas.drawRect(Rect.fromLTRB(0, 0, size.width, size.height), paint);
-    // Inner rect
-    canvas.drawRect(Rect.fromLTRB(r, r, size.width - r, size.height - r), paint);
-
-    void diamond(Offset center, double half) {
-      final path = Path()
-        ..moveTo(center.dx, center.dy - half)
-        ..lineTo(center.dx + half, center.dy)
-        ..lineTo(center.dx, center.dy + half)
-        ..lineTo(center.dx - half, center.dy)
-        ..close();
-      canvas.drawPath(path, paint..style = PaintingStyle.fill);
+    // Helper losange plein
+    final fp = Paint()..color = lineColor..style = PaintingStyle.fill;
+    void diamond(double dx, double dy, double r) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(dx, dy - r)
+          ..lineTo(dx + r, dy)
+          ..lineTo(dx, dy + r)
+          ..lineTo(dx - r, dy)
+          ..close(),
+        fp,
+      );
     }
 
-    const d = 4.5;
-    final cx = size.width / 2;
-    final cy = size.height / 2;
+    // Arabesques de coins : équerre intérieure + losange au vertex
+    const inset = 6.0;
+    const arm   = 14.0;
+    const d     = 2.8;
 
-    // Corners (outer rect)
-    diamond(const Offset(0, 0), d);
-    diamond(Offset(size.width, 0), d);
-    diamond(Offset(0, size.height), d);
-    diamond(Offset(size.width, size.height), d);
+    void corner(double x, double y, double sx, double sy) {
+      final bx = x + sx * inset;
+      final by = y + sy * inset;
+      canvas.drawLine(Offset(bx, by), Offset(bx + sx * arm, by), stroke);
+      canvas.drawLine(Offset(bx, by), Offset(bx, by + sy * arm), stroke);
+      diamond(bx, by, d);
+    }
 
-    // Mid-edge (outer rect)
-    diamond(Offset(cx, 0), d);
-    diamond(Offset(cx, size.height), d);
-    diamond(Offset(0, cy), d);
-    diamond(Offset(size.width, cy), d);
+    corner(0, 0,  1,  1);
+    corner(w, 0, -1,  1);
+    corner(0, h,  1, -1);
+    corner(w, h, -1, -1);
+
+    // Petit losange centré haut et bas
+    diamond(cx, 0, 3.2);
+    diamond(cx, h, 3.2);
   }
 
   @override
-  bool shouldRepaint(_SurahFramePainter old) => old.color != color;
+  bool shouldRepaint(_SurahFramePainter old) =>
+      old.lineColor != lineColor || old.bandFill != bandFill;
 }
 
 class _SurahNameFrame extends StatelessWidget {
   final String nameAr;
-  final Color frameColor;
+  final Color lineColor;
+  final Color bandFill;
   final Color textColor;
 
-  const _SurahNameFrame({required this.nameAr, required this.frameColor, required this.textColor});
+  const _SurahNameFrame({
+    required this.nameAr,
+    required this.lineColor,
+    required this.bandFill,
+    required this.textColor,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: CustomPaint(
-        painter: _SurahFramePainter(frameColor),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+    return CustomPaint(
+      painter: _SurahFramePainter(lineColor: lineColor, bandFill: bandFill),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+        child: Center(
           child: Text(
             nameAr,
             textDirection: TextDirection.rtl,
             style: TextStyle(
-              fontSize: 30,
+              fontSize: 32,
               fontFamily: 'ScheherazadeNew',
               fontWeight: FontWeight.w600,
               color: textColor,
@@ -577,6 +670,169 @@ class _BasmalaTitle extends StatelessWidget {
       ],
     );
   }
+}
+
+// ── Badge verset (médaillon islamique octogonal) ──────────────────────────
+class _VerseBadge extends StatelessWidget {
+  final int number;
+  final Color color;
+
+  const _VerseBadge({required this.number, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 30,
+      height: 30,
+      child: CustomPaint(
+        painter: _VerseBadgePainter(color),
+        child: Center(
+          child: Text(
+            '$number',
+            style: TextStyle(
+              color: color,
+              fontSize: number > 99 ? 7.5 : (number > 9 ? 8.5 : 9.5),
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerseBadgePainter extends CustomPainter {
+  final Color color;
+  const _VerseBadgePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = size.width / 2 - 1.5;
+
+    final stroke = Paint()
+      ..color = color
+      ..strokeWidth = 0.65
+      ..style = PaintingStyle.stroke;
+
+    // Outer circle
+    canvas.drawCircle(Offset(cx, cy), r, stroke);
+    // Inner circle
+    canvas.drawCircle(Offset(cx, cy), r * 0.68, stroke);
+
+    // 8 tiny filled diamonds around the outer circle
+    for (int i = 0; i < 8; i++) {
+      final angle = (i * math.pi * 2) / 8 - math.pi / 2;
+      final tx = cx + r * math.cos(angle);
+      final ty = cy + r * math.sin(angle);
+      const d = 1.8;
+      canvas.drawPath(
+        Path()
+          ..moveTo(tx, ty - d)
+          ..lineTo(tx + d, ty)
+          ..lineTo(tx, ty + d)
+          ..lineTo(tx - d, ty)
+          ..close(),
+        Paint()..color = color..style = PaintingStyle.fill,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_VerseBadgePainter old) => old.color != color;
+}
+
+// ── Bandeau de séparation de Juz ─────────────────────────────────────────
+class _JuzBanner extends StatelessWidget {
+  final int juz;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _JuzBanner({required this.juz, required this.isDark, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final lineColor = isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230);
+    final bg = isDark ? const Color(0xFF1A2540) : const Color(0xFFF5EDD8);
+    final textColor = isDark ? const Color(0xFFD4A855) : const Color(0xFF7A5420);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        color: bg,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            const SizedBox(width: 16),
+            Expanded(child: _thinLine(lineColor)),
+            const SizedBox(width: 10),
+            // Diamond ornement left
+            _diamond(lineColor),
+            const SizedBox(width: 8),
+            Text(
+              'الجزء $juz',
+              textDirection: TextDirection.rtl,
+              style: TextStyle(
+                fontFamily: 'ScheherazadeNew',
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '— Juz $juz',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: textColor.withValues(alpha: 0.7),
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(width: 8),
+            _diamond(lineColor),
+            const SizedBox(width: 10),
+            Expanded(child: _thinLine(lineColor)),
+            const SizedBox(width: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _thinLine(Color c) => Container(height: 0.8, color: c.withValues(alpha: 0.5));
+
+  Widget _diamond(Color c) {
+    return SizedBox(
+      width: 7, height: 7,
+      child: CustomPaint(painter: _DiamondPainter(c)),
+    );
+  }
+}
+
+class _DiamondPainter extends CustomPainter {
+  final Color color;
+  const _DiamondPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    canvas.drawPath(
+      Path()
+        ..moveTo(cx, 0)
+        ..lineTo(size.width, cy)
+        ..lineTo(cx, size.height)
+        ..lineTo(0, cy)
+        ..close(),
+      Paint()..color = color..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DiamondPainter old) => old.color != color;
 }
 
 class TranslatedSurahScreen extends StatefulWidget {
@@ -870,7 +1126,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     ]);
 
     Future.microtask(() async {
-      await Future.wait([_loadFavorites(), _loadArabicImmediate()]);
+      await Future.wait([_loadSettings(), _loadFavorites(), _loadArabicImmediate()]);
       _attachAyahListener();
       _loadTranslationsBackground();
     });
@@ -899,6 +1155,35 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     _snapAnim = Tween<double>(begin: _barProgress.value, end: hide ? 1.0 : 0.0)
         .animate(CurvedAnimation(parent: _snapController, curve: Curves.easeOut));
     _snapController.forward(from: 0);
+  }
+
+  static const _kTheme       = 'tqs_theme';
+  static const _kFontArabic  = 'tqs_font_arabic';
+  static const _kTajweed     = 'tqs_tajweed';
+  static const _kTranslation = 'tqs_translation';
+  static const _kArabic      = 'tqs_arabic';
+
+  Future<void> _loadSettings() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _localTheme      = p.getInt(_kTheme)        ?? 1;
+      _fontArabic      = p.getDouble(_kFontArabic) ?? 22;
+      _fontTranslation = (_fontArabic * 0.76).clamp(12, 26);
+      _fontTafsir      = (_fontArabic * 0.68).clamp(11, 24);
+      _showTajweed     = p.getBool(_kTajweed)      ?? true;
+      _showTranslation = p.getBool(_kTranslation)  ?? true;
+      _showArabic      = p.getBool(_kArabic)       ?? true;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setInt(_kTheme, _localTheme);
+    await p.setDouble(_kFontArabic, _fontArabic);
+    await p.setBool(_kTajweed, _showTajweed);
+    await p.setBool(_kTranslation, _showTranslation);
+    await p.setBool(_kArabic, _showArabic);
   }
 
   void _attachAyahListener() {
@@ -1572,7 +1857,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
           },
         );
       },
-    );
+    ).then((_) => _saveSettings());
   }
 
   // ── Reciter sheet ─────────────────────────────────────────────────────────
@@ -2577,16 +2862,20 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                         itemCount: _arabic.length + 1,
                         itemBuilder: (context, i) {
                           if (i == 0) {
-                            final frameColor = isDark
-                                ? Colors.white.withValues(alpha: 0.30)
-                                : const Color(0xFFA07840).withValues(alpha: 0.65);
+                            final lineColor = isDark
+                                ? Colors.white.withValues(alpha: 0.35)
+                                : const Color(0xFFA07840).withValues(alpha: 0.70);
+                            final bandFill = isDark
+                                ? Colors.white.withValues(alpha: 0.05)
+                                : const Color(0xFFD4A855).withValues(alpha: 0.18);
                             return Padding(
-                              padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                              padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
                               child: Column(
                                 children: [
                                   _SurahNameFrame(
                                     nameAr: widget.surahNameAr,
-                                    frameColor: frameColor,
+                                    lineColor: lineColor,
+                                    bandFill: bandFill,
                                     textColor: fg,
                                   ),
                                   if (_shouldShowBasmalaForThisSurah()) ...[
@@ -2629,26 +2918,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                 children: [
                                   Row(
                                     children: [
-                                      // Numéro de verset en badge
-                                      Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: isPlayingThis
-                                              ? _accent(isDark).withValues(alpha: 0.18)
-                                              : (isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.06)),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            '$ayaNum',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w700,
-                                              color: isPlayingThis ? _accent(isDark) : subtle,
-                                            ),
-                                          ),
-                                        ),
+                                      // Numéro de verset — médaillon islamique
+                                      _VerseBadge(
+                                        number: ayaNum,
+                                        color: isPlayingThis
+                                            ? _accent(isDark)
+                                            : (isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230)).withValues(alpha: 0.75),
                                       ),
                                       if (isPlayingThis) ...[
                                         const SizedBox(width: 8),
