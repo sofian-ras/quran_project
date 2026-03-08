@@ -19,8 +19,6 @@ import '../services/qul_audio/qul_audio_resolver.dart';
 import '../surah_name.dart';
 import '../services/tafsir_service.dart' show TafsirService;
 import '../services/quran_ayah_metadata_db.dart';
-import 'reader_screen.dart';
-import 'screens/quran_loader.dart';
 
 // Notifier partagé entre la liste et l'en-tête (0=blanc, 1=papier, 2=sombre)
 final _tqsThemeNotifier = ValueNotifier<int>(1);
@@ -396,7 +394,7 @@ class _SurahTab extends StatefulWidget {
 class _SurahTabState extends State<_SurahTab> {
   /// Liste aplatie : chaque item est soit {'type':'juz','juz':N} soit {'type':'surah',...}
   List<Map<String, dynamic>> _items = [];
-  Set<int> _visitedSurahIds = {};
+  List<Map<String, dynamic>> _recentHistory = [];
   bool _loading = true;
   final _scrollCtrl = ScrollController();
   double _lastScrollOffset = 0;
@@ -496,20 +494,37 @@ class _SurahTabState extends State<_SurahTab> {
       });
     }
 
-    // Sourates visitées via l'historique de lecture
+    // Sourates visitées + récents
     final history = await ReadingHistoryService.instance.getHistory(limit: 500);
     final visited = <int>{};
+    final recentUnique = <Map<String, dynamic>>[];
+    final seenIds = <int>{};
     for (final h in history) {
       final sid = h['surahId'];
-      if (sid is int) visited.add(sid);
+      if (sid is int) {
+        visited.add(sid);
+        if (seenIds.add(sid) && recentUnique.length < 8) recentUnique.add(h);
+      }
     }
 
     if (!mounted) return;
     setState(() {
       _items = flat;
-      _visitedSurahIds = visited;
+      _recentHistory = recentUnique;
       _loading = false;
     });
+  }
+
+  static String _timeAgo(String? timestamp) {
+    if (timestamp == null) return '';
+    final dt = DateTime.tryParse(timestamp);
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 2) return "À l'instant";
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours} h';
+    if (diff.inDays < 7) return 'Il y a ${diff.inDays} j';
+    return 'Il y a ${(diff.inDays / 7).round()} sem';
   }
 
   @override
@@ -522,141 +537,334 @@ class _SurahTabState extends State<_SurahTab> {
       valueListenable: _tqsThemeNotifier,
       builder: (context, tqsTheme, _) {
         final isDark = tqsTheme == 2;
-        final bg = isDark
-            ? const Color(0xFF0B1025)
-            : (tqsTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
-        final titleColor = isDark ? Colors.white.withValues(alpha: 0.92) : Colors.black.withValues(alpha: 0.90);
-        final subColor = isDark ? Colors.white.withValues(alpha: 0.50) : Colors.black.withValues(alpha: 0.45);
-        final dividerColor = isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.06);
-        final accentColor = isDark ? const Color(0xFF7986CB) : const Color(0xFF3949AB);
-        final arColor = isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF3D2B0E);
+        final cardBg = isDark
+            ? const Color(0xFF151E35)
+            : (tqsTheme == 0 ? const Color(0xFFF7F5F2) : const Color(0xFFE8CE96));
+        final titleColor = isDark
+            ? Colors.white.withValues(alpha: 0.92)
+            : Colors.black.withValues(alpha: 0.88);
+        final subColor = isDark
+            ? Colors.white.withValues(alpha: 0.45)
+            : Colors.black.withValues(alpha: 0.40);
+        final accentColor = isDark ? const Color(0xFF8C9EFF) : const Color(0xFF3949AB);
+        final arabicColor = isDark
+            ? Colors.white.withValues(alpha: 0.88)
+            : const Color(0xFF4A3820);
+        final patternColor = isDark
+            ? Colors.white.withValues(alpha: 0.022)
+            : Colors.black.withValues(alpha: 0.028);
+        final sectionLabelColor = isDark
+            ? Colors.white.withValues(alpha: 0.55)
+            : Colors.black.withValues(alpha: 0.45);
 
-    return Container(
-      color: bg,
-      child: ListView.builder(
-        controller: _scrollCtrl,
-        padding: const EdgeInsets.only(bottom: 24),
-        itemCount: _items.length,
-        itemBuilder: (context, index) {
-          final item = _items[index];
+        final hasRecents = _recentHistory.isNotEmpty;
+        final headerOffset = hasRecents ? 2 : 1;
 
-          // ── Juz banner ───────────────────────────────────────────
-          if (item['type'] == 'juz') {
-            final juz   = item['juz']   as int;
-            final surah = item['surah'] as int;
-            final ayah  = item['ayah']  as int;
-            final nameAr = TafsirService.surahNames[surah - 1];
-            final nameFr = isEn ? (surahEn[surah] ?? 'Surah $surah') : (surahFr[surah] ?? 'Sourate $surah');
-            return _JuzBanner(
-              juz: juz,
-              surah: surah,
-              ayah: ayah,
-              tqsTheme: tqsTheme,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TranslatedSurahScreen(
-                    surahNumber: surah,
-                    surahNameFr: nameFr,
-                    surahNameAr: nameAr,
-                    preferOffline: widget.preferOffline,
-                    initialAyah: ayah,
-                  ),
-                ),
-              ).then((_) => _loadTheme()),
-            );
-          }
+        return Stack(
+          children: [
+            // ── Motif islamique en fond ─────────────────────────────
+            CustomPaint(
+              painter: _IslamicPatternPainter(color: patternColor),
+              child: const SizedBox.expand(),
+            ),
+            // ── Liste principale ────────────────────────────────────
+            ListView.builder(
+              controller: _scrollCtrl,
+              padding: const EdgeInsets.only(bottom: 32),
+              itemCount: headerOffset + _items.length,
+              itemBuilder: (context, index) {
 
-          // ── Surah item ───────────────────────────────────────────
-          final surahId = item['id'] as int;
-          final nameAr = (item['nameAr'] ?? '').toString();
-          final nameTr = isEn ? (surahEn[surahId] ?? 'Surah $surahId') : (surahFr[surahId] ?? 'Sourate $surahId');
-          final ayahCount = item['ayahCount'] as int;
-
-          final meaning = surahMeaning[surahId];
-          final isVisited = _visitedSurahIds.contains(surahId);
-
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (index > 0)
-                Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16, color: dividerColor),
-              InkWell(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TranslatedSurahScreen(
-                      surahNumber: surahId,
-                      surahNameFr: nameTr,
-                      surahNameAr: nameAr,
-                      preferOffline: widget.preferOffline,
+                // ── Section Récents ─────────────────────────────────
+                if (hasRecents && index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                          child: Text(
+                            'Récents',
+                            style: TextStyle(
+                              color: sectionLabelColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 108,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _recentHistory.length,
+                            itemBuilder: (ctx, i) {
+                              final h = _recentHistory[i];
+                              final sid = h['surahId'] as int;
+                              final nameAr = TafsirService.surahNames[sid - 1];
+                              final nameTr = surahFr[sid] ?? 'Sourate $sid';
+                              final timeAgo = _timeAgo(h['timestamp'] as String?);
+                              return GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TranslatedSurahScreen(
+                                      surahNumber: sid,
+                                      surahNameFr: nameTr,
+                                      surahNameAr: nameAr,
+                                      preferOffline: widget.preferOffline,
+                                    ),
+                                  ),
+                                ).then((_) => _loadTheme()),
+                                child: Container(
+                                  width: 148,
+                                  margin: EdgeInsets.only(
+                                    left: i == 0 ? 0 : 10,
+                                    right: i == _recentHistory.length - 1 ? 0 : 0,
+                                  ),
+                                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                                  decoration: BoxDecoration(
+                                    color: cardBg,
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.07),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        nameAr,
+                                        textDirection: TextDirection.rtl,
+                                        style: TextStyle(
+                                          fontFamily: 'ScheherazadeNew',
+                                          fontSize: 20,
+                                          color: arabicColor,
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.1,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        nameTr,
+                                        style: TextStyle(
+                                          color: titleColor,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (timeAgo.isNotEmpty)
+                                        Text(
+                                          timeAgo,
+                                          style: TextStyle(color: subColor, fontSize: 11),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ).then((_) => _loadTheme()),
-                child: Stack(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 32,
-                            child: Text(
-                              '$surahId',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: isVisited ? accentColor : subColor,
-                                fontSize: surahId > 99 ? 11 : 13,
-                                fontWeight: FontWeight.w600,
+                  );
+                }
+
+                if (index == headerOffset - 1) {
+                  return const SizedBox(height: 8);
+                }
+
+                // ── Items juz / sourate ─────────────────────────────
+                final item = _items[index - headerOffset];
+
+                if (item['type'] == 'juz') {
+                  final juz   = item['juz']   as int;
+                  final surah = item['surah'] as int;
+                  final ayah  = item['ayah']  as int;
+                  final nameAr = TafsirService.surahNames[surah - 1];
+                  final nameFr = isEn ? (surahEn[surah] ?? 'Surah $surah') : (surahFr[surah] ?? 'Sourate $surah');
+                  return _JuzBanner(
+                    juz: juz,
+                    surah: surah,
+                    ayah: ayah,
+                    tqsTheme: tqsTheme,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TranslatedSurahScreen(
+                          surahNumber: surah,
+                          surahNameFr: nameFr,
+                          surahNameAr: nameAr,
+                          preferOffline: widget.preferOffline,
+                          initialAyah: ayah,
+                        ),
+                      ),
+                    ).then((_) => _loadTheme()),
+                  );
+                }
+
+                // ── Carte sourate ───────────────────────────────────
+                final surahId  = item['id'] as int;
+                final nameAr   = (item['nameAr'] ?? '').toString();
+                final nameTr   = surahFr[surahId] ?? 'Sourate $surahId';
+                final meaning  = surahMeaning[surahId];
+                final ayahCount = item['ayahCount'] as int;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                  child: Material(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TranslatedSurahScreen(
+                            surahNumber: surahId,
+                            surahNameFr: nameTr,
+                            surahNameAr: nameAr,
+                            preferOffline: widget.preferOffline,
+                          ),
+                        ),
+                      ).then((_) => _loadTheme()),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // ── Numéro ──────────────────────────────
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: accentColor.withValues(alpha: isDark ? 0.18 : 0.10),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '$surahId',
+                                style: TextStyle(
+                                  color: accentColor,
+                                  fontSize: surahId > 99 ? 10 : 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          // ── Nom fr + infos ─────────────────────
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(nameTr, style: TextStyle(color: titleColor, fontWeight: FontWeight.w700, fontSize: 15)),
-                                const SizedBox(height: 2),
-                                if (meaning != null) ...[
-                                  Text('"$meaning"', style: TextStyle(color: subColor.withValues(alpha: 0.75), fontSize: 11, fontStyle: FontStyle.italic)),
-                                  const SizedBox(height: 1),
+                            // ── Noms centrés ─────────────────────────
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    nameAr,
+                                    textDirection: TextDirection.rtl,
+                                    style: TextStyle(
+                                      fontFamily: 'ScheherazadeNew',
+                                      fontSize: 22,
+                                      color: arabicColor,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.1,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        nameTr,
+                                        style: TextStyle(
+                                          color: titleColor,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        meaning ?? '$ayahCount ${isEn ? 'verses' : 'versets'}',
+                                        style: TextStyle(color: subColor, fontSize: 11),
+                                      ),
+                                    ],
+                                  ),
                                 ],
-                                Text('$ayahCount ${isEn ? 'verses' : 'versets'}',
-                                    style: TextStyle(color: subColor, fontSize: 11)),
-                              ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          // ── Nom arabe à droite ──────────────────
-                          Text(
-                            nameAr,
-                            textDirection: TextDirection.rtl,
-                            style: TextStyle(
-                              color: isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF4A3820),
-                              fontSize: 20,
-                              fontFamily: 'ScheherazadeNew',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+                  ),
+                );
+              },
+            ),
+          ],
+        );
       },
     );
   }
+}
+
+class _IslamicPatternPainter extends CustomPainter {
+  final Color color;
+  const _IslamicPatternPainter({required this.color});
+
+  void _drawStar(Canvas canvas, Paint paint, Offset center, double r) {
+    const points = 8;
+    final inner = r * 0.42;
+    final path = Path();
+    for (int i = 0; i < points * 2; i++) {
+      final angle = (i * math.pi / points) - math.pi / 2;
+      final radius = i.isEven ? r : inner;
+      final x = center.dx + radius * math.cos(angle);
+      final y = center.dy + radius * math.sin(angle);
+      if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7;
+
+    const step = 64.0;
+    const r = 16.0;
+    for (double x = step / 2; x < size.width + step; x += step) {
+      for (double y = step / 2; y < size.height + step; y += step) {
+        _drawStar(canvas, paint, Offset(x, y), r);
+        // petits carrés rotatifs entre les étoiles
+        final cx = x + step / 2;
+        final cy = y + step / 2;
+        if (cx < size.width + step && cy < size.height + step) {
+          canvas.save();
+          canvas.translate(cx, cy);
+          canvas.rotate(math.pi / 4);
+          canvas.drawRect(
+            Rect.fromCenter(center: Offset.zero, width: r * 0.55, height: r * 0.55),
+            paint,
+          );
+          canvas.restore();
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_IslamicPatternPainter old) => old.color != color;
 }
 
 
