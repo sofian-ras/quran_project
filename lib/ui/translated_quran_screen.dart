@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/quran_translation_pack_service.dart';
 import '../services/verse_favorites_service.dart';
@@ -20,6 +21,9 @@ import '../services/tafsir_service.dart' show TafsirService;
 import '../services/quran_ayah_metadata_db.dart';
 import 'reader_screen.dart';
 import 'screens/quran_loader.dart';
+
+// Notifier partagé entre la liste et l'en-tête (0=blanc, 1=papier, 2=sombre)
+final _tqsThemeNotifier = ValueNotifier<int>(1);
 
 class TranslatedQuranScreen extends StatefulWidget {
   final bool preferOffline;
@@ -39,6 +43,9 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+    SharedPreferences.getInstance().then((p) {
+      _tqsThemeNotifier.value = p.getInt('tqs_theme') ?? 1;
+    });
   }
 
   @override
@@ -49,27 +56,50 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ValueListenableBuilder<int>(
+      valueListenable: _tqsThemeNotifier,
+      builder: (context, tqsTheme, _) {
+        final isDark = tqsTheme == 2;
+        final bg = isDark
+            ? const Color(0xFF0B1025)
+            : (tqsTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
+        final fg = isDark ? Colors.white.withValues(alpha: 0.92) : Colors.black.withValues(alpha: 0.90);
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-            isEn ? 'Translated Quran' : 'Coran Français',
-            style: TextStyle(
-              color: isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90),
-              fontWeight: FontWeight.w800,
-            ),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Coran',
+                style: TextStyle(
+                  color: fg,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                ),
+              ),
+              const SizedBox(width: 8),
+              SvgPicture.asset(
+                'assets/images/navbar/Quran_Kareem.svg',
+                height: 20,
+                colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
+              ),
+            ],
           ),
-          backgroundColor: isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF),
-          foregroundColor: isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90),
+          backgroundColor: bg,
+          foregroundColor: fg,
           elevation: 0,
-          actions: const [],
+          actions: [
+            IconButton(
+              icon: Icon(Icons.settings_outlined, color: fg, size: 22),
+              onPressed: () => _showThemeSheet(context, tqsTheme, bg, fg),
+            ),
+          ],
           bottom: TabBar(
-            labelColor: isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90),
-            unselectedLabelColor: isDark ? Colors.white.withOpacity(0.55) : Colors.black.withOpacity(0.50),
+            labelColor: fg,
+            unselectedLabelColor: isDark ? Colors.white.withValues(alpha: 0.55) : Colors.black.withValues(alpha: 0.50),
             tabs: const [
               Tab(text: 'Sourates'),
               Tab(text: 'Favoris'),
@@ -82,6 +112,101 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
             const _FavoritesTab(),
           ],
         ),
+      ),
+    );
+    },  // fin builder
+  );    // fin ValueListenableBuilder
+  }
+
+  void _showThemeSheet(BuildContext context, int currentTheme, Color bg, Color fg) {
+    final themes = [
+      (label: 'Blanc',  icon: 'بِسْمِ', bg: Colors.white,              border: const Color(0xFFDDDDDD)),
+      (label: 'Papier', icon: 'بِسْمِ', bg: const Color(0xFFF3E8C0),   border: const Color(0xFFC8A97E)),
+      (label: 'Sombre', icon: 'بِسْمِ', bg: const Color(0xFF12192E),   border: const Color(0xFF3A4A6A)),
+    ];
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (ctx, _, __) => Align(
+        alignment: Alignment.topCenter,
+        child: SafeArea(
+          child: StatefulBuilder(
+            builder: (ctx, setS) => Material(
+              color: Colors.transparent,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Thème', style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 15)),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: List.generate(3, (idx) {
+                        final t = themes[idx];
+                        final selected = _tqsThemeNotifier.value == idx;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              _tqsThemeNotifier.value = idx;
+                              setS(() {});
+                              final p = await SharedPreferences.getInstance();
+                              await p.setInt('tqs_theme', idx);
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              margin: const EdgeInsets.symmetric(horizontal: 5),
+                              height: 72,
+                              decoration: BoxDecoration(
+                                color: t.bg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected ? const Color(0xFFC8A97E) : t.border,
+                                  width: selected ? 2.0 : 1.0,
+                                ),
+                                boxShadow: selected ? [BoxShadow(color: const Color(0xFFC8A97E).withValues(alpha: 0.35), blurRadius: 6)] : [],
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(t.icon, style: TextStyle(
+                                    fontFamily: 'ScheherazadeNew',
+                                    fontSize: 18,
+                                    color: idx == 2 ? Colors.white.withValues(alpha: 0.85) : const Color(0xFF4A3F30),
+                                  )),
+                                  const SizedBox(height: 4),
+                                  Text(t.label, style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: idx == 2 ? Colors.white.withValues(alpha: 0.75) : const Color(0xFF4A3F30),
+                                  )),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      transitionBuilder: (ctx, anim, __, child) => SlideTransition(
+        position: Tween(begin: const Offset(0, -1), end: Offset.zero)
+            .animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+        child: child,
       ),
     );
   }
@@ -120,73 +245,70 @@ class _FavoritesTabState extends State<_FavoritesTab> {
     });
   }
 
-  Color _bg(bool isDark) => isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF);
-  Color _text(bool isDark) => isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90);
-  Color _muted(bool isDark) => isDark ? Colors.white.withOpacity(0.62) : Colors.black.withOpacity(0.58);
-  Color _border(bool isDark) => isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.08);
-
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = _text(isDark);
-    final subtle = _muted(isDark);
-    final border = _border(isDark);
+    return ValueListenableBuilder<int>(
+      valueListenable: _tqsThemeNotifier,
+      builder: (context, tqsTheme, _) {
+        final isDark = tqsTheme == 2;
+        final bg     = isDark ? const Color(0xFF0B1025) : (tqsTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
+        final fg     = isDark ? Colors.white.withValues(alpha: 0.92) : Colors.black.withValues(alpha: 0.90);
+        final subtle = isDark ? Colors.white.withValues(alpha: 0.55) : Colors.black.withValues(alpha: 0.55);
+        final border = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08);
+        final cardBg = isDark ? const Color(0xFF111827) : Colors.white.withValues(alpha: 0.6);
 
-    if (_loading) {
-      return Container(color: _bg(isDark), child: const Center(child: CircularProgressIndicator()));
-    }
+        if (_loading) {
+          return Container(color: bg, child: const Center(child: CircularProgressIndicator()));
+        }
 
-    if (_keys.isEmpty) {
-      return Container(
-        color: _bg(isDark),
-        child: Center(
-          child: Text('Aucun favori', style: TextStyle(color: subtle, fontWeight: FontWeight.w700)),
-        ),
-      );
-    }
-
-    return Container(
-      color: _bg(isDark),
-      child: ListView.separated(
-        padding: const EdgeInsets.all(12),
-        itemCount: _keys.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (_, i) {
-          final key = _keys[i];
-          final parts = key.split(':');
-          final s = parts.length == 2 ? int.tryParse(parts[0]) ?? 0 : 0;
-          final a = parts.length == 2 ? int.tryParse(parts[1]) ?? 0 : 0;
-
-          final nameTr = surahFr[s] ?? 'Sourate $s';
-
+        if (_keys.isEmpty) {
           return Container(
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F1734) : Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: border),
-            ),
-            child: ListTile(
-              title: Text('$nameTr', style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
-              subtitle: Text('Verset $a', style: TextStyle(color: subtle, fontWeight: FontWeight.w600)),
-              trailing: Icon(Icons.chevron_right_rounded, color: subtle),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TranslatedSurahScreen(
-                      surahNumber: s,
-                      surahNameFr: nameTr,
-                      surahNameAr: 'سورة $s',
-                      preferOffline: true,
-                      initialAyah: a <= 0 ? 1 : a,
+            color: bg,
+            child: Center(child: Text('Aucun favori', style: TextStyle(color: subtle, fontWeight: FontWeight.w700))),
+          );
+        }
+
+        return Container(
+          color: bg,
+          child: ListView.separated(
+            padding: const EdgeInsets.all(12),
+            itemCount: _keys.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (_, i) {
+              final key = _keys[i];
+              final parts = key.split(':');
+              final s = parts.length == 2 ? int.tryParse(parts[0]) ?? 0 : 0;
+              final a = parts.length == 2 ? int.tryParse(parts[1]) ?? 0 : 0;
+              final nameTr = surahFr[s] ?? 'Sourate $s';
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: border),
+                ),
+                child: ListTile(
+                  title: Text(nameTr, style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
+                  subtitle: Text('Verset $a', style: TextStyle(color: subtle, fontWeight: FontWeight.w600)),
+                  trailing: Icon(Icons.chevron_right_rounded, color: subtle),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TranslatedSurahScreen(
+                        surahNumber: s,
+                        surahNameFr: nameTr,
+                        surahNameAr: 'سورة $s',
+                        preferOffline: true,
+                        initialAyah: a <= 0 ? 1 : a,
+                      ),
                     ),
                   ),
-                );
-              },
-            ),
-          );
-        },
-      ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -221,11 +343,21 @@ class _SurahTabState extends State<_SurahTab> {
   List<Map<String, dynamic>> _items = [];
   Set<int> _visitedSurahIds = {};
   bool _loading = true;
+  int _tqsTheme = 1; // 0=blanc 1=papier 2=sombre
 
   @override
   void initState() {
     super.initState();
     _loadSurahs();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final t = p.getInt('tqs_theme') ?? 1;
+    _tqsThemeNotifier.value = t;
+    setState(() => _tqsTheme = t);
   }
 
   // Page de début de chaque sourate dans le mushaf (index 0 = sourate 1).
@@ -309,14 +441,20 @@ class _SurahTabState extends State<_SurahTab> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isEn = Localizations.localeOf(context).languageCode.toLowerCase().startsWith('en');
 
-    final bg = isDark ? const Color(0xFF0B1025) : const Color(0xFFF9F6EF);
-    final titleColor = isDark ? Colors.white.withOpacity(0.92) : Colors.black.withOpacity(0.90);
-    final subColor = isDark ? Colors.white.withOpacity(0.65) : Colors.black.withOpacity(0.60);
-    final dividerColor = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.07);
-    final accentColor = isDark ? const Color(0xFF7986CB) : const Color(0xFF3949AB);
+    return ValueListenableBuilder<int>(
+      valueListenable: _tqsThemeNotifier,
+      builder: (context, tqsTheme, _) {
+        final isDark = tqsTheme == 2;
+        final bg = isDark
+            ? const Color(0xFF0B1025)
+            : (tqsTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
+        final titleColor = isDark ? Colors.white.withValues(alpha: 0.92) : Colors.black.withValues(alpha: 0.90);
+        final subColor = isDark ? Colors.white.withValues(alpha: 0.50) : Colors.black.withValues(alpha: 0.45);
+        final dividerColor = isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.06);
+        final accentColor = isDark ? const Color(0xFF7986CB) : const Color(0xFF3949AB);
+        final arColor = isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF3D2B0E);
 
     return Container(
       color: bg,
@@ -335,7 +473,9 @@ class _SurahTabState extends State<_SurahTab> {
             final nameFr = isEn ? (surahEn[surah] ?? 'Surah $surah') : (surahFr[surah] ?? 'Sourate $surah');
             return _JuzBanner(
               juz: juz,
-              isDark: isDark,
+              surah: surah,
+              ayah: ayah,
+              tqsTheme: _tqsTheme,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -347,7 +487,7 @@ class _SurahTabState extends State<_SurahTab> {
                     initialAyah: ayah,
                   ),
                 ),
-              ),
+              ).then((_) => _loadTheme()),
             );
           }
 
@@ -364,8 +504,6 @@ class _SurahTabState extends State<_SurahTab> {
           final meaning = surahMeaning[surahId];
           final isVisited = _visitedSurahIds.contains(surahId);
 
-          final badgeLineColor = isVisited ? accentColor : (isDark ? const Color(0xFF7986CB) : const Color(0xFF8B7340));
-          final badgeFillColor = isVisited ? accentColor.withOpacity(0.12) : (isDark ? const Color(0xFF1A2540) : const Color(0xFFF5EDD8));
 
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -383,20 +521,25 @@ class _SurahTabState extends State<_SurahTab> {
                       preferOffline: widget.preferOffline,
                     ),
                   ),
-                ),
+                ).then((_) => _loadTheme()),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // ── Badge mushaf ───────────────────────
-                      _QuranBadge(
-                        number: surahId,
-                        lineColor: badgeLineColor,
-                        fillColor: badgeFillColor,
-                        textColor: isVisited ? accentColor : (isDark ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF5C4A20)),
+                      SizedBox(
+                        width: 32,
+                        child: Text(
+                          '$surahId',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: isVisited ? accentColor : subColor,
+                            fontSize: surahId > 99 ? 11 : 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       // ── Nom + infos ────────────────────────
                       Expanded(
                         child: Column(
@@ -442,195 +585,13 @@ class _SurahTabState extends State<_SurahTab> {
         },
       ),
     );
-  }
-}
-
-// ─── Badge numéro de sourate ───────────────────────────────────────────────
-class _QuranBadge extends StatelessWidget {
-  final int number;
-  final Color lineColor;
-  final Color fillColor;
-  final Color textColor;
-
-  const _QuranBadge({
-    required this.number,
-    required this.lineColor,
-    required this.fillColor,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 42,
-      height: 42,
-      child: CustomPaint(
-        painter: _QuranBadgePainter(lineColor: lineColor, fillColor: fillColor),
-        child: Center(
-          child: Text(
-            '$number',
-            style: TextStyle(
-              color: textColor,
-              fontSize: number > 99 ? 8.5 : (number > 9 ? 10.5 : 12),
-              fontWeight: FontWeight.w700,
-              height: 1,
-            ),
-          ),
-        ),
-      ),
+      },
     );
   }
 }
 
-class _QuranBadgePainter extends CustomPainter {
-  final Color lineColor;
-  final Color fillColor;
-  const _QuranBadgePainter({required this.lineColor, required this.fillColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r  = cx - 3.5; // rayon du cercle
-
-    // Remplissage
-    canvas.drawCircle(
-      Offset(cx, cy), r,
-      Paint()..color = fillColor..style = PaintingStyle.fill,
-    );
-    // Contour fin
-    canvas.drawCircle(
-      Offset(cx, cy), r,
-      Paint()..color = lineColor..strokeWidth = 0.9..style = PaintingStyle.stroke,
-    );
-
-    // 4 losanges aux points cardinaux (N E S O)
-    final lp = Paint()..color = lineColor..style = PaintingStyle.fill;
-    const d = 3.0;
-    for (int i = 0; i < 4; i++) {
-      final angle = i * math.pi / 2 - math.pi / 2;
-      final tx = cx + r * math.cos(angle);
-      final ty = cy + r * math.sin(angle);
-      canvas.drawPath(
-        Path()
-          ..moveTo(tx, ty - d)
-          ..lineTo(tx + d, ty)
-          ..lineTo(tx, ty + d)
-          ..lineTo(tx - d, ty)
-          ..close(),
-        lp,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_QuranBadgePainter old) =>
-      old.lineColor != lineColor || old.fillColor != fillColor;
-}
 
 // ── Mushaf ornamental frame ────────────────────────────────────────────────
-class _SurahFramePainter extends CustomPainter {
-  final Color lineColor;
-  final Color bandFill;
-  const _SurahFramePainter({required this.lineColor, required this.bandFill});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final cx = w / 2;
-
-    // Fond très léger
-    canvas.drawRect(
-      Rect.fromLTRB(0, 0, w, h),
-      Paint()..color = bandFill..style = PaintingStyle.fill,
-    );
-
-    // Bordure fine unique
-    final stroke = Paint()
-      ..color = lineColor
-      ..strokeWidth = 0.9
-      ..style = PaintingStyle.stroke;
-    canvas.drawRect(Rect.fromLTRB(0, 0, w, h), stroke);
-
-    // Helper losange plein
-    final fp = Paint()..color = lineColor..style = PaintingStyle.fill;
-    void diamond(double dx, double dy, double r) {
-      canvas.drawPath(
-        Path()
-          ..moveTo(dx, dy - r)
-          ..lineTo(dx + r, dy)
-          ..lineTo(dx, dy + r)
-          ..lineTo(dx - r, dy)
-          ..close(),
-        fp,
-      );
-    }
-
-    // Arabesques de coins : équerre intérieure + losange au vertex
-    const inset = 6.0;
-    const arm   = 14.0;
-    const d     = 2.8;
-
-    void corner(double x, double y, double sx, double sy) {
-      final bx = x + sx * inset;
-      final by = y + sy * inset;
-      canvas.drawLine(Offset(bx, by), Offset(bx + sx * arm, by), stroke);
-      canvas.drawLine(Offset(bx, by), Offset(bx, by + sy * arm), stroke);
-      diamond(bx, by, d);
-    }
-
-    corner(0, 0,  1,  1);
-    corner(w, 0, -1,  1);
-    corner(0, h,  1, -1);
-    corner(w, h, -1, -1);
-
-    // Petit losange centré haut et bas
-    diamond(cx, 0, 3.2);
-    diamond(cx, h, 3.2);
-  }
-
-  @override
-  bool shouldRepaint(_SurahFramePainter old) =>
-      old.lineColor != lineColor || old.bandFill != bandFill;
-}
-
-class _SurahNameFrame extends StatelessWidget {
-  final String nameAr;
-  final Color lineColor;
-  final Color bandFill;
-  final Color textColor;
-
-  const _SurahNameFrame({
-    required this.nameAr,
-    required this.lineColor,
-    required this.bandFill,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _SurahFramePainter(lineColor: lineColor, bandFill: bandFill),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-        child: Center(
-          child: Text(
-            nameAr,
-            textDirection: TextDirection.rtl,
-            style: TextStyle(
-              fontSize: 32,
-              fontFamily: 'ScheherazadeNew',
-              fontWeight: FontWeight.w600,
-              color: textColor,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _BasmalaTitle extends StatelessWidget {
   final Color color;
@@ -747,55 +708,51 @@ class _VerseBadgePainter extends CustomPainter {
 // ── Bandeau de séparation de Juz ─────────────────────────────────────────
 class _JuzBanner extends StatelessWidget {
   final int juz;
-  final bool isDark;
+  final int surah;
+  final int ayah;
+  final int tqsTheme;
   final VoidCallback onTap;
 
-  const _JuzBanner({required this.juz, required this.isDark, required this.onTap});
+  const _JuzBanner({required this.juz, required this.surah, required this.ayah, required this.tqsTheme, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = tqsTheme == 2;
     final lineColor = isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230);
-    final bg = isDark ? const Color(0xFF1A2540) : const Color(0xFFF5EDD8);
+    final bg = isDark ? const Color(0xFF0B1025) : (tqsTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
     final textColor = isDark ? const Color(0xFFD4A855) : const Color(0xFF7A5420);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         color: bg,
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Row(
           children: [
-            const SizedBox(width: 16),
-            Expanded(child: _thinLine(lineColor)),
-            const SizedBox(width: 10),
-            // Diamond ornement left
             _diamond(lineColor),
             const SizedBox(width: 8),
             Text(
-              'الجزء $juz',
-              textDirection: TextDirection.rtl,
+              'Juz $juz',
               style: TextStyle(
-                fontFamily: 'ScheherazadeNew',
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
                 color: textColor,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '— Juz $juz',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: textColor.withValues(alpha: 0.7),
                 letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(width: 8),
-            _diamond(lineColor),
             const SizedBox(width: 10),
             Expanded(child: _thinLine(lineColor)),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
+            Text(
+              'S.$surah · v.$ayah',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: textColor.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _diamond(lineColor),
           ],
         ),
       ),
@@ -1050,25 +1007,91 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     return _ayahItemKeys.putIfAbsent(ayah, () => GlobalKey());
   }
 
+  // Estimation grossière pour le premier jump (amène des items proches dans le cache)
+  double _roughOffset(int ayah) {
+    if (ayah <= 1 || _arabic.isEmpty) return 0;
+    double offset = 120.0;
+    for (int i = 0; i < (ayah - 1).clamp(0, _arabic.length); i++) {
+      final lines = (_arabic[i].length / 14.0).ceil().clamp(1, 30);
+      offset += 28.0 + lines * 36.0 + 72.0;
+    }
+    return offset;
+  }
+
   void _ensureAyahCentered(int ayah) {
+    if (!mounted || !_scrollController.hasClients) return;
+    // Jump grossier pour amener des items proches dans le cache (cacheExtent: 3000)
+    _scrollController.jumpTo(
+      _roughOffset(ayah).clamp(0.0, _scrollController.position.maxScrollExtent),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refineScroll(ayah));
+  }
+
+  void _refineScroll(int ayah) {
     if (!mounted) return;
 
+    // Si le verset cible est déjà rendu → ensureVisible direct
+    final targetObj = _ayahItemKeys[ayah]?.currentContext?.findRenderObject();
+    if (targetObj != null) {
+      Scrollable.ensureVisible(
+        _ayahItemKeys[ayah]!.currentContext!,
+        alignment: 0.1,
+        duration: Duration.zero,
+      );
+      return;
+    }
+
+    // Trouver le verset rendu le plus proche du cible
+    int anchorAyah = -1;
+    RenderObject? anchorObj;
+    for (int d = 1; d < _arabic.length; d++) {
+      for (final c in [ayah - d, ayah + d]) {
+        if (c < 1 || c > _arabic.length) continue;
+        final obj = _ayahItemKeys[c]?.currentContext?.findRenderObject();
+        if (obj != null) {
+          anchorAyah = c;
+          anchorObj = obj;
+          break;
+        }
+      }
+      if (anchorAyah != -1) break;
+    }
+    if (anchorAyah == -1 || anchorObj == null) return;
+
+    // Offset exact de l'ancre dans le scroll view
+    final viewport = RenderAbstractViewport.of(anchorObj);
+    final anchorScrollOffset = viewport.getOffsetToReveal(anchorObj, 0.0).offset;
+
+    // Somme des hauteurs réelles (ou estimées) entre ancre et cible
+    double delta = 0;
+    final lo = math.min(anchorAyah, ayah);
+    final hi = math.max(anchorAyah, ayah);
+    for (int i = lo; i < hi; i++) {
+      final obj = _ayahItemKeys[i]?.currentContext?.findRenderObject() as RenderBox?;
+      if (obj != null) {
+        delta += obj.size.height;
+      } else if (i >= 1 && i <= _arabic.length) {
+        final lines = (_arabic[i - 1].length / 14.0).ceil().clamp(1, 30);
+        delta += 28.0 + lines * 36.0 + 72.0;
+      }
+    }
+
+    final dest = anchorAyah < ayah
+        ? anchorScrollOffset + delta
+        : anchorScrollOffset - delta;
+
+    _scrollController.jumpTo(dest.clamp(0.0, _scrollController.position.maxScrollExtent));
+
+    // Dernière passe : ensureVisible si l'item est maintenant rendu
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-
-      final key = _ayahItemKeys[ayah];
-      final ctx = key?.currentContext;
-      if (ctx == null) return;
-
-      Scrollable.ensureVisible(
-        ctx,
-        alignment: 0.5, // center
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOut,
-      );
+      final ctx = _ayahItemKeys[ayah]?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(ctx, alignment: 0.1, duration: Duration.zero);
+      }
     });
   }
-  final ScrollController _scrollController = ScrollController();
+  late final ScrollController _scrollController;
   // 0.0 = barres visibles · 1.0 = barres cachées
   final ValueNotifier<double> _barProgress = ValueNotifier(0.0);
   double _lastScrollOffset = 0.0;
@@ -1114,6 +1137,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   void initState() {
     super.initState();
     _selectedAyah = widget.initialAyah <= 0 ? 1 : widget.initialAyah;
+    _scrollController = ScrollController();
     _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
     AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.continuous;
     _repeatTimes = 1;
@@ -2858,25 +2882,56 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
 
                           return ListView.builder(
                             controller: _scrollController,
+                            cacheExtent: 3000,
                             padding: EdgeInsets.fromLTRB(16, appBarH + 12, 16, MediaQuery.of(context).padding.bottom + 140),
                         itemCount: _arabic.length + 1,
                         itemBuilder: (context, i) {
                           if (i == 0) {
-                            final lineColor = isDark
-                                ? Colors.white.withValues(alpha: 0.35)
-                                : const Color(0xFFA07840).withValues(alpha: 0.70);
-                            final bandFill = isDark
-                                ? Colors.white.withValues(alpha: 0.05)
-                                : const Color(0xFFD4A855).withValues(alpha: 0.18);
                             return Padding(
                               padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
                               child: Column(
                                 children: [
-                                  _SurahNameFrame(
-                                    nameAr: widget.surahNameAr,
-                                    lineColor: lineColor,
-                                    bandFill: bandFill,
-                                    textColor: fg,
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final svgW = constraints.maxWidth;
+                                      final svgH = svgW * 67 / 624;
+                                      return SizedBox(
+                                        width: svgW,
+                                        height: svgH,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            Positioned.fill(
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(12),
+                                                child: SvgPicture.asset(
+                                                  'assets/images/Translated_Quran/cadre_name_surah.svg',
+                                                  fit: BoxFit.fill,
+                                                ),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                                              child: FittedBox(
+                                                fit: BoxFit.scaleDown,
+                                                child: Text(
+                                                  widget.surahNameAr,
+                                                  textDirection: TextDirection.rtl,
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontFamily: 'ScheherazadeNew',
+                                                    fontWeight: FontWeight.w600,
+                                                    color: fg,
+                                                    height: 1.0,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
                                   ),
                                   if (_shouldShowBasmalaForThisSurah()) ...[
                                     const SizedBox(height: 20),

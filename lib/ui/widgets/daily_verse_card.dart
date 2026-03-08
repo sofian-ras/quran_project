@@ -14,45 +14,32 @@ class DailyVerseCard extends StatelessWidget {
     final todayKey = '${today.year}-${today.month}-${today.day}';
     final savedDate = prefs.getString('daily_verse_date');
 
-    // Si on a déjà un verset pour aujourd'hui, on le retourne
     if (savedDate == todayKey) {
       final savedVerse = prefs.getString('daily_verse_text');
       final savedSurah = prefs.getString('daily_verse_surah');
       final savedNumber = prefs.getInt('daily_verse_number');
-      
       if (savedVerse != null && savedSurah != null && savedNumber != null) {
-        return _VerseData(
-          text: savedVerse,
-          surahName: savedSurah,
-          verseNumber: savedNumber,
-        );
+        return _VerseData(text: savedVerse, surahName: savedSurah, verseNumber: savedNumber);
       }
     }
 
-    // Sinon, on charge un nouveau verset aléatoire
     try {
       final jsonString = await rootBundle.loadString('assets/data/quran_data.json');
       final data = jsonDecode(jsonString) as Map<String, dynamic>;
       final surahs = data['surahs'] as List;
 
-      // Utiliser la date comme seed pour avoir le même verset toute la journée
       final seed = today.year * 10000 + today.month * 100 + today.day;
       final random = Random(seed);
-
-      // Choisir une sourate aléatoire
       final surah = surahs[random.nextInt(surahs.length)] as Map<String, dynamic>;
       final verses = surah['verses'] as List;
-      
-      // Choisir un verset aléatoire dans cette sourate
       final verse = verses[random.nextInt(verses.length)] as Map<String, dynamic>;
-      
+
       final verseData = _VerseData(
         text: verse['textFr'] as String? ?? '',
         surahName: surah['nameFr'] as String,
         verseNumber: verse['id'] as int,
       );
 
-      // Sauvegarder pour aujourd'hui
       await prefs.setString('daily_verse_date', todayKey);
       await prefs.setString('daily_verse_text', verseData.text);
       await prefs.setString('daily_verse_surah', verseData.surahName);
@@ -72,182 +59,208 @@ class DailyVerseCard extends StatelessWidget {
     return FutureBuilder<_VerseData?>(
       future: _getDailyVerse(),
       builder: (context, snapshot) {
-        // Afficher un message de chargement ou d'erreur au lieu de rien
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildLoadingCard(isDark);
         }
-        
         if (!snapshot.hasData || snapshot.data == null) {
           return _buildErrorCard(isDark);
         }
-
-        final verse = snapshot.data!;
-
-        return Container(
-          margin: const EdgeInsets.fromLTRB(14, 6, 14, 4),
-          padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
-          decoration: BoxDecoration(
-            gradient: isDark
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF2C3E50),
-                      const Color(0xFF1A252F),
-                    ],
-                  )
-                : LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFFFEF5E7),
-                      const Color(0xFFFAE5D3),
-                    ],
-                  ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: (isDark ? Colors.black : Colors.orange.shade200).withOpacity(0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // En-tête
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.auto_awesome,
-                      color: isDark ? Colors.amber.shade200 : Colors.orange.shade700,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Verset du jour',
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Texte du verset
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.05)
-                      : Colors.white.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.orange.shade200.withOpacity(0.3),
-                  ),
-                ),
-                child: Text(
-                  '"${verse.text}"',
-                  style: TextStyle(
-                    color: isDark ? Colors.white.withOpacity(0.95) : Colors.black87,
-                    fontSize: 15,
-                    fontStyle: FontStyle.italic,
-                    height: 1.6,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.justify,
-                ),
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Référence
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.amber.shade900.withOpacity(0.3)
-                          : Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${verse.surahName} • ${verse.verseNumber}',
-                      style: TextStyle(
-                        color: isDark ? Colors.amber.shade200 : Colors.orange.shade900,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
+        return _buildCard(snapshot.data!, isDark);
       },
+    );
+  }
+
+  Widget _buildCard(_VerseData verse, bool isDark) {
+    if (isDark) {
+      return _buildDarkCard(verse);
+    }
+
+    // Thèmes clairs : fond encadre_verset.webp
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+      child: Stack(
+        children: [
+          // Image de fond (s'adapte à la largeur, hauteur naturelle)
+          Image.asset(
+            'assets/images/encadre_verset.webp',
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+          ),
+          // Contenu superposé
+          Positioned.fill(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final h = constraints.maxHeight;
+                final w = constraints.maxWidth;
+                return Column(
+                  children: [
+                    // Zone cadre supérieur (≈18 % de la hauteur image)
+                    SizedBox(
+                      height: h * 0.185,
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: w * 0.24),
+                          child: Text(
+                            verse.surahName,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF6B4C1A),
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Zone centrale : verset
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'VERSET DU JOUR',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                color: Color(0xFFA07840),
+                                letterSpacing: 1.8,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '« ${verse.text} »',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontStyle: FontStyle.italic,
+                                height: 1.65,
+                                color: Color(0xFF3D2B0E),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Verset ${verse.verseNumber}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF9B7840),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Réserve pour la bande ornementale du bas (≈13 %)
+                    SizedBox(height: h * 0.13),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDarkCard(_VerseData verse) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2C3E50), Color(0xFF1A252F)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            verse.surahName,
+            style: TextStyle(
+              color: Colors.amber.shade300,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'VERSET DU JOUR',
+            style: TextStyle(
+              fontSize: 9.5,
+              color: Color(0xFFA07840),
+              letterSpacing: 1.8,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '« ${verse.text} »',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
+              height: 1.65,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Verset ${verse.verseNumber}',
+            style: TextStyle(
+              color: Colors.amber.shade400.withValues(alpha: 0.8),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildLoadingCard(bool isDark) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+      height: 200,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2C3E50) : const Color(0xFFFEF5E7),
-        borderRadius: BorderRadius.circular(20),
+        color: isDark ? const Color(0xFF2C3E50) : const Color(0xFFF5F0E6),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: const Center(
-        child: CircularProgressIndicator(),
-      ),
+      child: const Center(child: CircularProgressIndicator()),
     );
   }
 
   Widget _buildErrorCard(bool isDark) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.fromLTRB(14, 6, 14, 4),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [const Color(0xFF2C3E50), const Color(0xFF1A252F)]
-              : [const Color(0xFFFEF5E7), const Color(0xFFFAE5D3)],
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: isDark ? const Color(0xFF2C3E50) : const Color(0xFFF5F0E6),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           Icon(
             Icons.auto_awesome,
-            color: isDark ? Colors.amber.shade200 : Colors.orange.shade700,
+            color: isDark ? Colors.amber.shade200 : const Color(0xFFA07840),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Verset du jour bientôt disponible',
               style: TextStyle(
-                color: isDark ? Colors.white : Colors.black87,
+                color: isDark ? Colors.white : const Color(0xFF3D2B0E),
                 fontWeight: FontWeight.w600,
               ),
             ),
