@@ -1258,9 +1258,16 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   static const _quranEncBase = 'https://quranenc.com/api/v1';
   static const _alquranBase = 'https://api.alquran.cloud/v1';
 
+  bool _isLandscape = false;
+
   @override
   void initState() {
     super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _selectedAyah = widget.initialAyah <= 0 ? 1 : widget.initialAyah;
     _scrollController = ScrollController();
     _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
@@ -1366,7 +1373,23 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     _scrollController.dispose();
     _snapController.dispose();
     _barProgress.dispose();
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: SystemUiOverlay.values);
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final landscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    if (landscape != _isLandscape) {
+      _isLandscape = landscape;
+      if (landscape) {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: SystemUiOverlay.values);
+      }
+    }
   }
 
   // Couleurs pilotées par _localTheme (0=blanc, 1=papier, 2=sombre)
@@ -3010,6 +3033,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
 
     final topPad = MediaQuery.of(context).padding.top;
     final appBarH = topPad + 44;
+    final screenW = MediaQuery.of(context).size.width;
+    final playerHPad = _isLandscape ? math.max(14.0, (screenW - 400) / 2) : 14.0;
 
     return Scaffold(
       body: Container(
@@ -3211,8 +3236,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                   ),
                   // ── Lecteur flottant ──────────────────────────────────
                   Positioned(
-                    left: 14,
-                    right: 14,
+                    left: playerHPad,
+                    right: playerHPad,
                     bottom: MediaQuery.of(context).padding.bottom + 14,
                     child: ValueListenableBuilder<double>(
                       valueListenable: _barProgress,
