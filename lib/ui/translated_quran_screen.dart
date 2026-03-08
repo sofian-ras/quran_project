@@ -65,7 +65,9 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
             : (tqsTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
         final fg = isDark ? Colors.white.withValues(alpha: 0.92) : Colors.black.withValues(alpha: 0.90);
 
-    return DefaultTabController(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: DefaultTabController(
       length: 2,
       child: Scaffold(
         backgroundColor: bg,
@@ -171,7 +173,8 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
           ),
         ),
       ),
-    );
+      ), // DefaultTabController
+    ); // AnnotatedRegion
     },  // fin builder
   );    // fin ValueListenableBuilder
   }
@@ -1902,7 +1905,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
               );
             }
 
-            return Container(
+            final maxH = MediaQuery.of(context).size.height * 0.88;
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxH),
+              child: SingleChildScrollView(
+                child: Container(
               decoration: const BoxDecoration(
                 color: sheetBg,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -2046,7 +2053,9 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                   ],
                 ),
               ),
-            );
+                ), // Container
+              ), // SingleChildScrollView
+            ); // ConstrainedBox
           },
         );
       },
@@ -3037,6 +3046,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     final playerHPad = _isLandscape ? math.max(14.0, (screenW - 400) / 2) : 14.0;
 
     return Scaffold(
+      backgroundColor: _bg(isDark),
       body: Container(
         color: _bg(isDark),
         child: Stack(
@@ -3092,13 +3102,14 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                             Padding(
                                               padding: const EdgeInsets.symmetric(horizontal: 24),
                                               child: FittedBox(
-                                                fit: BoxFit.scaleDown,
+                                                fit: BoxFit.contain,
                                                 child: Text(
                                                   widget.surahNameAr,
                                                   textDirection: TextDirection.rtl,
                                                   textAlign: TextAlign.center,
+                                                  locale: const Locale('ar'),
                                                   style: const TextStyle(
-                                                    fontSize: 16,
+                                                    fontSize: 48,
                                                     fontFamily: 'ScheherazadeNew',
                                                     fontWeight: FontWeight.w600,
                                                     color: Color(0xFF2C1A0E),
@@ -3118,7 +3129,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                       color: isDark
                                           ? Colors.white.withValues(alpha: 0.55)
                                           : const Color(0xFF7A5C30).withValues(alpha: 0.80),
-                                      fontSize: _fontArabic,
+                                      fontSize: _fontArabic * 1.5,
                                     ),
                                   ],
                                 ],
