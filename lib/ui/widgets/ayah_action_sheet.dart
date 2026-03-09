@@ -337,9 +337,9 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
             style: TextStyle(
               fontFamily: 'ScheherazadeNew',
               fontWeight: FontWeight.w600,
-              fontSize: 28,
-              height: 2.4,
-              wordSpacing: 4.5,
+              fontSize: 20,
+              height: 2.0,
+              wordSpacing: 3.0,
               letterSpacing: 0.0,
               color: textColor,
             ),

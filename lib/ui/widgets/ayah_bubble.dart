@@ -27,6 +27,8 @@ class AyahBubble {
     required VoidCallback onDismiss,
     VoidCallback? onSetRangePoint,
     bool hasRangeStart = false,
+    VoidCallback? onNote,
+    bool hasNote = false,
   }) {
     dismiss();
     _entry = OverlayEntry(
@@ -40,6 +42,8 @@ class AyahBubble {
         },
         onSetRangePoint: onSetRangePoint,
         hasRangeStart: hasRangeStart,
+        onNote: onNote,
+        hasNote: hasNote,
       ),
     );
     Overlay.of(context).insert(_entry!);
@@ -60,6 +64,8 @@ class _BubbleLayout extends StatelessWidget {
   final VoidCallback onDismiss;
   final VoidCallback? onSetRangePoint;
   final bool hasRangeStart;
+  final VoidCallback? onNote;
+  final bool hasNote;
 
   const _BubbleLayout({
     required this.surah,
@@ -68,11 +74,15 @@ class _BubbleLayout extends StatelessWidget {
     required this.onDismiss,
     this.onSetRangePoint,
     this.hasRangeStart = false,
+    this.onNote,
+    this.hasNote = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bubbleW = onSetRangePoint != null ? 290.0 : 244.0;
+    // base 5 buttons; +46 per extra optional button
+    final extraBtns = (onSetRangePoint != null ? 1 : 0);
+    final bubbleW = 290.0 + extraBtns * 46.0;
     const bubbleH = 72.0; // hauteur approximative de la bulle
     const caretH = 8.0;
     const margin = 8.0;
@@ -111,6 +121,8 @@ class _BubbleLayout extends StatelessWidget {
               caretX: caretX,
               onSetRangePoint: onSetRangePoint,
               hasRangeStart: hasRangeStart,
+              onNote: onNote,
+              hasNote: hasNote,
             ),
           ),
         ),
@@ -129,6 +141,8 @@ class _Bubble extends StatefulWidget {
   final double caretX;
   final VoidCallback? onSetRangePoint;
   final bool hasRangeStart;
+  final VoidCallback? onNote;
+  final bool hasNote;
 
   const _Bubble({
     required this.surah,
@@ -138,6 +152,8 @@ class _Bubble extends StatefulWidget {
     required this.caretX,
     this.onSetRangePoint,
     this.hasRangeStart = false,
+    this.onNote,
+    this.hasNote = false,
   });
 
   @override
@@ -216,7 +232,12 @@ class _BubbleState extends State<_Bubble> {
     AyahActionSheet.show(context, surah: widget.surah, ayah: widget.ayah);
   }
 
-  double get _btnWidth => widget.onSetRangePoint != null ? 50.0 : 56.0;
+  void _note() {
+    widget.onDismiss();
+    widget.onNote?.call();
+  }
+
+  double get _btnWidth => widget.onSetRangePoint != null ? 48.0 : 52.0;
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
@@ -243,10 +264,12 @@ class _BubbleState extends State<_Bubble> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _Btn(
-            icon: _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            label: _isPlaying ? 'Pause' : 'Écouter',
-            color: const Color(0xFF4CAF50),
-            onTap: _togglePlay,
+            icon: widget.hasNote
+                ? Icons.edit_note_rounded
+                : Icons.note_add_outlined,
+            label: 'Note',
+            color: const Color(0xFFFF8F00),
+            onTap: _note,
             width: _btnWidth,
           ),
           _divider(),
@@ -271,6 +294,14 @@ class _BubbleState extends State<_Bubble> {
             label: 'Tafsir',
             color: const Color(0xFFB8860B),
             onTap: _tafsir,
+            width: _btnWidth,
+          ),
+          _divider(),
+          _Btn(
+            icon: _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            label: _isPlaying ? 'Pause' : 'Écouter',
+            color: const Color(0xFF4CAF50),
+            onTap: _togglePlay,
             width: _btnWidth,
           ),
           if (widget.onSetRangePoint != null) ...[
