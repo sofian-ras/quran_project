@@ -116,10 +116,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Color get _themeIconColor => _readerTheme == 2 ? Colors.white60 : Colors.black45;
 
+  void _applySystemUiStyle(int theme) {
+    SystemChrome.setSystemUIOverlayStyle(
+      theme == 2
+          ? SystemUiOverlayStyle.light  // thème sombre → icônes blanches
+          : SystemUiOverlayStyle.dark,  // blanc/papier → icônes noires
+    );
+  }
+
   Future<void> _loadReaderTheme() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    setState(() => _readerTheme = prefs.getInt('reader_theme') ?? 1);
+    final theme = prefs.getInt('reader_theme') ?? 1;
+    setState(() => _readerTheme = theme);
+    _applySystemUiStyle(theme);
   }
 
   Future<void> _cycleReaderTheme() async {
@@ -128,6 +138,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     await prefs.setInt('reader_theme', next);
     if (!mounted) return;
     setState(() => _readerTheme = next);
+    _applySystemUiStyle(next);
   }
 
   Future<void> _refreshBookmarkStatus([int? page]) async {
@@ -262,6 +273,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     _imageCache.clear();
+
+    // Restaure les icônes système par défaut à la sortie du reader
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
 
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -665,8 +679,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return;
     }
 
-    if (surah == -1) {
-      // Tap sur zone vide (pas de plage)
+    if (surah == -1 || _selectionStartKey == null) {
+      // Tap sur zone vide OU sur un verset sans sélection active → toggle UI
       final hadSelection = _selectionStartKey != null;
       setState(() {
         if (!hadSelection) _showUI = !_showUI;
@@ -678,7 +692,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return;
     }
 
-    // Tap sur un verset : déplace la sélection si une est active
+    // Tap sur un verset avec une sélection active → déplace la sélection
     if (_selectionStartKey != null) {
       final svc = MiniPlayerService.instance;
       svc.setSelectionStart(surah, ayah);

@@ -2892,14 +2892,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       backgroundColor: isDark ? const Color(0xFF0D1B2A) : Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       showDragHandle: true,
-      builder: (ctx) => AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
+      builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(
           20,
           8,
           20,
-          MediaQuery.of(ctx).viewInsets.bottom + 24,
+          MediaQuery.viewInsetsOf(ctx).bottom + 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
