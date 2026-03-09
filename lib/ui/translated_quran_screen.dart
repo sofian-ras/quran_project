@@ -19,6 +19,7 @@ import '../services/qul_audio/qul_audio_resolver.dart';
 import '../surah_name.dart';
 import '../services/tafsir_service.dart' show TafsirService;
 import '../services/quran_ayah_metadata_db.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 // Notifier partagé entre la liste et l'en-tête (0=blanc, 1=papier, 2=sombre)
 final _tqsThemeNotifier = ValueNotifier<int>(1);
@@ -648,19 +649,10 @@ class _SurahTabState extends State<_SurahTab> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        nameAr,
-                                        textDirection: TextDirection.rtl,
-                                        locale: const Locale('ar'),
-                                        style: TextStyle(
-                                          fontFamily: 'ScheherazadeNew',
-                                          fontSize: 20,
-                                          color: arabicColor,
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.1,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      SvgPicture.asset(
+                                        'assets/images/Translated_Quran/surah_svg/$sid.svg',
+                                        height: 24,
+                                        colorFilter: ColorFilter.mode(arabicColor, BlendMode.srcIn),
                                       ),
                                       const Spacer(),
                                       Text(
@@ -770,17 +762,10 @@ class _SurahTabState extends State<_SurahTab> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  Text(
-                                    nameAr,
-                                    textDirection: TextDirection.rtl,
-                                    locale: const Locale('ar'),
-                                    style: TextStyle(
-                                      fontFamily: 'ScheherazadeNew',
-                                      fontSize: 22,
-                                      color: arabicColor,
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.1,
-                                    ),
+                                  SvgPicture.asset(
+                                    'assets/images/Translated_Quran/surah_svg/$surahId.svg',
+                                    height: 28,
+                                    colorFilter: ColorFilter.mode(arabicColor, BlendMode.srcIn),
                                   ),
                                   const SizedBox(width: 16),
                                   Column(
@@ -1195,41 +1180,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
 
   Set<String> _favoriteKeys = <String>{};
 
-  // --- Auto-center precise (no more "approxItem") ---
-  final Map<int, GlobalKey> _ayahItemKeys = <int, GlobalKey>{};
+  // Scroll indexé — pas d'offset estimé, pas de GlobalKey
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ValueNotifier<String?> _playingKeyNotifier = ValueNotifier<String?>(null);
+  int _initialScrollIndex = 0;
 
-  GlobalKey _keyForAyah(int ayah) {
-    return _ayahItemKeys.putIfAbsent(ayah, () => GlobalKey());
-  }
-
-  // Calcule l'offset initial à partir des longueurs réelles des textes arabes chargés
-  double _computeInitialOffset(int ayah) {
-    if (ayah <= 1 || _arabic.isEmpty) return 0;
-    double offset = 120.0; // header (SVG sourate + basmala)
-    final limit = (ayah - 1).clamp(0, _arabic.length);
-    for (int i = 0; i < limit; i++) {
-      // Le texte coranique UTF-16 inclut les harakats (diacritiques),
-      // ~3 code units par caractère visuel → diviser par 30 pour les lignes visuelles
-      final lines = (_arabic[i].length / 30.0).ceil().clamp(1, 30);
-      offset += 28.0 + lines * 38.0 + 70.0;
-    }
-    return offset;
-  }
-
-  void _ensureAyahCentered(int ayah) {
-    if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final ctx = _ayahItemKeys[ayah]?.currentContext;
-      if (ctx == null) return;
-      Scrollable.ensureVisible(ctx, alignment: 0.1, duration: Duration.zero);
-    });
-  }
-
-  late ScrollController _scrollController;
   // 0.0 = barres visibles · 1.0 = barres cachées
   final ValueNotifier<double> _barProgress = ValueNotifier(0.0);
-  double _lastScrollOffset = 0.0;
   late AnimationController _snapController;
   late Animation<double> _snapAnim;
   late final Listenable _audioListenable;
@@ -1279,7 +1236,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       DeviceOrientation.landscapeRight,
     ]);
     _selectedAyah = widget.initialAyah <= 0 ? 1 : widget.initialAyah;
-    _scrollController = ScrollController();
     _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
     AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.continuous;
     _repeatTimes = 1;
@@ -1291,9 +1247,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       AudioService.instance.ayahSpeedNotifier,
     ]);
 
+    AudioService.instance.isAyahPlayingNotifier.addListener(_updatePlayingKey);
+
     Future.microtask(() async {
       await Future.wait([_loadSettings(), _loadFavorites(), _loadArabicImmediate()]);
       _attachAyahListener();
+      _updatePlayingKey();
       _loadTranslationsBackground();
     });
 
@@ -1301,20 +1260,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       vsync: this,
       duration: const Duration(milliseconds: 280),
     )..addListener(() => _barProgress.value = _snapAnim.value);
-
-    _scrollController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    _snapController.stop();
-    final offset = _scrollController.offset;
-    final delta = offset - _lastScrollOffset;
-    _lastScrollOffset = offset;
-    if (offset <= 0) {
-      _barProgress.value = 0.0;
-      return;
-    }
-    _barProgress.value = (_barProgress.value + delta / 90.0).clamp(0.0, 1.0);
   }
 
   void _snapBars(bool hide) {
@@ -1335,8 +1280,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     setState(() {
       _localTheme      = p.getInt(_kTheme)        ?? 1;
       _fontArabic      = p.getDouble(_kFontArabic) ?? 22;
-      _fontTranslation = (_fontArabic * 0.76).clamp(12, 26);
-      _fontTafsir      = (_fontArabic * 0.68).clamp(11, 24);
+      _fontTranslation = 16;
+      _fontTafsir      = 14;
       _showTajweed     = p.getBool(_kTajweed)      ?? true;
       _showTranslation = p.getBool(_kTranslation)  ?? true;
       _showArabic      = p.getBool(_kArabic)       ?? true;
@@ -1374,13 +1319,22 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     if (_arabic.isEmpty) return;
 
     final targetAyah = a.clamp(1, _arabic.length);
+    _updatePlayingKey();
     _setSelectedAyah(targetAyah, scroll: true, center: true);
+  }
+
+  void _updatePlayingKey() {
+    if (!mounted) return;
+    final svc = AudioService.instance;
+    _playingKeyNotifier.value =
+        svc.isAyahPlayingNotifier.value ? svc.currentAyahKeyNotifier.value : null;
   }
 
   @override
   void dispose() {
     AudioService.instance.currentAyahKeyNotifier.removeListener(_onCurrentAyahChanged);
-    _scrollController.dispose();
+    AudioService.instance.isAyahPlayingNotifier.removeListener(_updatePlayingKey);
+    _playingKeyNotifier.dispose();
     _snapController.dispose();
     _barProgress.dispose();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -1467,33 +1421,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
 
     if (!mounted) return;
 
-    // Recréer le contrôleur avec l'offset calculé depuis le texte arabe réel.
-    // _loading est encore true → le ListView n'est pas encore attaché → dispose safe.
-    if (_selectedAyah > 1 && _arabic.isNotEmpty) {
-      _scrollController.removeListener(_onScroll);
-      _scrollController.dispose();
-      _scrollController = ScrollController(
-        initialScrollOffset: _computeInitialOffset(_selectedAyah),
-      );
-      _scrollController.addListener(_onScroll);
-    }
+    // ScrollablePositionedList gère le saut direct par index — aucun offset estimé nécessaire
+    _initialScrollIndex = (_arabic.isNotEmpty && _selectedAyah > 1) ? _selectedAyah : 0;
 
     setState(() {
       _loading = false;
-      _contentReady = false;
+      _contentReady = true;
       if (_arabic.isEmpty) _error = 'Erreur de chargement du texte arabe';
-    });
-
-    // Attendre que le ListView soit construit, corriger la position, puis révéler le contenu
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_arabic.isNotEmpty && _selectedAyah > 1) {
-        final ctx = _ayahItemKeys[_selectedAyah]?.currentContext;
-        if (ctx != null) {
-          Scrollable.ensureVisible(ctx, alignment: 0.1, duration: Duration.zero);
-        }
-      }
-      setState(() => _contentReady = true);
     });
   }
 
@@ -1639,8 +1573,10 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       }
 
       if (!mounted) return;
+      _initialScrollIndex = _selectedAyah.clamp(1, _arabic.isEmpty ? 1 : _arabic.length);
       setState(() {
         _loading = false;
+        _contentReady = true;
         if (!loaded && _arabic.isEmpty) {
           _error = 'Aucun verset chargé. Vérifie internet/offline pack.';
         }
@@ -1659,13 +1595,16 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   void _setSelectedAyah(int ayah, {bool scroll = true, bool center = false}) {
     if (_arabic.isEmpty) return;
     ayah = ayah.clamp(1, _arabic.length);
-
     setState(() => _selectedAyah = ayah);
-
     if (!scroll) return;
-
-    // ✅ centre exactement le verset à l'écran
-    _ensureAyahCentered(ayah);
+    if (_itemScrollController.isAttached) {
+      _itemScrollController.scrollTo(
+        index: ayah, // index 0 = header, index N = ayah N
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   void _cycleRepeatFromBar() {
@@ -1979,16 +1918,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               max: 36,
                               value: _fontArabic.clamp(16, 36),
                               onChanged: (v) {
-                                setS(() {
-                                  _fontArabic = v;
-                                  _fontTranslation = (v * 0.76).clamp(12, 26);
-                                  _fontTafsir = (v * 0.68).clamp(11, 24);
-                                });
-                                if (mounted) { setState(() {
-                                  _fontArabic = v;
-                                  _fontTranslation = (v * 0.76).clamp(12, 26);
-                                  _fontTafsir = (v * 0.68).clamp(11, 24);
-                                }); }
+                                setS(() { _fontArabic = v; });
+                                if (mounted) { setState(() { _fontArabic = v; }); }
                               },
                             ),
                           ),
@@ -2731,78 +2662,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     );
   }
 
-  String _stripTrailingAyahNumber(String input) {
-    return input
-        .replaceAll('\u200C', '')
-        .replaceAll('\u200D', '')
-        .replaceAll('\u200B', '')
-        .replaceAll('\u200F', '')
-        .replaceAll('\u200E', '')
-        .replaceAll(RegExp(r'[\s\u0660-\u0669\u06F0-\u06F9]+$'), '');
-  }
-
-  List<InlineSpan> _parseTajweedSpans(String input, Color fallback) {
-    if (!_showTajweed) {
-      final plain = input.replaceAll(RegExp(r'<[^>]+>'), '');
-      return [TextSpan(text: plain, style: TextStyle(color: fallback))];
-    }
-    final spans = <InlineSpan>[];
-    final regex = RegExp(
-      "<rulee?\\s+class=['\\\"]?([^\\s>]+)['\\\"]?>(.*?)</rulee?>",
-      dotAll: true,
-    );
-
-    int last = 0;
-    for (final m in regex.allMatches(input)) {
-      if (m.start > last) {
-        spans.add(TextSpan(text: input.substring(last, m.start), style: TextStyle(color: fallback)));
-      }
-      final cls = m.group(1) ?? '';
-      final txt = m.group(2) ?? '';
-      spans.add(TextSpan(text: txt, style: TextStyle(color: _tajweedColors[cls] ?? fallback)));
-      last = m.end;
-    }
-    if (last < input.length) {
-      spans.add(TextSpan(text: input.substring(last), style: TextStyle(color: fallback)));
-    }
-    return spans;
-  }
-
-  String _toArabicIndic(int value) {
-    const map = {
-      '0': '٠',
-      '1': '١',
-      '2': '٢',
-      '3': '٣',
-      '4': '٤',
-      '5': '٥',
-      '6': '٦',
-      '7': '٧',
-      '8': '٨',
-      '9': '٩',
-    };
-    return value.toString().split('').map((d) => map[d] ?? d).join();
-  }
-
-  static const Map<String, Color> _tajweedColors = {
-    'ham_wasl': Color(0xFF7E9CBF),
-    'laam_shamsiyah': Color(0xFFD18B47),
-    'madda_normal': Color(0xFF2E7D32),
-    'madda_permissible': Color(0xFF7B1FA2),
-    'madda_necessary': Color(0xFF6A1B9A),
-    'madda_obligatory_monfasel': Color(0xFF5E35B1),
-    'madda_obligatory_mottasel': Color(0xFF512DA8),
-    'ghunnah': Color(0xFFE53935),
-    'idgham_ghunnah': Color(0xFFEF6C00),
-    'idgham_wo_ghunnah': Color(0xFF8E24AA),
-    'ikhafa': Color(0xFF00796B),
-    'ikhafa_shafawi': Color(0xFF00695C),
-    'idgham_shafawi': Color(0xFF5D4037),
-    'iqlab': Color(0xFFAD1457),
-    'qalaqah': Color(0xFF1565C0),
-    'slnt': Color(0xFF546E7A),
-  };
-
   Widget _ayahBottomBar({
     required bool isDark,
     required AyahPlayMode mode,
@@ -3066,194 +2925,126 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                 duration: const Duration(milliseconds: 220),
                 child: Stack(
                     children: [
-                      NotificationListener<ScrollEndNotification>(
-                        onNotification: (_) {
-                          _snapBars(_barProgress.value > 0.35);
+                      NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification is ScrollUpdateNotification) {
+                            _snapController.stop();
+                            final delta = notification.scrollDelta ?? 0;
+                            final pixels = notification.metrics.pixels;
+                            if (pixels <= 0) {
+                              _barProgress.value = 0.0;
+                            } else {
+                              _barProgress.value = (_barProgress.value + delta / 90.0).clamp(0.0, 1.0);
+                            }
+                          } else if (notification is ScrollEndNotification) {
+                            _snapBars(_barProgress.value > 0.35);
+                          }
                           return false;
                         },
-                        child: AnimatedBuilder(
-                        animation: merged,
-                        builder: (_, __) {
-                          final currentKey = AudioService.instance.currentAyahKeyNotifier.value;
-                          final mode = AudioService.instance.ayahPlayModeNotifier.value;
-                          final isPlaying = AudioService.instance.isAyahPlayingNotifier.value;
-
-                          return ListView.builder(
-                            controller: _scrollController,
-                            cacheExtent: 50000,
-                            padding: EdgeInsets.fromLTRB(16, appBarH + 12, 16, MediaQuery.of(context).padding.bottom + 140),
-                        itemCount: _arabic.length + 1,
-                        itemBuilder: (context, i) {
-                          if (i == 0) {
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
-                              child: Column(
-                                children: [
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final svgW = constraints.maxWidth;
-                                      final svgH = svgW * 67 / 624;
-                                      return SizedBox(
-                                        width: svgW,
-                                        height: svgH,
-                                        child: Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            Positioned.fill(
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(12),
-                                                child: SvgPicture.asset(
-                                                  'assets/images/Translated_Quran/cadre_name_surah.svg',
-                                                  fit: BoxFit.fill,
-                                                ),
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.symmetric(horizontal: 24),
-                                              child: FittedBox(
-                                                fit: BoxFit.contain,
-                                                child: Text(
-                                                  widget.surahNameAr,
-                                                  textDirection: TextDirection.rtl,
-                                                  textAlign: TextAlign.center,
-                                                  locale: const Locale('ar'),
-                                                  style: const TextStyle(
-                                                    fontSize: 48,
-                                                    fontFamily: 'ScheherazadeNew',
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Color(0xFF2C1A0E),
-                                                    height: 1.0,
+                        child: ScrollablePositionedList.builder(
+                          itemScrollController: _itemScrollController,
+                          initialScrollIndex: _initialScrollIndex,
+                          initialAlignment: 0.0,
+                          padding: EdgeInsets.fromLTRB(16, appBarH + 12, 16, MediaQuery.of(context).padding.bottom + 140),
+                          itemCount: _arabic.length + 1,
+                          itemBuilder: (context, i) {
+                            if (i == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+                                child: Column(
+                                  children: [
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final svgW = constraints.maxWidth;
+                                        final svgH = svgW * 67 / 624;
+                                        return SizedBox(
+                                          width: svgW,
+                                          height: svgH,
+                                          child: Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              Positioned.fill(
+                                                child: ClipRRect(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  child: Image.asset(
+                                                    'assets/images/Translated_Quran/entete_verte.webp',
+                                                    fit: BoxFit.fill,
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  if (_shouldShowBasmalaForThisSurah()) ...[
-                                    const SizedBox(height: 20),
-                                    _BasmalaTitle(
-                                      color: isDark
-                                          ? Colors.white.withValues(alpha: 0.55)
-                                          : const Color(0xFF7A5C30).withValues(alpha: 0.80),
-                                      fontSize: _fontArabic * 1.5,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            );
-                          }
-
-                          final idx = i - 1;
-                          final ayaNum = idx + 1;
-                          final ar = _arabic[idx];
-                          final tr = _translation[idx];
-                          final taf = _tafsir[idx];
-
-                          final key = _verseKey(ayaNum);
-                          final isFav = _favoriteKeys.contains(key);
-
-                          final isPlayingThis = (currentKey == key) && isPlaying;
-                          final highlight = isPlayingThis ? _accent(isDark).withValues(alpha: isDark ? 0.16 : 0.12) : Colors.transparent;
-
-                          return InkWell(
-                            key: _keyForAyah(ayaNum),
-                            onTap: () {
-                              _setSelectedAyah(ayaNum, center: false);
-                              _showVerseActions(ayah: ayaNum, ar: ar, tr: tr, taf: taf);
-                            },
-                            child: Container(
-                              color: highlight,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    children: [
-                                      // Numéro de verset — médaillon islamique
-                                      _VerseBadge(
-                                        number: ayaNum,
-                                        color: isPlayingThis
-                                            ? _accent(isDark)
-                                            : (isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230)).withValues(alpha: 0.75),
-                                      ),
-                                      if (isPlayingThis) ...[
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          mode == AyahPlayMode.repeatOne
-                                              ? 'RÉPÉTITION'
-                                              : mode == AyahPlayMode.continuous
-                                                  ? 'CONTINU'
-                                                  : 'LECTURE',
-                                          style: TextStyle(color: _accent(isDark), fontWeight: FontWeight.w700, fontSize: 10),
-                                        ),
-                                      ],
-                                      const Spacer(),
-                                      if (isFav)
-                                        Icon(Icons.favorite, size: 15, color: Colors.redAccent.withValues(alpha: 0.8)),
-                                    ],
-                                  ),
-                                  if (_showArabic) ...[
-                                    const SizedBox(height: 6),
-                                    Builder(
-                                      builder: (_) {
-                                        final style = TextStyle(
-                                          fontSize: _fontArabic,
-                                          height: 2.4,
-                                          fontFamily: 'ScheherazadeNew',
-                                          fontWeight: FontWeight.w600,
-                                          wordSpacing: 4.5,
-                                          color: fg,
-                                        );
-
-                                        var clean = _stripTrailingAyahNumber(ar);
-
-                                        if (ayaNum == 1 && _shouldShowBasmalaForThisSurah()) {
-                                          clean = _removeLeadingBasmalaIfPresent(clean);
-                                        }
-
-                                        final spans = _parseTajweedSpans(clean, fg);
-                                        spans.add(
-                                          TextSpan(
-                                            text: ' ﴿${_toArabicIndic(ayaNum)}﴾',
-                                            style: TextStyle(color: subtle, fontWeight: FontWeight.w700),
+                                              Padding(
+                                                padding: EdgeInsets.only(top: svgH * 0.12),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                                  children: [
+                                                    SvgPicture.asset(
+                                                      'assets/images/Translated_Quran/surah_svg/${widget.surahNumber}.svg',
+                                                      height: svgH * 0.68,
+                                                      colorFilter: ColorFilter.mode(
+                                                        _localTheme == 1 ? Colors.black : Colors.white,
+                                                        BlendMode.srcIn,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 1),
+                                                    SvgPicture.asset(
+                                                      'assets/images/Translated_Quran/surah_svg/0. surah.svg',
+                                                      height: svgH * 0.68,
+                                                      colorFilter: ColorFilter.mode(
+                                                        _localTheme == 1 ? Colors.black : Colors.white,
+                                                        BlendMode.srcIn,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        );
-
-                                        return RichText(
-                                          textDirection: TextDirection.rtl,
-                                          text: TextSpan(style: style, children: spans),
                                         );
                                       },
                                     ),
-                                  ],
-                                  if (_showTranslation) ...[
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      tr,
-                                      textAlign: TextAlign.justify,
-                                      style: TextStyle(
-                                        fontSize: _fontTranslation,
-                                        height: 1.65,
-                                        fontFamily: 'serif',
-                                        fontWeight: FontWeight.w500,
-                                        color: fg.withValues(alpha: isDark ? 0.86 : 0.82),
+                                    if (_shouldShowBasmalaForThisSurah()) ...[
+                                      const SizedBox(height: 20),
+                                      _BasmalaTitle(
+                                        color: isDark
+                                            ? Colors.white.withValues(alpha: 0.55)
+                                            : const Color(0xFF7A5C30).withValues(alpha: 0.80),
+                                        fontSize: _fontArabic * 1.5,
                                       ),
-                                    ),
+                                    ],
                                   ],
-                                  const SizedBox(height: 12),
-                                  Divider(height: 1, thickness: 1, color: border),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  ),
+                                ),
+                              );
+                            }
+                            final idx = i - 1;
+                            final ayaNum = idx + 1;
+                            return _AyahTile(
+                              surahNumber: widget.surahNumber,
+                              ayaNum: ayaNum,
+                              ar: _arabic[idx],
+                              tr: _translation[idx],
+                              taf: _tafsir[idx],
+                              isFav: _favoriteKeys.contains(_verseKey(ayaNum)),
+                              isDark: isDark,
+                              fg: fg,
+                              subtle: subtle,
+                              border: border,
+                              accentColor: _accent(isDark),
+                              showArabic: _showArabic,
+                              showTranslation: _showTranslation,
+                              showTajweed: _showTajweed,
+                              fontArabic: _fontArabic,
+                              fontTranslation: _fontTranslation,
+                              removeBasmala: ayaNum == 1 && _shouldShowBasmalaForThisSurah(),
+                              playingKeyNotifier: _playingKeyNotifier,
+                              onTap: (ayah, ar, tr, taf) {
+                                _setSelectedAyah(ayah, scroll: false);
+                                _showVerseActions(ayah: ayah, ar: ar, tr: tr, taf: taf);
+                              },
+                            );
+                          },
+                        ),
+                      ),
                   // ── Lecteur flottant ──────────────────────────────────
                   Positioned(
                     left: playerHPad,
@@ -3333,6 +3124,191 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       ),
     ), // Scaffold
     ); // AnnotatedRegion
+  }
+}
+
+// ── Widget verset isolé — ne se reconstruit que sur changement de lecture audio ──
+class _AyahTile extends StatelessWidget {
+  final int surahNumber;
+  final int ayaNum;
+  final String ar;
+  final String tr;
+  final String taf;
+  final bool isFav;
+  final bool isDark;
+  final Color fg;
+  final Color subtle;
+  final Color border;
+  final Color accentColor;
+  final bool showArabic;
+  final bool showTranslation;
+  final bool showTajweed;
+  final double fontArabic;
+  final double fontTranslation;
+  final bool removeBasmala;
+  final ValueNotifier<String?> playingKeyNotifier;
+  final void Function(int ayah, String ar, String tr, String taf) onTap;
+
+  const _AyahTile({
+    required this.surahNumber,
+    required this.ayaNum,
+    required this.ar,
+    required this.tr,
+    required this.taf,
+    required this.isFav,
+    required this.isDark,
+    required this.fg,
+    required this.subtle,
+    required this.border,
+    required this.accentColor,
+    required this.showArabic,
+    required this.showTranslation,
+    required this.showTajweed,
+    required this.fontArabic,
+    required this.fontTranslation,
+    required this.removeBasmala,
+    required this.playingKeyNotifier,
+    required this.onTap,
+  });
+
+  String get _verseKey => '$surahNumber:$ayaNum';
+
+  static String _strip(String input) => input
+      .replaceAll('\u200C', '').replaceAll('\u200D', '').replaceAll('\u200B', '')
+      .replaceAll('\u200F', '').replaceAll('\u200E', '')
+      .replaceAll(RegExp(r'[\s\u0660-\u0669\u06F0-\u06F9]+$'), '');
+
+  static String _dropBasmala(String input) {
+    final s = input.trimLeft();
+    if (!s.startsWith('ب') && !s.contains('بِسْمِ')) return input;
+    const candidates = ['ٱلرَّحِيمِ', 'ٱلرَّحِيم', 'الرَّحِيمِ', 'الرَّحِيم', 'الرحيم'];
+    int end = -1; String? match;
+    for (final c in candidates) {
+      final i = s.indexOf(c);
+      if (i != -1 && (end == -1 || i < end)) { end = i; match = c; }
+    }
+    if (end == -1 || match == null) return input;
+    final cut = end + match.length;
+    if (cut > 90) return input;
+    return s.substring(cut).trimLeft();
+  }
+
+  static String _indic(int v) {
+    const m = {'0':'٠','1':'١','2':'٢','3':'٣','4':'٤','5':'٥','6':'٦','7':'٧','8':'٨','9':'٩'};
+    return v.toString().split('').map((d) => m[d] ?? d).join();
+  }
+
+  static const Map<String, Color> _tajweed = {
+    'ham_wasl': Color(0xFF7E9CBF), 'laam_shamsiyah': Color(0xFFD18B47),
+    'madda_normal': Color(0xFF2E7D32), 'madda_permissible': Color(0xFF7B1FA2),
+    'madda_necessary': Color(0xFF6A1B9A), 'madda_obligatory_monfasel': Color(0xFF5E35B1),
+    'madda_obligatory_mottasel': Color(0xFF512DA8), 'ghunnah': Color(0xFFE53935),
+    'idgham_ghunnah': Color(0xFFEF6C00), 'idgham_wo_ghunnah': Color(0xFF8E24AA),
+    'ikhafa': Color(0xFF00796B), 'ikhafa_shafawi': Color(0xFF00695C),
+    'idgham_shafawi': Color(0xFF5D4037), 'iqlab': Color(0xFFAD1457),
+    'qalaqah': Color(0xFF1565C0), 'slnt': Color(0xFF546E7A),
+  };
+
+  List<InlineSpan> _spans(String input, Color fallback) {
+    if (!showTajweed) {
+      return [TextSpan(text: input.replaceAll(RegExp(r'<[^>]+>'), ''), style: TextStyle(color: fallback))];
+    }
+    final spans = <InlineSpan>[];
+    final regex = RegExp("<rulee?\\s+class=['\"]?([^\\s>]+)['\"]?>(.*?)</rulee?>", dotAll: true);
+    int last = 0;
+    for (final m in regex.allMatches(input)) {
+      if (m.start > last) spans.add(TextSpan(text: input.substring(last, m.start), style: TextStyle(color: fallback)));
+      spans.add(TextSpan(text: m.group(2) ?? '', style: TextStyle(color: _tajweed[m.group(1)] ?? fallback)));
+      last = m.end;
+    }
+    if (last < input.length) spans.add(TextSpan(text: input.substring(last), style: TextStyle(color: fallback)));
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: ValueListenableBuilder<String?>(
+        valueListenable: playingKeyNotifier,
+        builder: (context, playingKey, _) {
+          final isPlayingThis = playingKey == _verseKey;
+          final highlight = isPlayingThis
+              ? accentColor.withValues(alpha: isDark ? 0.16 : 0.12)
+              : Colors.transparent;
+
+          var cleanAr = _strip(ar);
+          if (removeBasmala) cleanAr = _dropBasmala(cleanAr);
+
+          return InkWell(
+            onTap: () => onTap(ayaNum, ar, tr, taf),
+            child: Container(
+              color: highlight,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      _VerseBadge(
+                        number: ayaNum,
+                        color: isPlayingThis
+                            ? accentColor
+                            : (isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230)).withValues(alpha: 0.75),
+                      ),
+                      if (isPlayingThis) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          () {
+                            final mode = AudioService.instance.ayahPlayModeNotifier.value;
+                            return mode == AyahPlayMode.repeatOne ? 'RÉPÉTITION'
+                                : mode == AyahPlayMode.continuous ? 'CONTINU' : 'LECTURE';
+                          }(),
+                          style: TextStyle(color: accentColor, fontWeight: FontWeight.w700, fontSize: 10),
+                        ),
+                      ],
+                      const Spacer(),
+                      if (isFav) Icon(Icons.favorite, size: 15, color: Colors.redAccent.withValues(alpha: 0.8)),
+                    ],
+                  ),
+                  if (showArabic) ...[
+                    const SizedBox(height: 6),
+                    Builder(builder: (_) {
+                      final spans = _spans(cleanAr, fg);
+                      spans.add(TextSpan(
+                        text: ' ﴿${_indic(ayaNum)}﴾',
+                        style: TextStyle(color: subtle, fontWeight: FontWeight.w700),
+                      ));
+                      return RichText(
+                        textDirection: TextDirection.rtl,
+                        text: TextSpan(
+                          style: TextStyle(fontSize: fontArabic, height: 2.4, fontFamily: 'ScheherazadeNew',
+                              fontWeight: FontWeight.w600, wordSpacing: 4.5, color: fg),
+                          children: spans,
+                        ),
+                      );
+                    }),
+                  ],
+                  if (showTranslation) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      tr,
+                      textAlign: TextAlign.justify,
+                      style: TextStyle(
+                        fontSize: fontTranslation, height: 1.65, fontFamily: 'serif',
+                        fontWeight: FontWeight.w500,
+                        color: fg.withValues(alpha: isDark ? 0.86 : 0.82),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Divider(height: 1, thickness: 1, color: border),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 
