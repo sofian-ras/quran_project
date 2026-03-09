@@ -75,7 +75,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   Set<String> _noteKeys = {};
-  String? _blinkAyahKey;
 
   Future<void> _loadNoteKeys() async {
     final all = await VerseNotesService.instance.getAll();
@@ -429,9 +428,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
               .getPageForAyah(surah, ayah);
           if (page != null && mounted) {
             _pageController.jumpToPage(page - 1);
-            // Petit délai pour laisser la page s'afficher avant le blink
-            await Future.delayed(const Duration(milliseconds: 350));
-            if (mounted) setState(() => _blinkAyahKey = '$surah:$ayah');
           }
         },
       ),
@@ -1000,7 +996,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 selectionStartKey: _selectionStartKey,
                 selectionEndKey:   _selectionEndKey,
                 noteAyahKeys:      _noteKeys,
-                blinkAyahKey:      _blinkAyahKey,
               ),
             ),
           ],

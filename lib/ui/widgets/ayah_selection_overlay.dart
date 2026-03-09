@@ -1,5 +1,4 @@
 // lib/ui/widgets/ayah_selection_overlay.dart
-import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../services/quran_pages_hitbox_db.dart';
@@ -22,9 +21,6 @@ class AyahSelectionOverlay extends StatefulWidget {
   /// Versets ayant une note — surbrillance gris léger.
   final Set<String> noteAyahKeys;
 
-  /// Verset à faire clignoter en vert (navigation depuis notes).
-  final String? blinkAyahKey;
-
   /// Appelé avec (surah, ayah, globalRect) sur tap simple (verset ou -1 si vide).
   final void Function(int surah, int ayah, Rect? globalRect) onAyahTap;
 
@@ -43,7 +39,6 @@ class AyahSelectionOverlay extends StatefulWidget {
     this.selectionStartKey,
     this.selectionEndKey,
     this.noteAyahKeys = const {},
-    this.blinkAyahKey,
   });
 
   @override
@@ -62,11 +57,6 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
 
   /// Rects des versets avec note — gris léger.
   List<Rect> _noteRects = [];
-
-  /// Blink navigation — vert vif clignotant.
-  List<Rect> _blinkRects = [];
-  bool _blinkVisible = false;
-  Timer? _blinkTimer;
 
   /// Position du dernier onTapDown pour l'identifier dans onTap.
   Offset? _lastTapDownPos;
@@ -189,36 +179,6 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     if (mounted) setState(() => _selectionRects = rects);
   }
 
-  // ── Blink navigation ─────────────────────────────────────────────────────
-
-  Future<void> _startBlink() async {
-    final key = widget.blinkAyahKey;
-    if (key == null) return;
-    final parts = key.split(':');
-    if (parts.length != 2) return;
-    final surah = int.tryParse(parts[0]);
-    final ayah  = int.tryParse(parts[1]);
-    if (surah == null || ayah == null) return;
-
-    final rects = await QuranPagesHitboxDb.instance.getAyahRects(
-      page: widget.page, surah: surah, ayah: ayah,
-    );
-    if (!mounted || rects.isEmpty) return;
-    setState(() { _blinkRects = rects; _blinkVisible = true; });
-
-    int tick = 0;
-    _blinkTimer?.cancel();
-    _blinkTimer = Timer.periodic(const Duration(milliseconds: 280), (t) {
-      if (!mounted) { t.cancel(); return; }
-      tick++;
-      setState(() => _blinkVisible = tick.isEven);
-      if (tick >= 4) {                          // 2 blinks complets
-        t.cancel();
-        setState(() { _blinkRects = []; _blinkVisible = false; });
-      }
-    });
-  }
-
   // ── Chargement des rects de versets notés ────────────────────────────────
 
   Future<void> _loadNoteRects() async {
@@ -249,7 +209,6 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     _loadPlayingRects();
     _loadSelectionRects();
     _loadNoteRects();
-    if (widget.blinkAyahKey != null) _startBlink();
   }
 
   @override
@@ -273,16 +232,6 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
       _loadNoteRects();
     }
 
-    if (widget.blinkAyahKey != oldWidget.blinkAyahKey &&
-        widget.blinkAyahKey != null) {
-      _startBlink();
-    }
-  }
-
-  @override
-  void dispose() {
-    _blinkTimer?.cancel();
-    super.dispose();
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -324,7 +273,6 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
           playingRects:   _playingRects,
           selectionRects: _selectionRects,
           noteRects:      _noteRects,
-          blinkRects:     _blinkVisible ? _blinkRects : [],
         ),
       ),
     );
@@ -340,7 +288,6 @@ class _AyahHighlightPainter extends CustomPainter {
   final List<Rect> playingRects;   // verset en lecture — vert vif
   final List<Rect> selectionRects; // plage mini lecteur — vert léger
   final List<Rect> noteRects;      // versets notés — gris léger
-  final List<Rect> blinkRects;     // blink navigation — vert vif
 
   _AyahHighlightPainter({
     required this.displaySize,
@@ -348,8 +295,7 @@ class _AyahHighlightPainter extends CustomPainter {
     required this.wordRects,
     required this.playingRects,
     required this.selectionRects,
-    this.noteRects  = const [],
-    this.blinkRects = const [],
+    this.noteRects = const [],
   });
 
   List<Rect> _groupByLine(List<Rect> rects) {
@@ -407,8 +353,6 @@ class _AyahHighlightPainter extends CustomPainter {
     _drawRects(canvas, selectionRects, const Color(0x3581C784));
     // 3. Verset en lecture — vert vif
     _drawRects(canvas, playingRects,   const Color(0x6681C784));
-    // 4. Blink navigation — vert vif opaque
-    _drawRects(canvas, blinkRects,     const Color(0xAA4CAF50));
   }
 
   @override
@@ -417,7 +361,6 @@ class _AyahHighlightPainter extends CustomPainter {
       old.playingRects   != playingRects   ||
       old.selectionRects != selectionRects ||
       old.noteRects      != noteRects      ||
-      old.blinkRects     != blinkRects     ||
       old.displaySize    != displaySize    ||
       old.imageSize      != imageSize;
 }
