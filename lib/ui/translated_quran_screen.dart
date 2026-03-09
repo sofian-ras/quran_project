@@ -1588,8 +1588,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     if (_itemScrollController.isAttached) {
       _itemScrollController.scrollTo(
         index: ayah, // index 0 = header, index N = ayah N
-        alignment: 0.0,
-        duration: const Duration(milliseconds: 300),
+        alignment: 0.35,
+        duration: const Duration(milliseconds: 350),
         curve: Curves.easeOut,
       );
     }
@@ -2827,15 +2827,27 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xE2080808),
+            gradient: isDark ? const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF2A1F0A),
+                Color(0xFF1C1506),
+                Color(0xFF2E2208),
+              ],
+            ) : null,
+            color: isDark ? null : const Color(0xE2080808),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
-            boxShadow: const [
+            border: Border.all(
+              color: isDark ? const Color(0xFFC8A165).withValues(alpha: 0.45) : Colors.white.withValues(alpha: 0.07),
+              width: isDark ? 1.2 : 1.0,
+            ),
+            boxShadow: [
               BoxShadow(
-                color: Color(0x55000000),
-                blurRadius: 24,
-                spreadRadius: 2,
-                offset: Offset(0, 6),
+                color: isDark ? const Color(0xFFC8A165).withValues(alpha: 0.18) : const Color(0x55000000),
+                blurRadius: isDark ? 28 : 24,
+                spreadRadius: isDark ? 0 : 2,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
@@ -3017,7 +3029,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                         child: ScrollablePositionedList.builder(
                           itemScrollController: _itemScrollController,
                           initialScrollIndex: _initialScrollIndex,
-                          initialAlignment: 0.0,
+                          initialAlignment: 0.35,
                           padding: EdgeInsets.fromLTRB(16, appBarH + 12, 16, MediaQuery.of(context).padding.bottom + 140),
                           itemCount: _arabic.length + 1,
                           itemBuilder: (context, i) {
