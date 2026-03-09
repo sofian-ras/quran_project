@@ -1172,11 +1172,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   bool _showArabic = true;
   bool _showTranslation = true;
   bool _showTajweed = true;
+  bool _boldArabic = false;
   // 0 = blanc · 1 = papier · 2 = sombre
   int _localTheme = 1;
   double _fontArabic = 22;
   double _fontTranslation = 16;
   double _fontTafsir = 14;
+  String _fontFamily = 'ScheherazadeNew';
 
   Set<String> _favoriteKeys = <String>{};
 
@@ -1270,6 +1272,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
 
   static const _kTheme       = 'tqs_theme';
   static const _kFontArabic  = 'tqs_font_arabic';
+  static const _kFontFamily  = 'tqs_font_family';
+  static const _kBoldArabic  = 'tqs_bold_arabic';
   static const _kTajweed     = 'tqs_tajweed';
   static const _kTranslation = 'tqs_translation';
   static const _kArabic      = 'tqs_arabic';
@@ -1282,9 +1286,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       _fontArabic      = p.getDouble(_kFontArabic) ?? 22;
       _fontTranslation = 16;
       _fontTafsir      = 14;
+      _fontFamily      = p.getString(_kFontFamily) ?? 'ScheherazadeNew';
       _showTajweed     = p.getBool(_kTajweed)      ?? true;
       _showTranslation = p.getBool(_kTranslation)  ?? true;
       _showArabic      = p.getBool(_kArabic)       ?? true;
+      _boldArabic      = p.getBool(_kBoldArabic)   ?? false;
     });
   }
 
@@ -1292,9 +1298,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     final p = await SharedPreferences.getInstance();
     await p.setInt(_kTheme, _localTheme);
     await p.setDouble(_kFontArabic, _fontArabic);
+    await p.setString(_kFontFamily, _fontFamily);
     await p.setBool(_kTajweed, _showTajweed);
     await p.setBool(_kTranslation, _showTranslation);
     await p.setBool(_kArabic, _showArabic);
+    await p.setBool(_kBoldArabic, _boldArabic);
   }
 
   void _attachAyahListener() {
@@ -1738,7 +1746,16 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      enableDrag: true,
       builder: (_) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.0,
+          maxChildSize: 0.92,
+          expand: false,
+          snap: true,
+          snapSizes: const [0.75],
+          builder: (sheetCtx, scrollController) {
         return StatefulBuilder(
           builder: (_, setS) {
 
@@ -1851,10 +1868,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
               );
             }
 
-            final maxH = MediaQuery.of(context).size.height * 0.88;
-            return ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxH),
-              child: SingleChildScrollView(
+            return SingleChildScrollView(
+                controller: scrollController,
                 child: Container(
               decoration: const BoxDecoration(
                 color: sheetBg,
@@ -1942,12 +1957,75 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: _fontArabic,
-                          fontFamily: 'ScheherazadeNew',
-                          fontWeight: FontWeight.w600,
+                          fontFamily: _fontFamily,
+                          fontWeight: FontWeight.normal,
                           color: _localTheme == 2 ? Colors.white.withValues(alpha: 0.88) : Colors.black.withValues(alpha: 0.82),
                           height: 1.6,
                         ),
                       ),
+                    ),
+
+                    // ── POLICE ───────────────────────────────────────
+                    const Padding(
+                      padding: EdgeInsets.only(top: 22, bottom: 10),
+                      child: Text('POLICE ARABE', style: TextStyle(color: sectionC, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                    ),
+                    Row(
+                      children: [
+                        for (final f in [
+                          ('ScheherazadeNew', 'Scheherazade', 'بِسْمِ ٱللَّهِ'),
+                          ('UthmanicHafs',   'Uthmani',          'بِسْمِ ٱللَّهِ'),
+                        ]) ...[
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setS(() => _fontFamily = f.$1);
+                                if (mounted) setState(() => _fontFamily = f.$1);
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: _fontFamily == f.$1
+                                      ? green.withValues(alpha: 0.12)
+                                      : (_localTheme == 2 ? const Color(0xFF1A2235) : Colors.white),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: _fontFamily == f.$1 ? green : divC,
+                                    width: _fontFamily == f.$1 ? 2 : 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      f.$3,
+                                      textDirection: TextDirection.rtl,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontFamily: f.$1,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w600,
+                                        color: _localTheme == 2 ? Colors.white.withValues(alpha: 0.88) : Colors.black.withValues(alpha: 0.82),
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      f.$2,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: _fontFamily == f.$1 ? green : sectionC,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (f.$1 != 'UthmanicHafs') const SizedBox(width: 8),
+                        ],
+                      ],
                     ),
 
                     // ── OPTIONS ──────────────────────────────────────
@@ -1984,6 +2062,20 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               onChanged: (v) => setS(() => _showTranslation = v),
                             ),
                           ),
+                          const Divider(height: 1, indent: 64, color: divC),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                            child: toggleRow(
+                              icon: Icons.format_bold_rounded,
+                              label: 'Texte en gras',
+                              subtitle: 'Épaissir le texte arabe',
+                              value: _boldArabic,
+                              onChanged: (v) {
+                                setS(() => _boldArabic = v);
+                                if (mounted) setState(() => _boldArabic = v);
+                              },
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1992,10 +2084,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                 ),
               ),
                 ), // Container
-              ), // SingleChildScrollView
-            ); // ConstrainedBox
-          },
-        );
+              ); // SingleChildScrollView
+          }, // StatefulBuilder builder
+        ); // StatefulBuilder
+        }, // DraggableScrollableSheet builder
+      ); // DraggableScrollableSheet
       },
     ).then((_) => _saveSettings());
   }
@@ -2981,8 +3074,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                                     SvgPicture.asset(
                                                       'assets/images/Translated_Quran/surah_svg/${widget.surahNumber}.svg',
                                                       height: svgH * 0.68,
-                                                      colorFilter: ColorFilter.mode(
-                                                        _localTheme == 1 ? Colors.black : Colors.white,
+                                                      colorFilter: const ColorFilter.mode(
+                                                        Colors.black,
                                                         BlendMode.srcIn,
                                                       ),
                                                     ),
@@ -2990,8 +3083,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                                     SvgPicture.asset(
                                                       'assets/images/Translated_Quran/surah_svg/0. surah.svg',
                                                       height: svgH * 0.68,
-                                                      colorFilter: ColorFilter.mode(
-                                                        _localTheme == 1 ? Colors.black : Colors.white,
+                                                      colorFilter: const ColorFilter.mode(
+                                                        Colors.black,
                                                         BlendMode.srcIn,
                                                       ),
                                                     ),
@@ -3009,7 +3102,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                         color: isDark
                                             ? Colors.white.withValues(alpha: 0.55)
                                             : const Color(0xFF7A5C30).withValues(alpha: 0.80),
-                                        fontSize: _fontArabic * 1.5,
+                                        fontSize: 30,
                                       ),
                                     ],
                                   ],
@@ -3035,6 +3128,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               showTajweed: _showTajweed,
                               fontArabic: _fontArabic,
                               fontTranslation: _fontTranslation,
+                              fontFamily: _fontFamily,
+                              boldArabic: _boldArabic,
                               removeBasmala: ayaNum == 1 && _shouldShowBasmalaForThisSurah(),
                               playingKeyNotifier: _playingKeyNotifier,
                               onTap: (ayah, ar, tr, taf) {
@@ -3145,6 +3240,8 @@ class _AyahTile extends StatelessWidget {
   final bool showTajweed;
   final double fontArabic;
   final double fontTranslation;
+  final String fontFamily;
+  final bool boldArabic;
   final bool removeBasmala;
   final ValueNotifier<String?> playingKeyNotifier;
   final void Function(int ayah, String ar, String tr, String taf) onTap;
@@ -3166,6 +3263,8 @@ class _AyahTile extends StatelessWidget {
     required this.showTajweed,
     required this.fontArabic,
     required this.fontTranslation,
+    required this.fontFamily,
+    required this.boldArabic,
     required this.removeBasmala,
     required this.playingKeyNotifier,
     required this.onTap,
@@ -3274,15 +3373,11 @@ class _AyahTile extends StatelessWidget {
                     const SizedBox(height: 6),
                     Builder(builder: (_) {
                       final spans = _spans(cleanAr, fg);
-                      spans.add(TextSpan(
-                        text: ' ﴿${_indic(ayaNum)}﴾',
-                        style: TextStyle(color: subtle, fontWeight: FontWeight.w700),
-                      ));
                       return RichText(
                         textDirection: TextDirection.rtl,
                         text: TextSpan(
-                          style: TextStyle(fontSize: fontArabic, height: 2.4, fontFamily: 'ScheherazadeNew',
-                              fontWeight: FontWeight.w600, wordSpacing: 4.5, color: fg),
+                          style: TextStyle(fontSize: fontArabic, height: 2.4, fontFamily: fontFamily,
+                              fontWeight: boldArabic ? FontWeight.bold : FontWeight.normal, wordSpacing: 4.5, color: fg),
                           children: spans,
                         ),
                       );
