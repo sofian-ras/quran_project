@@ -901,26 +901,6 @@ class _BasmalaTitle extends StatelessWidget {
 }
 
 // ── Badge verset (parenthèses ornementales arabes) ────────────────────────
-class _VerseBadge extends StatelessWidget {
-  final int number;
-  final Color color;
-
-  const _VerseBadge({required this.number, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      '﴾$number﴿',
-      style: TextStyle(
-        color: color,
-        fontSize: number > 99 ? 13 : 15,
-        fontFamily: 'ScheherazadeNew',
-        fontWeight: FontWeight.w600,
-        height: 1,
-      ),
-    );
-  }
-}
 
 // ── Bandeau de séparation de Juz ─────────────────────────────────────────
 class _JuzBanner extends StatelessWidget {
@@ -3100,7 +3080,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                       const SizedBox(height: 20),
                                       _BasmalaTitle(
                                         color: isDark
-                                            ? Colors.white.withValues(alpha: 0.55)
+                                            ? const Color(0xFFC8A165)
                                             : const Color(0xFF7A5C30).withValues(alpha: 0.80),
                                         fontSize: 30,
                                       ),
@@ -3348,11 +3328,14 @@ class _AyahTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _VerseBadge(
-                        number: ayaNum,
-                        color: isPlayingThis
-                            ? accentColor
-                            : (isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230)).withValues(alpha: 0.75),
+                      Text(
+                        '$ayaNum',
+                        style: TextStyle(
+                          color: isPlayingThis ? accentColor : (isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230)).withValues(alpha: 0.75),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
+                        ),
                       ),
                       if (isPlayingThis) ...[
                         const SizedBox(width: 8),
@@ -3373,6 +3356,16 @@ class _AyahTile extends StatelessWidget {
                     const SizedBox(height: 6),
                     Builder(builder: (_) {
                       final spans = _spans(cleanAr, fg);
+                      final useOrnamentalParentheses = fontFamily != 'UthmanicHafs';
+                      spans.add(TextSpan(
+                        text: useOrnamentalParentheses
+                            ? ' ﴿${_indic(ayaNum)}﴾'
+                            : ' ${_indic(ayaNum)}',
+                        style: TextStyle(
+                          color: subtle,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ));
                       return RichText(
                         textDirection: TextDirection.rtl,
                         text: TextSpan(
