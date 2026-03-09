@@ -13,6 +13,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/quran_translation_pack_service.dart';
 import '../services/verse_favorites_service.dart';
+import '../services/verse_notes_service.dart';
 import '../services/audio_service.dart';
 import '../services/reading_history_service.dart';
 import '../services/qul_audio/qul_audio_resolver.dart';
@@ -69,7 +70,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         backgroundColor: bg,
         body: ValueListenableBuilder<double>(
@@ -105,6 +106,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
                       tabs: const [
                         Tab(text: 'Sourates'),
                         Tab(text: 'Favoris'),
+                        Tab(text: 'Notes'),
                       ],
                     ),
                   ),
@@ -177,6 +179,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
             children: [
               _SurahTab(preferOffline: widget.preferOffline),
               const _FavoritesTab(),
+              _NotesTab(preferOffline: widget.preferOffline),
             ],
           ),
         ),
@@ -372,6 +375,129 @@ class _FavoritesTabState extends State<_FavoritesTab> {
                       ),
                     ),
                   ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Onglet Notes ─────────────────────────────────────────────────────────────
+class _NotesTab extends StatefulWidget {
+  final bool preferOffline;
+  const _NotesTab({required this.preferOffline});
+  @override
+  State<_NotesTab> createState() => _NotesTabState();
+}
+
+class _NotesTabState extends State<_NotesTab> {
+  bool _loading = true;
+  Map<String, String> _notes = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final notes = await VerseNotesService.instance.getAll();
+    if (!mounted) return;
+    setState(() { _notes = Map.from(notes); _loading = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: _tqsThemeNotifier,
+      builder: (context, tqsTheme, _) {
+        final isDark = tqsTheme == 2;
+        final bg     = isDark ? const Color(0xFF0B1025) : (tqsTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
+        final fg     = isDark ? Colors.white.withValues(alpha: 0.92) : Colors.black.withValues(alpha: 0.90);
+        final subtle = isDark ? Colors.white.withValues(alpha: 0.55) : Colors.black.withValues(alpha: 0.55);
+        final border = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08);
+        final cardBg = isDark ? const Color(0xFF111827) : Colors.white.withValues(alpha: 0.6);
+
+        if (_loading) return Container(color: bg, child: const Center(child: CircularProgressIndicator()));
+
+        if (_notes.isEmpty) {
+          return Container(
+            color: bg,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.sticky_note_2_outlined, size: 48, color: subtle),
+                  const SizedBox(height: 12),
+                  Text('Aucune note', style: TextStyle(color: subtle, fontWeight: FontWeight.w700, fontSize: 16)),
+                  const SizedBox(height: 6),
+                  Text('Appuyez sur un verset pour en ajouter', style: TextStyle(color: subtle, fontSize: 13)),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final keys = _notes.keys.toList()
+          ..sort((a, b) {
+            int s(String k) => int.tryParse(k.split(':').first) ?? 0;
+            int v(String k) => int.tryParse(k.split(':').last) ?? 0;
+            final ds = s(a).compareTo(s(b));
+            return ds != 0 ? ds : v(a).compareTo(v(b));
+          });
+
+        return Container(
+          color: bg,
+          child: ListView.separated(
+            padding: const EdgeInsets.all(12),
+            itemCount: keys.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (_, i) {
+              final key = keys[i];
+              final parts = key.split(':');
+              final s = int.tryParse(parts[0]) ?? 0;
+              final a = int.tryParse(parts[1]) ?? 0;
+              final nameTr = surahFr[s] ?? 'Sourate $s';
+              final note = _notes[key]!;
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: border),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                  leading: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC8A165).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.sticky_note_2_outlined, size: 18, color: Color(0xFFC8A165)),
+                  ),
+                  title: Text('$nameTr · verset $a',
+                      style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 14)),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(note, maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: subtle, fontSize: 12.5, fontStyle: FontStyle.italic, height: 1.45)),
+                  ),
+                  trailing: Icon(Icons.chevron_right_rounded, color: subtle),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TranslatedSurahScreen(
+                        surahNumber: s, surahNameFr: nameTr,
+                        surahNameAr: TafsirService.surahNames[s - 1],
+                        preferOffline: widget.preferOffline,
+                        initialAyah: a <= 0 ? 1 : a,
+                      ),
+                    ),
+                  ).then((_) => _load()),
                 ),
               );
             },
@@ -1161,6 +1287,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   String _fontFamily = 'ScheherazadeNew';
 
   Set<String> _favoriteKeys = <String>{};
+  Map<String, String> _notes = {};
 
   // Scroll indexé — pas d'offset estimé, pas de GlobalKey
   final ItemScrollController _itemScrollController = ItemScrollController();
@@ -1232,7 +1359,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     AudioService.instance.isAyahPlayingNotifier.addListener(_updatePlayingKey);
 
     Future.microtask(() async {
-      await Future.wait([_loadSettings(), _loadFavorites(), _loadArabicImmediate()]);
+      await Future.wait([_loadSettings(), _loadFavorites(), _loadNotes(), _loadArabicImmediate()]);
       _attachAyahListener();
       _updatePlayingKey();
       _loadTranslationsBackground();
@@ -1356,6 +1483,12 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     final favs = await VerseFavoritesService.instance.getFavorites();
     if (!mounted) return;
     setState(() => _favoriteKeys = favs);
+  }
+
+  Future<void> _loadNotes() async {
+    final notes = await VerseNotesService.instance.getAll();
+    if (!mounted) return;
+    setState(() => _notes = Map.from(notes));
   }
 
   Future<void> _loadTafsirOnlineFallback() async {
@@ -2691,6 +2824,21 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                   },
                 ),
                 ListTile(
+                  leading: Icon(
+                    _notes.containsKey(key) ? Icons.edit_note_rounded : Icons.note_add_rounded,
+                    color: _notes.containsKey(key) ? const Color(0xFFC8A165) : null,
+                  ),
+                  title: Text(_notes.containsKey(key) ? 'Modifier la note' : 'Ajouter une note'),
+                  subtitle: _notes.containsKey(key)
+                      ? Text(_notes[key]!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: subtle, fontSize: 12))
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showNoteEditor(key: key, ayah: ayah);
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.copy_all_rounded),
                   title: const Text('Copier arabe + traduction'),
                   onTap: () {
@@ -2732,6 +2880,90 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
           ), // ConstrainedBox
         ); // SafeArea
       },
+    );
+  }
+
+  void _showNoteEditor({required String key, required int ayah}) {
+    final isDark = _isDark;
+    final controller = TextEditingController(text: _notes[key] ?? '');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF0D1B2A) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      showDragHandle: true,
+      builder: (ctx) => AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.surahNameFr}  ·  verset $ayah',
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black45,
+                fontSize: 12, fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLines: 5,
+              minLines: 3,
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              decoration: InputDecoration(
+                hintText: 'Écrire une note…',
+                hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF1A2E40) : const Color(0xFFF5F5F5),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (_notes.containsKey(key))
+                  TextButton.icon(
+                    onPressed: () async {
+                      await VerseNotesService.instance.deleteNote(key);
+                      if (!mounted) return;
+                      setState(() => _notes.remove(key));
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                    label: const Text('Supprimer', style: TextStyle(color: Colors.redAccent)),
+                  ),
+                const Spacer(),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFC8A165),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () async {
+                    await VerseNotesService.instance.setNote(key, controller.text);
+                    if (!mounted) return;
+                    await _loadNotes();
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                  child: const Text('Enregistrer'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -3122,6 +3354,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               fontTranslation: _fontTranslation,
                               fontFamily: _fontFamily,
                               boldArabic: _boldArabic,
+                              noteText: _notes[_verseKey(ayaNum)],
                               removeBasmala: ayaNum == 1 && _shouldShowBasmalaForThisSurah(),
                               playingKeyNotifier: _playingKeyNotifier,
                               onTap: (ayah, ar, tr, taf) {
@@ -3234,6 +3467,7 @@ class _AyahTile extends StatelessWidget {
   final double fontTranslation;
   final String fontFamily;
   final bool boldArabic;
+  final String? noteText;
   final bool removeBasmala;
   final ValueNotifier<String?> playingKeyNotifier;
   final void Function(int ayah, String ar, String tr, String taf) onTap;
@@ -3257,6 +3491,7 @@ class _AyahTile extends StatelessWidget {
     required this.fontTranslation,
     required this.fontFamily,
     required this.boldArabic,
+    this.noteText,
     required this.removeBasmala,
     required this.playingKeyNotifier,
     required this.onTap,
@@ -3397,6 +3632,35 @@ class _AyahTile extends StatelessWidget {
                         fontSize: fontTranslation, height: 1.65, fontFamily: 'serif',
                         fontWeight: FontWeight.w500,
                         color: fg.withValues(alpha: isDark ? 0.86 : 0.82),
+                      ),
+                    ),
+                  ],
+                  if (noteText != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC8A165).withValues(alpha: isDark ? 0.15 : 0.10),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFC8A165).withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.sticky_note_2_outlined, size: 14, color: Color(0xFFC8A165)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              noteText!,
+                              style: TextStyle(
+                                fontSize: 12.5, height: 1.5,
+                                color: isDark ? const Color(0xFFE3C880) : const Color(0xFF7A5C30),
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

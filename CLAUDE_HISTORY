@@ -1,0 +1,6 @@
+quand ca ouvre le clavier ca bug et rame, comment faire
+Le problème vient de MediaQuery.of(ctx).viewInsets.bottom dans le Padding — il force un rebuild complet à chaque frame de l'animation clavier. La solution : AnimatedPadding qui lisse la transition.
+
+Grep "_showNoteEditor" (in c:\Users\Administrateur\Documents\quran_project\lib\ui\translated_quran_screen.dart)
+2 lines of output
+You've hit your limit · resets 1pm (Europe/Paris)
