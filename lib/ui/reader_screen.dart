@@ -104,7 +104,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
            0, 0, 0, 1,   0,
         ])
       : (_readerTheme == 1
-          ? const ColorFilter.mode(Color(0xFFF3E8C0), BlendMode.multiply)
+          ? const ColorFilter.matrix([
+              // multiply(pixel, 0xFFF3E8C0) sans saveLayer :
+              // R × 243/255, G × 232/255, B × 192/255
+              0.9529, 0, 0, 0, 0,
+              0, 0.9098, 0, 0, 0,
+              0, 0, 0.7529, 0, 0,
+              0, 0, 0,     1, 0,
+            ])
           : null);
 
   Color get _themeIconColor => _readerTheme == 2 ? Colors.white60 : Colors.black45;

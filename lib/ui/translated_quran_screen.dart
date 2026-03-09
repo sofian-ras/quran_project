@@ -149,6 +149,13 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
                                 ],
                               ),
                               Positioned(
+                                left: 4,
+                                child: IconButton(
+                                  icon: Icon(Icons.arrow_back_ios_new, color: fg, size: 20),
+                                  onPressed: () => Navigator.of(context).pop(),
+                                ),
+                              ),
+                              Positioned(
                                 right: 4,
                                 child: IconButton(
                                   icon: Icon(Icons.settings_outlined, color: fg, size: 22),
@@ -3045,7 +3052,9 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     final screenW = MediaQuery.of(context).size.width;
     final playerHPad = _isLandscape ? math.max(14.0, (screenW - 400) / 2) : 14.0;
 
-    return Scaffold(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
       backgroundColor: _bg(isDark),
       body: Container(
         color: _bg(isDark),
@@ -3322,7 +3331,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
           ],
         ), // outer Stack
       ),
-    );
+    ), // Scaffold
+    ); // AnnotatedRegion
   }
 }
 
