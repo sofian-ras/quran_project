@@ -19,7 +19,7 @@ class MainActivity : AudioServiceActivity() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
 
         // Barre de navigation 80 % transparente (alpha 51 = 0x33)
-        window.navigationBarColor = Color.argb(51, 0, 0, 0)
+        window.navigationBarColor = Color.TRANSPARENT
 
         // Android 10+ : désactive le voile de contraste automatique
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -31,7 +31,7 @@ class MainActivity : AudioServiceActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            window.navigationBarColor = Color.argb(51, 0, 0, 0)
+            window.navigationBarColor = Color.TRANSPARENT
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 window.isNavigationBarContrastEnforced = false
             }
