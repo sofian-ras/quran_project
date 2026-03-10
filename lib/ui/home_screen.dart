@@ -17,7 +17,6 @@ import '../services/quran_translation_pack_service.dart';
 import 'package:sqflite/sqflite.dart';
 import '../surah_name.dart';
 import 'reciter_picker_screen.dart';
-import 'reciter_surah_list_screen.dart';
 import 'reader_screen.dart';
 import 'tafsir_library_screen.dart';
 import 'screens/quran_loader.dart';
@@ -715,19 +714,12 @@ Future<void> _checkFirstLaunch() async {
     if (!mounted) return;
 
     final moshafLabel = options.isNotEmpty ? options.first.name : 'Hafs';
-    final surahList = List.generate(114, (i) => i + 1);
-    final asset = _reciterAssetsByName[r.name] ?? '';
+    final displayName = moshafLabel.isEmpty ? r.name : '${r.name} ($moshafLabel)';
 
-    _audio.suppressGlobalPlayer.value = true;
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ReciterSurahListScreen(
-        name: r.name,
-        asset: asset.isEmpty ? null : asset,
-        server: server!,
-        moshafLabel: moshafLabel,
-        surahList: surahList,
-      ),
-    ));
+    // Jouer directement sans naviguer — le mini player global apparaît
+    _audio.setReciter(displayName, server);
+    final lastSurah = _audio.currentPlayingSurahIdNotifier.value ?? 1;
+    _audio.loadPlaylistAndPlay(lastSurah);
   }
 
 

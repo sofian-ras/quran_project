@@ -301,18 +301,51 @@ class _SeekBarState extends State<_SeekBar> {
   }
 }
 
-// ── Overlay global (glisser vers le bas pour arrêter) ────────────────────────
+// ── Swipe vers le bas pour fermer (widget isolé pour stabilité du GestureDetector) ──
 
-class GlobalMiniPlayerOverlay extends StatefulWidget {
-  const GlobalMiniPlayerOverlay({super.key});
+class _SwipeToDismissPlayer extends StatefulWidget {
+  final VoidCallback onDismiss;
+  const _SwipeToDismissPlayer({required this.onDismiss});
 
   @override
-  State<GlobalMiniPlayerOverlay> createState() =>
-      _GlobalMiniPlayerOverlayState();
+  State<_SwipeToDismissPlayer> createState() => _SwipeToDismissPlayerState();
 }
 
-class _GlobalMiniPlayerOverlayState extends State<GlobalMiniPlayerOverlay> {
-  double _dragOffset = 0;
+class _SwipeToDismissPlayerState extends State<_SwipeToDismissPlayer> {
+  double _offset = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragStart: (_) {},
+      onVerticalDragUpdate: (d) {
+        if (d.delta.dy > 0 || _offset > 0) {
+          setState(() => _offset = (_offset + d.delta.dy).clamp(0.0, 140.0));
+        }
+      },
+      onVerticalDragEnd: (d) {
+        if (_offset > 60 || d.velocity.pixelsPerSecond.dy > 400) {
+          widget.onDismiss();
+        }
+        setState(() => _offset = 0);
+      },
+      onVerticalDragCancel: () => setState(() => _offset = 0),
+      child: Transform.translate(
+        offset: Offset(0, _offset),
+        child: Opacity(
+          opacity: (1.0 - _offset / 140.0).clamp(0.3, 1.0),
+          child: const MiniAudioPlayer(),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Overlay global ────────────────────────────────────────────────────────────
+
+class GlobalMiniPlayerOverlay extends StatelessWidget {
+  const GlobalMiniPlayerOverlay({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -331,8 +364,6 @@ class _GlobalMiniPlayerOverlayState extends State<GlobalMiniPlayerOverlay> {
                 final isActive = snapshot.data ?? false;
 
                 if (isSuppressed || isFullOpen || !isActive) {
-                  // Reset offset quand le player se cache
-                  if (_dragOffset != 0) _dragOffset = 0;
                   return const SizedBox.shrink();
                 }
 
@@ -342,29 +373,8 @@ class _GlobalMiniPlayerOverlayState extends State<GlobalMiniPlayerOverlay> {
                   bottom: bottomInset,
                   left: 0,
                   right: 0,
-                  child: GestureDetector(
-                    onVerticalDragUpdate: (d) {
-                      if (d.delta.dy > 0) {
-                        setState(() => _dragOffset += d.delta.dy);
-                      }
-                    },
-                    onVerticalDragEnd: (d) {
-                      final dismiss = _dragOffset > 60 ||
-                          d.velocity.pixelsPerSecond.dy > 400;
-                      setState(() => _dragOffset = 0);
-                      if (dismiss) audio.stop();
-                    },
-                    onVerticalDragCancel: () {
-                      setState(() => _dragOffset = 0);
-                    },
-                    child: Transform.translate(
-                      offset: Offset(0, _dragOffset.clamp(0.0, 120.0)),
-                      child: Opacity(
-                        opacity:
-                            (1.0 - _dragOffset / 120.0).clamp(0.3, 1.0),
-                        child: const MiniAudioPlayer(),
-                      ),
-                    ),
+                  child: _SwipeToDismissPlayer(
+                    onDismiss: audio.stop,
                   ),
                 );
               },
