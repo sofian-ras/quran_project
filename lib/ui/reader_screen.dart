@@ -790,6 +790,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _selectionEndKey   = null;
         MiniPlayerService.instance.clearSelection();
       });
+      if (!hadSelection) _applySystemBars(_showUI);
       return;
     }
 
@@ -1052,26 +1053,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
             : child;
 
         if (isLandscape) {
-          return GestureDetector(
-            onTap: () {
-              AyahBubble.dismiss();
-              final show = !_showUI;
-              setState(() {
-                _showUI            = show;
-                _selectedVerseKey  = null;
-                _selectionStartKey = null;
-                _selectionEndKey   = null;
-                MiniPlayerService.instance.clearSelection();
-              });
-              _applySystemBars(show);
-            },
-            child: SingleChildScrollView(
-            child: wrapFilter(Image.file(
-              imageFile,
-              width: constraints.maxWidth,
-              fit: BoxFit.fitWidth,
-              filterQuality: FilterQuality.high,
-            ))),
+          final imgH = constraints.maxWidth * (imagePxSize.height / imagePxSize.width);
+          return SingleChildScrollView(
+            child: Stack(
+              children: [
+                wrapFilter(Image.file(
+                  imageFile,
+                  width: constraints.maxWidth,
+                  fit: BoxFit.fitWidth,
+                  filterQuality: FilterQuality.high,
+                )),
+                Positioned(
+                  left: 0, top: 0,
+                  width: constraints.maxWidth,
+                  height: imgH,
+                  child: AyahSelectionOverlay(
+                    page: pageNum,
+                    displaySize: Size(constraints.maxWidth, imgH),
+                    imageSize: imagePxSize,
+                    selectedVerseKey: _selectedVerseKey,
+                    onAyahTap: _onAyahTap,
+                    onAyahLongPress: _onAyahLongPress,
+                    playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
+                    selectionStartKey: _selectionStartKey,
+                    selectionEndKey:   _selectionEndKey,
+                    noteAyahKeys:      _noteKeys,
+                  ),
+                ),
+              ],
+            ),
           );
         }
 
