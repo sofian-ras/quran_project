@@ -275,6 +275,7 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
     final rawList   = info['surahList']   as List<dynamic>? ?? [];
     final surahList = rawList.map((e) => (e as num).toInt()).toList();
 
+    _audio.suppressGlobalPlayer.value = true;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ReciterSurahListScreen(
         name:        name,
@@ -313,6 +314,7 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
 
   void _navigateToSurahList(ReciterData r, String server, String moshafRaw, List<int> surahList) {
     final label = _prettyMoshaf(moshafRaw);
+    _audio.suppressGlobalPlayer.value = true;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ReciterSurahListScreen(
         name:        r.name,

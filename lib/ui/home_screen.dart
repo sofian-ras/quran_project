@@ -17,6 +17,7 @@ import '../services/quran_translation_pack_service.dart';
 import 'package:sqflite/sqflite.dart';
 import '../surah_name.dart';
 import 'reciter_picker_screen.dart';
+import 'reciter_surah_list_screen.dart';
 import 'reader_screen.dart';
 import 'tafsir_library_screen.dart';
 import 'screens/quran_loader.dart';
@@ -711,14 +712,22 @@ Future<void> _checkFirstLaunch() async {
       server = server.substring(0, server.length - 1);
     }
 
-    // Lancer le lecteur audio avec le récitateur
-    _audio.setReciter(r.name, server);
-
-    // Lancer automatiquement la première sourate (Al-Fatiha)
-    await _audio.loadPlaylistAndPlay(1);
-
     if (!mounted) return;
-    // Notification supprimée
+
+    final moshafLabel = options.isNotEmpty ? options.first.name : 'Hafs';
+    final surahList = List.generate(114, (i) => i + 1);
+    final asset = _reciterAssetsByName[r.name] ?? '';
+
+    _audio.suppressGlobalPlayer.value = true;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ReciterSurahListScreen(
+        name: r.name,
+        asset: asset.isEmpty ? null : asset,
+        server: server!,
+        moshafLabel: moshafLabel,
+        surahList: surahList,
+      ),
+    ));
   }
 
 

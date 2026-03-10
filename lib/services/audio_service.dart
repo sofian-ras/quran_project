@@ -24,6 +24,8 @@ enum AyahPlayMode { single, continuous, repeatOne }
 
 class AudioService {
   final ValueNotifier<bool> isFullPlayerOpenNotifier = ValueNotifier<bool>(false);
+  /// Mettre à true quand un écran affiche son propre lecteur audio.
+  final ValueNotifier<bool> suppressGlobalPlayer = ValueNotifier<bool>(false);
 
   AudioService._() {
     // Player sourate complète

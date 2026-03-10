@@ -102,11 +102,13 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
   @override
   void initState() {
     super.initState();
+    _audio.suppressGlobalPlayer.value = true;
     _loadDownloaded();
   }
 
   @override
   void dispose() {
+    _audio.suppressGlobalPlayer.value = false;
     for (final n in _dlProgress.values) { n.dispose(); }
     super.dispose();
   }
@@ -766,13 +768,28 @@ class _DlIcon extends StatelessWidget {
 
 // ── Barre "En lecture" ────────────────────────────────────────────────────────
 
-class _NowPlayingBar extends StatelessWidget {
+class _NowPlayingBar extends StatefulWidget {
   final bool         isDark;
   final AudioService audio;
   const _NowPlayingBar({required this.isDark, required this.audio});
 
   @override
+  State<_NowPlayingBar> createState() => _NowPlayingBarState();
+}
+
+class _NowPlayingBarState extends State<_NowPlayingBar> {
+  Duration? _dragging;
+
+  String _fmt(Duration d) {
+    String p(int n) => n.toString().padLeft(2, '0');
+    return '${p(d.inMinutes.remainder(60))}:${p(d.inSeconds.remainder(60))}';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final audio  = widget.audio;
+
     return ValueListenableBuilder<int?>(
       valueListenable: audio.currentPlayingSurahIdNotifier,
       builder: (_, surahId, __) {
@@ -810,22 +827,74 @@ class _NowPlayingBar extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Barre de progression
+                  // ── Barre de progression glissable ──────────────────────
                   StreamBuilder<PositionData>(
                     stream: audio.positionDataStream,
                     builder: (_, snap) {
-                      final pos = snap.data?.position ?? Duration.zero;
                       final dur = snap.data?.duration ?? Duration.zero;
-                      final pct = dur.inMilliseconds == 0
-                          ? 0.0
-                          : (pos.inMilliseconds / dur.inMilliseconds)
-                              .clamp(0.0, 1.0);
-                      return LinearProgressIndicator(
-                        value: pct,
-                        minHeight: 2,
-                        backgroundColor:
-                            _kPlay.withValues(alpha: 0.12),
-                        valueColor: const AlwaysStoppedAnimation(_kPlay),
+                      final pos = _dragging ?? snap.data?.position ?? Duration.zero;
+                      final maxMs = dur.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+                      final pct = (pos.inMilliseconds / maxMs).clamp(0.0, 1.0);
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_dragging != null)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(_fmt(pos),
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: _kPlay,
+                                          fontWeight: FontWeight.w600)),
+                                  Text(_fmt(dur),
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: muted)),
+                                ],
+                              ),
+                            ),
+                          LayoutBuilder(
+                            builder: (ctx, constraints) => GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onHorizontalDragStart: (d) {
+                                final f = (d.localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0);
+                                setState(() => _dragging = Duration(milliseconds: (f * maxMs).toInt()));
+                              },
+                              onHorizontalDragUpdate: (d) {
+                                final f = (d.localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0);
+                                setState(() => _dragging = Duration(milliseconds: (f * maxMs).toInt()));
+                              },
+                              onHorizontalDragEnd: (_) {
+                                if (_dragging != null) {
+                                  audio.seek(_dragging!);
+                                  setState(() => _dragging = null);
+                                }
+                              },
+                              onTapDown: (d) {
+                                final f = (d.localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0);
+                                audio.seek(Duration(milliseconds: (f * maxMs).toInt()));
+                              },
+                              child: SizedBox(
+                                height: 16,
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox(
+                                    height: 2,
+                                    child: LinearProgressIndicator(
+                                      value: pct,
+                                      backgroundColor: _kPlay.withValues(alpha: 0.12),
+                                      valueColor: const AlwaysStoppedAnimation(_kPlay),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       );
                     },
                   ),

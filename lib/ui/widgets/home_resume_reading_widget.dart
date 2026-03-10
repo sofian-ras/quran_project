@@ -25,7 +25,7 @@ class ResumeReadingWidget extends StatelessWidget {
           surahName = 'Page $page';
         }
 
-        // Si rien du tout nâ€™existe, on affiche quand mÃªme un bouton â€œReprendreâ€
+        // Si rien du tout n'existe, on affiche quand même un bouton "Reprendre"
         // (au lieu de shrink), qui ouvre page 1 (ou ce que tu veux)
         final bool hasAnyData = lastReading != null;
         final Color textColor = Colors.white;
