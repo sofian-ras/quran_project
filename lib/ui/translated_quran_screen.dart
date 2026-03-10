@@ -1289,6 +1289,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ValueNotifier<String?> _playingKeyNotifier = ValueNotifier<String?>(null);
   int _initialScrollIndex = 0;
+  bool _ignoreInitialScroll = true;
 
   // 0.0 = barres visibles · 1.0 = barres cachées
   final ValueNotifier<double> _barProgress = ValueNotifier(0.0);
@@ -3175,6 +3176,13 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                     children: [
                       NotificationListener<ScrollNotification>(
                         onNotification: (notification) {
+                          if (_ignoreInitialScroll) {
+                            if (notification is ScrollEndNotification) {
+                              _ignoreInitialScroll = false;
+                              _barProgress.value = 0.0;
+                            }
+                            return false;
+                          }
                           if (notification is ScrollUpdateNotification) {
                             _snapController.stop();
                             final delta = notification.scrollDelta ?? 0;
