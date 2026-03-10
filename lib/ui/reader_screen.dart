@@ -124,11 +124,25 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Color get _themeIconColor => _readerTheme == 2 ? Colors.white60 : Colors.black45;
 
+  /// Cache ou affiche les barres système (nav + status) selon [show].
+  void _applySystemBars(bool show) {
+    if (show) {
+      SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.manual,
+        overlays: SystemUiOverlay.values,
+      );
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
+  }
+
   void _applySystemUiStyle(int theme) {
     SystemChrome.setSystemUIOverlayStyle(
-      theme == 2
-          ? SystemUiOverlayStyle.light  // thème sombre → icônes blanches
-          : SystemUiOverlayStyle.dark,  // blanc/papier → icônes noires
+      (theme == 2 ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+          .copyWith(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
     );
   }
 
@@ -165,6 +179,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
       overlays: SystemUiOverlay.values,
     );
 
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle.dark.copyWith(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+    );
 
     currentPage = widget.initialPage;
     currentReading = widget.reading;
@@ -588,97 +608,140 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
 
-            // TOP overlay
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              top: _showUI ? (viewPadding.top + 10) : (viewPadding.top - 80),
-              left: 10,
-              right: 10,
-              child: AnimatedOpacity(
+            // ── TOP overlay — portrait ──────────────────────────────────────
+            if (!isLandscape)
+              AnimatedPositioned(
                 duration: const Duration(milliseconds: 220),
-                opacity: _showUI ? 1.0 : 0.0,
-                child: IgnorePointer(
-                  ignoring: !_showUI,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Opacity(
-                        opacity: 0.5,
-                        child: IconButton(
-                          icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ),
-                      Text(
-                        '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _themeIconColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Opacity(
-                        opacity: 0.6,
-                        child: IconButton(
-                          icon: Icon(
-                            _readerTheme == 0
-                                ? Icons.light_mode_outlined
-                                : _readerTheme == 1
-                                    ? Icons.brightness_medium_outlined
-                                    : Icons.dark_mode_outlined,
-                            size: 20,
-                            color: _themeIconColor,
+                curve: Curves.easeOut,
+                top: _showUI ? (viewPadding.top + 10) : (viewPadding.top - 80),
+                left: 10,
+                right: 10,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 220),
+                  opacity: _showUI ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !_showUI,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Opacity(
+                          opacity: 0.5,
+                          child: IconButton(
+                            icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
+                            onPressed: () => Navigator.pop(context),
                           ),
-                          onPressed: _cycleReaderTheme,
                         ),
-                      ),
-                      Opacity(
-                        opacity: 0.7,
-                        child: IconButton(
-                          icon: Icon(
-                            _noteKeys.isNotEmpty
-                                ? Icons.sticky_note_2_rounded
-                                : Icons.sticky_note_2_outlined,
-                            size: 24,
-                            color: _noteKeys.isNotEmpty
-                                ? const Color(0xFFFF8F00)
-                                : _themeIconColor,
+                        Text(
+                          '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
+                          style: TextStyle(fontSize: 12, color: _themeIconColor, fontWeight: FontWeight.bold),
+                        ),
+                        Opacity(
+                          opacity: 0.6,
+                          child: IconButton(
+                            icon: Icon(
+                              _readerTheme == 0 ? Icons.light_mode_outlined
+                                  : _readerTheme == 1 ? Icons.brightness_medium_outlined
+                                  : Icons.dark_mode_outlined,
+                              size: 20, color: _themeIconColor,
+                            ),
+                            onPressed: _cycleReaderTheme,
                           ),
-                          onPressed: _showNotesListModal,
                         ),
-                      ),
-                    ],
+                        Opacity(
+                          opacity: 0.7,
+                          child: IconButton(
+                            icon: Icon(
+                              _noteKeys.isNotEmpty ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
+                              size: 24,
+                              color: _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor,
+                            ),
+                            onPressed: _showNotesListModal,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            // BOTTOM overlay (mini lecteur + barre de navigation)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              bottom: _showUI ? (viewPadding.bottom + 8) : (viewPadding.bottom - 200),
-              left: 16,
-              right: 16,
-              child: AnimatedOpacity(
+            // ── TOP-LEFT back — landscape ───────────────────────────────────
+            if (isLandscape)
+              AnimatedPositioned(
                 duration: const Duration(milliseconds: 220),
-                opacity: _showUI ? 1.0 : 0.0,
-                child: IgnorePointer(
-                  ignoring: !_showUI,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      MiniPlayerWidget(currentSurah: currentSurah),
-                      const SizedBox(height: 6),
-                      isLandscape
-                          ? _bottomBarLandscape()
-                          : _bottomBarPortrait(surahNameFr),
-                    ],
+                curve: Curves.easeOut,
+                top: _showUI ? (viewPadding.top + 4) : (viewPadding.top - 60),
+                left: 4,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 220),
+                  opacity: _showUI ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !_showUI,
+                    child: Opacity(
+                      opacity: 0.6,
+                      child: IconButton(
+                        icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+
+
+            // ── BOTTOM overlay — portrait ───────────────────────────────────
+            if (!isLandscape)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                bottom: _showUI ? (viewPadding.bottom + 8) : (viewPadding.bottom - 200),
+                left: 16,
+                right: 16,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 220),
+                  opacity: _showUI ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !_showUI,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        MiniPlayerWidget(currentSurah: currentSurah),
+                        const SizedBox(height: 6),
+                        _bottomBarPortrait(surahNameFr),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // ── BOTTOM bar — landscape : [info pill] + [MiniPlayer] ─────────
+            if (isLandscape)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                bottom: _showUI ? (viewPadding.bottom + 6) : (viewPadding.bottom - 80),
+                left: viewPadding.left + 56, // laisse la place au bouton back
+                right: viewPadding.right + 8,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 220),
+                  opacity: _showUI ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !_showUI,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _bottomBarLandscapeInfo(surahNameFr),
+                        const SizedBox(width: 8),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 320),
+                          child: MiniPlayerWidget(currentSurah: currentSurah),
+                        ),
+                        const SizedBox(width: 8),
+                        _landscapeThemeNotesPill(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       );
@@ -864,40 +927,84 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  Widget _bottomBarLandscape() {
+  /// Pill theme + notes — affiché à droite du MiniPlayer en paysage.
+  Widget _landscapeThemeNotesPill() {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
-            color: Colors.black54.withValues(alpha: 0.25),
-            borderRadius: BorderRadius.circular(12),
+            color: _themeBg.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _themeIconColor.withValues(alpha: 0.12)),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(),
+                icon: Icon(
+                  _readerTheme == 0 ? Icons.light_mode_outlined
+                      : _readerTheme == 1 ? Icons.brightness_medium_outlined
+                      : Icons.dark_mode_outlined,
+                  size: 18, color: _themeIconColor,
+                ),
+                onPressed: _cycleReaderTheme,
+              ),
+              IconButton(
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(),
+                icon: Icon(
+                  _noteKeys.isNotEmpty ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
+                  size: 18,
+                  color: _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor,
+                ),
+                onPressed: _showNotesListModal,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Pill info paysage : [sourate] | [page] — affiché à gauche du MiniPlayer.
+  Widget _bottomBarLandscapeInfo(String surahNameFr) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: _themeBg.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _themeIconColor.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               TextButton.icon(
                 onPressed: _showNavigationPicker,
-                icon: Icon(Icons.menu_book, color: _themeIconColor, size: 18),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: Size.zero,
+                ),
+                icon: Icon(Icons.menu_book, color: _themeIconColor, size: 15),
                 label: Text(
-                  fullSurahList.isEmpty
-                      ? ''
-                      : fullSurahList.lastWhere(
-                          (s) => s['page'] <= currentPage,
-                          orElse: () => fullSurahList.first,
-                        )['nameFr'],
-                  style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
+                  surahNameFr,
+                  style: TextStyle(color: _themeIconColor, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: _themeIconColor.withValues(alpha: 0.15),
-                child: Text(
-                  '$currentPage',
-                  style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
-                ),
+              Container(width: 1, height: 14, color: _themeIconColor.withValues(alpha: 0.25),
+                  margin: const EdgeInsets.symmetric(horizontal: 6)),
+              Text(
+                '$currentPage',
+                style: TextStyle(color: _themeIconColor, fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -945,13 +1052,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
             : child;
 
         if (isLandscape) {
-          return SingleChildScrollView(
+          return GestureDetector(
+            onTap: () {
+              AyahBubble.dismiss();
+              final show = !_showUI;
+              setState(() {
+                _showUI            = show;
+                _selectedVerseKey  = null;
+                _selectionStartKey = null;
+                _selectionEndKey   = null;
+                MiniPlayerService.instance.clearSelection();
+              });
+              _applySystemBars(show);
+            },
+            child: SingleChildScrollView(
             child: wrapFilter(Image.file(
               imageFile,
               width: constraints.maxWidth,
               fit: BoxFit.fitWidth,
               filterQuality: FilterQuality.high,
-            )),
+            ))),
           );
         }
 
