@@ -1262,10 +1262,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   }
 
 
-  // Option 1: enlever "(128kbps)" etc
-  String _cleanReciterName(String s) {
-    return s.replaceAll(RegExp(r'\s*\([^)]*\)\s*'), '').trim();
-  }
 
   bool _loading = true;
   bool _contentReady = false;
@@ -1309,7 +1305,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
   int _rangeRepeatTimes = 1;
   int _eachAyahRepeatTimes = 1;
 
-  double _playbackSpeed = 1.0;
 
   String _translationKey = 'french_hameedullah';
   String _tafsirKey = 'french_mokhtasar';
@@ -1345,7 +1340,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
       DeviceOrientation.landscapeRight,
     ]);
     _selectedAyah = widget.initialAyah <= 0 ? 1 : widget.initialAyah;
-    _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
     AudioService.instance.ayahPlayModeNotifier.value = AyahPlayMode.continuous;
     _repeatTimes = 1;
     _audioListenable = Listenable.merge([
@@ -2206,11 +2200,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     ).then((_) => _saveSettings());
   }
 
+
   // ── Reciter sheet ─────────────────────────────────────────────────────────
 
   void _showReciterSheet() {
     final svc = AudioService.instance;
-
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xF0090909),
@@ -2218,81 +2212,60 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       showDragHandle: true,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (ctx, setStateSheet) {
-            final selected = svc.currentAyahReciterNotifier.value;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: Text(
-                    'Récitant',
-                    style: TextStyle(
-                      color: Colors.white60,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ),
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-                    itemCount: AudioService.ayahReciters.length,
-                    itemBuilder: (_, i) {
-                      final r = AudioService.ayahReciters[i];
-                      final isSelected = r.qulId == selected.qulId;
-                      return GestureDetector(
-                        onTap: () {
-                          svc.setAyahReciter(r);
-                          Navigator.of(ctx).pop();
-                          setState(() {});
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 4),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Colors.white.withValues(alpha: 0.12)
-                                : Colors.white.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  r.displayName,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.white70,
-                                    fontSize: 14,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  ),
-                                ),
-                              ),
-                              if (isSelected)
-                                const Icon(Icons.check_rounded,
-                                    color: Color(0xFF4CAF50), size: 18),
-                            ],
-                          ),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setStateSheet) {
+          final selected = svc.currentAyahReciterNotifier.value;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Text('Récitant',
+                    style: TextStyle(color: Colors.white60, fontSize: 12,
+                        fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                  itemCount: AudioService.ayahReciters.length,
+                  itemBuilder: (_, i) {
+                    final r = AudioService.ayahReciters[i];
+                    final isSelected = r.qulId == selected.qulId;
+                    return GestureDetector(
+                      onTap: () {
+                        svc.setAyahReciter(r);
+                        Navigator.of(ctx).pop();
+                        setState(() {});
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                      );
-                    },
-                  ),
+                        child: Row(children: [
+                          Expanded(child: Text(r.displayName,
+                              style: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.white70,
+                                  fontSize: 14,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400))),
+                          if (isSelected)
+                            const Icon(Icons.check_rounded, color: Color(0xFF4CAF50), size: 18),
+                        ]),
+                      ),
+                    );
+                  },
                 ),
-              ],
-            );
-          },
-        );
-      },
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -2976,9 +2949,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     final selectedKey = _verseKey(_selectedAyah);
     final playingThis = isPlaying && currentKey == selectedKey;
     final svc = AudioService.instance;
-    final reciterName = svc.currentAyahReciterNotifier.value.displayName;
+
     final active = currentKey != null;
-    const speeds = <double>[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
     // ── chip style Hafs ───────────────────────────────────────────────────
     Widget chip({required Widget child, required VoidCallback onTap}) {
@@ -3087,13 +3059,40 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
               children: [
                 if (_downloadingSurah)
                   downloadRow()
-                else ...[
-                  // ── Row 1 : récitant · play · paramètres ─────────────
+                else if (active) ...[
+                  // ── En lecture : précédent | pause | stop | suivant | répétition ──
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ctrl(Icons.skip_previous_rounded,
+                          _selectedAyah <= 1 ? null : _playPrevFromBar),
+                      ctrl(
+                        playingThis
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        _togglePlayPauseFromBar,
+                        size: 34,
+                      ),
+                      ctrl(Icons.stop_rounded, _stopFromBar,
+                          color: Colors.redAccent.shade100),
+                      ctrl(
+                        Icons.skip_next_rounded,
+                        _selectedAyah >= _arabic.length
+                            ? null
+                            : _playNextFromBar,
+                      ),
+                      chip(
+                        onTap: _cycleRepeatFromBar,
+                        child: Text(_repeatLabel()),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  // ── Pas de lecture : récitateur + play + paramètres ──
                   SizedBox(
                     height: 28,
                     child: Row(
                       children: [
-                        // Récitant (tap → feuille)
                         Expanded(
                           child: GestureDetector(
                             onTap: _showReciterSheet,
@@ -3101,40 +3100,34 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Flexible(
-                                  child: Text(
-                                    _cleanReciterName(reciterName),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
+                                  child: ValueListenableBuilder(
+                                    valueListenable: svc.currentAyahReciterNotifier,
+                                    builder: (_, reciter, __) => Text(
+                                      reciter.displayName
+                                          .replaceAll(RegExp(r'\s*\([^)]*\)\s*'), '')
+                                          .trim(),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500),
                                     ),
                                   ),
                                 ),
                                 const SizedBox(width: 2),
-                                const Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  color: Colors.white60,
-                                  size: 16,
-                                ),
+                                const Icon(Icons.keyboard_arrow_down_rounded,
+                                    color: Colors.white60, size: 16),
                               ],
                             ),
                           ),
                         ),
-                        // Play / Pause
                         GestureDetector(
                           onTap: _togglePlayPauseFromBar,
-                          child: Icon(
-                            playingThis
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            color: Colors.white,
-                            size: 26,
-                          ),
+                          child: const Icon(Icons.play_arrow_rounded,
+                              color: Colors.white, size: 26),
                         ),
                         const SizedBox(width: 10),
-                        // Paramètres audio (chip ⚙)
                         chip(
                           onTap: _showAudioSettingsSheet,
                           child: const Icon(Icons.settings_rounded,
@@ -3143,66 +3136,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                       ],
                     ),
                   ),
-
-                  // ── Row 2 : contrôles (seulement quand actif) ────────
-                  if (active) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        ctrl(Icons.skip_previous_rounded,
-                            _selectedAyah <= 1 ? null : _playPrevFromBar),
-                        ctrl(
-                          playingThis
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          _togglePlayPauseFromBar,
-                          size: 34,
-                        ),
-                        ctrl(Icons.stop_rounded, _stopFromBar,
-                            color: Colors.redAccent.shade100),
-                        ctrl(
-                          Icons.skip_next_rounded,
-                          _selectedAyah >= _arabic.length
-                              ? null
-                              : _playNextFromBar,
-                        ),
-                        chip(
-                          onTap: _cycleRepeatFromBar,
-                          child: Text(_repeatLabel()),
-                        ),
-                        PopupMenuButton<double>(
-                          tooltip: 'Vitesse',
-                          initialValue: _playbackSpeed,
-                          onSelected: (v) {
-                            setState(() => _playbackSpeed = v);
-                            svc.setAyahSpeed(v);
-                          },
-                          itemBuilder: (_) => [
-                            for (final v in speeds)
-                              PopupMenuItem(
-                                value: v,
-                                child: Text(
-                                    '${v.toStringAsFixed(v == 1.0 ? 0 : 2)}×'),
-                              ),
-                          ],
-                          child: chip(
-                            onTap: () {},
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.speed_rounded,
-                                    size: 13, color: Colors.white),
-                                const SizedBox(width: 3),
-                                Text(
-                                    '${_playbackSpeed.toStringAsFixed(_playbackSpeed == 1.0 ? 0 : 2)}×'),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ],
             ),
@@ -3380,7 +3313,6 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                           final currentKey = AudioService.instance.currentAyahKeyNotifier.value;
                           final mode     = AudioService.instance.ayahPlayModeNotifier.value;
                           final isPlaying = AudioService.instance.isAyahPlayingNotifier.value;
-                          _playbackSpeed = AudioService.instance.ayahSpeedNotifier.value;
                           return _ayahBottomBar(
                             isDark: isDark,
                             mode: mode,
