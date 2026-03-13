@@ -62,11 +62,14 @@ class ReaderScreen extends StatefulWidget {
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> {
+class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver {
   late int currentPage;
   String currentReading = 'hafs';
   int _readerTheme = 1; // 0=blanc, 1=papier, 2=sombre
   late PageController _pageController;
+
+  // Taille écran stable — ne change que lors d'une rotation, pas à l'ouverture du clavier
+  late Size _stableScreenSize;
 
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
@@ -142,6 +145,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     SystemChrome.setSystemUIOverlayStyle(
       (theme == 2 ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
           .copyWith(
+        statusBarColor: Colors.transparent,
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarDividerColor: Colors.transparent,
       ),
@@ -169,6 +173,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Taille physique TOTALE de l'écran (display), indépendante du mode UI
+    // (manual vs immersive) — ne change que lors d'une rotation réelle.
+    _stableScreenSize = _displaySize();
 
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -183,6 +191,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: Colors.transparent,
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarDividerColor: Colors.transparent,
       ),
@@ -282,8 +291,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() {});
   }
 
+  /// Taille logique totale de l'écran physique — jamais affectée par les
+  /// barres système, le clavier, ou le mode immersive.
+  Size _displaySize() {
+    final displays = PlatformDispatcher.instance.displays;
+    if (displays.isNotEmpty) {
+      final d = displays.first;
+      return d.size / d.devicePixelRatio;
+    }
+    // Fallback : vue implicite (moins fiable mais suffisant)
+    final v = PlatformDispatcher.instance.implicitView!;
+    return v.physicalSize / v.devicePixelRatio;
+  }
+
+  @override
+  void didChangeMetrics() {
+    // Mise à jour uniquement sur rotation (largeur change).
+    final newSize = _displaySize();
+    if (newSize.width != _stableScreenSize.width) {
+      setState(() => _stableScreenSize = newSize);
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     AyahBubble.dismiss();
     MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
     _preloadDebounce?.cancel();
@@ -534,10 +566,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
             )['nameFr'] as String? ??
             '');
 
-    return Scaffold(
+    // Force padding=zero AVANT le Scaffold — il ne verra jamais les insets
+    // système (status bar, nav bar) et son body occupera toujours la pleine
+    // taille physique de l'écran, stable quel que soit l'état des barres.
+    final mqData = MediaQuery.of(context);
+    return MediaQuery(
+      data: mqData.copyWith(
+        padding: EdgeInsets.zero,
+        viewInsets: EdgeInsets.zero,
+      ),
+      child: Scaffold(
       backgroundColor: _themeBg,
       extendBody: true,
       extendBodyBehindAppBar: true,
+      resizeToAvoidBottomInset: false,
       body: Stack(
           children: [
            Positioned.fill(
@@ -762,7 +804,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
           ],
         ),
-      );
+      ),
+    );
   }
 
   // ── Tap simple ────────────────────────────────────────────────────────────
@@ -1063,7 +1106,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final displaySize = Size(constraints.maxWidth, constraints.maxHeight);
+        // _stableScreenSize = taille physique totale de l'écran (display).
+        // Elle ne change jamais avec les barres système ni le clavier.
+        // On prend le max entre les contraintes actuelles et _stableScreenSize
+        // pour être sûr d'avoir toujours les plus grandes dimensions.
+        final displaySize = Size(
+          constraints.maxWidth  > _stableScreenSize.width  ? constraints.maxWidth  : _stableScreenSize.width,
+          constraints.maxHeight > _stableScreenSize.height ? constraints.maxHeight : _stableScreenSize.height,
+        );
         const imagePxSize = Size(1024, 1657); // taille réelle PNG Hafs 1024px
 
         Widget wrapFilter(Widget child) => _themeFilter != null
@@ -1071,23 +1121,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
             : child;
 
         if (isLandscape) {
-          final imgH = constraints.maxWidth * (imagePxSize.height / imagePxSize.width);
+          final screenW = displaySize.width;
+          final imgH = screenW * (imagePxSize.height / imagePxSize.width);
           return SingleChildScrollView(
             child: Stack(
               children: [
                 wrapFilter(Image.file(
                   imageFile,
-                  width: constraints.maxWidth,
+                  width: screenW,
                   fit: BoxFit.fitWidth,
                   filterQuality: FilterQuality.high,
                 )),
                 Positioned(
                   left: 0, top: 0,
-                  width: constraints.maxWidth,
+                  width: screenW,
                   height: imgH,
                   child: AyahSelectionOverlay(
                     page: pageNum,
-                    displaySize: Size(constraints.maxWidth, imgH),
+                    displaySize: Size(screenW, imgH),
                     imageSize: imagePxSize,
                     selectedVerseKey: _selectedVerseKey,
                     onAyahTap: _onAyahTap,
@@ -1103,7 +1154,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           );
         }
 
-        // Calcul de la zone réelle de l'image (BoxFit.contain)
+        // Portrait : calcul de la zone réelle de l'image basé sur les dims physiques
         final imgAspect = imagePxSize.width / imagePxSize.height;
         final dispAspect = displaySize.width / displaySize.height;
         double imgW, imgH, offsetX, offsetY;
@@ -1119,34 +1170,43 @@ class _ReaderScreenState extends State<ReaderScreen> {
           offsetY = 0;
         }
 
+        // Pas de SizedBox fixe — le Stack remplit les contraintes disponibles.
+        // L'image est positionnée avec les offsets calculés depuis displaySize
+        // (taille max vue), donc sa position ne change jamais.
         return Stack(
-          children: [
-            Center(
-              child: wrapFilter(Image.file(
-                imageFile,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-              )),
-            ),
-            Positioned(
-              left: offsetX,
-              top: offsetY,
-              width: imgW,
-              height: imgH,
-              child: AyahSelectionOverlay(
-                page: pageNum,
-                displaySize: Size(imgW, imgH),
-                imageSize: imagePxSize,
-                selectedVerseKey: _selectedVerseKey,
-                onAyahTap: _onAyahTap,
-                onAyahLongPress: _onAyahLongPress,
-                playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
-                selectionStartKey: _selectionStartKey,
-                selectionEndKey:   _selectionEndKey,
-                noteAyahKeys:      _noteKeys,
+            children: [
+              Positioned(
+                left: offsetX,
+                top: offsetY,
+                width: imgW,
+                height: imgH,
+                child: wrapFilter(Image.file(
+                  imageFile,
+                  width: imgW,
+                  height: imgH,
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.high,
+                )),
               ),
-            ),
-          ],
+              Positioned(
+                left: offsetX,
+                top: offsetY,
+                width: imgW,
+                height: imgH,
+                child: AyahSelectionOverlay(
+                  page: pageNum,
+                  displaySize: Size(imgW, imgH),
+                  imageSize: imagePxSize,
+                  selectedVerseKey: _selectedVerseKey,
+                  onAyahTap: _onAyahTap,
+                  onAyahLongPress: _onAyahLongPress,
+                  playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
+                  selectionStartKey: _selectionStartKey,
+                  selectionEndKey:   _selectionEndKey,
+                  noteAyahKeys:      _noteKeys,
+                ),
+              ),
+            ],
         );
       },
     );
