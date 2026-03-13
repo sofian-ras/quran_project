@@ -22,6 +22,7 @@ import '../../services/quran_translation_pack_service.dart';
 import '../../services/verse_favorites_service.dart';
 import '../../services/audio_service.dart';
 import '../../surah_name.dart';
+import '../../data/quran_text.dart';
 
 class AyahActionSheet extends StatefulWidget {
   final int surah;
@@ -235,8 +236,14 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   }
 
   Future<void> _saveAsImage() async {
-    if (_verse == null || _verse!.ar.isEmpty) return;
     try {
+      final arabicText = (quranText.firstWhere(
+        (v) => v['surah_number'] == widget.surah && v['verse_number'] == widget.ayah,
+        orElse: () => {'content': ''},
+      )['content'] as String?) ?? '';
+
+      if (arabicText.isEmpty) return;
+
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       const double width = 800.0;
@@ -292,7 +299,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       // Arabic ayah text
       final ayahPainter = TextPainter(
         text: TextSpan(
-          text: _verse!.ar,
+          text: arabicText,
           style: const TextStyle(
             fontFamily: 'ScheherazadeNew',
             fontSize: 44,
@@ -316,17 +323,11 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       final buffer = byteData!.buffer.asUint8List();
 
-      final Directory? directory = Platform.isAndroid
-          ? Directory('/storage/emulated/0/Download/QuranAyah')
-          : await getDownloadsDirectory();
-
-      if (directory != null && !await directory.exists()) {
-        await directory.create(recursive: true);
-      }
+      final directory = await getApplicationDocumentsDirectory();
 
       final fileName =
           'ayah_${widget.surah}_${widget.ayah}_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = File('${directory?.path}/$fileName');
+      final file = File('${directory.path}/$fileName');
       await file.writeAsBytes(buffer);
 
       if (!mounted) return;

@@ -62,14 +62,11 @@ class ReaderScreen extends StatefulWidget {
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver {
+class _ReaderScreenState extends State<ReaderScreen> {
   late int currentPage;
   String currentReading = 'hafs';
   int _readerTheme = 1; // 0=blanc, 1=papier, 2=sombre
   late PageController _pageController;
-
-  // Taille écran stable — ne change que lors d'une rotation, pas à l'ouverture du clavier
-  late Size _stableScreenSize;
 
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
@@ -131,14 +128,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
 
   /// Cache ou affiche les barres système (nav + status) selon [show].
   void _applySystemBars(bool show) {
-    if (show) {
-      SystemChrome.setEnabledSystemUIMode(
-        SystemUiMode.manual,
-        overlays: SystemUiOverlay.values,
-      );
-    } else {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    }
+    // No-op: always edgeToEdge, UI hides via AnimatedOpacity only
   }
 
   void _applySystemUiStyle(int theme) {
@@ -173,21 +163,13 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    // Taille physique TOTALE de l'écran (display), indépendante du mode UI
-    // (manual vs immersive) — ne change que lors d'une rotation réelle.
-    _stableScreenSize = _displaySize();
-
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
 
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: SystemUiOverlay.values,
-    );
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle.dark.copyWith(
@@ -291,31 +273,8 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
     setState(() {});
   }
 
-  /// Taille logique totale de l'écran physique — jamais affectée par les
-  /// barres système, le clavier, ou le mode immersive.
-  Size _displaySize() {
-    final displays = PlatformDispatcher.instance.displays;
-    if (displays.isNotEmpty) {
-      final d = displays.first;
-      return d.size / d.devicePixelRatio;
-    }
-    // Fallback : vue implicite (moins fiable mais suffisant)
-    final v = PlatformDispatcher.instance.implicitView!;
-    return v.physicalSize / v.devicePixelRatio;
-  }
-
-  @override
-  void didChangeMetrics() {
-    // Mise à jour uniquement sur rotation (largeur change).
-    final newSize = _displaySize();
-    if (newSize.width != _stableScreenSize.width) {
-      setState(() => _stableScreenSize = newSize);
-    }
-  }
-
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     AyahBubble.dismiss();
     MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
     _preloadDebounce?.cancel();
@@ -331,10 +290,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
       DeviceOrientation.portraitUp,
     ]);
 
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: SystemUiOverlay.values,
-    );
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
 
     super.dispose();
@@ -566,16 +522,7 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
             )['nameFr'] as String? ??
             '');
 
-    // Force padding=zero AVANT le Scaffold — il ne verra jamais les insets
-    // système (status bar, nav bar) et son body occupera toujours la pleine
-    // taille physique de l'écran, stable quel que soit l'état des barres.
-    final mqData = MediaQuery.of(context);
-    return MediaQuery(
-      data: mqData.copyWith(
-        padding: EdgeInsets.zero,
-        viewInsets: EdgeInsets.zero,
-      ),
-      child: Scaffold(
+    return Scaffold(
       backgroundColor: _themeBg,
       extendBody: true,
       extendBodyBehindAppBar: true,
@@ -804,7 +751,6 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
               ),
           ],
         ),
-      ),
     );
   }
 
@@ -1106,14 +1052,9 @@ class _ReaderScreenState extends State<ReaderScreen> with WidgetsBindingObserver
   Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // _stableScreenSize = taille physique totale de l'écran (display).
-        // Elle ne change jamais avec les barres système ni le clavier.
-        // On prend le max entre les contraintes actuelles et _stableScreenSize
-        // pour être sûr d'avoir toujours les plus grandes dimensions.
-        final displaySize = Size(
-          constraints.maxWidth  > _stableScreenSize.width  ? constraints.maxWidth  : _stableScreenSize.width,
-          constraints.maxHeight > _stableScreenSize.height ? constraints.maxHeight : _stableScreenSize.height,
-        );
+        // Avec SystemUiMode.edgeToEdge, la fenêtre Flutter couvre toujours
+        // la totalité de l'écran physique — les contraintes sont stables.
+        final displaySize = Size(constraints.maxWidth, constraints.maxHeight);
         const imagePxSize = Size(1024, 1657); // taille réelle PNG Hafs 1024px
 
         Widget wrapFilter(Widget child) => _themeFilter != null

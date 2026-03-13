@@ -353,6 +353,8 @@ class _AyahHighlightPainter extends CustomPainter {
     _drawRects(canvas, selectionRects, const Color(0x3581C784));
     // 3. Verset en lecture — vert vif
     _drawRects(canvas, playingRects,   const Color(0x6681C784));
+    // 4. Verset sélectionné (bulle) — jaune
+    _drawRects(canvas, wordRects,      const Color(0x55FFD54F));
   }
 
   @override
