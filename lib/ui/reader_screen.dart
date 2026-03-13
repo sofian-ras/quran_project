@@ -21,6 +21,7 @@ import '../surah_name.dart';
 import '../services/reading_history_service.dart';
 import '../services/last_reading_service.dart';
 import '../services/verse_notes_service.dart';
+import 'widgets/quran_search_overlay.dart';
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -69,6 +70,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
+  bool _isSearchOpen = false;
   String? _selectedVerseKey;
   Timer? _saveTimer;
   Timer? _preloadDebounce;
@@ -658,6 +660,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             onPressed: _showNotesListModal,
                           ),
                         ),
+                        Opacity(
+                          opacity: 0.7,
+                          child: IconButton(
+                            icon: Icon(Icons.search_rounded, size: 22, color: _themeIconColor),
+                            onPressed: () => setState(() => _isSearchOpen = true),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -740,6 +749,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ],
                     ),
                   ),
+                ),
+              ),
+
+            // ── Search overlay ───────────────────────────────────────────────
+            if (_isSearchOpen)
+              Positioned.fill(
+                child: QuranSearchOverlay(
+                  pageController: _pageController,
+                  onClose: () => setState(() => _isSearchOpen = false),
                 ),
               ),
           ],

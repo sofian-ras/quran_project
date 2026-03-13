@@ -6,12 +6,16 @@
 // Usage :
 //   AyahActionSheet.show(context, surah: 2, ayah: 255);
 
+import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:async';
 import '../../services/quran_ayah_metadata_db.dart';
 import '../../services/quran_text_db.dart';
 import '../../services/quran_translation_pack_service.dart';
@@ -217,6 +221,135 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
     await Share.share(text, subject: '$_surahName — verset ${widget.ayah}');
   }
 
+  Future<void> _copyArabicOnly() async {
+    if (_verse == null || _verse!.ar.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: _verse!.ar));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Texte arabe copié'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _saveAsImage() async {
+    if (_verse == null || _verse!.ar.isEmpty) return;
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const double width = 800.0;
+      const double padding = 50.0;
+
+      // Background
+      final bgPaint = Paint()..color = const Color(0xFFF5F0E6);
+      canvas.drawRect(const Rect.fromLTWH(0, 0, width, 4000), bgPaint);
+
+      // Surah name
+      final surahNamePainter = TextPainter(
+        text: TextSpan(
+          text: _surahName,
+          style: const TextStyle(
+            fontFamily: 'ScheherazadeNew',
+            fontSize: 38,
+            color: Color(0xFF4A3F30),
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+        textAlign: TextAlign.center,
+      );
+      surahNamePainter.layout(maxWidth: width - padding * 2);
+      surahNamePainter.paint(
+        canvas,
+        Offset((width - surahNamePainter.width) / 2, padding),
+      );
+
+      // Ayah reference
+      final refPainter = TextPainter(
+        text: TextSpan(
+          text: 'آية ${widget.ayah}',
+          style: const TextStyle(
+            fontFamily: 'ScheherazadeNew',
+            fontSize: 22,
+            color: Color(0xFF6B5A45),
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+        textAlign: TextAlign.center,
+      );
+      refPainter.layout(maxWidth: width - padding * 2);
+      refPainter.paint(
+        canvas,
+        Offset(
+          (width - refPainter.width) / 2,
+          padding + surahNamePainter.height + 12,
+        ),
+      );
+
+      final textY = padding + surahNamePainter.height + refPainter.height + 50;
+
+      // Arabic ayah text
+      final ayahPainter = TextPainter(
+        text: TextSpan(
+          text: _verse!.ar,
+          style: const TextStyle(
+            fontFamily: 'ScheherazadeNew',
+            fontSize: 44,
+            color: Color(0xFF1A1A1A),
+            height: 2.0,
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+        textAlign: TextAlign.center,
+      );
+      ayahPainter.layout(maxWidth: width - padding * 2);
+      ayahPainter.paint(
+        canvas,
+        Offset((width - ayahPainter.width) / 2, textY),
+      );
+
+      final finalHeight = textY + ayahPainter.height + padding;
+
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(width.toInt(), finalHeight.toInt());
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      final buffer = byteData!.buffer.asUint8List();
+
+      final Directory? directory = Platform.isAndroid
+          ? Directory('/storage/emulated/0/Download/QuranAyah')
+          : await getDownloadsDirectory();
+
+      if (directory != null && !await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+
+      final fileName =
+          'ayah_${widget.surah}_${widget.ayah}_${DateTime.now().millisecondsSinceEpoch}.png';
+      final file = File('${directory?.path}/$fileName');
+      await file.writeAsBytes(buffer);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Image sauvegardée: ${file.path}'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error saving ayah image: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erreur lors de la sauvegarde'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -273,6 +406,20 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
                       color: const Color(0xFF9C27B0),
                       isDark: isDark,
                       onTap: _share,
+                    ),
+                    const SizedBox(width: 6),
+                    _IconBtn(
+                      icon: Icons.text_fields_rounded,
+                      color: const Color(0xFF00897B),
+                      isDark: isDark,
+                      onTap: _copyArabicOnly,
+                    ),
+                    const SizedBox(width: 6),
+                    _IconBtn(
+                      icon: Icons.image_outlined,
+                      color: const Color(0xFF5C6BC0),
+                      isDark: isDark,
+                      onTap: _saveAsImage,
                     ),
                     const Spacer(),
                     Text(
