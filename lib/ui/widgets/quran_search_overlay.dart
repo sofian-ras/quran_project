@@ -11,6 +11,7 @@ import '../../data/arabic_numbers.dart';
 import '../../data/quran_text_data.dart';
 import '../../data/image_surah_glyph.dart';
 import '../../services/font_download_service.dart';
+import '../../services/quran_text_db.dart';
 
 // ── 114 noms arabes de sourates ─────────────────────────────────────────────
 const List<String> _surahArabicNames = [
@@ -120,8 +121,8 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
     });
   }
 
-  void _performSearch(String query) {
-    // 1. Search surah names
+  Future<void> _performSearch(String query) async {
+    // 1. Sourates
     final List<Map<String, dynamic>> suraResults = [];
     for (int i = 1; i <= 114; i++) {
       final suraName = _getSurahArabicName(i);
@@ -134,15 +135,32 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
       }
     }
 
-    // 2. Search verses
-    final verseResults = quranCleanPlain
+    // 2. Versets arabes (en mémoire)
+    final arVerseResults = quranCleanPlain
         .where((verse) => (verse['content'] as String).contains(query))
         .map((v) => {...v, 'type': 'verse'})
         .toList();
 
-    setState(() {
-      _searchResults = [...suraResults, ...verseResults];
-    });
+    // 3. Versets français (SQLite, si pack installé)
+    final frMatches = await QuranTextDb.instance.searchFr(query);
+    final arKeys = arVerseResults
+        .map((v) => '${v['surah_number']}:${v['verse_number']}')
+        .toSet();
+    final frVerseResults = frMatches
+        .where((m) => !arKeys.contains('${m['surah']}:${m['ayah']}'))
+        .map((m) => <String, dynamic>{
+              'type': 'verse',
+              'surah_number': m['surah']!,
+              'verse_number': m['ayah']!,
+              'content': '',
+            })
+        .toList();
+
+    if (mounted) {
+      setState(() {
+        _searchResults = [...suraResults, ...arVerseResults, ...frVerseResults];
+      });
+    }
   }
 
   void _closeSearch() {
@@ -183,6 +201,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
     final fieldBg = isDark ? const Color(0xFF2A2A3A) : const Color(0xFFF5F5F5);
     final groupTitleColor = isDark ? Colors.white70 : Colors.black87;
     final handleColor = const Color(0xFFB8860B);
+    final surahColor = isDark ? const Color(0xFFBFA878) : const Color(0xFF1565C0);
 
     final suraCount = _searchResults.where((r) => r['type'] == 'surah').length;
     final verseCount = _searchResults.where((r) => r['type'] == 'verse').length;
@@ -327,7 +346,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                             style: TextStyle(
                                               fontFamily: 'suraNameFont',
                                               fontSize: 24,
-                                              color: resultTextColor,
+                                              color: surahColor,
                                             ),
                                           )
                                         : Text(
@@ -335,7 +354,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                             style: TextStyle(
                                               fontFamily: 'ScheherazadeNew',
                                               fontSize: 22,
-                                              color: resultTextColor,
+                                              color: surahColor,
                                             ),
                                           ),
                                     Text(
@@ -406,7 +425,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                                     style: TextStyle(
                                                       fontSize: 20,
                                                       fontFamily: 'suraNameFont',
-                                                      color: resultInfoColor,
+                                                      color: surahColor,
                                                     ),
                                                   )
                                                 : Text(
@@ -415,7 +434,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                                       fontFamily:
                                                           'ScheherazadeNew',
                                                       fontSize: 16,
-                                                      color: resultInfoColor,
+                                                      color: surahColor,
                                                     ),
                                                   ),
                                             Text(

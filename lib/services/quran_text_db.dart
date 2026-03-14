@@ -273,6 +273,49 @@ class QuranTextDb {
     return result;
   }
 
+  /// Recherche plein-texte dans la traduction française.
+  /// Retourne la liste des versets dont le texte FR contient [query].
+  Future<List<Map<String, int>>> searchFr(String query) async {
+    final frPath = await _frPath();
+    final legacyPath = await _legacyPath();
+
+    Future<List<Map<String, int>>> extract(
+        Database db, _DbShape sh, String? frCol) async {
+      final col = frCol ?? sh.textCol;
+      final rows = await db.rawQuery(
+        'SELECT * FROM "${sh.table}" WHERE "$col" LIKE ? LIMIT 300',
+        ['%$query%'],
+      );
+      final result = <Map<String, int>>[];
+      for (final row in rows) {
+        if (sh.verseKeyCol != null) {
+          final key = row[sh.verseKeyCol!]?.toString() ?? '';
+          final parts = key.split(':');
+          if (parts.length == 2) {
+            final s = int.tryParse(parts[0]);
+            final a = int.tryParse(parts[1]);
+            if (s != null && a != null) result.add({'surah': s, 'ayah': a});
+          }
+        } else {
+          final s = (row['surah'] as num?)?.toInt();
+          final a = (row['ayah']  as num?)?.toInt();
+          if (s != null && a != null) result.add({'surah': s, 'ayah': a});
+        }
+      }
+      return result;
+    }
+
+    if (await File(frPath).exists()) {
+      final db = await _openFr();
+      return extract(db, _shapeFr!, null);
+    }
+    if (await File(legacyPath).exists()) {
+      final db = await _openLegacy();
+      return extract(db, _shapeLegacy!, 'fr');
+    }
+    return [];
+  }
+
   Future<List<QVerse>> getRange(int surah, int fromAyah, int toAyah) async {
     final out = <QVerse>[];
     for (int ayah = fromAyah; ayah <= toAyah; ayah++) {

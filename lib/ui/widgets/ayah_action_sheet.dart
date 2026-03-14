@@ -62,6 +62,12 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   String? _qfcFontFamily;
   bool _qfcFontLoaded = false;
 
+  // ── Traduction ──────────────────────────────────────
+  bool _packReady = false;
+  bool _packDownloading = false;
+  double _packProgress = 0;
+  CancelToken? _packCancelToken;
+
   // ── Tafsir online ───────────────────────────────────
   int _tafsirId = 14; // Ibn Kathir arabe par défaut
   String? _onlineTafsir;
@@ -84,6 +90,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   @override
   void dispose() {
     _tafsirCancelToken?.cancel();
+    _packCancelToken?.cancel();
     super.dispose();
   }
 
@@ -166,7 +173,10 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       await QuranTranslationPackService.migrateLegacyToQulIfNeeded();
       final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
       if (verse != null && verse.fr.isNotEmpty && mounted) {
-        setState(() => _verse = verse);
+        setState(() { _verse = verse; _packReady = true; });
+      } else {
+        final ready = await QuranTranslationPackService.isPackReady(AppLang.fr);
+        if (mounted) setState(() => _packReady = ready);
       }
     } catch (_) {}
 
@@ -182,6 +192,30 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       } else {
         _fetchTafsir();
       }
+    }
+  }
+
+  Future<void> _downloadPack() async {
+    if (_packDownloading) return;
+    _packCancelToken = CancelToken();
+    setState(() { _packDownloading = true; _packProgress = 0; });
+    try {
+      await QuranTranslationPackService.downloadPack(
+        AppLang.fr,
+        cancelToken: _packCancelToken,
+        onProgress: (p) {
+          if (mounted) setState(() => _packProgress = p);
+        },
+      );
+      final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
+      if (!mounted) return;
+      setState(() {
+        _packReady = true;
+        _packDownloading = false;
+        if (verse != null && verse.fr.isNotEmpty) _verse = verse;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _packDownloading = false);
     }
   }
 
@@ -506,7 +540,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
             fontFamily: _qfcFontLoaded && _qfcText != null
                 ? _qfcFontFamily!
                 : 'UthmanTahaNaskh',
-            fontSize: _qfcFontLoaded && _qfcText != null ? 36 : 22,
+            fontSize: 22,
             ayah: widget.ayah,
             surahName: _surahName,
             page: suraAyahToPage[widget.surah]?[widget.ayah] ?? 1,
@@ -517,14 +551,37 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
           const SizedBox(height: 18),
 
           // ── Traduction française ──────────────────────────
-          Text(
-            _verse!.fr,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              height: 1.8,
-              fontSize: 15,
-              color: mutedColor,
+          if (_verse!.fr.isNotEmpty)
+            Text(
+              _verse!.fr,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                height: 1.8,
+                fontSize: 15,
+                color: mutedColor,
+              ),
+            )
+          else if (_packDownloading)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LinearProgressIndicator(value: _packProgress, minHeight: 3),
+                const SizedBox(height: 8),
+                Text(
+                  'Téléchargement… ${(_packProgress * 100).toStringAsFixed(0)} %',
+                  style: TextStyle(fontSize: 12, color: mutedColor),
+                ),
+              ],
+            )
+          else
+            TextButton.icon(
+              onPressed: _downloadPack,
+              icon: const Icon(Icons.download_rounded, size: 16),
+              label: const Text('Télécharger la traduction française'),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
-          ),
           const SizedBox(height: 28),
           Divider(color: divColor, height: 1),
           const SizedBox(height: 22),
