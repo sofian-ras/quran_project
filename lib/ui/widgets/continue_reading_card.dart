@@ -5,7 +5,8 @@ import '../../services/last_reading_service.dart';
 import '../reader_screen.dart';
 
 class ContinueReadingCard extends StatefulWidget {
-  const ContinueReadingCard({super.key});
+  final VoidCallback? onTap;
+  const ContinueReadingCard({super.key, this.onTap});
 
   @override
   State<ContinueReadingCard> createState() => _ContinueReadingCardState();
@@ -60,7 +61,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
+      onTap: widget.onTap ?? () {
         Navigator.push(
           context,
           MaterialPageRoute(

@@ -1,10 +1,4 @@
 // lib/ui/widgets/ayah_action_sheet.dart
-//
-// Bottom sheet sobre qui s'affiche quand "Tafsir" est sélectionné.
-// Structure : arabe · divider · traduction FR · divider · tafsir (source Qul)
-//
-// Usage :
-//   AyahActionSheet.show(context, surah: 2, ayah: 255);
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -57,28 +51,28 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   bool _loading = true;
   bool _isFavorite = false;
 
-  // ── QCF font pour la carte stylisée ─────────────────
+  // ── QCF font ──────────────────────────────────────────
   String? _qfcText;
   String? _qfcFontFamily;
   bool _qfcFontLoaded = false;
 
-  // ── Traduction ──────────────────────────────────────
-  bool _packReady = false;
+  // ── Traduction ────────────────────────────────────────
   bool _packDownloading = false;
   double _packProgress = 0;
   CancelToken? _packCancelToken;
 
-  // ── Tafsir online ───────────────────────────────────
-  int _tafsirId = 14; // Ibn Kathir arabe par défaut
+  // ── Tafsir ────────────────────────────────────────────
+  int _tafsirId = 14;
   String? _onlineTafsir;
   bool _tafsirLoading = false;
   bool _tafsirSaved = false;
   bool _tafsirSaving = false;
   CancelToken? _tafsirCancelToken;
+  final _tafsirKey = GlobalKey();
 
-  String get _verseKey => '${widget.surah}:${widget.ayah}';
+  String get _verseKey    => '${widget.surah}:${widget.ayah}';
   String get _tafsirCacheKey => 'tafsir_${_tafsirId}_$_verseKey';
-  String get _surahName => surahFr[widget.surah] ?? 'Sourate ${widget.surah}';
+  String get _surahName   => surahFr[widget.surah] ?? 'Sourate ${widget.surah}';
 
   @override
   void initState() {
@@ -94,7 +88,6 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
     super.dispose();
   }
 
-  // Retourne la liste triée des ayahs uniques sur une page donnée
   List<Map<String, int>> _pageAyahsSorted(int page) {
     final Set<String> seen = {};
     final List<Map<String, int>> list = [];
@@ -124,7 +117,6 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       final page = suraAyahToPage[widget.surah]?[widget.ayah] ?? 1;
       await FontDownloadService.loadFont(page);
       final family = 'QCF_P${page.toString().padLeft(3, '0')}';
-
       String qfcText = '';
       if (page >= 1 && page <= quranTextData.length) {
         final pageAyahs = _pageAyahsSorted(page);
@@ -135,7 +127,6 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
           qfcText = quranTextData[page - 1][idx];
         }
       }
-
       if (!mounted) return;
       setState(() {
         _qfcFontFamily = family;
@@ -146,14 +137,12 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   }
 
   Future<void> _load() async {
-    // Phase 1 : arabe depuis la DB bundlée + favoris en parallèle → affichage immédiat
     final results = await Future.wait([
       QuranAyahMetadataDb.instance.getVerseText(widget.surah, widget.ayah),
       VerseFavoritesService.instance.isFavorite(_verseKey),
     ]);
     final ar  = (results[0] as String?) ?? '';
     final fav = results[1] as bool;
-
     if (!mounted) return;
     setState(() {
       _verse = QVerse(
@@ -168,19 +157,17 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       _loading    = false;
     });
 
-    // Phase 2 : traduction FR depuis le pack installé (arrière-plan, silencieux)
     try {
       await QuranTranslationPackService.migrateLegacyToQulIfNeeded();
       final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
       if (verse != null && verse.fr.isNotEmpty && mounted) {
-        setState(() { _verse = verse; _packReady = true; });
+        setState(() => _verse = verse);
       } else {
         final ready = await QuranTranslationPackService.isPackReady(AppLang.fr);
-        if (mounted) setState(() => _packReady = ready);
+        if (mounted && !ready) setState(() {});
       }
     } catch (_) {}
 
-    // Phase 3 : tafsir — cache local ou fetch en ligne
     if (!mounted) return;
     final hasLocal = _verse?.tafsir != null && _verse!.tafsir!.isNotEmpty;
     if (!hasLocal) {
@@ -203,14 +190,11 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       await QuranTranslationPackService.downloadPack(
         AppLang.fr,
         cancelToken: _packCancelToken,
-        onProgress: (p) {
-          if (mounted) setState(() => _packProgress = p);
-        },
+        onProgress: (p) { if (mounted) setState(() => _packProgress = p); },
       );
       final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
       if (!mounted) return;
       setState(() {
-        _packReady = true;
         _packDownloading = false;
         if (verse != null && verse.fr.isNotEmpty) _verse = verse;
       });
@@ -223,10 +207,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
     if (_tafsirLoading) return;
     _tafsirCancelToken?.cancel();
     _tafsirCancelToken = CancelToken();
-    setState(() {
-      _tafsirLoading = true;
-      _onlineTafsir = null;
-    });
+    setState(() { _tafsirLoading = true; _onlineTafsir = null; });
     try {
       final res = await Dio().get(
         'https://api.quran.com/api/v4/tafsirs/$_tafsirId/by_ayah/$_verseKey',
@@ -239,10 +220,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
           .replaceAll(RegExp(r' {2,}'), ' ')
           .trim();
       if (!mounted) return;
-      setState(() {
-        _onlineTafsir = clean.isEmpty ? null : clean;
-        _tafsirLoading = false;
-      });
+      setState(() { _onlineTafsir = clean.isEmpty ? null : clean; _tafsirLoading = false; });
     } catch (e) {
       if (!mounted) return;
       if (e is DioException && e.type == DioExceptionType.cancel) return;
@@ -267,18 +245,36 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
     final now = await VerseFavoritesService.instance.toggleFavorite(_verseKey);
     if (!mounted) return;
     setState(() => _isFavorite = now);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(now ? 'Ajouté aux favoris' : 'Retiré des favoris'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(now ? 'Ajouté aux favoris' : 'Retiré des favoris'),
+      duration: const Duration(seconds: 2),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  Future<void> _copyVerse() async {
+    final ar = _verse?.ar ?? '';
+    final fr = _verse?.fr ?? '';
+    await Clipboard.setData(ClipboardData(text: fr.isNotEmpty ? '$ar\n\n$fr' : ar));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Verset copié'),
+      duration: Duration(seconds: 2),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  void _scrollToTafsir() {
+    final ctx = _tafsirKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic);
+    }
   }
 
   Future<void> _saveAsImage() async {
     try {
-      // 1. Télécharger les polices si nécessaire
       if (!await FontDownloadService.areFontsDownloaded()) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -290,13 +286,11 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
         ScaffoldMessenger.of(context).clearSnackBars();
       }
 
-      // 2. Page + polices QCF
       final page = suraAyahToPage[widget.surah]?[widget.ayah] ?? 1;
       await FontDownloadService.loadFont(page);
       await FontDownloadService.loadSuraNameFont();
       final ayahFontFamily = 'QCF_P${page.toString().padLeft(3, '0')}';
 
-      // 3. Texte QCF de l'ayah — logique identique au développeur référence
       String ayahText = '';
       if (page >= 1 && page <= quranTextData.length) {
         final pageAyahs = _pageAyahsSorted(page);
@@ -309,230 +303,204 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       }
       if (ayahText.isEmpty) return;
 
-      // 4. Glyphe du nom de sourate
       final surahGlyphChar = imageSuraGlyph[widget.surah] ?? '';
-
-      // 5. Canvas — logique identique au développeur référence
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       const double width = 800.0;
       const double padding = 50.0;
 
-      // Fond blanc
-      canvas.drawRect(
-        const Rect.fromLTWH(0, 0, width, 2000),
-        Paint()..color = Colors.white,
-      );
+      canvas.drawRect(const Rect.fromLTWH(0, 0, width, 2000), Paint()..color = Colors.white);
 
-      // Ornement cadre de la sourate (\u00F2 dans suraNameFont)
       final containerPainter = TextPainter(
-        text: const TextSpan(
-          text: '\u00F2',
-          style: TextStyle(
-            fontFamily: 'suraNameFont',
-            fontSize: 80,
-            color: Colors.black,
-          ),
-        ),
+        text: const TextSpan(text: '\u00F2',
+            style: TextStyle(fontFamily: 'suraNameFont', fontSize: 80, color: Colors.black)),
         textDirection: TextDirection.rtl,
       );
       containerPainter.layout(maxWidth: width - padding * 2);
-      containerPainter.paint(
-        canvas,
-        Offset((width - containerPainter.width) / 2, padding - 40),
-      );
+      containerPainter.paint(canvas, Offset((width - containerPainter.width) / 2, padding - 40));
 
-      // Nom de la sourate (\u005C + glyphe)
       final namePainter = TextPainter(
-        text: TextSpan(
-          text: '\u005C$surahGlyphChar',
-          style: const TextStyle(
-            fontFamily: 'suraNameFont',
-            fontSize: 50,
-            color: Colors.black,
-          ),
-        ),
+        text: TextSpan(text: '\u005C$surahGlyphChar',
+            style: const TextStyle(fontFamily: 'suraNameFont', fontSize: 50, color: Colors.black)),
         textDirection: TextDirection.rtl,
       );
       namePainter.layout(maxWidth: width - padding * 2);
-      namePainter.paint(
-        canvas,
-        Offset((width - namePainter.width) / 2, padding),
-      );
+      namePainter.paint(canvas, Offset((width - namePainter.width) / 2, padding));
 
-      // Texte QCF de l'ayah — ayahY identique au développeur
-      final double ayahY =
-          padding + math.max(containerPainter.height, namePainter.height) + 50;
-
+      final double ayahY = padding + math.max(containerPainter.height, namePainter.height) + 50;
       final ayahPainter = TextPainter(
-        text: TextSpan(
-          text: ayahText,
-          style: TextStyle(
-            fontFamily: ayahFontFamily,
-            fontSize: 49,
-            color: Colors.black,
-            height: 1.8,
-          ),
-        ),
+        text: TextSpan(text: ayahText,
+            style: TextStyle(fontFamily: ayahFontFamily, fontSize: 49, color: Colors.black, height: 1.8)),
         textDirection: TextDirection.rtl,
         textAlign: TextAlign.center,
       );
       ayahPainter.layout(maxWidth: width - padding * 2);
-      // -80 et -100 identiques au développeur — intentionnels
-      ayahPainter.paint(
-        canvas,
-        Offset((width - ayahPainter.width) / 2, ayahY - 80),
-      );
+      ayahPainter.paint(canvas, Offset((width - ayahPainter.width) / 2, ayahY - 80));
 
       final double finalHeight = (ayahY + ayahPainter.height + padding) - 100;
-
-      // 6. Convertir en PNG
-      final picture = recorder.endRecording();
-      final img = await picture.toImage(width.toInt(), finalHeight.toInt());
+      final picture  = recorder.endRecording();
+      final img      = await picture.toImage(width.toInt(), finalHeight.toInt());
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
-      final buffer = byteData!.buffer.asUint8List();
+      final buffer   = byteData!.buffer.asUint8List();
 
-      // 7. Sauvegarder dans Téléchargements (identique au développeur référence)
       final Directory? directory = Platform.isAndroid
           ? Directory('/storage/emulated/0/Download/QuranPages')
           : await getDownloadsDirectory();
       if (directory != null && !await directory.exists()) {
         await directory.create(recursive: true);
       }
-      final fileName =
-          'ayah_${widget.surah}_${widget.ayah}_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = File('${directory?.path}/$fileName');
-      await file.writeAsBytes(buffer);
+      final fileName = 'ayah_${widget.surah}_${widget.ayah}_${DateTime.now().millisecondsSinceEpoch}.png';
+      await File('${directory?.path}/$fileName').writeAsBytes(buffer);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Image sauvegardée dans Téléchargements/$fileName'),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Image sauvegardée : $fileName'),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+      ));
     } on MissingPluginException catch (e) {
       debugPrint('MissingPluginException: $e');
     } catch (e) {
       debugPrint('Error saving ayah image: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur de sauvegarde'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Erreur de sauvegarde'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // BUILD
+  // ════════════════════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1C1C2E) : Colors.white;
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF12182B) : const Color(0xFFFBF8F3);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.62,
+      initialChildSize: 0.65,
       minChildSize: 0.4,
       maxChildSize: 0.95,
       expand: false,
-      builder: (context, scrollController) {
-        return Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 8),
-              // ── Barre d'actions ───────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    _IconBtn(
-                      icon: _isFavorite
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                      color: const Color(0xFFB8860B),
-                      isDark: isDark,
-                      onTap: _toggleFavorite,
-                    ),
-                    const SizedBox(width: 6),
-                    _IconBtn(
-                      icon: Icons.image_outlined,
-                      color: const Color(0xFF5C6BC0),
-                      isDark: isDark,
-                      onTap: _saveAsImage,
-                    ),
-                    const Spacer(),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+      builder: (context, scrollCtrl) => Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          children: [
+            // ── Drag handle ──────────────────────────────────────
+            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : Colors.black12,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // ── Header ──────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           _surahName,
                           style: TextStyle(
-                            fontFamily: 'ScheherazadeNew',
-                            fontSize: 16,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
-                            color: isDark
-                                ? const Color(0xFFF5D278)
-                                : const Color(0xFF8B6914),
+                            letterSpacing: -0.2,
+                            color: isDark ? Colors.white : const Color(0xFF1A0E00),
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          'الآية ${widget.ayah}',
+                          'Verset ${widget.ayah}  ·  Page ${suraAyahToPage[widget.surah]?[widget.ayah] ?? ''}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: isDark ? Colors.white38 : Colors.black38,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 10),
-                    _IconBtn(
-                      icon: Icons.close,
-                      color: isDark ? Colors.white38 : Colors.black26,
-                      isDark: isDark,
-                      onTap: () => Navigator.pop(context),
-                    ),
-                  ],
+                  ),
+                  // ★ Favori
+                  _CircleBtn(
+                    icon: _isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                    color: const Color(0xFFD4AF37),
+                    bgColor: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.15 : 0.1),
+                    onTap: _toggleFavorite,
+                  ),
+                  const SizedBox(width: 8),
+                  // ✕ Fermer
+                  _CircleBtn(
+                    icon: Icons.close_rounded,
+                    color: isDark ? Colors.white54 : Colors.black45,
+                    bgColor: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.06),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // ── Gold accent line ─────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                height: 1,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [
+                    Color(0x008B6C35),
+                    Color(0xFFBFA878),
+                    Color(0x008B6C35),
+                  ]),
                 ),
               ),
-              const SizedBox(height: 12),
+            ),
+            const SizedBox(height: 4),
 
-              // ── Contenu scrollable ───────────────────────────
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildContent(scrollController, isDark, theme),
-              ),
-            ],
-          ),
-        );
-      },
+            // ── Contenu scrollable ───────────────────────────────
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildContent(scrollCtrl, isDark),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildContent(
-    ScrollController scrollController,
-    bool isDark,
-    ThemeData theme,
-  ) {
+  // ── Contenu ──────────────────────────────────────────────────────────────────
+
+  Widget _buildContent(ScrollController ctrl, bool isDark) {
+    final theme      = Theme.of(context);
     final mutedColor = isDark ? Colors.white60 : const Color(0xFF555555);
-    final divColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.black.withValues(alpha: 0.06);
+    final divColor   = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.05);
 
     return ListView(
-      controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
+      controller: ctrl,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
       children: [
         if (_verse != null) ...[
-          // ── Carte verset — même style que les résultats de recherche ──────
+          // ── Carte verset arabe ─────────────────────────────────
           _VerseCard(
             text: _qfcFontLoaded && _qfcText != null
                 ? _qfcText!
@@ -546,18 +514,52 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
             page: suraAyahToPage[widget.surah]?[widget.ayah] ?? 1,
             isDark: isDark,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // ── Raccourcis ─────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.menu_book_rounded,
+                  label: 'Tafsir',
+                  color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF9A7B2F),
+                  isDark: isDark,
+                  onTap: _scrollToTafsir,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.copy_rounded,
+                  label: 'Copier',
+                  color: isDark ? const Color(0xFF66BB6A) : const Color(0xFF2E7D32),
+                  isDark: isDark,
+                  onTap: _copyVerse,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.image_outlined,
+                  label: 'Image',
+                  color: isDark ? const Color(0xFF7986CB) : const Color(0xFF3949AB),
+                  isDark: isDark,
+                  onTap: _saveAsImage,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
           Divider(color: divColor, height: 1),
           const SizedBox(height: 18),
 
-          // ── Traduction française ──────────────────────────
+          // ── Traduction française ───────────────────────────────
           if (_verse!.fr.isNotEmpty)
             Text(
               _verse!.fr,
               style: theme.textTheme.bodyLarge?.copyWith(
-                height: 1.8,
-                fontSize: 15,
-                color: mutedColor,
+                height: 1.8, fontSize: 15, color: mutedColor,
               ),
             )
           else if (_packDownloading)
@@ -588,55 +590,40 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
         ] else ...[
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Column(
-              children: [
-                Icon(Icons.menu_book_outlined,
-                    size: 44, color: Colors.grey.shade400),
-                const SizedBox(height: 12),
-                Text(
-                  'Texte non disponible',
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
-              ],
-            ),
+            child: Column(children: [
+              Icon(Icons.menu_book_outlined, size: 44, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Text('Texte non disponible',
+                  style: TextStyle(color: Colors.grey.shade500)),
+            ]),
           ),
-          Divider(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.06),
-            height: 1,
-          ),
+          Divider(color: divColor, height: 1),
           const SizedBox(height: 22),
         ],
 
-        // ── Section tafsir ────────────────────────────────
+        // ── Tafsir ─────────────────────────────────────────────
         _buildTafsirSection(isDark, theme),
       ],
     );
   }
 
+  // ── Section tafsir ───────────────────────────────────────────────────────────
+
   Widget _buildTafsirSection(bool isDark, ThemeData theme) {
-    final gold = isDark ? const Color(0xFFF5D278) : const Color(0xFFB8860B);
-    final hasLocal = _verse?.tafsir != null && _verse!.tafsir!.isNotEmpty;
-    final displayText = hasLocal
-        ? sanitizeQulText(_verse!.tafsir!)
-        : _onlineTafsir;
+    final gold      = isDark ? const Color(0xFFD4AF37) : const Color(0xFF9A7B2F);
+    final hasLocal  = _verse?.tafsir != null && _verse!.tafsir!.isNotEmpty;
+    final displayText = hasLocal ? sanitizeQulText(_verse!.tafsir!) : _onlineTafsir;
 
     return Column(
+      key: _tafsirKey,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Icon(Icons.menu_book_rounded, size: 15, color: gold),
             const SizedBox(width: 6),
-            Text(
-              'Tafsir',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: gold,
-              ),
-            ),
+            Text('Tafsir',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: gold)),
             const Spacer(),
             if (!hasLocal)
               _TafsirSelector(
@@ -644,26 +631,25 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
                 isDark: isDark,
                 gold: gold,
                 onChanged: (id) async {
-                  final prefs = await SharedPreferences.getInstance();
+                  final prefs  = await SharedPreferences.getInstance();
                   final cached = prefs.getString('tafsir_${id}_$_verseKey');
                   setState(() {
-                    _tafsirId = id;
+                    _tafsirId    = id;
                     _onlineTafsir = cached;
-                    _tafsirSaved = cached != null && cached.isNotEmpty;
+                    _tafsirSaved  = cached != null && cached.isNotEmpty;
                   });
                   if (cached == null || cached.isEmpty) _fetchTafsir();
                 },
               ),
-            if (hasLocal)
-              _SourceBadge(label: 'Qul · local', isDark: isDark),
+            if (hasLocal) _SourceBadge(label: 'Qul · local', isDark: isDark),
             if (!hasLocal && displayText != null) ...[
               const SizedBox(width: 6),
               _DownloadBtn(
-                saved: _tafsirSaved,
+                saved:  _tafsirSaved,
                 saving: _tafsirSaving,
                 isDark: isDark,
-                gold: gold,
-                onTap: _tafsirSaved ? null : _saveTafsirLocally,
+                gold:   gold,
+                onTap:  _tafsirSaved ? null : _saveTafsirLocally,
               ),
             ],
           ],
@@ -674,8 +660,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: SizedBox(
-                width: 22,
-                height: 22,
+                width: 22, height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2, color: gold),
               ),
             ),
@@ -684,8 +669,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
           SelectableText(
             displayText,
             style: TextStyle(
-              height: 1.85,
-              fontSize: 14,
+              height: 1.85, fontSize: 14,
               color: isDark ? Colors.white54 : const Color(0xFF555555),
             ),
           )
@@ -703,12 +687,89 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   }
 }
 
-// ── Badge source ───────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════════
+// Widgets helpers
+// ════════════════════════════════════════════════════════════════════════════════
 
+/// Bouton rapide avec icône + label centré (Tafsir / Copier / Image)
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: isDark ? 0.12 : 0.08),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 22, color: color),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bouton circulaire (header : favori, fermer)
+class _CircleBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final Color bgColor;
+  final VoidCallback onTap;
+
+  const _CircleBtn({
+    required this.icon,
+    required this.color,
+    required this.bgColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        width: 34, height: 34,
+        decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+        child: Icon(icon, color: color, size: 17),
+      ),
+    );
+  }
+}
+
+/// Badge source (Qul · local)
 class _SourceBadge extends StatelessWidget {
   final String label;
   final bool isDark;
-
   const _SourceBadge({required this.label, required this.isDark});
 
   @override
@@ -740,8 +801,7 @@ class _SourceBadge extends StatelessWidget {
   }
 }
 
-// ── Sélecteur de tafsir ────────────────────────────────────────────────────────
-
+/// Sélecteur de source de tafsir
 class _TafsirSelector extends StatelessWidget {
   final int selectedId;
   final bool isDark;
@@ -756,7 +816,7 @@ class _TafsirSelector extends StatelessWidget {
   });
 
   static const _options = [
-    _TafsirOption(id: 14, label: 'Ibn Kathir (ar)'),
+    _TafsirOption(id: 14,  label: 'Ibn Kathir (ar)'),
     _TafsirOption(id: 169, label: 'Ibn Kathir (en)'),
   ];
 
@@ -771,29 +831,20 @@ class _TafsirSelector extends StatelessWidget {
       onSelected: onChanged,
       color: isDark ? const Color(0xFF2A2A3E) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      itemBuilder: (_) => _options
-          .map(
-            (o) => PopupMenuItem<int>(
-              value: o.id,
-              child: Row(
-                children: [
-                  if (o.id == selectedId)
-                    Icon(Icons.check_rounded, size: 14, color: gold)
-                  else
-                    const SizedBox(width: 14),
-                  const SizedBox(width: 8),
-                  Text(
-                    o.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark ? Colors.white70 : const Color(0xFF333333),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-          .toList(),
+      itemBuilder: (_) => _options.map((o) => PopupMenuItem<int>(
+        value: o.id,
+        child: Row(children: [
+          if (o.id == selectedId)
+            Icon(Icons.check_rounded, size: 14, color: gold)
+          else
+            const SizedBox(width: 14),
+          const SizedBox(width: 8),
+          Text(o.label, style: TextStyle(
+            fontSize: 13,
+            color: isDark ? Colors.white70 : const Color(0xFF333333),
+          )),
+        ]),
+      )).toList(),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
@@ -810,24 +861,18 @@ class _TafsirSelector extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              current.label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.55)
-                    : const Color(0xFF888888),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.arrow_drop_down_rounded,
-              size: 14,
+            Text(current.label, style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
               color: isDark
-                  ? Colors.white.withValues(alpha: 0.4)
+                  ? Colors.white.withValues(alpha: 0.55)
                   : const Color(0xFF888888),
-            ),
+            )),
+            const SizedBox(width: 4),
+            Icon(Icons.arrow_drop_down_rounded, size: 14,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.4)
+                    : const Color(0xFF888888)),
           ],
         ),
       ),
@@ -841,8 +886,7 @@ class _TafsirOption {
   const _TafsirOption({required this.id, required this.label});
 }
 
-// ── Bouton téléchargement hors-ligne ──────────────────────────────────────────
-
+/// Bouton sauvegarde hors-ligne du tafsir
 class _DownloadBtn extends StatelessWidget {
   final bool saved;
   final bool saving;
@@ -862,8 +906,7 @@ class _DownloadBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     if (saving) {
       return SizedBox(
-        width: 28,
-        height: 28,
+        width: 28, height: 28,
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: CircularProgressIndicator(strokeWidth: 2, color: gold),
@@ -883,53 +926,17 @@ class _DownloadBtn extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Icon(
-            Icons.download_outlined,
-            size: 18,
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.4)
-                : Colors.black.withValues(alpha: 0.3),
-          ),
+          child: Icon(Icons.download_outlined, size: 18,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.4)
+                  : Colors.black.withValues(alpha: 0.3)),
         ),
       ),
     );
   }
 }
 
-// ── Bouton icône compact ───────────────────────────────────────────────────────
-
-class _IconBtn extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _IconBtn({
-    required this.icon,
-    required this.color,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: isDark ? 0.14 : 0.08),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, color: color, size: 17),
-      ),
-    );
-  }
-}
-
-// ── Carte verset (style identique aux résultats de recherche) ─────────────────
+// ── Carte verset (Arabic) ──────────────────────────────────────────────────────
 
 class _VerseCard extends StatelessWidget {
   final String text;
@@ -952,20 +959,15 @@ class _VerseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardBg =
-        isDark ? const Color(0xFF1C2333) : const Color(0xFFFAF6EE);
-    final footerBg =
-        isDark ? const Color(0xFF141B2A) : const Color(0xFFF0E8D5);
+    final cardBg   = isDark ? const Color(0xFF1C2333) : const Color(0xFFFAF6EE);
+    final footerBg = isDark ? const Color(0xFF141B2A) : const Color(0xFFF0E8D5);
     const goldColor = Color(0xFFBFA878);
 
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: goldColor.withValues(alpha: 0.45),
-          width: 1,
-        ),
+        border: Border.all(color: goldColor.withValues(alpha: 0.45), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.07),
@@ -977,53 +979,37 @@ class _VerseCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Bande dorée haut
+          // Liseré doré haut
           Container(
             height: 2,
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0x008B6C35),
-                  Color(0xFFBFA878),
-                  Color(0x008B6C35),
-                ],
-              ),
+              gradient: LinearGradient(colors: [
+                Color(0x008B6C35), Color(0xFFBFA878), Color(0x008B6C35),
+              ]),
               borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
             ),
           ),
-          // Texte + médaillon
+          // Texte arabe
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 10, 12, 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Text(
+              text,
+              style: TextStyle(
+                fontFamily: fontFamily,
+                fontSize: fontSize,
+                height: 1.75,
+                color: isDark ? const Color(0xFFE8D5B0) : const Color(0xFF2C1A0E),
+              ),
+              textAlign: TextAlign.justify,
               textDirection: TextDirection.rtl,
-              children: [
-                Expanded(
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontFamily: fontFamily,
-                      fontSize: fontSize,
-                      height: 1.75,
-                      color: isDark
-                          ? const Color(0xFFE8D5B0)
-                          : const Color(0xFF2C1A0E),
-                    ),
-                    textAlign: TextAlign.justify,
-                    textDirection: TextDirection.rtl,
-                  ),
-                ),
-              ],
             ),
           ),
           // Pied : sourate + page
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: footerBg,
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(8)),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1032,28 +1018,19 @@ class _VerseCard extends StatelessWidget {
                 Row(
                   textDirection: TextDirection.rtl,
                   children: [
-                    const Icon(Icons.menu_book_rounded,
-                        size: 13, color: goldColor),
+                    const Icon(Icons.menu_book_rounded, size: 13, color: goldColor),
                     const SizedBox(width: 4),
-                    Text(
-                      surahName,
-                      style: TextStyle(
-                        fontFamily: 'ScheherazadeNew',
-                        fontSize: 15,
-                        color: isDark
-                            ? const Color(0xFFBFA878)
-                            : const Color(0xFF6B4510),
-                      ),
-                    ),
+                    Text(surahName, style: TextStyle(
+                      fontFamily: 'ScheherazadeNew',
+                      fontSize: 15,
+                      color: isDark ? const Color(0xFFBFA878) : const Color(0xFF6B4510),
+                    )),
                   ],
                 ),
-                Text(
-                  'Page $page',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.white38 : Colors.black38,
-                  ),
-                ),
+                Text('Page $page', style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white38 : Colors.black38,
+                )),
               ],
             ),
           ),
@@ -1063,16 +1040,13 @@ class _VerseCard extends StatelessWidget {
   }
 }
 
-
-// ── Nettoyage du texte brut ────────────────────────────────────────────────────
+// ── Nettoyage texte brut ───────────────────────────────────────────────────────
 
 String sanitizeQulText(String input) {
   var s = input;
   s = s.replaceAll(RegExp(r'<[^>]+>'), '');
   s = s.replaceAll(
-    RegExp(r'\b(rule|class|slnt|wght|wdth)\b[^ \n]*', caseSensitive: false),
-    '',
-  );
+      RegExp(r'\b(rule|class|slnt|wght|wdth)\b[^ \n]*', caseSensitive: false), '');
   s = s.replaceAll('\u200C', '');
   s = s.replaceAll('\u200D', '');
   s = s.replaceAll('\u200E', '');

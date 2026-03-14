@@ -10,7 +10,7 @@ import 'package:quran_pages_with_ayah_detector/quran_pages_with_ayah_detector.da
 import '../services/quran_pages_hitbox_db.dart';
 import '../services/mini_player_service.dart';
 import 'widgets/mini_player_widget.dart';
-import 'widgets/ayah_action_sheet.dart';
+import 'widgets/ayah_bubble.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../services/reading_history_service.dart';
@@ -65,6 +65,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
   Timer? _saveTimer;
+  Offset? _lastTouchPosition;
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   Set<String> _noteKeys = {};
@@ -354,265 +355,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  int _juzzForPage(int page) {
-    for (int j = juzzMap.length - 1; j >= 0; j--) {
-      if (juzzMap[j]['start_page']! <= page) return juzzMap[j]['juz']!;
-    }
-    return 1;
-  }
-
-  void _showSurahListFr({int initialSurah = 1}) {
-    if (fullSurahList.isEmpty) return;
-
-    final isDark = _readerTheme == 2;
-    final bg = _themeBg;
-    final fg = isDark ? Colors.white : Colors.black87;
-    final fgDim = isDark ? Colors.white54 : Colors.black45;
-    final accent = isDark ? const Color(0xFF7B9FE0) : const Color(0xFF1565C0);
-    final highlightBg = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.black.withValues(alpha: 0.06);
-    final searchBg = isDark ? const Color(0xFF1C2D3E) : Colors.grey.shade100;
-
-    // Group surahs by juzz
-    final Map<int, List<Map<String, dynamic>>> byJuz = {};
-    for (final s in fullSurahList) {
-      final juz = _juzzForPage(s['page'] as int);
-      byJuz.putIfAbsent(juz, () => []).add(s);
-    }
-
-    // Juzz start pages
-    final Map<int, int> juzStartPages = {
-      for (final j in juzzMap) j['juz']!: j['start_page']!,
-    };
-
-    final Map<int, GlobalKey> juzKeys = {for (int i = 1; i <= 30; i++) i: GlobalKey()};
-    final Map<int, GlobalKey> surahKeys = {for (int i = 1; i <= 114; i++) i: GlobalKey()};
-    bool hasScrolled = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: true,
-      enableDrag: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        String query = '';
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            if (!hasScrolled) {
-              hasScrolled = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                final targetCtx = surahKeys[initialSurah]?.currentContext;
-                if (targetCtx != null) {
-                  Scrollable.ensureVisible(targetCtx,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutCubic,
-                      alignment: 0.1);
-                }
-              });
-            }
-
-            return DraggableScrollableSheet(
-              initialChildSize: 0.6,
-              minChildSize: 0.3,
-              maxChildSize: 0.95,
-              builder: (_, scrollCtrl) => Container(
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-                ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Container(
-                      width: 40,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(2.5),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextField(
-                        onChanged: (v) =>
-                            setSheetState(() => query = v.trim().toLowerCase()),
-                        style: TextStyle(color: fg),
-                        decoration: InputDecoration(
-                          hintText: 'Rechercher une sourate…',
-                          hintStyle: TextStyle(color: fgDim),
-                          prefixIcon: Icon(Icons.search, color: fgDim),
-                          filled: true,
-                          fillColor: searchBg,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        controller: scrollCtrl,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (int juz = 1; juz <= 30; juz++)
-                              Builder(builder: (_) {
-                                final surahs = byJuz[juz] ?? [];
-                                final filtered = query.isEmpty
-                                    ? surahs
-                                    : surahs.where((s) {
-                                        final fr = (s['nameFr'] as String)
-                                            .toLowerCase();
-                                        final ar = (s['nameAr'] as String)
-                                            .toLowerCase();
-                                        return fr.contains(query) ||
-                                            ar.contains(query);
-                                      }).toList();
-
-                                if (query.isNotEmpty && filtered.isEmpty) {
-                                  return const SizedBox.shrink();
-                                }
-
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    // ── Juzz header ──────────────────────────
-                                    GestureDetector(
-                                      key: juzKeys[juz],
-                                      onTap: () {
-                                        Navigator.pop(ctx);
-                                        _qcfController.jumpToPage(
-                                            juzStartPages[juz] ?? 1);
-                                      },
-                                      child: Container(
-                                        margin: const EdgeInsets.only(top: 8),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 16, vertical: 14),
-                                        decoration: BoxDecoration(
-                                          color: isDark
-                                              ? Colors.white.withValues(alpha: 0.05)
-                                              : Colors.black.withValues(alpha: 0.03),
-                                          border: Border.symmetric(
-                                            horizontal: BorderSide(
-                                                color: Colors.grey
-                                                    .withValues(alpha: 0.1)),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Juzz $juz',
-                                          style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: fgDim),
-                                        ),
-                                      ),
-                                    ),
-                                    // ── Surah rows ───────────────────────────
-                                    for (final s in filtered)
-                                      (() {
-                                        final id = s['id'] as int;
-                                        final nameFr = s['nameFr'] as String;
-                                        final nameAr = s['nameAr'] as String;
-                                        final page = s['page'] as int;
-                                        final verseCount =
-                                            _kSurahVerseCount[id.clamp(1, 114)];
-                                        final typeStr =
-                                            _kMadaniSurahs.contains(id)
-                                                ? 'Médinoise'
-                                                : 'Mecquoise';
-                                        final isHighlighted =
-                                            id == initialSurah;
-
-                                        return InkWell(
-                                          key: surahKeys[id],
-                                          onTap: () {
-                                            Navigator.pop(ctx);
-                                            _qcfController.jumpToPage(page);
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 32, vertical: 12),
-                                            decoration: BoxDecoration(
-                                              color: isHighlighted
-                                                  ? highlightBg
-                                                  : Colors.transparent,
-                                              border: Border(
-                                                  bottom: BorderSide(
-                                                      color: Colors.grey
-                                                          .withValues(alpha: 0.05))),
-                                            ),
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment.start,
-                                                    children: [
-                                                      Text(
-                                                        '$id.  $nameFr',
-                                                        style: TextStyle(
-                                                            fontSize: 14,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            color: fg),
-                                                      ),
-                                                      const SizedBox(height: 2),
-                                                      Text(
-                                                        nameAr,
-                                                        textDirection:
-                                                            TextDirection.rtl,
-                                                        style: TextStyle(
-                                                            fontSize: 13,
-                                                            color: fgDim),
-                                                      ),
-                                                      const SizedBox(height: 2),
-                                                      Text(
-                                                        '$verseCount versets · $typeStr',
-                                                        style: TextStyle(
-                                                            fontSize: 11,
-                                                            color: fgDim),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 16),
-                                                Text(
-                                                  'Page $page',
-                                                  style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: accent),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      })(),
-                                  ],
-                                );
-                              }),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   String _hizbText(int page) {
     if (hizbMap.isEmpty) return '';
     final h = hizbMap.lastWhere(
@@ -679,45 +421,50 @@ class _ReaderScreenState extends State<ReaderScreen> {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // ── Lecteur QCF (remplace PageView.builder + images) ─────────────
+          // ── Lecteur QCF ───────────────────────────────────────────────────
           Positioned.fill(
-            child: QuranPageView(
-              controller: _qcfController,
-              themeModeAdaption: true,
-              showSearchIcon: false,
-              showPageNumber: true,
-              onSuraNameTap: () => _showSurahListFr(initialSurah: currentSurah),
-              highlightColor: const Color(0x554FC3F7),
-              onAyahTap: (surah, ayah, page) {
-                setState(() {
-                  currentPage = page;
-                  _showUI = true;
-                });
-                _saveTimer?.cancel();
-                _saveTimer = Timer(const Duration(milliseconds: 350), () {
-                  if (!mounted) return;
-                  _saveToHistory(page);
-                });
-                AyahActionSheet.show(context, surah: surah, ayah: ayah);
-              },
-              customAyahActions: [
-                AyahActionOption(
-                  title: 'Tafsir & Traduction',
-                  icon: Icons.menu_book_rounded,
-                  onPress: (surah, ayah, page) {
-                    Navigator.pop(context);
-                    AyahActionSheet.show(context, surah: surah, ayah: ayah);
-                  },
-                ),
-                AyahActionOption(
-                  title: 'Note',
-                  icon: Icons.sticky_note_2_outlined,
-                  onPress: (surah, ayah, page) {
-                    Navigator.pop(context);
-                    _showNoteEditor(surah, ayah);
-                  },
-                ),
-              ],
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (e) => _lastTouchPosition = e.position,
+              child: QuranPageView(
+                controller: _qcfController,
+                themeModeAdaption: true,
+                showSearchIcon: false,
+                showPageNumber: true,
+                highlightColor: const Color(0x554FC3F7),
+                showAyahMenu: false,
+                customAyahActions: const [],
+                onAyahTap: (surah, ayah, page) {
+                  setState(() {
+                    currentPage = page;
+                    _showUI = true;
+                  });
+                  _saveTimer?.cancel();
+                  _saveTimer = Timer(const Duration(milliseconds: 350), () {
+                    if (!mounted) return;
+                    _saveToHistory(page);
+                  });
+                  final touch = _lastTouchPosition ??
+                      Offset(
+                        MediaQuery.of(context).size.width / 2,
+                        MediaQuery.of(context).size.height / 2,
+                      );
+                  final anchor = Rect.fromCenter(
+                    center: touch,
+                    width: 120,
+                    height: 32,
+                  );
+                  AyahBubble.show(
+                    context,
+                    surah: surah,
+                    ayah: ayah,
+                    anchorGlobalRect: anchor,
+                    onDismiss: () {},
+                    onNote: () => _showNoteEditor(surah, ayah),
+                    hasNote: _noteKeys.contains('$surah:$ayah'),
+                  );
+                },
+              ),
             ),
           ),
 
@@ -980,23 +727,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       child: Stack(
         children: [
           Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.menu_book, color: _themeIconColor, size: 20),
-                  const SizedBox(width: 6),
-                  Text(
-                    surahNameFr,
-                    style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Align(
             alignment: Alignment.center,
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1053,11 +783,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 }
 
-// ── Sourates médinoises ────────────────────────────────────────────────────────
-const _kMadaniSurahs = {
-  2, 3, 4, 5, 8, 9, 13, 22, 24, 33, 47, 48, 49, 55, 57, 58, 59, 60, 61, 62,
-  63, 64, 65, 66, 76, 98, 99, 110,
-};
 
 // ── Nombre de versets par sourate ─────────────────────────────────────────────
 const _kSurahVerseCount = [

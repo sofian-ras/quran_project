@@ -421,7 +421,7 @@ class _HeaderWithEngagement extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Continuer / Reprendre lecture
-        const ContinueReadingCard(),
+        ContinueReadingCard(onTap: onContinue),
 
         const SizedBox(height: 12),
 

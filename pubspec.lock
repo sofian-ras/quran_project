@@ -571,10 +571,9 @@ packages:
   quran_pages_with_ayah_detector:
     dependency: "direct main"
     description:
-      name: quran_pages_with_ayah_detector
-      sha256: "54e47f9638e8fdb95a11020c696fac4a233dfbe6b3d67158280a501c273da693"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/quran_pages_with_ayah_detector"
+      relative: true
+    source: path
     version: "1.2.0"
   rxdart:
     dependency: "direct main"
