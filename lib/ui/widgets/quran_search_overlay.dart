@@ -4,12 +4,11 @@
 // S'affiche par-dessus le lecteur, navigue via PageController.
 
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../data/quran_clean_plain.dart';
 import '../../data/sura_ayah_to_page.dart';
 import '../../data/arabic_numbers.dart';
-import '../../data/quran_text.dart';
+import '../../data/quran_text_data.dart';
 import '../../data/image_surah_glyph.dart';
 import '../../services/font_download_service.dart';
 
@@ -57,13 +56,11 @@ class QuranSearchOverlay extends StatefulWidget {
 class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
   Timer? _debounce;
   List<Map<String, dynamic>> _searchResults = [];
-  final Map<int, List<int>> _surasStartingOnPage = {};
   bool _suraFontLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    _buildSurasStartingOnPageMap();
     _loadSuraFont();
   }
 
@@ -82,29 +79,33 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
     super.dispose();
   }
 
-  void _buildSurasStartingOnPageMap() {
-    for (int s = 1; s <= 114; s++) {
-      final p = suraAyahToPage[s]?[1] ?? 1;
-      _surasStartingOnPage.putIfAbsent(p, () => []).add(s);
-    }
-    _surasStartingOnPage.forEach((page, suras) => suras.sort());
-  }
-
   String _getSurahArabicName(int surahNumber) {
     if (surahNumber < 1 || surahNumber > 114) return '';
     return _surahArabicNames[surahNumber - 1];
   }
 
-  String _getAyahText(int surah, int ayah) {
-    try {
-      final verse = quranText.firstWhere(
-        (v) => v['surah_number'] == surah && v['verse_number'] == ayah,
-        orElse: () => {'content': ''},
-      );
-      return verse['content'] as String? ?? '';
-    } catch (_) {
-      return '';
-    }
+  /// Returns sorted list of (surah, ayah) pairs on a given page.
+  List<(int, int)> _pageAyahsSorted(int page) {
+    final list = <(int, int)>[];
+    suraAyahToPage.forEach((s, ayahMap) {
+      ayahMap.forEach((a, p) {
+        if (p == page) list.add((s, a));
+      });
+    });
+    list.sort((x, y) {
+      final sc = x.$1.compareTo(y.$1);
+      return sc != 0 ? sc : x.$2.compareTo(y.$2);
+    });
+    return list;
+  }
+
+  /// Returns the QCF-encoded text for a given ayah on its page.
+  String _getQcfText(int surah, int ayah, int page) {
+    if (page < 1 || page > quranTextData.length) return '';
+    final pageAyahs = _pageAyahsSorted(page);
+    final idx = pageAyahs.indexWhere((e) => e.$1 == surah && e.$2 == ayah);
+    if (idx == -1 || idx >= quranTextData[page - 1].length) return '';
+    return quranTextData[page - 1][idx];
   }
 
   void _onSearchChanged(String query) {
@@ -310,7 +311,8 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                 decoration: BoxDecoration(
                                   border: Border(
                                     bottom: BorderSide(
-                                        color: Colors.grey.withValues(alpha: 0.1)),
+                                        color: Colors.grey
+                                            .withValues(alpha: 0.1)),
                                   ),
                                 ),
                                 child: Row(
@@ -318,21 +320,17 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                       MainAxisAlignment.spaceBetween,
                                   textDirection: TextDirection.rtl,
                                   children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        if (_suraFontLoaded &&
-                                            imageSuraGlyph.containsKey(surahNum))
-                                          Text(
-                                            imageSuraGlyph[surahNum]!,
+                                    _suraFontLoaded &&
+                                            imageSuraGlyph.containsKey(surahNum)
+                                        ? Text(
+                                            '${imageSuraGlyph[surahNum]!}\u005C',
                                             style: TextStyle(
                                               fontFamily: 'suraNameFont',
-                                              fontSize: 36,
+                                              fontSize: 24,
                                               color: resultTextColor,
                                             ),
                                           )
-                                        else
-                                          Text(
+                                        : Text(
                                             surahName,
                                             style: TextStyle(
                                               fontFamily: 'ScheherazadeNew',
@@ -340,10 +338,8 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                               color: resultTextColor,
                                             ),
                                           ),
-                                      ],
-                                    ),
                                     Text(
-                                      'صفحة ${ArabicNumbers().convert(page)}',
+                                      'Page $page',
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: resultInfoColor,
@@ -357,152 +353,85 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                             final surah = result['surah_number'] as int;
                             final ayah = result['verse_number'] as int;
                             final page = suraAyahToPage[surah]?[ayah] ?? 1;
-                            final text = _getAyahText(surah, ayah);
-                            final surahName = _getSurahArabicName(surah);
+                            final qcfText = _getQcfText(surah, ayah, page);
+                            final fontFamily =
+                                'QCF_P${page.toString().padLeft(3, '0')}';
 
-                            final cardBg = isDark
-                                ? const Color(0xFF1C2333)
-                                : const Color(0xFFFAF6EE);
-                            final footerBg = isDark
-                                ? const Color(0xFF141B2A)
-                                : const Color(0xFFF0E8D5);
-                            const goldColor = Color(0xFFBFA878);
-
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(8),
-                                onTap: () {
-                                  _closeSearch();
-                                  widget.pageController.jumpToPage(page - 1);
-                                },
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: cardBg,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: goldColor.withValues(alpha: 0.45),
-                                      width: 1,
+                            return FutureBuilder(
+                              future: FontDownloadService.loadFont(page),
+                              builder: (context, snapshot) {
+                                return InkWell(
+                                  onTap: () {
+                                    _closeSearch();
+                                    widget.pageController
+                                        .jumpToPage(page - 1);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                            color: Colors.grey
+                                                .withValues(alpha: 0.1)),
+                                      ),
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.07),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      // Bande dorée haut
-                                      Container(
-                                        height: 2,
-                                        decoration: BoxDecoration(
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0x008B6C35),
-                                              Color(0xFFBFA878),
-                                              Color(0x008B6C35),
-                                            ],
-                                          ),
-                                          borderRadius:
-                                              const BorderRadius.vertical(
-                                                  top: Radius.circular(8)),
-                                        ),
-                                      ),
-                                      // Texte du verset + médaillon
-                                      Padding(
-                                        padding: const EdgeInsets.fromLTRB(
-                                            10, 10, 12, 8),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Directionality(
                                           textDirection: TextDirection.rtl,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                text,
-                                                style: TextStyle(
-                                                  fontFamily: 'UthmanTahaNaskh',
-                                                  fontSize: 22,
-                                                  height: 1.75,
-                                                  color: isDark
-                                                      ? const Color(0xFFE8D5B0)
-                                                      : const Color(0xFF2C1A0E),
-                                                ),
-                                                textAlign: TextAlign.justify,
-                                                textDirection:
-                                                    TextDirection.rtl,
-                                                maxLines: 3,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                              ),
+                                          child: Text(
+                                            qcfText,
+                                            style: TextStyle(
+                                              fontFamily: fontFamily,
+                                              fontSize: 22,
+                                              color: resultTextColor,
                                             ),
-                                            const SizedBox(width: 8),
-                                            _AyahMedallion(
-                                              number: ArabicNumbers()
-                                                  .convert(ayah),
-                                              isDark: isDark,
-                                            ),
-                                          ],
+                                            textAlign: TextAlign.right,
+                                          ),
                                         ),
-                                      ),
-                                      // Pied de carte : sourate + page
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: footerBg,
-                                          borderRadius:
-                                              const BorderRadius.vertical(
-                                                  bottom: Radius.circular(8)),
-                                        ),
-                                        child: Row(
+                                        const SizedBox(height: 4),
+                                        Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.spaceBetween,
                                           textDirection: TextDirection.rtl,
                                           children: [
-                                            Row(
-                                              textDirection: TextDirection.rtl,
-                                              children: [
-                                                const Icon(
-                                                    Icons.menu_book_rounded,
-                                                    size: 13,
-                                                    color: goldColor),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  surahName,
-                                                  style: TextStyle(
-                                                    fontFamily: 'ScheherazadeNew',
-                                                    fontSize: 15,
-                                                    color: isDark
-                                                        ? const Color(
-                                                            0xFFBFA878)
-                                                        : const Color(
-                                                            0xFF6B4510),
+                                            _suraFontLoaded &&
+                                                    imageSuraGlyph
+                                                        .containsKey(surah)
+                                                ? Text(
+                                                    '${imageSuraGlyph[surah]!}\u005C',
+                                                    style: TextStyle(
+                                                      fontSize: 20,
+                                                      fontFamily: 'suraNameFont',
+                                                      color: resultInfoColor,
+                                                    ),
+                                                  )
+                                                : Text(
+                                                    _getSurahArabicName(surah),
+                                                    style: TextStyle(
+                                                      fontFamily:
+                                                          'ScheherazadeNew',
+                                                      fontSize: 16,
+                                                      color: resultInfoColor,
+                                                    ),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
                                             Text(
-                                              'صفحة ${ArabicNumbers().convert(page)}',
+                                              'Page $page',
                                               style: TextStyle(
-                                                fontSize: 12,
-                                                color: isDark
-                                                    ? Colors.white38
-                                                    : Colors.black38,
+                                                fontSize: 13,
+                                                color: resultInfoColor,
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
                             );
                           }
                         },
@@ -516,82 +445,4 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
       ],
     );
   }
-}
-
-// ── Médaillon numéro de verset (style Mushaf) ───────────────────────────────
-
-class _AyahMedallion extends StatelessWidget {
-  final String number;
-  final bool isDark;
-
-  const _AyahMedallion({required this.number, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(36, 36),
-      painter: _MedallionPainter(isDark: isDark),
-      child: SizedBox(
-        width: 36,
-        height: 36,
-        child: Center(
-          child: Text(
-            number,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: isDark ? const Color(0xFFFFD37A) : const Color(0xFF4A2E06),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MedallionPainter extends CustomPainter {
-  final bool isDark;
-  const _MedallionPainter({required this.isDark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final r = size.width / 2 - 2;
-
-    final bgPaint = Paint()
-      ..color =
-          isDark ? const Color(0xFF4A2E06) : const Color(0xFFF5E6C8)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, r, bgPaint);
-
-    final borderPaint = Paint()
-      ..color = isDark ? const Color(0xFFBFA878) : const Color(0xFF8B6C35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawCircle(center, r, borderPaint);
-
-    final innerPaint = Paint()
-      ..color = (isDark ? const Color(0xFFBFA878) : const Color(0xFF8B6C35))
-          .withValues(alpha: 0.5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.7;
-    canvas.drawCircle(center, r - 3.5, innerPaint);
-
-    // 8 points décoratifs sur le bord
-    final dotPaint = Paint()
-      ..color = isDark ? const Color(0xFFBFA878) : const Color(0xFF8B6C35)
-      ..style = PaintingStyle.fill;
-    for (int i = 0; i < 8; i++) {
-      final angle = i * math.pi / 4 - math.pi / 8;
-      canvas.drawCircle(
-        Offset(center.dx + r * math.cos(angle),
-            center.dy + r * math.sin(angle)),
-        1.2,
-        dotPaint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_MedallionPainter old) => old.isDark != isDark;
 }
