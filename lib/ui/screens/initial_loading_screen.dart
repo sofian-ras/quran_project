@@ -2,18 +2,11 @@ import 'package:flutter/material.dart';
 import '../../services/quran_image_service.dart';
 import '../../services/font_download_service.dart';
 import '../widgets/download_progress_widget.dart';
-import '../reader_screen.dart';
+import '../bottom_nav_shell.dart';
 
 /// Écran de chargement initial avec progression de téléchargement
 class InitialLoadingScreen extends StatefulWidget {
-  final String reading;
-  final int initialPage;
-
-  const InitialLoadingScreen({
-    super.key,
-    this.reading = 'hafs',
-    this.initialPage = 1,
-  });
+  const InitialLoadingScreen({super.key});
 
   @override
   State<InitialLoadingScreen> createState() => _InitialLoadingScreenState();
@@ -120,10 +113,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => ReaderScreen(
-          reading: widget.reading,
-          initialPage: widget.initialPage,
-        ),
+        builder: (context) => const BottomNavShell(),
       ),
     );
   }

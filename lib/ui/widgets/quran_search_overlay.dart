@@ -4,6 +4,7 @@
 // S'affiche par-dessus le lecteur, navigue via PageController.
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../data/quran_clean_plain.dart';
 import '../../data/sura_ayah_to_page.dart';
@@ -359,59 +360,147 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                             final text = _getAyahText(surah, ayah);
                             final surahName = _getSurahArabicName(surah);
 
-                            return InkWell(
-                              onTap: () {
-                                _closeSearch();
-                                widget.pageController.jumpToPage(page - 1);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                        color: Colors.grey.withValues(alpha: 0.1)),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      text,
-                                      style: TextStyle(
-                                        fontFamily: 'ScheherazadeNew',
-                                        fontSize: 20,
-                                        color: resultTextColor,
+                            final cardBg = isDark
+                                ? const Color(0xFF1C2333)
+                                : const Color(0xFFFAF6EE);
+                            final footerBg = isDark
+                                ? const Color(0xFF141B2A)
+                                : const Color(0xFFF0E8D5);
+                            const goldColor = Color(0xFFBFA878);
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () {
+                                  _closeSearch();
+                                  widget.pageController.jumpToPage(page - 1);
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: cardBg,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: goldColor.withValues(alpha: 0.45),
+                                      width: 1,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.07),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
                                       ),
-                                      textAlign: TextAlign.right,
-                                      textDirection: TextDirection.rtl,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      textDirection: TextDirection.rtl,
-                                      children: [
-                                        Text(
-                                          surahName,
-                                          style: TextStyle(
-                                            fontFamily: 'ScheherazadeNew',
-                                            fontSize: 16,
-                                            color: resultInfoColor,
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // Bande dorée haut
+                                      Container(
+                                        height: 2,
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0x008B6C35),
+                                              Color(0xFFBFA878),
+                                              Color(0x008B6C35),
+                                            ],
                                           ),
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                  top: Radius.circular(8)),
                                         ),
-                                        Text(
-                                          'صفحة ${ArabicNumbers().convert(page)}',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: resultInfoColor,
-                                          ),
+                                      ),
+                                      // Texte du verset + médaillon
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                            10, 10, 12, 8),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          textDirection: TextDirection.rtl,
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                text,
+                                                style: TextStyle(
+                                                  fontFamily: 'UthmanTahaNaskh',
+                                                  fontSize: 22,
+                                                  height: 1.75,
+                                                  color: isDark
+                                                      ? const Color(0xFFE8D5B0)
+                                                      : const Color(0xFF2C1A0E),
+                                                ),
+                                                textAlign: TextAlign.justify,
+                                                textDirection:
+                                                    TextDirection.rtl,
+                                                maxLines: 3,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            _AyahMedallion(
+                                              number: ArabicNumbers()
+                                                  .convert(ayah),
+                                              isDark: isDark,
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                                  ],
+                                      ),
+                                      // Pied de carte : sourate + page
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: footerBg,
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                  bottom: Radius.circular(8)),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          textDirection: TextDirection.rtl,
+                                          children: [
+                                            Row(
+                                              textDirection: TextDirection.rtl,
+                                              children: [
+                                                const Icon(
+                                                    Icons.menu_book_rounded,
+                                                    size: 13,
+                                                    color: goldColor),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  surahName,
+                                                  style: TextStyle(
+                                                    fontFamily: 'ScheherazadeNew',
+                                                    fontSize: 15,
+                                                    color: isDark
+                                                        ? const Color(
+                                                            0xFFBFA878)
+                                                        : const Color(
+                                                            0xFF6B4510),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            Text(
+                                              'صفحة ${ArabicNumbers().convert(page)}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: isDark
+                                                    ? Colors.white38
+                                                    : Colors.black38,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             );
@@ -427,4 +516,82 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
       ],
     );
   }
+}
+
+// ── Médaillon numéro de verset (style Mushaf) ───────────────────────────────
+
+class _AyahMedallion extends StatelessWidget {
+  final String number;
+  final bool isDark;
+
+  const _AyahMedallion({required this.number, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(36, 36),
+      painter: _MedallionPainter(isDark: isDark),
+      child: SizedBox(
+        width: 36,
+        height: 36,
+        child: Center(
+          child: Text(
+            number,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: isDark ? const Color(0xFFFFD37A) : const Color(0xFF4A2E06),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MedallionPainter extends CustomPainter {
+  final bool isDark;
+  const _MedallionPainter({required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2 - 2;
+
+    final bgPaint = Paint()
+      ..color =
+          isDark ? const Color(0xFF4A2E06) : const Color(0xFFF5E6C8)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, r, bgPaint);
+
+    final borderPaint = Paint()
+      ..color = isDark ? const Color(0xFFBFA878) : const Color(0xFF8B6C35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawCircle(center, r, borderPaint);
+
+    final innerPaint = Paint()
+      ..color = (isDark ? const Color(0xFFBFA878) : const Color(0xFF8B6C35))
+          .withValues(alpha: 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7;
+    canvas.drawCircle(center, r - 3.5, innerPaint);
+
+    // 8 points décoratifs sur le bord
+    final dotPaint = Paint()
+      ..color = isDark ? const Color(0xFFBFA878) : const Color(0xFF8B6C35)
+      ..style = PaintingStyle.fill;
+    for (int i = 0; i < 8; i++) {
+      final angle = i * math.pi / 4 - math.pi / 8;
+      canvas.drawCircle(
+        Offset(center.dx + r * math.cos(angle),
+            center.dy + r * math.sin(angle)),
+        1.2,
+        dotPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MedallionPainter old) => old.isDark != isDark;
 }
