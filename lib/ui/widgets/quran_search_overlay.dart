@@ -9,6 +9,8 @@ import '../../data/quran_clean_plain.dart';
 import '../../data/sura_ayah_to_page.dart';
 import '../../data/arabic_numbers.dart';
 import '../../data/quran_text.dart';
+import '../../data/image_surah_glyph.dart';
+import '../../services/font_download_service.dart';
 
 // ── 114 noms arabes de sourates ─────────────────────────────────────────────
 const List<String> _surahArabicNames = [
@@ -55,11 +57,22 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
   Timer? _debounce;
   List<Map<String, dynamic>> _searchResults = [];
   final Map<int, List<int>> _surasStartingOnPage = {};
+  bool _suraFontLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _buildSurasStartingOnPageMap();
+    _loadSuraFont();
+  }
+
+  Future<void> _loadSuraFont() async {
+    try {
+      final ready = await FontDownloadService.areFontsDownloaded();
+      if (!ready) return;
+      await FontDownloadService.loadSuraNameFont();
+      if (mounted) setState(() => _suraFontLoaded = true);
+    } catch (_) {}
   }
 
   @override
@@ -304,13 +317,29 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                       MainAxisAlignment.spaceBetween,
                                   textDirection: TextDirection.rtl,
                                   children: [
-                                    Text(
-                                      surahName,
-                                      style: TextStyle(
-                                        fontFamily: 'ScheherazadeNew',
-                                        fontSize: 22,
-                                        color: resultTextColor,
-                                      ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        if (_suraFontLoaded &&
+                                            imageSuraGlyph.containsKey(surahNum))
+                                          Text(
+                                            imageSuraGlyph[surahNum]!,
+                                            style: TextStyle(
+                                              fontFamily: 'suraNameFont',
+                                              fontSize: 36,
+                                              color: resultTextColor,
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            surahName,
+                                            style: TextStyle(
+                                              fontFamily: 'ScheherazadeNew',
+                                              fontSize: 22,
+                                              color: resultTextColor,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                     Text(
                                       'صفحة ${ArabicNumbers().convert(page)}',

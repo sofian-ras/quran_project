@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/quran_image_service.dart';
+import '../../services/font_download_service.dart';
 import '../widgets/download_progress_widget.dart';
 import '../reader_screen.dart';
 
@@ -33,45 +34,74 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
 
   Future<void> _checkAndDownload() async {
     try {
-      // Vérifier si les images sont déjà téléchargées
-      final isReady = await QuranImageService.areImagesDownloaded();
+      final imagesReady = await QuranImageService.areImagesDownloaded();
+      final fontsReady  = await FontDownloadService.areFontsDownloaded();
 
-      if (isReady) {
-        // Déjà téléchargé, naviguer directement
+      if (imagesReady && fontsReady) {
         _navigateToReader();
         return;
       }
 
-      // Lancer le téléchargement
-      setState(() {
-        _isDownloading = true;
-        _statusMessage = 'Téléchargement des pages du Coran';
-      });
-
-      await QuranImageService.downloadAndExtractImages(
-        onDownloadProgress: (progress) {
-          if (mounted) {
-            setState(() {
-              _downloadProgress = progress;
-              _statusMessage = 'Téléchargement en cours';
-            });
-          }
-        },
-      );
-
-      // Passage à l'extraction
-      if (mounted) {
+      // ── 1. Téléchargement des images ─────────────────────────────────────
+      if (!imagesReady) {
         setState(() {
-          _isDownloading = false;
-          _isExtracting = true;
-          _statusMessage = 'Extraction des fichiers';
+          _isDownloading = true;
+          _statusMessage = 'Téléchargement des pages du Coran';
         });
+
+        await QuranImageService.downloadAndExtractImages(
+          onDownloadProgress: (progress) {
+            if (mounted) {
+              setState(() {
+                _downloadProgress = progress;
+                _statusMessage = 'Téléchargement des pages…';
+              });
+            }
+          },
+        );
+
+        if (mounted) {
+          setState(() {
+            _isDownloading = false;
+            _isExtracting = true;
+            _statusMessage = 'Extraction des fichiers';
+          });
+        }
+        await Future.delayed(const Duration(milliseconds: 300));
       }
 
-      // Petite pause pour montrer l'état d'extraction
-      await Future.delayed(const Duration(milliseconds: 500));
+      // ── 2. Téléchargement des polices ─────────────────────────────────────
+      if (!fontsReady) {
+        if (mounted) {
+          setState(() {
+            _isExtracting = false;
+            _isDownloading = true;
+            _downloadProgress = 0.0;
+            _statusMessage = 'Téléchargement des polices';
+          });
+        }
 
-      // Navigation vers le lecteur
+        await FontDownloadService.downloadAndExtractFonts(
+          onDownloadProgress: (progress) {
+            if (mounted) {
+              setState(() {
+                _downloadProgress = progress;
+                _statusMessage = 'Téléchargement des polices…';
+              });
+            }
+          },
+        );
+
+        if (mounted) {
+          setState(() {
+            _isDownloading = false;
+            _isExtracting = true;
+            _statusMessage = 'Extraction des polices';
+          });
+        }
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
       _navigateToReader();
     } catch (e) {
       if (mounted) {

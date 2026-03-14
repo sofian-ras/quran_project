@@ -22,7 +22,10 @@ import '../../services/quran_translation_pack_service.dart';
 import '../../services/verse_favorites_service.dart';
 import '../../services/audio_service.dart';
 import '../../surah_name.dart';
-import '../../data/quran_text.dart';
+import '../../data/quran_text_data.dart';
+import '../../data/sura_ayah_to_page.dart';
+import '../../data/image_surah_glyph.dart';
+import '../../services/font_download_service.dart';
 
 class AyahActionSheet extends StatefulWidget {
   final int surah;
@@ -58,6 +61,11 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   bool _isFavorite = false;
   bool _isPlaying = false;
 
+  // ── QCF font pour la carte stylisée ─────────────────
+  String? _qfcText;
+  String? _qfcFontFamily;
+  bool _qfcFontLoaded = false;
+
   // ── Tafsir online ───────────────────────────────────
   int _tafsirId = 14; // Ibn Kathir arabe par défaut
   String? _onlineTafsir;
@@ -74,6 +82,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   void initState() {
     super.initState();
     _load();
+    _loadQcfFont();
     _audioSub = AudioService.instance.ayahPlayerStateStream.listen((st) {
       if (!mounted) return;
       final key = AudioService.instance.currentAyahKeyNotifier.value;
@@ -86,6 +95,47 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
     _audioSub?.cancel();
     _tafsirCancelToken?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadQcfFont() async {
+    try {
+      if (!await FontDownloadService.areFontsDownloaded()) return;
+      final page = suraAyahToPage[widget.surah]?[widget.ayah] ?? 1;
+      await FontDownloadService.loadFont(page);
+      final family = 'QCF_P${page.toString().padLeft(3, '0')}';
+
+      // Retrouver le texte QCF de l'ayah
+      String qfcText = '';
+      if (page >= 1 && page <= quranTextData.length) {
+        final orderedAyahs = <Map<String, int>>[];
+        for (int s = 1; s <= 114; s++) {
+          final ayahMap = suraAyahToPage[s];
+          if (ayahMap == null) continue;
+          for (final entry in ayahMap.entries) {
+            if (entry.value == page) {
+              orderedAyahs.add({'surah': s, 'ayah': entry.key});
+            }
+          }
+        }
+        orderedAyahs.sort((a, b) {
+          final sc = a['surah']!.compareTo(b['surah']!);
+          return sc != 0 ? sc : a['ayah']!.compareTo(b['ayah']!);
+        });
+        final idx = orderedAyahs.indexWhere(
+          (e) => e['surah'] == widget.surah && e['ayah'] == widget.ayah,
+        );
+        if (idx != -1 && idx < quranTextData[page - 1].length) {
+          qfcText = quranTextData[page - 1][idx];
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _qfcFontFamily = family;
+        _qfcText = qfcText.isNotEmpty ? qfcText : null;
+        _qfcFontLoaded = true;
+      });
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -237,104 +287,186 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
 
   Future<void> _saveAsImage() async {
     try {
-      final arabicText = (quranText.firstWhere(
-        (v) => v['surah_number'] == widget.surah && v['verse_number'] == widget.ayah,
-        orElse: () => {'content': ''},
-      )['content'] as String?) ?? '';
+      // Step 1 — Télécharger les polices automatiquement si nécessaire
+      if (!await FontDownloadService.areFontsDownloaded()) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Téléchargement des polices en cours…'),
+          duration: Duration(seconds: 10),
+        ));
+        await FontDownloadService.downloadAndExtractFonts();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
 
-      if (arabicText.isEmpty) return;
+      // Step 2 — Récupérer la page et charger les polices QCF
+      final page = suraAyahToPage[widget.surah]?[widget.ayah] ?? 1;
+      await FontDownloadService.loadFont(page);
+      await FontDownloadService.loadSuraNameFont();
+      final ayahFontFamily = 'QCF_P${page.toString().padLeft(3, '0')}';
+
+      // Retrouver le texte QCF de l'ayah sur sa page
+      String ayahText = '';
+      if (page >= 1 && page <= quranTextData.length) {
+        final List<Map<String, int>> orderedAyahs = [];
+        for (int s = 1; s <= 114; s++) {
+          final ayahMap = suraAyahToPage[s];
+          if (ayahMap == null) continue;
+          for (final entry in ayahMap.entries) {
+            if (entry.value == page) {
+              orderedAyahs.add({'surah': s, 'ayah': entry.key});
+            }
+          }
+        }
+        orderedAyahs.sort((a, b) {
+          final sc = a['surah']!.compareTo(b['surah']!);
+          return sc != 0 ? sc : a['ayah']!.compareTo(b['ayah']!);
+        });
+        final idx = orderedAyahs.indexWhere(
+          (e) => e['surah'] == widget.surah && e['ayah'] == widget.ayah,
+        );
+        if (idx != -1 && idx < quranTextData[page - 1].length) {
+          ayahText = quranTextData[page - 1][idx];
+        }
+      }
+      if (ayahText.isEmpty) {
+        ayahText = _verse?.ar ?? '';
+      }
+
+      // Step 3 — Générer le canvas
+      const double width = 800.0;
+
+      TextPainter makePainter(String text, TextStyle style) {
+        final tp = TextPainter(
+          text: TextSpan(text: text, style: style),
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.center,
+        );
+        tp.layout(maxWidth: width - 80);
+        return tp;
+      }
+
+      final ornamentGlyph = imageSuraGlyph[widget.surah] ?? '';
+      final ornamentPainter = makePainter(
+        ornamentGlyph,
+        const TextStyle(fontFamily: 'suraNameFont', fontSize: 90, color: Color(0xFFC8A165)),
+      );
+      final surahNamePainter = makePainter(
+        _surahName,
+        const TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 34, color: Color(0xFF8B6914)),
+      );
+      final ayahRefPainter = makePainter(
+        'آية ${widget.ayah}',
+        const TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 20, color: Color(0xFFB8860B)),
+      );
+      final ayahQfcPainter = makePainter(
+        ayahText,
+        TextStyle(
+          fontFamily: ayahFontFamily,
+          fontSize: 48,
+          color: const Color(0xFF1A1A1A),
+          height: 1.8,
+        ),
+      );
+      final footerPainter = makePainter(
+        'القرآن الكريم',
+        const TextStyle(fontFamily: 'ScheherazadeNew', fontSize: 16, color: Color(0xFFB8860B)),
+      );
+
+      // Calcul des positions Y
+      const double topGoldH    = 4.0;
+      const double ornamentY   = 20.0;
+      final double surahNameY  = ornamentY + ornamentPainter.height + 8;
+      final double ayahRefY    = surahNameY + surahNamePainter.height + 8;
+      final double divider1Y   = ayahRefY + ayahRefPainter.height + 20;
+      final double textY       = divider1Y + 1 + 30;
+      final double divider2Y   = textY + ayahQfcPainter.height + 20;
+      final double footerY     = divider2Y + 1 + 12;
+      final double footerBottom = footerY + footerPainter.height;
+      final double finalHeight  = footerBottom + 20;
 
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      const double width = 800.0;
-      const double padding = 50.0;
 
       // Background
-      final bgPaint = Paint()..color = const Color(0xFFF5F0E6);
-      canvas.drawRect(const Rect.fromLTWH(0, 0, width, 4000), bgPaint);
-
-      // Surah name
-      final surahNamePainter = TextPainter(
-        text: TextSpan(
-          text: _surahName,
-          style: const TextStyle(
-            fontFamily: 'ScheherazadeNew',
-            fontSize: 38,
-            color: Color(0xFF4A3F30),
-          ),
-        ),
-        textDirection: TextDirection.rtl,
-        textAlign: TextAlign.center,
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, width, finalHeight),
+        Paint()..color = const Color(0xFFFAF6EE),
       );
-      surahNamePainter.layout(maxWidth: width - padding * 2);
+
+      // Ligne dorée haut
+      canvas.drawRect(
+        const Rect.fromLTWH(0, 0, width, topGoldH),
+        Paint()..color = const Color(0xFFC8A165),
+      );
+
+      // Ornement de sourate
+      if (ornamentGlyph.isNotEmpty) {
+        ornamentPainter.paint(
+          canvas,
+          Offset((width - ornamentPainter.width) / 2, ornamentY),
+        );
+      }
+
+      // Nom de la sourate
       surahNamePainter.paint(
         canvas,
-        Offset((width - surahNamePainter.width) / 2, padding),
+        Offset((width - surahNamePainter.width) / 2, surahNameY),
       );
 
-      // Ayah reference
-      final refPainter = TextPainter(
-        text: TextSpan(
-          text: 'آية ${widget.ayah}',
-          style: const TextStyle(
-            fontFamily: 'ScheherazadeNew',
-            fontSize: 22,
-            color: Color(0xFF6B5A45),
-          ),
-        ),
-        textDirection: TextDirection.rtl,
-        textAlign: TextAlign.center,
-      );
-      refPainter.layout(maxWidth: width - padding * 2);
-      refPainter.paint(
+      // Numéro d'ayah
+      ayahRefPainter.paint(
         canvas,
-        Offset(
-          (width - refPainter.width) / 2,
-          padding + surahNamePainter.height + 12,
-        ),
+        Offset((width - ayahRefPainter.width) / 2, ayahRefY),
       );
 
-      final textY = padding + surahNamePainter.height + refPainter.height + 50;
-
-      // Arabic ayah text
-      final ayahPainter = TextPainter(
-        text: TextSpan(
-          text: arabicText,
-          style: const TextStyle(
-            fontFamily: 'ScheherazadeNew',
-            fontSize: 44,
-            color: Color(0xFF1A1A1A),
-            height: 2.0,
-          ),
-        ),
-        textDirection: TextDirection.rtl,
-        textAlign: TextAlign.center,
+      // Divider 1
+      canvas.drawRect(
+        Rect.fromLTWH(60, divider1Y, 680, 1),
+        Paint()..color = const Color(0xFFC8A165).withValues(alpha: 0.4),
       );
-      ayahPainter.layout(maxWidth: width - padding * 2);
-      ayahPainter.paint(
+
+      // Texte QCF
+      ayahQfcPainter.paint(
         canvas,
-        Offset((width - ayahPainter.width) / 2, textY),
+        Offset((width - ayahQfcPainter.width) / 2, textY),
       );
 
-      final finalHeight = textY + ayahPainter.height + padding;
+      // Divider 2
+      canvas.drawRect(
+        Rect.fromLTWH(60, divider2Y, 680, 1),
+        Paint()..color = const Color(0xFFC8A165).withValues(alpha: 0.4),
+      );
 
+      // Footer
+      footerPainter.paint(
+        canvas,
+        Offset((width - footerPainter.width) / 2, footerY),
+      );
+
+      // Ligne dorée bas
+      canvas.drawRect(
+        Rect.fromLTWH(0, finalHeight - 4, width, 4),
+        Paint()..color = const Color(0xFFC8A165),
+      );
+
+      // Step 4 — Sauvegarder
       final picture = recorder.endRecording();
       final img = await picture.toImage(width.toInt(), finalHeight.toInt());
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       final buffer = byteData!.buffer.asUint8List();
 
-      final directory = await getApplicationDocumentsDirectory();
-
+      final dir = await getApplicationDocumentsDirectory();
       final fileName =
           'ayah_${widget.surah}_${widget.ayah}_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = File('${directory.path}/$fileName');
+      final file = File('${dir.path}/$fileName');
       await file.writeAsBytes(buffer);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Image sauvegardée: ${file.path}'),
-          duration: const Duration(seconds: 3),
+        const SnackBar(
+          content: Text('Image sauvegardée ✓'),
+          duration: Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -343,7 +475,7 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Erreur lors de la sauvegarde'),
+          content: Text('Erreur de sauvegarde'),
           duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
@@ -464,7 +596,6 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
     bool isDark,
     ThemeData theme,
   ) {
-    final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
     final mutedColor =
         isDark ? Colors.white60 : const Color(0xFF555555);
     final divColor = isDark
@@ -476,21 +607,55 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
       children: [
         if (_verse != null) ...[
-          // ── Texte arabe embelli ───────────────────────────
-          Text(
-            sanitizeQulText(_verse!.ar),
-            textAlign: TextAlign.right,
-            textDirection: TextDirection.rtl,
-            locale: const Locale('ar'),
-            style: TextStyle(
-              fontFamily: 'ScheherazadeNew',
-              fontWeight: FontWeight.w600,
-              fontSize: 20,
-              height: 2.0,
-              wordSpacing: 3.0,
-              letterSpacing: 0.0,
-              color: textColor,
-            ),
+          // ── Carte verset stylisée ─────────────────────────
+          Stack(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: isDark
+                        ? [const Color(0xFF1C2333), const Color(0xFF141B2B)]
+                        : [const Color(0xFFFEFCF4), const Color(0xFFF2E5C8)],
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFFBFA068),
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFC8A97E).withValues(alpha: 0.18),
+                      blurRadius: 16,
+                      offset: Offset.zero,
+                    ),
+                  ],
+                ),
+                child: Text(
+                  _qfcFontLoaded && _qfcText != null
+                      ? _qfcText!
+                      : sanitizeQulText(_verse!.ar),
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily: _qfcFontLoaded && _qfcText != null
+                        ? _qfcFontFamily
+                        : 'UthmanTahaNaskh',
+                    fontSize: _qfcFontLoaded && _qfcText != null ? 42 : 22,
+                    color: isDark
+                        ? const Color(0xFFE8D5B0)
+                        : const Color(0xFF4A3F30),
+                    height: 1.9,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: CustomPaint(painter: _VerseCornerPainter()),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           Divider(color: divColor, height: 1),
@@ -867,6 +1032,38 @@ class _IconBtn extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Coins ornementaux de la carte verset ──────────────────────────────────────
+
+class _VerseCornerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const color = Color(0xFFC8A97E);
+    const len = 14.0;
+    const d = 4.0;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.4
+      ..style = PaintingStyle.stroke;
+    final dotPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    void corner(double cx, double cy, double sx, double sy) {
+      canvas.drawLine(Offset(cx, cy), Offset(cx + sx * len, cy), paint);
+      canvas.drawLine(Offset(cx, cy), Offset(cx, cy + sy * len), paint);
+      canvas.drawCircle(Offset(cx + sx * d, cy + sy * d), 2, dotPaint);
+    }
+
+    corner(6, 6, 1, 1);
+    corner(size.width - 6, 6, -1, 1);
+    corner(6, size.height - 6, 1, -1);
+    corner(size.width - 6, size.height - 6, -1, -1);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Nettoyage du texte brut ────────────────────────────────────────────────────
