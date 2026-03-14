@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/quran_image_service.dart';
 import '../../services/font_download_service.dart';
+import '../../services/quran_translation_pack_service.dart';
 import '../widgets/download_progress_widget.dart';
 import '../bottom_nav_shell.dart';
 
@@ -27,27 +28,31 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
 
   Future<void> _checkAndDownload() async {
     try {
-      final imagesReady = await QuranImageService.areImagesDownloaded();
-      final fontsReady  = await FontDownloadService.areFontsDownloaded();
+      final imagesReady      = await QuranImageService.areImagesDownloaded();
+      final fontsReady       = await FontDownloadService.areFontsDownloaded();
+      final translationReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
 
-      if (imagesReady && fontsReady) {
+      if (imagesReady && fontsReady && translationReady) {
         _navigateToReader();
         return;
       }
 
-      // ── 1. Téléchargement des images ─────────────────────────────────────
+      // ── 1. Pages Mushaf ───────────────────────────────────────────────────
       if (!imagesReady) {
-        setState(() {
-          _isDownloading = true;
-          _statusMessage = 'Téléchargement des pages du Coran';
-        });
+        if (mounted) {
+          setState(() {
+            _isDownloading = true;
+            _downloadProgress = 0.0;
+            _statusMessage = 'Téléchargement des pages du Coran (1/3)';
+          });
+        }
 
         await QuranImageService.downloadAndExtractImages(
           onDownloadProgress: (progress) {
             if (mounted) {
               setState(() {
                 _downloadProgress = progress;
-                _statusMessage = 'Téléchargement des pages…';
+                _statusMessage = 'Pages du Coran… (1/3)';
               });
             }
           },
@@ -57,20 +62,20 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
           setState(() {
             _isDownloading = false;
             _isExtracting = true;
-            _statusMessage = 'Extraction des fichiers';
+            _statusMessage = 'Extraction des pages…';
           });
         }
         await Future.delayed(const Duration(milliseconds: 300));
       }
 
-      // ── 2. Téléchargement des polices ─────────────────────────────────────
+      // ── 2. Polices QCF ────────────────────────────────────────────────────
       if (!fontsReady) {
         if (mounted) {
           setState(() {
             _isExtracting = false;
             _isDownloading = true;
             _downloadProgress = 0.0;
-            _statusMessage = 'Téléchargement des polices';
+            _statusMessage = 'Polices calligraphiques (2/3)';
           });
         }
 
@@ -79,7 +84,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
             if (mounted) {
               setState(() {
                 _downloadProgress = progress;
-                _statusMessage = 'Téléchargement des polices…';
+                _statusMessage = 'Polices QCF… (2/3)';
               });
             }
           },
@@ -89,7 +94,40 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
           setState(() {
             _isDownloading = false;
             _isExtracting = true;
-            _statusMessage = 'Extraction des polices';
+            _statusMessage = 'Extraction des polices…';
+          });
+        }
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
+      // ── 3. Pack de traduction française ───────────────────────────────────
+      if (!translationReady) {
+        if (mounted) {
+          setState(() {
+            _isExtracting = false;
+            _isDownloading = true;
+            _downloadProgress = 0.0;
+            _statusMessage = 'Traduction française (3/3)';
+          });
+        }
+
+        await QuranTranslationPackService.downloadPack(
+          AppLang.fr,
+          onProgress: (progress) {
+            if (mounted) {
+              setState(() {
+                _downloadProgress = progress;
+                _statusMessage = 'Traduction française… (3/3)';
+              });
+            }
+          },
+        );
+
+        if (mounted) {
+          setState(() {
+            _isDownloading = false;
+            _isExtracting = false;
+            _statusMessage = 'Finalisation…';
           });
         }
         await Future.delayed(const Duration(milliseconds: 300));
@@ -109,12 +147,9 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
 
   void _navigateToReader() {
     if (!mounted) return;
-
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => const BottomNavShell(),
-      ),
+      MaterialPageRoute(builder: (context) => const BottomNavShell()),
     );
   }
 
@@ -128,7 +163,6 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Affichage d'erreur
     if (_errorMessage != null) {
       return Scaffold(
         body: Center(
@@ -137,11 +171,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.error_outline,
-                  size: 80,
-                  color: Colors.red,
-                ),
+                const Icon(Icons.error_outline, size: 80, color: Colors.red),
                 const SizedBox(height: 24),
                 Text(
                   'Erreur de téléchargement',
@@ -182,14 +212,13 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
       );
     }
 
-    // Affichage de progression
     return Scaffold(
       body: DownloadProgressWidget(
         progress: _downloadProgress,
         message: _statusMessage,
         isExtracting: _isExtracting,
         subtitle: _isDownloading
-            ? 'Téléchargement unique - Les prochaines ouvertures seront instantanées'
+            ? 'Installation unique — Les prochaines ouvertures seront instantanées'
             : null,
       ),
     );
