@@ -1,27 +1,21 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quran_pages_with_ayah_detector/quran_pages_with_ayah_detector.dart';
 
-import 'screens/quran_loader.dart';
-import '../services/quran_image_service.dart';
 import '../services/quran_pages_hitbox_db.dart';
 import '../services/mini_player_service.dart';
-import 'widgets/ayah_selection_overlay.dart';
-import 'widgets/ayah_bubble.dart';
 import 'widgets/mini_player_widget.dart';
-import '../services/quran_page_preloader.dart';
+import 'widgets/ayah_action_sheet.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../services/reading_history_service.dart';
 import '../services/last_reading_service.dart';
 import '../services/verse_notes_service.dart';
-import 'widgets/quran_search_overlay.dart';
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -50,7 +44,7 @@ class GradientText extends StatelessWidget {
 
 class ReaderScreen extends StatefulWidget {
   final int initialPage;
-  final String reading;
+  final String reading; // conservé pour la compatibilité API, plus utilisé pour le rendu
 
   const ReaderScreen({
     super.key,
@@ -64,16 +58,13 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen> {
   late int currentPage;
-  String currentReading = 'hafs';
   int _readerTheme = 1; // 0=blanc, 1=papier, 2=sombre
-  late PageController _pageController;
+
+  late QuranPageController _qcfController;
 
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
-  bool _isSearchOpen = false;
-  String? _selectedVerseKey;
   Timer? _saveTimer;
-  Timer? _preloadDebounce;
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   Set<String> _noteKeys = {};
@@ -84,52 +75,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() => _noteKeys = all.keys.toSet());
   }
 
-  // ── Mini lecteur ──────────────────────────────────────────────────────────
-  String? _selectionStartKey;
-  String? _selectionEndKey;
-  DateTime? _lastTapTime; // détection double tap
-
-  final QuranPagePreloader _pagePreloader = QuranPagePreloader(range: 2);
-
-  final Map<int, File?> _imageCache = {};
-  final int _preloadRange = 3;
-
-  Future<File?> _safeGetPageFile(String reading, int pageNum) async {
-    try {
-      return await QuranImageService.getPageFile(reading, pageNum);
-    } catch (_) {
-      return null;
-    }
-  }
-
   Color get _themeBg => _readerTheme == 2
       ? const Color(0xFF0B1025)
       : (_readerTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
 
-  ColorFilter? get _themeFilter => _readerTheme == 2
-      ? const ColorFilter.matrix([
-          -1, 0, 0, 0, 255,
-           0,-1, 0, 0, 255,
-           0, 0,-1, 0, 255,
-           0, 0, 0, 1,   0,
-        ])
-      : (_readerTheme == 1
-          ? const ColorFilter.matrix([
-              // multiply(pixel, 0xFFF3E8C0) sans saveLayer :
-              // R × 243/255, G × 232/255, B × 192/255
-              0.9529, 0, 0, 0, 0,
-              0, 0.9098, 0, 0, 0,
-              0, 0, 0.7529, 0, 0,
-              0, 0, 0,     1, 0,
-            ])
-          : null);
-
   Color get _themeIconColor => _readerTheme == 2 ? Colors.white60 : Colors.black45;
-
-  /// Cache ou affiche les barres système (nav + status) selon [show].
-  void _applySystemBars(bool show) {
-    // No-op: always edgeToEdge, UI hides via AnimatedOpacity only
-  }
 
   void _applySystemUiStyle(int theme) {
     SystemChrome.setSystemUIOverlayStyle(
@@ -159,7 +109,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _applySystemUiStyle(next);
   }
 
-
   @override
   void initState() {
     super.initState();
@@ -180,19 +129,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
 
     currentPage = widget.initialPage;
-    currentReading = widget.reading;
 
     final startPage = (widget.initialPage < 1)
         ? 1
         : (widget.initialPage > 604 ? 604 : widget.initialPage);
 
-    _pageController = PageController(initialPage: startPage - 1);
-    _pageController.addListener(_onPageScroll);
+    _qcfController = QuranPageController();
 
     _initApp();
     _loadReaderTheme();
     _loadNoteKeys();
     MiniPlayerService.instance.currentAyahKey.addListener(_onPlayingAyahChanged);
+
     () async {
       try {
         await QuranPagesHitboxDb.instance.ensureFromAsset(
@@ -202,53 +150,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
         debugPrint('Erreur chargement hitbox: $e');
       }
     }();
-  }
 
-  void _onPageScroll() {
-    _preloadDebounce?.cancel();
-    _preloadDebounce = Timer(const Duration(milliseconds: 120), () {
-      final currentIndex = _pageController.page?.round() ?? 0;
-      _preloadPages(currentIndex + 1);
-    });
-  }
-
-  Future<void> _preloadPages(int centerPage) async {
-    for (int offset = -_preloadRange; offset <= _preloadRange; offset++) {
-      final pageNum = centerPage + offset;
-      if (pageNum >= 1 && pageNum <= 604 && !_imageCache.containsKey(pageNum)) {
-        _loadPageIntoCache(pageNum);
-      }
-    }
-    _cleanDistantPages(centerPage);
-  }
-
-  Future<void> _loadPageIntoCache(int pageNum) async {
-    try {
-      final file = await QuranImageService.getPageFile(currentReading, pageNum);
-      _imageCache[pageNum] = file;
-    } catch (e) {
-      debugPrint('Erreur préchargement page $pageNum: $e');
-    }
-  }
-
-  void _cleanDistantPages(int centerPage) {
-    final pagesToRemove = <int>[];
-    _imageCache.forEach((pageNum, _) {
-      if ((pageNum - centerPage).abs() > _preloadRange * 2) {
-        pagesToRemove.add(pageNum);
+    // Saute à la page initiale après la construction du widget
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (startPage > 1 && mounted) {
+        _qcfController.jumpToPage(startPage);
       }
     });
+  }
 
-    for (final pageNum in pagesToRemove) {
-      _imageCache.remove(pageNum);
-    }
+  @override
+  void dispose() {
+    MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
+    _saveTimer?.cancel();
+
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+    super.dispose();
   }
 
   Future<void> _onPlayingAyahChanged() async {
     if (!mounted) return;
     final key = MiniPlayerService.instance.currentAyahKey.value;
 
-    // Stop ou fin de lecture : efface le highlight
     if (key == null) {
       setState(() {});
       return;
@@ -264,36 +190,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!mounted || page == null) return;
 
     if (page != currentPage) {
-      _pageController.animateToPage(
-        page - 1,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-      );
+      _qcfController.jumpToPage(page);
     }
     setState(() {});
-  }
-
-  @override
-  void dispose() {
-    AyahBubble.dismiss();
-    MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
-    _preloadDebounce?.cancel();
-    _saveTimer?.cancel();
-    _pageController.removeListener(_onPageScroll);
-    _pageController.dispose();
-    _imageCache.clear();
-
-    // Restaure les icônes système par défaut à la sortie du reader
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
-
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
-
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-
-
-    super.dispose();
   }
 
   Future<void> _initApp() async {
@@ -315,11 +214,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
         added.add(id);
       }
     }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _pagePreloader.preloadAround(context, currentPage, currentReading);
-    });
 
     if (!mounted) return;
     setState(() => fullSurahList = list);
@@ -432,12 +326,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
         onNoteDeleted: _loadNoteKeys,
         onNoteEdited: (surah, ayah) => _showNoteEditor(surah, ayah),
         onNavigate: (surah, ayah) async {
-          // Ferme le sheet depuis le contexte du reader (garantit le bon Navigator)
           if (mounted) Navigator.pop(context);
-          final page = await QuranPagesHitboxDb.instance
-              .getPageForAyah(surah, ayah);
+          final page = await QuranPagesHitboxDb.instance.getPageForAyah(surah, ayah);
           if (page != null && mounted) {
-            _pageController.jumpToPage(page - 1);
+            _qcfController.jumpToPage(page);
           }
         },
       ),
@@ -456,9 +348,268 @@ class _ReaderScreenState extends State<ReaderScreen> {
         onConfirm: (surahId, ayah) async {
           Navigator.pop(context);
           final page = await QuranPagesHitboxDb.instance.getPageForAyah(surahId, ayah);
-          if (page != null && mounted) _pageController.jumpToPage(page - 1);
+          if (page != null && mounted) _qcfController.jumpToPage(page);
         },
       ),
+    );
+  }
+
+  int _juzzForPage(int page) {
+    for (int j = juzzMap.length - 1; j >= 0; j--) {
+      if (juzzMap[j]['start_page']! <= page) return juzzMap[j]['juz']!;
+    }
+    return 1;
+  }
+
+  void _showSurahListFr({int initialSurah = 1}) {
+    if (fullSurahList.isEmpty) return;
+
+    final isDark = _readerTheme == 2;
+    final bg = _themeBg;
+    final fg = isDark ? Colors.white : Colors.black87;
+    final fgDim = isDark ? Colors.white54 : Colors.black45;
+    final accent = isDark ? const Color(0xFF7B9FE0) : const Color(0xFF1565C0);
+    final highlightBg = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.06);
+    final searchBg = isDark ? const Color(0xFF1C2D3E) : Colors.grey.shade100;
+
+    // Group surahs by juzz
+    final Map<int, List<Map<String, dynamic>>> byJuz = {};
+    for (final s in fullSurahList) {
+      final juz = _juzzForPage(s['page'] as int);
+      byJuz.putIfAbsent(juz, () => []).add(s);
+    }
+
+    // Juzz start pages
+    final Map<int, int> juzStartPages = {
+      for (final j in juzzMap) j['juz']!: j['start_page']!,
+    };
+
+    final Map<int, GlobalKey> juzKeys = {for (int i = 1; i <= 30; i++) i: GlobalKey()};
+    final Map<int, GlobalKey> surahKeys = {for (int i = 1; i <= 114; i++) i: GlobalKey()};
+    bool hasScrolled = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            if (!hasScrolled) {
+              hasScrolled = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                final targetCtx = surahKeys[initialSurah]?.currentContext;
+                if (targetCtx != null) {
+                  Scrollable.ensureVisible(targetCtx,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      alignment: 0.1);
+                }
+              });
+            }
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.6,
+              minChildSize: 0.3,
+              maxChildSize: 0.95,
+              builder: (_, scrollCtrl) => Container(
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2.5),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        onChanged: (v) =>
+                            setSheetState(() => query = v.trim().toLowerCase()),
+                        style: TextStyle(color: fg),
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher une sourate…',
+                          hintStyle: TextStyle(color: fgDim),
+                          prefixIcon: Icon(Icons.search, color: fgDim),
+                          filled: true,
+                          fillColor: searchBg,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        controller: scrollCtrl,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (int juz = 1; juz <= 30; juz++)
+                              Builder(builder: (_) {
+                                final surahs = byJuz[juz] ?? [];
+                                final filtered = query.isEmpty
+                                    ? surahs
+                                    : surahs.where((s) {
+                                        final fr = (s['nameFr'] as String)
+                                            .toLowerCase();
+                                        final ar = (s['nameAr'] as String)
+                                            .toLowerCase();
+                                        return fr.contains(query) ||
+                                            ar.contains(query);
+                                      }).toList();
+
+                                if (query.isNotEmpty && filtered.isEmpty) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    // ── Juzz header ──────────────────────────
+                                    GestureDetector(
+                                      key: juzKeys[juz],
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        _qcfController.jumpToPage(
+                                            juzStartPages[juz] ?? 1);
+                                      },
+                                      child: Container(
+                                        margin: const EdgeInsets.only(top: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 14),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? Colors.white.withValues(alpha: 0.05)
+                                              : Colors.black.withValues(alpha: 0.03),
+                                          border: Border.symmetric(
+                                            horizontal: BorderSide(
+                                                color: Colors.grey
+                                                    .withValues(alpha: 0.1)),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Juzz $juz',
+                                          style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: fgDim),
+                                        ),
+                                      ),
+                                    ),
+                                    // ── Surah rows ───────────────────────────
+                                    for (final s in filtered)
+                                      (() {
+                                        final id = s['id'] as int;
+                                        final nameFr = s['nameFr'] as String;
+                                        final nameAr = s['nameAr'] as String;
+                                        final page = s['page'] as int;
+                                        final verseCount =
+                                            _kSurahVerseCount[id.clamp(1, 114)];
+                                        final typeStr =
+                                            _kMadaniSurahs.contains(id)
+                                                ? 'Médinoise'
+                                                : 'Mecquoise';
+                                        final isHighlighted =
+                                            id == initialSurah;
+
+                                        return InkWell(
+                                          key: surahKeys[id],
+                                          onTap: () {
+                                            Navigator.pop(ctx);
+                                            _qcfController.jumpToPage(page);
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 32, vertical: 12),
+                                            decoration: BoxDecoration(
+                                              color: isHighlighted
+                                                  ? highlightBg
+                                                  : Colors.transparent,
+                                              border: Border(
+                                                  bottom: BorderSide(
+                                                      color: Colors.grey
+                                                          .withValues(alpha: 0.05))),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        '$id.  $nameFr',
+                                                        style: TextStyle(
+                                                            fontSize: 14,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: fg),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        nameAr,
+                                                        textDirection:
+                                                            TextDirection.rtl,
+                                                        style: TextStyle(
+                                                            fontSize: 13,
+                                                            color: fgDim),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        '$verseCount versets · $typeStr',
+                                                        style: TextStyle(
+                                                            fontSize: 11,
+                                                            color: fgDim),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 16),
+                                                Text(
+                                                  'Page $page',
+                                                  style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: accent),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      })(),
+                                  ],
+                                );
+                              }),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -492,10 +643,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
       page: page,
       surahId: surah['id'] as int,
       surahName: surah['nameFr'] as String,
-      reading: currentReading,
+      reading: widget.reading,
     );
 
-    // Sauvegarder aussi la dernière position de lecture
     LastReadingService.saveLastReading(
       surahNumber: surah['id'] as int,
       pageNumber: page,
@@ -528,154 +678,114 @@ class _ReaderScreenState extends State<ReaderScreen> {
       extendBodyBehindAppBar: true,
       resizeToAvoidBottomInset: false,
       body: Stack(
-          children: [
-           Positioned.fill(
-            child: ColoredBox(
-              color: _themeBg,
-              child: PageView.builder(
-                controller: _pageController,
-                reverse: true,
-                itemCount: 604,
-                onPageChanged: (p) {
-                  AyahBubble.dismiss();
-                  setState(() {
-                    currentPage = p + 1;
-                    _selectedVerseKey = null;
-                  });
-                  _preloadPages(p + 1);
-
-                  SchedulerBinding.instance.scheduleTask<void>(
-                    () {
-                      _pagePreloader.preloadAround(context, p + 1, currentReading);
-                      return;
-                    },
-                    Priority.idle,
-                    debugLabel: 'quran_preload_pages',
-                  );
-
-                  _saveTimer?.cancel();
-                  _saveTimer = Timer(const Duration(milliseconds: 350), () {
-                    if (!mounted) return;
-                    _saveToHistory(p + 1);
-                  });
-                },
-                itemBuilder: (context, i) {
-                  final pageNum = i + 1;
-
-                  final cached = _imageCache[pageNum];
-                  if (cached != null) {
-                    return _buildPageContent(cached, isLandscape, pageNum);
-                  }
-
-                  return FutureBuilder<File?>(
-                    future: _safeGetPageFile(currentReading, pageNum),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return _loadingPage(context, pageNum);
-                      }
-
-                      final file = snapshot.data;
-                      if (file == null) {
-                        return Center(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final ok = await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(builder: (_) => const QuranLoader()),
-                              );
-                              if (ok == true && mounted) setState(() {});
-                            },
-                            child: const Text('Télécharger les pages'),
-                          ),
-                        );
-                      }
-
-                      _imageCache[pageNum] = file;
-                      return _buildPageContent(file, isLandscape, pageNum);
-                    },
-                  );
-                },
-              ),
+        children: [
+          // ── Lecteur QCF (remplace PageView.builder + images) ─────────────
+          Positioned.fill(
+            child: QuranPageView(
+              controller: _qcfController,
+              themeModeAdaption: true,
+              showSearchIcon: false,
+              showPageNumber: true,
+              onSuraNameTap: () => _showSurahListFr(initialSurah: currentSurah),
+              highlightColor: const Color(0x554FC3F7),
+              onAyahTap: (surah, ayah, page) {
+                setState(() {
+                  currentPage = page;
+                  _showUI = true;
+                });
+                _saveTimer?.cancel();
+                _saveTimer = Timer(const Duration(milliseconds: 350), () {
+                  if (!mounted) return;
+                  _saveToHistory(page);
+                });
+                AyahActionSheet.show(context, surah: surah, ayah: ayah);
+              },
+              customAyahActions: [
+                AyahActionOption(
+                  title: 'Tafsir & Traduction',
+                  icon: Icons.menu_book_rounded,
+                  onPress: (surah, ayah, page) {
+                    Navigator.pop(context);
+                    AyahActionSheet.show(context, surah: surah, ayah: ayah);
+                  },
+                ),
+                AyahActionOption(
+                  title: 'Note',
+                  icon: Icons.sticky_note_2_outlined,
+                  onPress: (surah, ayah, page) {
+                    Navigator.pop(context);
+                    _showNoteEditor(surah, ayah);
+                  },
+                ),
+              ],
             ),
           ),
 
-            // ── TOP overlay — portrait ──────────────────────────────────────
-            if (!isLandscape)
-              AnimatedPositioned(
+          // ── French surah name below package top bar — portrait ───────────
+          if (!isLandscape)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              top: _showUI ? (viewPadding.top + 60) : (viewPadding.top - 40),
+              left: 30,
+              child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                top: _showUI ? (viewPadding.top + 10) : (viewPadding.top - 80),
-                left: 10,
-                right: 10,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  opacity: _showUI ? 1.0 : 0.0,
-                  child: IgnorePointer(
-                    ignoring: !_showUI,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Opacity(
-                          opacity: 0.5,
-                          child: IconButton(
-                            icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ),
-                        Text(
-                          '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
-                          style: TextStyle(fontSize: 12, color: _themeIconColor, fontWeight: FontWeight.bold),
-                        ),
-                        Opacity(
-                          opacity: 0.6,
-                          child: IconButton(
-                            icon: Icon(
-                              _readerTheme == 0 ? Icons.light_mode_outlined
-                                  : _readerTheme == 1 ? Icons.brightness_medium_outlined
-                                  : Icons.dark_mode_outlined,
-                              size: 20, color: _themeIconColor,
-                            ),
-                            onPressed: _cycleReaderTheme,
-                          ),
-                        ),
-                        Opacity(
-                          opacity: 0.7,
-                          child: IconButton(
-                            icon: Icon(
-                              _noteKeys.isNotEmpty ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
-                              size: 24,
-                              color: _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor,
-                            ),
-                            onPressed: _showNotesListModal,
-                          ),
-                        ),
-                        Opacity(
-                          opacity: 0.7,
-                          child: IconButton(
-                            icon: Icon(Icons.search_rounded, size: 22, color: _themeIconColor),
-                            onPressed: () => setState(() => _isSearchOpen = true),
-                          ),
-                        ),
-                      ],
+                opacity: _showUI ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showUI,
+                  child: Text(
+                    surahNameFr,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _themeIconColor.withValues(alpha: 0.65),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ),
+            ),
 
-            // ── TOP-LEFT back — landscape ───────────────────────────────────
-            if (isLandscape)
-              AnimatedPositioned(
+          // ── French juzz/hizb below package top bar — portrait ────────────
+          if (!isLandscape)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              top: _showUI ? (viewPadding.top + 60) : (viewPadding.top - 40),
+              right: 30,
+              child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                top: _showUI ? (viewPadding.top + 4) : (viewPadding.top - 60),
-                left: 4,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  opacity: _showUI ? 1.0 : 0.0,
-                  child: IgnorePointer(
-                    ignoring: !_showUI,
+                opacity: _showUI ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showUI,
+                  child: Text(
+                    '${_juzzText(currentPage)} · ${_hizbText(currentPage)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _themeIconColor.withValues(alpha: 0.65),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── TOP overlay — portrait ────────────────────────────────────────
+          if (!isLandscape)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              top: _showUI ? (viewPadding.top + 10) : (viewPadding.top - 80),
+              left: 10,
+              right: 10,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: _showUI ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showUI,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
                     child: Opacity(
-                      opacity: 0.6,
+                      opacity: 0.5,
                       child: IconButton(
                         icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
                         onPressed: () => Navigator.pop(context),
@@ -684,258 +794,101 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ),
                 ),
               ),
+            ),
 
-
-            // ── BOTTOM overlay — portrait ───────────────────────────────────
-            if (!isLandscape)
-              AnimatedPositioned(
+          // ── TOP-LEFT back — landscape ─────────────────────────────────────
+          if (isLandscape)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              top: _showUI ? (viewPadding.top + 4) : (viewPadding.top - 60),
+              left: 4,
+              child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                bottom: _showUI ? (viewPadding.bottom + 8) : (viewPadding.bottom - 200),
-                left: 16,
-                right: 16,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  opacity: _showUI ? 1.0 : 0.0,
-                  child: IgnorePointer(
-                    ignoring: !_showUI,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        MiniPlayerWidget(currentSurah: currentSurah),
-                        const SizedBox(height: 6),
-                        _bottomBarPortrait(surahNameFr),
-                      ],
+                opacity: _showUI ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showUI,
+                  child: Opacity(
+                    opacity: 0.6,
+                    child: IconButton(
+                      icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ),
                 ),
               ),
+            ),
 
-            // ── BOTTOM bar — landscape : [info pill] + [MiniPlayer] ─────────
-            if (isLandscape)
-              AnimatedPositioned(
+          // ── Cover package's Arabic page-number bar — portrait ────────────
+          if (!isLandscape)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 100,
+              child: Container(color: _themeBg),
+            ),
+
+          // ── BOTTOM overlay — portrait ─────────────────────────────────────
+          if (!isLandscape)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              bottom: _showUI ? (viewPadding.bottom + 8) : (viewPadding.bottom - 200),
+              left: 16,
+              right: 16,
+              child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                bottom: _showUI ? (viewPadding.bottom + 6) : (viewPadding.bottom - 80),
-                left: viewPadding.left + 56, // laisse la place au bouton back
-                right: viewPadding.right + 8,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  opacity: _showUI ? 1.0 : 0.0,
-                  child: IgnorePointer(
-                    ignoring: !_showUI,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _bottomBarLandscapeInfo(surahNameFr),
-                        const SizedBox(width: 8),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 320),
-                          child: MiniPlayerWidget(currentSurah: currentSurah),
-                        ),
-                        const SizedBox(width: 8),
-                        _landscapeThemeNotesPill(),
-                      ],
-                    ),
+                opacity: _showUI ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showUI,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      MiniPlayerWidget(currentSurah: currentSurah),
+                      const SizedBox(height: 6),
+                      _bottomBarPortrait(surahNameFr),
+                    ],
                   ),
                 ),
               ),
+            ),
 
-            // ── Search overlay ───────────────────────────────────────────────
-            if (_isSearchOpen)
-              Positioned.fill(
-                child: QuranSearchOverlay(
-                  pageController: _pageController,
-                  onClose: () => setState(() => _isSearchOpen = false),
+          // ── BOTTOM bar — landscape ────────────────────────────────────────
+          if (isLandscape)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              bottom: _showUI ? (viewPadding.bottom + 6) : (viewPadding.bottom - 80),
+              left: viewPadding.left + 56,
+              right: viewPadding.right + 8,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: _showUI ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showUI,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _bottomBarLandscapeInfo(surahNameFr),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        child: MiniPlayerWidget(currentSurah: currentSurah),
+                      ),
+                      const SizedBox(width: 8),
+                      _landscapeThemeNotesPill(),
+                    ],
+                  ),
                 ),
               ),
-          ],
-        ),
-    );
-  }
-
-  // ── Tap simple ────────────────────────────────────────────────────────────
-
-  void _onAyahTap(int surah, int ayah, Rect? globalRect) {
-    // Double tap → tout effacer
-    final now = DateTime.now();
-    final isDouble = _lastTapTime != null &&
-        now.difference(_lastTapTime!) < const Duration(milliseconds: 300);
-    _lastTapTime = isDouble ? null : now;
-
-    if (isDouble) {
-      AyahBubble.dismiss();
-      setState(() {
-        _selectedVerseKey  = null;
-        _selectionStartKey = null;
-        _selectionEndKey   = null;
-        MiniPlayerService.instance.clearSelection();
-      });
-      return;
-    }
-
-    AyahBubble.dismiss();
-
-    // Plage complète → tout tap efface tout
-    if (_selectionEndKey != null) {
-      setState(() {
-        _selectedVerseKey  = null;
-        _selectionStartKey = null;
-        _selectionEndKey   = null;
-        MiniPlayerService.instance.clearSelection();
-      });
-      return;
-    }
-
-    if (surah == -1 || _selectionStartKey == null) {
-      // Tap sur zone vide OU sur un verset sans sélection active → toggle UI
-      final hadSelection = _selectionStartKey != null;
-      setState(() {
-        if (!hadSelection) _showUI = !_showUI;
-        _selectedVerseKey  = null;
-        _selectionStartKey = null;
-        _selectionEndKey   = null;
-        MiniPlayerService.instance.clearSelection();
-      });
-      if (!hadSelection) _applySystemBars(_showUI);
-      return;
-    }
-
-    // Tap sur un verset avec une sélection active → déplace la sélection
-    if (_selectionStartKey != null) {
-      final svc = MiniPlayerService.instance;
-      svc.setSelectionStart(surah, ayah);
-      setState(() {
-        _selectedVerseKey  = '$surah:$ayah';
-        _selectionStartKey = '$surah:$ayah';
-        _selectionEndKey   = null;
-      });
-      if (globalRect != null) {
-        AyahBubble.show(
-          context,
-          surah: surah,
-          ayah: ayah,
-          anchorGlobalRect: globalRect,
-          onDismiss: () {
-            if (mounted) setState(() => _selectedVerseKey = null);
-          },
-          onNote: () => _showNoteEditor(surah, ayah),
-          hasNote: _noteKeys.contains('$surah:$ayah'),
-        );
-      }
-    }
-  }
-
-  // ── Long press ────────────────────────────────────────────────────────────
-
-  void _onAyahLongPress(int surah, int ayah, Rect? globalRect) {
-    if (surah == -1) return; // long press sur zone vide → ignoré
-
-    final svc = MiniPlayerService.instance;
-    AyahBubble.dismiss();
-
-    if (_selectionStartKey == null || _selectionEndKey != null) {
-      // ── 1er long press : marque le début + affiche la bulle ─────────────────
-      svc.setSelectionStart(surah, ayah);
-      setState(() {
-        _selectedVerseKey  = '$surah:$ayah';
-        _selectionStartKey = '$surah:$ayah';
-        _selectionEndKey   = null;
-      });
-      if (globalRect != null) {
-        AyahBubble.show(
-          context,
-          surah: surah,
-          ayah: ayah,
-          anchorGlobalRect: globalRect,
-          onDismiss: () {
-            if (mounted) setState(() => _selectedVerseKey = null);
-          },
-          onNote: () => _showNoteEditor(surah, ayah),
-          hasNote: _noteKeys.contains('$surah:$ayah'),
-        );
-      }
-    } else {
-      // ── 2ème long press : marque la fin, surbrille la plage, bulle pour jouer ──
-      svc.setSelectionEnd(surah, ayah);
-      setState(() {
-        _selectedVerseKey  = '$surah:$ayah';
-        _selectionStartKey = svc.selectionStartKey;
-        _selectionEndKey   = svc.selectionEndKey;
-        if (svc.playMode.value != MiniPlayMode.selection) {
-          svc.playMode.value = MiniPlayMode.selection;
-        }
-      });
-      if (globalRect != null) {
-        AyahBubble.show(
-          context,
-          surah: surah,
-          ayah: ayah,
-          anchorGlobalRect: globalRect,
-          onDismiss: () {
-            if (mounted) setState(() => _selectedVerseKey = null);
-          },
-          onNote: () => _showNoteEditor(surah, ayah),
-          hasNote: _noteKeys.contains('$surah:$ayah'),
-        );
-      }
-    }
-  }
-
-  Widget _loadingPage(BuildContext context, int pageNum) {
-    return Container(
-      color: Colors.white,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 80,
-              height: 80,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CircularProgressIndicator(
-                    strokeWidth: 6,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  Center(
-                    child: Icon(
-                      Icons.menu_book_outlined,
-                      size: 36,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
             ),
-            const SizedBox(height: 24),
-            Text(
-              'Page $pageNum',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Chargement en cours...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-  /// Pill theme + notes — affiché à droite du MiniPlayer en paysage.
+  /// Pill theme + notes — paysage droite.
   Widget _landscapeThemeNotesPill() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -979,7 +932,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  /// Pill info paysage : [sourate] | [page] — affiché à gauche du MiniPlayer.
+  /// Pill info paysage gauche.
   Widget _bottomBarLandscapeInfo(String surahNameFr) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -1023,138 +976,90 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Widget _bottomBarPortrait(String surahNameFr) {
     return SizedBox(
-      height: 40,
+      height: 44,
       child: Stack(
         children: [
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _showNavigationPicker,
-              icon: Icon(Icons.menu_book, color: _themeIconColor, size: 20),
-              label: Text(
-                surahNameFr,
-                style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.menu_book, color: _themeIconColor, size: 20),
+                  const SizedBox(width: 6),
+                  Text(
+                    surahNameFr,
+                    style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
             ),
           ),
           Align(
             alignment: Alignment.center,
-            child: Text(
-              '$currentPage',
-              style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    _readerTheme == 0 ? Icons.light_mode_outlined
+                        : _readerTheme == 1 ? Icons.brightness_medium_outlined
+                        : Icons.dark_mode_outlined,
+                    size: 20, color: _themeIconColor,
+                  ),
+                  onPressed: _cycleReaderTheme,
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    _noteKeys.isNotEmpty ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
+                    size: 20,
+                    color: _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor,
+                  ),
+                  onPressed: _showNotesListModal,
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(),
+                  icon: Icon(Icons.search, size: 20, color: _themeIconColor),
+                  onPressed: _qcfController.showSearch,
+                ),
+              ],
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Text(
+                '$currentPage',
+                style: TextStyle(
+                  color: _themeIconColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Avec SystemUiMode.edgeToEdge, la fenêtre Flutter couvre toujours
-        // la totalité de l'écran physique — les contraintes sont stables.
-        final displaySize = Size(constraints.maxWidth, constraints.maxHeight);
-        const imagePxSize = Size(1024, 1657); // taille réelle PNG Hafs 1024px
-
-        Widget wrapFilter(Widget child) => _themeFilter != null
-            ? ColorFiltered(colorFilter: _themeFilter!, child: child)
-            : child;
-
-        if (isLandscape) {
-          final screenW = displaySize.width;
-          final imgH = screenW * (imagePxSize.height / imagePxSize.width);
-          return SingleChildScrollView(
-            child: Stack(
-              children: [
-                wrapFilter(Image.file(
-                  imageFile,
-                  width: screenW,
-                  fit: BoxFit.fitWidth,
-                  filterQuality: FilterQuality.high,
-                )),
-                Positioned(
-                  left: 0, top: 0,
-                  width: screenW,
-                  height: imgH,
-                  child: AyahSelectionOverlay(
-                    page: pageNum,
-                    displaySize: Size(screenW, imgH),
-                    imageSize: imagePxSize,
-                    selectedVerseKey: _selectedVerseKey,
-                    onAyahTap: _onAyahTap,
-                    onAyahLongPress: _onAyahLongPress,
-                    playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
-                    selectionStartKey: _selectionStartKey,
-                    selectionEndKey:   _selectionEndKey,
-                    noteAyahKeys:      _noteKeys,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        // Portrait : calcul de la zone réelle de l'image basé sur les dims physiques
-        final imgAspect = imagePxSize.width / imagePxSize.height;
-        final dispAspect = displaySize.width / displaySize.height;
-        double imgW, imgH, offsetX, offsetY;
-        if (imgAspect > dispAspect) {
-          imgW = displaySize.width;
-          imgH = imgW / imgAspect;
-          offsetX = 0;
-          offsetY = (displaySize.height - imgH) / 2;
-        } else {
-          imgH = displaySize.height;
-          imgW = imgH * imgAspect;
-          offsetX = (displaySize.width - imgW) / 2;
-          offsetY = 0;
-        }
-
-        // Pas de SizedBox fixe — le Stack remplit les contraintes disponibles.
-        // L'image est positionnée avec les offsets calculés depuis displaySize
-        // (taille max vue), donc sa position ne change jamais.
-        return Stack(
-            children: [
-              Positioned(
-                left: offsetX,
-                top: offsetY,
-                width: imgW,
-                height: imgH,
-                child: wrapFilter(Image.file(
-                  imageFile,
-                  width: imgW,
-                  height: imgH,
-                  fit: BoxFit.fill,
-                  filterQuality: FilterQuality.high,
-                )),
-              ),
-              Positioned(
-                left: offsetX,
-                top: offsetY,
-                width: imgW,
-                height: imgH,
-                child: AyahSelectionOverlay(
-                  page: pageNum,
-                  displaySize: Size(imgW, imgH),
-                  imageSize: imagePxSize,
-                  selectedVerseKey: _selectedVerseKey,
-                  onAyahTap: _onAyahTap,
-                  onAyahLongPress: _onAyahLongPress,
-                  playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
-                  selectionStartKey: _selectionStartKey,
-                  selectionEndKey:   _selectionEndKey,
-                  noteAyahKeys:      _noteKeys,
-                ),
-              ),
-            ],
-        );
-      },
-    );
-  }
 }
 
-// ── Nombre de versets par sourate (index 1-based, index 0 inutilisé) ─────────
+// ── Sourates médinoises ────────────────────────────────────────────────────────
+const _kMadaniSurahs = {
+  2, 3, 4, 5, 8, 9, 13, 22, 24, 33, 47, 48, 49, 55, 57, 58, 59, 60, 61, 62,
+  63, 64, 65, 66, 76, 98, 99, 110,
+};
+
+// ── Nombre de versets par sourate ─────────────────────────────────────────────
 const _kSurahVerseCount = [
   0,
    7, 286, 200, 176, 120, 165, 206,  75, 129, 109, // 1-10
@@ -1171,15 +1076,13 @@ const _kSurahVerseCount = [
    5,   4,   5,   6,                               // 111-114
 ];
 
-/// Début exact de chaque juzz (index 0 = juzz 1).
-/// Format : [surahId, ayah]  — référence Hafs.
 const _kJuzzStart = [
-  [1,   1], [2, 142], [2, 253], [3,  92], [4,  24],  // 1-5
-  [4, 148], [5,  82], [6, 111], [7,  87], [8,  41],  // 6-10
-  [9,  93], [11,  6], [12, 53], [15,   1], [17,  1], // 11-15
-  [18, 75], [21,   1], [23,   1], [25,  21], [27, 56], // 16-20
-  [29, 46], [33,  31], [36,  28], [39,  32], [41, 47], // 21-25
-  [46,  1], [51,  31], [58,   1], [67,   1], [78,   1], // 26-30
+  [1,   1], [2, 142], [2, 253], [3,  92], [4,  24],
+  [4, 148], [5,  82], [6, 111], [7,  87], [8,  41],
+  [9,  93], [11,  6], [12, 53], [15,   1], [17,  1],
+  [18, 75], [21,   1], [23,   1], [25,  21], [27, 56],
+  [29, 46], [33,  31], [36,  28], [39,  32], [41, 47],
+  [46,  1], [51,  31], [58,   1], [67,   1], [78,   1],
 ];
 
 // ── Liste des notes ───────────────────────────────────────────────────────────
@@ -1294,12 +1197,9 @@ class _NotesListSheetState extends State<_NotesListSheet> {
                             }))
                             .map<Widget>((e) {
                               final parts = e.key.split(':');
-                              final surah =
-                                  int.tryParse(parts[0]) ?? 0;
-                              final ayah  =
-                                  int.tryParse(parts[1]) ?? 0;
-                              final name  =
-                                  surahFr[surah] ?? 'Sourate $surah';
+                              final surah = int.tryParse(parts[0]) ?? 0;
+                              final ayah  = int.tryParse(parts[1]) ?? 0;
+                              final name  = surahFr[surah] ?? 'Sourate $surah';
                               return Dismissible(
                                 key: ValueKey(e.key),
                                 direction: DismissDirection.endToStart,
@@ -1352,73 +1252,72 @@ class _NotesListSheetState extends State<_NotesListSheet> {
                                       color: Colors.white, size: 24),
                                 ),
                                 child: Card(
-                                color: isDark
-                                    ? const Color(0xFF1C2D3E)
-                                    : const Color(0xFFF9F5EE),
-                                margin:
-                                    const EdgeInsets.symmetric(vertical: 5),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: ListTile(
-                                  onTap: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (_) => AlertDialog(
-                                        backgroundColor: isDark
-                                            ? const Color(0xFF1C2D3E)
-                                            : const Color(0xFFFAF6EE),
-                                        title: Text(
-                                          '$name  ·  verset $ayah',
-                                          style: TextStyle(
-                                              color: fg,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                        content: SingleChildScrollView(
-                                          child: Text(e.value,
-                                              style: TextStyle(
-                                                  color: fg,
-                                                  fontSize: 15,
-                                                  height: 1.6)),
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context),
-                                            child: const Text('Fermer'),
+                                  color: isDark
+                                      ? const Color(0xFF1C2D3E)
+                                      : const Color(0xFFF9F5EE),
+                                  margin: const EdgeInsets.symmetric(vertical: 5),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: ListTile(
+                                    onTap: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) => AlertDialog(
+                                          backgroundColor: isDark
+                                              ? const Color(0xFF1C2D3E)
+                                              : const Color(0xFFFAF6EE),
+                                          title: Text(
+                                            '$name  ·  verset $ayah',
+                                            style: TextStyle(
+                                                color: fg,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold),
                                           ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                  leading: CircleAvatar(
-                                    backgroundColor:
-                                        const Color(0xFFFF8F00).withValues(alpha: 0.15),
-                                    child: const Icon(Icons.sticky_note_2_rounded,
-                                        color: Color(0xFFFF8F00), size: 20),
-                                  ),
-                                  title: Text('$name  ·  verset $ayah',
-                                      style: TextStyle(
-                                          color: fg,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600)),
-                                  subtitle: Text(e.value,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                          color: subtle, fontSize: 12)),
-                                  trailing: IconButton(
-                                    icon: Icon(Icons.edit_outlined,
-                                        size: 18, color: subtle),
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      widget.onNoteEdited(surah, ayah);
+                                          content: SingleChildScrollView(
+                                            child: Text(e.value,
+                                                style: TextStyle(
+                                                    color: fg,
+                                                    fontSize: 15,
+                                                    height: 1.6)),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: const Text('Fermer'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
                                     },
+                                    leading: CircleAvatar(
+                                      backgroundColor:
+                                          const Color(0xFFFF8F00).withValues(alpha: 0.15),
+                                      child: const Icon(Icons.sticky_note_2_rounded,
+                                          color: Color(0xFFFF8F00), size: 20),
+                                    ),
+                                    title: Text('$name  ·  verset $ayah',
+                                        style: TextStyle(
+                                            color: fg,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600)),
+                                    subtitle: Text(e.value,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            color: subtle, fontSize: 12)),
+                                    trailing: IconButton(
+                                      icon: Icon(Icons.edit_outlined,
+                                          size: 18, color: subtle),
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        widget.onNoteEdited(surah, ayah);
+                                      },
+                                    ),
                                   ),
                                 ),
-                              ),  // ferme Card
-                              );  // ferme Dismissible
+                              );
                             })
                             .toList(),
                         ),
@@ -1458,8 +1357,6 @@ class _NavigationPickerState extends State<_NavigationPicker> {
   late final FixedExtentScrollController _surahCtrl;
   late final FixedExtentScrollController _ayahCtrl;
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
   int get _currentSurahId => widget.surahList[_selSurahIdx]['id'] as int;
   int get _verseCount => _kSurahVerseCount[_currentSurahId.clamp(1, 114)];
 
@@ -1475,12 +1372,9 @@ class _NavigationPickerState extends State<_NavigationPicker> {
     return _juzzOfPage(page);
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────
-
   @override
   void initState() {
     super.initState();
-    // Initialise à la position actuelle
     _selSurahIdx = widget.surahList.lastIndexWhere(
       (s) => (s['page'] as int) <= widget.currentPage,
     ).clamp(0, widget.surahList.length - 1);
@@ -1499,8 +1393,6 @@ class _NavigationPickerState extends State<_NavigationPicker> {
     _ayahCtrl.dispose();
     super.dispose();
   }
-
-  // ── Callbacks ─────────────────────────────────────────────────────────────
 
   void _onJuzzChanged(int idx) {
     if (_syncing) return;
@@ -1540,8 +1432,6 @@ class _NavigationPickerState extends State<_NavigationPicker> {
     if (_syncing) return;
     setState(() => _selAyah = idx + 1);
   }
-
-  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -1585,7 +1475,6 @@ class _NavigationPickerState extends State<_NavigationPicker> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
           Container(
             width: 36, height: 4,
             decoration: BoxDecoration(
@@ -1594,26 +1483,21 @@ class _NavigationPickerState extends State<_NavigationPicker> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // Labels colonnes
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Flexible(flex: 7, child: Center(child: Text('Juzz',    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fgDim)))),
+                Flexible(flex: 7,  child: Center(child: Text('Juzz',    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fgDim)))),
                 Flexible(flex: 13, child: Center(child: Text('Sourate', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fgDim)))),
-                Flexible(flex: 7, child: Center(child: Text('Verset',  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fgDim)))),
+                Flexible(flex: 7,  child: Center(child: Text('Verset',  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fgDim)))),
               ],
             ),
           ),
           const SizedBox(height: 4),
-
-          // Roues
           SizedBox(
             height: wheelH,
             child: Stack(
               children: [
-                // Ligne de sélection centrale
                 Positioned(
                   top: (wheelH - itemH) / 2,
                   left: 16, right: 16,
@@ -1630,7 +1514,6 @@ class _NavigationPickerState extends State<_NavigationPicker> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      // Juzz
                       wheel(
                         ctrl: _juzzCtrl,
                         itemCount: 30,
@@ -1645,9 +1528,7 @@ class _NavigationPickerState extends State<_NavigationPicker> {
                           ),
                         ),
                       ),
-                      // Séparateur
                       Container(width: 1, height: wheelH * 0.6, color: fgDim.withValues(alpha: 0.4)),
-                      // Sourate
                       wheel(
                         ctrl: _surahCtrl,
                         itemCount: widget.surahList.length,
@@ -1667,9 +1548,7 @@ class _NavigationPickerState extends State<_NavigationPicker> {
                           );
                         },
                       ),
-                      // Séparateur
                       Container(width: 1, height: wheelH * 0.6, color: fgDim.withValues(alpha: 0.4)),
-                      // Verset
                       wheel(
                         ctrl: _ayahCtrl,
                         itemCount: _verseCount,
@@ -1690,10 +1569,7 @@ class _NavigationPickerState extends State<_NavigationPicker> {
               ],
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // Bouton Aller
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: SizedBox(

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../services/bookmark_service.dart';
 import '../theme/app_theme.dart';
-import 'screens/quran_loader.dart';
+import 'reader_screen.dart';
 
 /// Écran de gestion des marque-pages
 class BookmarksScreen extends StatefulWidget {
@@ -244,7 +244,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => QuranLoader(initialPage: bookmark.page),
+              builder: (_) => ReaderScreen(initialPage: bookmark.page, reading: 'hafs'),
             ),
           );
         },
@@ -395,7 +395,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProv
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => QuranLoader(initialPage: bookmark.page),
+                      builder: (_) => ReaderScreen(initialPage: bookmark.page, reading: 'hafs'),
                     ),
                   );
                 },

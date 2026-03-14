@@ -5,11 +5,9 @@ import 'package:flutter/rendering.dart';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
 import '../services/navigation_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/quran_image_service.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import '../services/reading_history_service.dart';
@@ -19,7 +17,6 @@ import '../surah_name.dart';
 import 'reciter_picker_screen.dart';
 import 'reader_screen.dart';
 import 'tafsir_library_screen.dart';
-import 'screens/quran_loader.dart';
 import 'surah_list_screen.dart';
 import 'translated_quran_screen.dart';
 import 'widgets/continue_reading_card.dart';
@@ -496,37 +493,17 @@ Future<void> _checkFirstLaunch() async {
     return shouldDownload ?? false;
   }
 
-  Future<void> _openReader(int page, {String? reading}) async {
+  void _openReader(int page, {String? reading}) {
     final selectedReading = reading ?? _preferredReading;
-
-    try {
-      // précharge la page demandée pour éviter un petit freeze
-      final File firstFile = await QuranImageService.getPageFile(selectedReading, page);
-      if (!mounted) return;
-      await precacheImage(FileImage(firstFile), context);
-
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ReaderScreen(
-            initialPage: page,
-            reading: selectedReading,
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReaderScreen(
+          initialPage: page,
+          reading: selectedReading,
         ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      final ok = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(builder: (_) => const QuranLoader()),
-      );
-
-      if (ok == true && mounted) {
-        await _openReader(page, reading: selectedReading);
-      }
-    }
+      ),
+    );
   }
 
 

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/reading_history_service.dart';
 import 'reader_screen.dart';
-import 'screens/quran_loader.dart';
-import '../services/quran_image_service.dart';
 
 class ReadingHistoryScreen extends StatefulWidget {
   const ReadingHistoryScreen({super.key});
@@ -30,25 +28,9 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen> {
     });
   }
 
-  Future<void> _openReading(Map<String, dynamic> it) async {
+  void _openReading(Map<String, dynamic> it) {
     final int page = (it['page'] is int) ? it['page'] as int : int.tryParse('${it['page']}') ?? 1;
     final String reading = (it['reading']?.toString() ?? 'hafs');
-
-    final downloaded = await QuranImageService.areImagesDownloaded();
-    if (!mounted) return;
-
-    if (!downloaded) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => QuranLoader(
-            initialPage: page,
-            reading: reading,
-          ),
-        ),
-      );
-      return;
-    }
 
     Navigator.push(
       context,

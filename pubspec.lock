@@ -210,10 +210,10 @@ packages:
     dependency: "direct dev"
     description:
       name: flutter_lints
-      sha256: "9e8c3858111da373efc5aa341de011d9bd23e2c5c5e0c62bccf32438e192d7b1"
+      sha256: "3105dc8492f6183fb076ccf1f351ac3d60564bff92e20bfc4af9cc1651f4e7e1"
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.2"
+    version: "6.0.0"
   flutter_svg:
     dependency: "direct main"
     description:
@@ -420,10 +420,10 @@ packages:
     dependency: transitive
     description:
       name: lints
-      sha256: cbf8d4b858bb0134ef3ef87841abdf8d63bfc255c266b7bf6b39daa1085c4290
+      sha256: "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df"
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0"
+    version: "6.1.0"
   matcher:
     dependency: transitive
     description:
@@ -560,6 +560,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.3"
+  quran:
+    dependency: transitive
+    description:
+      name: quran
+      sha256: afee7c882130da65ad3fe225e0f43b958029ebf8f2ddf9d99414e82d8598fcfc
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.1"
+  quran_pages_with_ayah_detector:
+    dependency: "direct main"
+    description:
+      name: quran_pages_with_ayah_detector
+      sha256: "54e47f9638e8fdb95a11020c696fac4a233dfbe6b3d67158280a501c273da693"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.0"
   rxdart:
     dependency: "direct main"
     description:
@@ -909,6 +925,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.3"
+  yaml_edit:
+    dependency: transitive
+    description:
+      name: yaml_edit
+      sha256: "07c9e63ba42519745182b88ca12264a7ba2484d8239958778dfe4d44fe760488"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.4"
 sdks:
   dart: ">=3.10.0 <4.0.0"
   flutter: ">=3.38.0"
