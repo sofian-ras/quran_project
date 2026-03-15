@@ -138,23 +138,23 @@ class DailyVerseService {
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now().toIso8601String().substring(0, 10);
     final lastDate = prefs.getString(_lastDateKey);
-    
+
     // Si c'est un nouveau jour, choisir un nouveau verset
     if (lastDate != today) {
       final verse = _selectRandomVerse(today);
-      await _saveDailyVerse(verse, today);
+      await _saveDailyVerse(verse, today, prefs);
       return verse;
     }
-    
+
     // Sinon retourner le verset sauvegardé
     final savedVerse = prefs.getString(_lastVerseKey);
     if (savedVerse != null) {
       return _parseVerse(savedVerse);
     }
-    
+
     // Fallback
     final verse = _selectRandomVerse(today);
-    await _saveDailyVerse(verse, today);
+    await _saveDailyVerse(verse, today, prefs);
     return verse;
   }
   
@@ -176,8 +176,7 @@ class DailyVerseService {
   }
   
   // Sauvegarder le verset du jour
-  Future<void> _saveDailyVerse(DailyVerse verse, String date) async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> _saveDailyVerse(DailyVerse verse, String date, SharedPreferences prefs) async {
     await prefs.setString(_lastDateKey, date);
     await prefs.setString(_lastVerseKey, _serializeVerse(verse));
   }
@@ -214,7 +213,8 @@ class DailyVerseService {
     );
     
     final today = DateTime.now().toIso8601String().substring(0, 10);
-    await _saveDailyVerse(verse, today);
+    final prefs = await SharedPreferences.getInstance();
+    await _saveDailyVerse(verse, today, prefs);
     return verse;
   }
 }

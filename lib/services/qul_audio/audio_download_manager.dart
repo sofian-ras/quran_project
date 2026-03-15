@@ -14,6 +14,7 @@
 //   <documents>/qul_audio/<quranComId>/<surah>_<ayah>.mp3  ← verset
 //   <documents>/qul_audio/<quranComId>/surah_<surah>.mp3   ← sourate complète
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
@@ -227,7 +228,7 @@ class AudioDownloadManager {
         onReceiveProgress: (received, total) {
           if (total > 0) {
             entry.progress = received / total;
-            _notifyAndPersist();
+            _notifyOnly();
           }
         },
       );
@@ -270,9 +271,16 @@ class AudioDownloadManager {
 
   // ── Persistance ───────────────────────────────────────────────────────────
 
-  void _notifyAndPersist() {
+  Timer? _persistDebounce;
+
+  void _notifyOnly() {
     entriesNotifier.value = Map.unmodifiable(_entries);
-    _saveState();
+  }
+
+  void _notifyAndPersist() {
+    _notifyOnly();
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(const Duration(seconds: 2), _saveState);
   }
 
   Future<void> _loadState() async {

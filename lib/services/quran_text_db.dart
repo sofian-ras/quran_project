@@ -317,12 +317,9 @@ class QuranTextDb {
   }
 
   Future<List<QVerse>> getRange(int surah, int fromAyah, int toAyah) async {
-    final out = <QVerse>[];
-    for (int ayah = fromAyah; ayah <= toAyah; ayah++) {
-      final v = await getVerseByKey('$surah:$ayah');
-      if (v != null) out.add(v);
-    }
-    return out;
+    final keys = [for (int a = fromAyah; a <= toAyah; a++) '$surah:$a'];
+    final map = await getVersesByKeys(keys);
+    return keys.map((k) => map[k]).whereType<QVerse>().toList();
   }
 
   Future<void> close() async {

@@ -46,6 +46,12 @@ class QuranPagesHitboxDb {
   Future<void> _open() async {
     if (_db != null) return;
     final path = await _resolveDbPath();
+    // Ouvre en écriture une seule fois pour créer l'index (idempotent).
+    final writable = await openDatabase(path);
+    await writable.execute(
+      'CREATE INDEX IF NOT EXISTS idx_ayarects_page ON ayarects(page)',
+    );
+    await writable.close();
     _db = await openDatabase(path, readOnly: true);
   }
 

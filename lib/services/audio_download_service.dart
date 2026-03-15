@@ -114,24 +114,22 @@ class AudioDownloadService {
   }
 
   Future<List<int>> getDownloadedSurahs() async {
-    final List<int> downloaded = [];
-    for (int i = 1; i <= 114; i++) {
-      if (await isDownloaded(i)) {
-        downloaded.add(i);
-      }
-    }
-    return downloaded;
+    final results = await Future.wait(
+      List.generate(114, (i) async {
+        return await isDownloaded(i + 1) ? i + 1 : 0;
+      }),
+    );
+    return results.where((id) => id > 0).toList();
   }
 
   Future<int> getTotalDownloadedSize() async {
     final downloaded = await getDownloadedSurahs();
-    int totalSize = 0;
-    for (final surahId in downloaded) {
-      final file = await getAudioFile(surahId);
-      if (await file.exists()) {
-        totalSize += await file.length();
-      }
-    }
-    return totalSize;
+    final sizes = await Future.wait<int>(
+      downloaded.map((surahId) async {
+        final file = await getAudioFile(surahId);
+        return await file.exists() ? await file.length() : 0;
+      }),
+    );
+    return sizes.fold<int>(0, (a, b) => a + b);
   }
 }

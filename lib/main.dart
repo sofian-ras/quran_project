@@ -44,8 +44,8 @@ Future<void> main() async {
       systemNavigationBarContrastEnforced: false,
     ),
   );
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 150 * 1024 * 1024;
-  PaintingBinding.instance.imageCache.maximumSize = 200;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 60;
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -118,20 +118,14 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
           themeMode: mode,
           home: const InitialLoadingScreen(),
           builder: (context, child) {
-            return Overlay(
-              initialEntries: [
-                OverlayEntry(
-                  builder: (context) => Material(
-                    color: Colors.transparent,
-                    child: Stack(
-                      children: [
-                        if (child != null) child,
-                        const GlobalMiniPlayerOverlay(),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            return Material(
+              color: Colors.transparent,
+              child: Stack(
+                children: [
+                  if (child != null) child,
+                  const GlobalMiniPlayerOverlay(),
+                ],
+              ),
             );
           },
         ),       // MaterialApp

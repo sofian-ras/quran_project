@@ -208,29 +208,38 @@ class TafsirService {
 
   // ── Reading ──────────────────────────────────────────────────────────────────
 
-  static Future<List<TafsirVerse>> getSurah(TafsirBook book, int surah) async {
+  static final Map<String, Database> _openDbs = {};
+  static final Map<String, List<TafsirVerse>> _surahCache = {};
+
+  static Future<Database> _getDb(TafsirBook book) async {
+    final slug = book.slug;
+    if (_openDbs.containsKey(slug)) return _openDbs[slug]!;
     final path = await _dbPath(book);
-    final db = await openDatabase(path, readOnly: true);
-    try {
-      final rows = await db.query(
-        'verses',
-        where: 'surah = ?',
-        whereArgs: [surah],
-        orderBy: 'ayah ASC',
-      );
-      return rows
-          .map((r) => TafsirVerse(
-                verseKey: r['verse_key'] as String,
-                surah: r['surah'] as int,
-                ayah: r['ayah'] as int,
-                // Ré-applique le nettoyage pour corriger les données stockées
-                // avant le fix deux-passes (entités HTML encodées).
-                text: _stripHtml(r['text'] as String),
-              ))
-          .toList();
-    } finally {
-      await db.close();
-    }
+    _openDbs[slug] = await openDatabase(path, readOnly: true);
+    return _openDbs[slug]!;
+  }
+
+  static Future<List<TafsirVerse>> getSurah(TafsirBook book, int surah) async {
+    final cacheKey = '${book.slug}:$surah';
+    if (_surahCache.containsKey(cacheKey)) return _surahCache[cacheKey]!;
+
+    final db = await _getDb(book);
+    final rows = await db.query(
+      'verses',
+      where: 'surah = ?',
+      whereArgs: [surah],
+      orderBy: 'ayah ASC',
+    );
+    final result = rows
+        .map((r) => TafsirVerse(
+              verseKey: r['verse_key'] as String,
+              surah: r['surah'] as int,
+              ayah: r['ayah'] as int,
+              text: _stripHtml(r['text'] as String),
+            ))
+        .toList();
+    _surahCache[cacheKey] = result;
+    return result;
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 /// Service pour QuranicAudio via l'API Quran.com v4
 /// Documentation: https://api.quran.com/api/v4/
@@ -28,7 +29,7 @@ class QuranicAudioService {
       }
       return [];
     } catch (e) {
-      print('❌ Erreur lors de la récupération des récitations: $e');
+      debugPrint('❌ Erreur lors de la récupération des récitations: $e');
       return [];
     }
   }
@@ -49,7 +50,7 @@ class QuranicAudioService {
       }
       return null;
     } catch (e) {
-      print('❌ Erreur récupération audio sourate $chapterNumber pour récitation $recitationId: $e');
+      debugPrint('❌ Erreur récupération audio sourate $chapterNumber pour récitation $recitationId: $e');
       return null;
     }
   }
@@ -81,7 +82,7 @@ class QuranicAudioService {
       }
       return {};
     } catch (e) {
-      print('❌ Erreur récupération URLs pour récitation $recitationId: $e');
+      debugPrint('❌ Erreur récupération URLs pour récitation $recitationId: $e');
       return {};
     }
   }
@@ -114,7 +115,7 @@ class QuranicAudioService {
       }
       return [];
     } catch (e) {
-      print('❌ Erreur récupération versets audio: $e');
+      debugPrint('❌ Erreur récupération versets audio: $e');
       return [];
     }
   }

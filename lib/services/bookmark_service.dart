@@ -40,9 +40,15 @@ class Bookmark {
 class BookmarkService {
   static final BookmarkService instance = BookmarkService._();
   BookmarkService._();
-  
+
   static const String _bookmarksKey = 'bookmarks';
   static const String _categoriesKey = 'bookmark_categories';
+
+  static SharedPreferences? _prefs;
+  List<Bookmark>? _cache;
+
+  Future<SharedPreferences> get _sharedPrefs async =>
+      _prefs ??= await SharedPreferences.getInstance();
   
   // Catégories prédéfinies
   static const List<String> defaultCategories = [
@@ -103,12 +109,15 @@ class BookmarkService {
   
   // Récupérer tous les marque-pages
   Future<List<Bookmark>> getBookmarks() async {
-    final prefs = await SharedPreferences.getInstance();
+    if (_cache != null) return _cache!;
+    final prefs = await _sharedPrefs;
     final jsonStr = prefs.getString(_bookmarksKey);
-    if (jsonStr == null) return [];
-    
-    final list = json.decode(jsonStr) as List<dynamic>;
-    return list.map((e) => Bookmark.fromJson(e as Map<String, dynamic>)).toList();
+    _cache = jsonStr == null
+        ? []
+        : (json.decode(jsonStr) as List<dynamic>)
+            .map((e) => Bookmark.fromJson(e as Map<String, dynamic>))
+            .toList();
+    return _cache!;
   }
   
   // Récupérer les marque-pages par catégorie
@@ -119,29 +128,29 @@ class BookmarkService {
   
   // Sauvegarder les marque-pages
   Future<void> _saveBookmarks(List<Bookmark> bookmarks) async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonList = bookmarks.map((b) => b.toJson()).toList();
-    await prefs.setString(_bookmarksKey, json.encode(jsonList));
+    _cache = bookmarks;
+    final prefs = await _sharedPrefs;
+    await prefs.setString(_bookmarksKey, json.encode(bookmarks.map((b) => b.toJson()).toList()));
   }
   
   // Obtenir les catégories personnalisées
   Future<List<String>> getCategories() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _sharedPrefs;
     final jsonStr = prefs.getString(_categoriesKey);
     if (jsonStr == null) return List.from(defaultCategories);
-    
+
     final custom = (json.decode(jsonStr) as List).cast<String>();
     return [...defaultCategories, ...custom];
   }
-  
+
   // Ajouter une catégorie personnalisée
   Future<void> addCategory(String category) async {
     final categories = await getCategories();
     if (!categories.contains(category)) {
       categories.add(category);
       final custom = categories.where((c) => !defaultCategories.contains(c)).toList();
-      
-      final prefs = await SharedPreferences.getInstance();
+
+      final prefs = await _sharedPrefs;
       await prefs.setString(_categoriesKey, json.encode(custom));
     }
   }
@@ -177,7 +186,8 @@ class BookmarkService {
   
   // Nettoyer tous les marque-pages
   Future<void> clearAll() async {
-    final prefs = await SharedPreferences.getInstance();
+    _cache = null;
+    final prefs = await _sharedPrefs;
     await prefs.remove(_bookmarksKey);
   }
 }

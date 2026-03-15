@@ -82,8 +82,15 @@ class DownloadService {
   Future<String> get surahsPath async => p.join(await _basePath, 'quran', 'surahs');
   Future<String> audioPath(String reciter) async => p.join(await _basePath, 'audio', reciter);
   
+  DateTime? _lastNotify;
+
   void _notifyListeners() {
-    _downloadsSubject.add(_downloads.values.toList());
+    final now = DateTime.now();
+    if (_lastNotify == null ||
+        now.difference(_lastNotify!) > const Duration(milliseconds: 100)) {
+      _downloadsSubject.add(_downloads.values.toList());
+      _lastNotify = now;
+    }
   }
   
   // Vérifier si un fichier existe

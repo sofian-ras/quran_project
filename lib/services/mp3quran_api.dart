@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 class Mp3QuranApi {
   Mp3QuranApi._();
@@ -61,7 +62,7 @@ class Mp3QuranApi {
       }
     } catch (e) {
       // Log l'erreur mais ne crash pas
-      print('Mp3QuranApi: Erreur lors de la récupération de baseUrl pour reciter $reciterId: $e');
+      debugPrint('Mp3QuranApi: Erreur lors de la récupération de baseUrl pour reciter $reciterId: $e');
     }
 
     return null;

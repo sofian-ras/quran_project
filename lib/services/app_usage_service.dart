@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Tracks cumulative time the user spends in the app.
@@ -7,6 +8,7 @@ class AppUsageService {
 
   static int _baseSeconds  = 0;
   static int _sessionStart = 0; // ms since epoch, 0 = not running
+  static Timer? _saveDebounce;
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -23,8 +25,11 @@ class AppUsageService {
     final elapsed = (DateTime.now().millisecondsSinceEpoch - _sessionStart) ~/ 1000;
     _baseSeconds += elapsed;
     _sessionStart = 0;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_kTotalSeconds, _baseSeconds);
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 500), () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_kTotalSeconds, _baseSeconds);
+    });
   }
 
   /// Current total including the live session.
