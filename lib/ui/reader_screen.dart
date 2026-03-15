@@ -18,10 +18,12 @@ import 'widgets/mini_player_widget.dart';
 import '../services/quran_page_preloader.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
+import '../data/sura_ayah_to_page.dart';
 import '../services/reading_history_service.dart';
 import '../services/last_reading_service.dart';
 import '../services/verse_notes_service.dart';
 import 'widgets/quran_search_overlay.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -444,21 +446,43 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  int _getCurrentSurahForPage(int page) {
+    if (fullSurahList.isEmpty) return 1;
+    return fullSurahList.lastWhere(
+      (s) => (s['page'] as int) <= page,
+      orElse: () => fullSurahList.first,
+    )['id'] as int;
+  }
+
   void _showNavigationPicker() {
+    _showSurahSelectionSheet(initialSurah: _getCurrentSurahForPage(currentPage));
+  }
+
+  void _showSurahSelectionSheet({int? initialSurah}) {
+    final isDark = _readerTheme == 2;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _NavigationPicker(
-        surahList: fullSurahList,
-        currentPage: currentPage,
-        isDark: _readerTheme == 2,
-        onConfirm: (surahId, ayah) async {
-          Navigator.pop(context);
-          final page = await QuranPagesHitboxDb.instance.getPageForAyah(surahId, ayah);
-          if (page != null && mounted) _pageController.jumpToPage(page - 1);
-        },
-      ),
+      builder: (context) {
+        return _SurahSelectionSheet(
+          surahList: fullSurahList,
+          currentSurah: initialSurah ?? 1,
+          currentPage: currentPage,
+          isDark: isDark,
+          onSurahTap: (surahId) {
+            Navigator.pop(context);
+            final p = suraAyahToPage[surahId]?[1] ?? 1;
+            _pageController.jumpToPage(p - 1);
+          },
+          onJuzTap: (page) {
+            Navigator.pop(context);
+            _pageController.jumpToPage(page - 1);
+          },
+        );
+      },
     );
   }
 
@@ -1154,6 +1178,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 }
 
+// ── Sûrats madaniyya (révélées à Médine) ─────────────────────────────────────
+const _kMadaniSurahs = {
+  2, 3, 4, 5, 8, 9, 13, 22, 24, 33, 47, 48, 49, 55,
+  57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 76, 98, 110,
+};
+
 // ── Nombre de versets par sourate (index 1-based, index 0 inutilisé) ─────────
 const _kSurahVerseCount = [
   0,
@@ -1169,17 +1199,6 @@ const _kSurahVerseCount = [
   15,  21,  11,   8,   8,  19,   5,   8,   8,  11, // 91-100
   11,   8,   3,   9,   5,   4,   7,   3,   6,   3, // 101-110
    5,   4,   5,   6,                               // 111-114
-];
-
-/// Début exact de chaque juzz (index 0 = juzz 1).
-/// Format : [surahId, ayah]  — référence Hafs.
-const _kJuzzStart = [
-  [1,   1], [2, 142], [2, 253], [3,  92], [4,  24],  // 1-5
-  [4, 148], [5,  82], [6, 111], [7,  87], [8,  41],  // 6-10
-  [9,  93], [11,  6], [12, 53], [15,   1], [17,  1], // 11-15
-  [18, 75], [21,   1], [23,   1], [25,  21], [27, 56], // 16-20
-  [29, 46], [33,  31], [36,  28], [39,  32], [41, 47], // 21-25
-  [46,  1], [51,  31], [58,   1], [67,   1], [78,   1], // 26-30
 ];
 
 // ── Liste des notes ───────────────────────────────────────────────────────────
@@ -1430,288 +1449,299 @@ class _NotesListSheetState extends State<_NotesListSheet> {
   }
 }
 
-// ── Roulette de navigation : Juzz | Sourate | Verset ─────────────────────────
-class _NavigationPicker extends StatefulWidget {
+// ── Item types pour la liste mixte ───────────────────────────────────────────
+sealed class _SheetItem {}
+
+class _JuzItem extends _SheetItem {
+  final int juzNum;
+  final int startPage;
+  _JuzItem(this.juzNum, this.startPage);
+}
+
+class _SurahItem extends _SheetItem {
+  final Map<String, dynamic> data;
+  _SurahItem(this.data);
+}
+
+// ── Feuille de sélection (Juzz + Sourates dans une seule liste) ───────────────
+class _SurahSelectionSheet extends StatefulWidget {
   final List<Map<String, dynamic>> surahList;
+  final int currentSurah;
   final int currentPage;
   final bool isDark;
-  final Future<void> Function(int surahId, int ayah) onConfirm;
+  final void Function(int surahId) onSurahTap;
+  final void Function(int page) onJuzTap;
 
-  const _NavigationPicker({
+  const _SurahSelectionSheet({
     required this.surahList,
+    required this.currentSurah,
     required this.currentPage,
     required this.isDark,
-    required this.onConfirm,
+    required this.onSurahTap,
+    required this.onJuzTap,
   });
 
   @override
-  State<_NavigationPicker> createState() => _NavigationPickerState();
+  State<_SurahSelectionSheet> createState() => _SurahSelectionSheetState();
 }
 
-class _NavigationPickerState extends State<_NavigationPicker> {
-  late int _selJuzz;
-  late int _selSurahIdx;
-  late int _selAyah;
-  bool _syncing = false;
+class _SurahSelectionSheetState extends State<_SurahSelectionSheet> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _query = '';
 
-  late final FixedExtentScrollController _juzzCtrl;
-  late final FixedExtentScrollController _surahCtrl;
-  late final FixedExtentScrollController _ayahCtrl;
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
-  int get _currentSurahId => widget.surahList[_selSurahIdx]['id'] as int;
-  int get _verseCount => _kSurahVerseCount[_currentSurahId.clamp(1, 114)];
-
-  int _juzzOfPage(int page) {
-    for (int j = juzzMap.length - 1; j >= 0; j--) {
-      if (juzzMap[j]['start_page']! <= page) return juzzMap[j]['juz']!;
-    }
-    return 1;
-  }
-
-  int _juzzOfSurah(int idx) {
-    final page = widget.surahList[idx]['page'] as int;
-    return _juzzOfPage(page);
-  }
-
-  // ── Init ─────────────────────────────────────────────────────────────────
+  // Liste complète avec en-têtes de Juz intercalés
+  late final List<_SheetItem> _allItems;
 
   @override
   void initState() {
     super.initState();
-    // Initialise à la position actuelle
-    _selSurahIdx = widget.surahList.lastIndexWhere(
-      (s) => (s['page'] as int) <= widget.currentPage,
-    ).clamp(0, widget.surahList.length - 1);
-    _selJuzz  = _juzzOfSurah(_selSurahIdx);
-    _selAyah  = 1;
-
-    _juzzCtrl  = FixedExtentScrollController(initialItem: _selJuzz - 1);
-    _surahCtrl = FixedExtentScrollController(initialItem: _selSurahIdx);
-    _ayahCtrl  = FixedExtentScrollController(initialItem: 0);
+    _allItems = _buildMixedList();
+    _searchCtrl.addListener(() {
+      setState(() => _query = _searchCtrl.text.trim().toLowerCase());
+    });
   }
 
   @override
   void dispose() {
-    _juzzCtrl.dispose();
-    _surahCtrl.dispose();
-    _ayahCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
-  // ── Callbacks ─────────────────────────────────────────────────────────────
-
-  void _onJuzzChanged(int idx) {
-    if (_syncing) return;
-    _syncing = true;
-    final juzz = idx + 1;
-    final start     = _kJuzzStart[idx];
-    final surahId   = start[0];
-    final startAyah = start[1];
-    final surahIdx  = widget.surahList
-        .indexWhere((s) => s['id'] == surahId)
-        .clamp(0, widget.surahList.length - 1);
-    setState(() {
-      _selJuzz     = juzz;
-      _selSurahIdx = surahIdx;
-      _selAyah     = startAyah;
-    });
-    _surahCtrl.jumpToItem(surahIdx);
-    _ayahCtrl.jumpToItem(startAyah - 1);
-    _syncing = false;
+  List<_SheetItem> _buildMixedList() {
+    final items = <_SheetItem>[];
+    int nextJuzIdx = 0;
+    for (final surah in widget.surahList) {
+      final surahPage = surah['page'] as int;
+      // Insérer les en-têtes de Juz dont la page de début <= page de cette sourate
+      while (nextJuzIdx < juzzMap.length &&
+          juzzMap[nextJuzIdx]['start_page']! <= surahPage) {
+        items.add(_JuzItem(
+          juzzMap[nextJuzIdx]['juz']!,
+          juzzMap[nextJuzIdx]['start_page']!,
+        ));
+        nextJuzIdx++;
+      }
+      items.add(_SurahItem(surah));
+    }
+    return items;
   }
 
-  void _onSurahChanged(int idx) {
-    if (_syncing) return;
-    _syncing = true;
-    final juzz = _juzzOfSurah(idx);
-    setState(() {
-      _selSurahIdx = idx;
-      _selJuzz     = juzz;
-      _selAyah     = 1;
-    });
-    _juzzCtrl.jumpToItem(juzz - 1);
-    _ayahCtrl.jumpToItem(0);
-    _syncing = false;
+  // Retourne la liste à afficher (filtrée ou complète)
+  List<_SheetItem> get _visibleItems {
+    if (_query.isEmpty) return _allItems;
+    // En mode recherche : uniquement les sourates qui correspondent
+    return _allItems.whereType<_SurahItem>().where((item) {
+      final fr = (item.data['nameFr'] as String).toLowerCase();
+      final id = item.data['id'].toString();
+      return fr.contains(_query) || id.contains(_query);
+    }).toList();
   }
-
-  void _onAyahChanged(int idx) {
-    if (_syncing) return;
-    setState(() => _selAyah = idx + 1);
-  }
-
-  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final bg     = widget.isDark ? const Color(0xFF0D1B2A) : Colors.white;
-    final fg     = widget.isDark ? Colors.white : Colors.black87;
-    final fgDim  = widget.isDark ? Colors.white38 : Colors.black26;
-    final accent = widget.isDark ? const Color(0xFF7B61FF) : const Color(0xFF5B4FCF);
+    final isDark = widget.isDark;
+    final sheetBg = isDark ? const Color(0xFF0D1B2A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtleColor = isDark ? Colors.white38 : Colors.black38;
+    final highlightColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.05);
+    final infoColor = isDark ? Colors.white54 : Colors.black45;
+    final searchFill = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.grey.shade100;
 
-    const itemH   = 44.0;
-    const wheelH  = 220.0;
+    final accentColor =
+        isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6C35);
+    final juzBg = isDark
+        ? Colors.white.withValues(alpha: 0.04)
+        : accentColor.withValues(alpha: 0.07);
+    final dividerColor = Colors.grey.withValues(alpha: 0.07);
+    final visibleItems = _visibleItems;
 
-    Widget wheel({
-      required FixedExtentScrollController ctrl,
-      required int itemCount,
-      required Widget Function(int) builder,
-      required void Function(int) onChanged,
-      double flex = 1,
-    }) {
-      return Flexible(
-        flex: (flex * 10).round(),
-        child: ListWheelScrollView.useDelegate(
-          controller: ctrl,
-          itemExtent: itemH,
-          diameterRatio: 1.4,
-          physics: const FixedExtentScrollPhysics(),
-          onSelectedItemChanged: onChanged,
-          childDelegate: ListWheelChildBuilderDelegate(
-            childCount: itemCount,
-            builder: (_, i) => Center(child: builder(i)),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
           ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: const EdgeInsets.fromLTRB(0, 12, 0, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag handle
-          Container(
-            width: 36, height: 4,
-            decoration: BoxDecoration(
-              color: fgDim,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Labels colonnes
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Flexible(flex: 7, child: Center(child: Text('Juzz',    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fgDim)))),
-                Flexible(flex: 13, child: Center(child: Text('Sourate', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fgDim)))),
-                Flexible(flex: 7, child: Center(child: Text('Verset',  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fgDim)))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-
-          // Roues
-          SizedBox(
-            height: wheelH,
-            child: Stack(
-              children: [
-                // Ligne de sélection centrale
-                Positioned(
-                  top: (wheelH - itemH) / 2,
-                  left: 16, right: 16,
-                  child: Container(
-                    height: itemH,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: accent.withValues(alpha: 0.25)),
-                    ),
+          child: Column(
+            children: [
+              // ── Drag handle ──────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 8),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: subtleColor,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      // Juzz
-                      wheel(
-                        ctrl: _juzzCtrl,
-                        itemCount: 30,
-                        flex: 0.7,
-                        onChanged: _onJuzzChanged,
-                        builder: (i) => Text(
-                          '${i + 1}',
-                          style: TextStyle(
-                            fontSize: i == _selJuzz - 1 ? 17 : 14,
-                            fontWeight: i == _selJuzz - 1 ? FontWeight.w700 : FontWeight.w400,
-                            color: i == _selJuzz - 1 ? fg : fgDim,
-                          ),
-                        ),
-                      ),
-                      // Séparateur
-                      Container(width: 1, height: wheelH * 0.6, color: fgDim.withValues(alpha: 0.4)),
-                      // Sourate
-                      wheel(
-                        ctrl: _surahCtrl,
-                        itemCount: widget.surahList.length,
-                        flex: 1.3,
-                        onChanged: _onSurahChanged,
-                        builder: (i) {
-                          final s = widget.surahList[i];
-                          final sel = i == _selSurahIdx;
-                          return Text(
-                            '${s['id']}. ${s['nameFr']}',
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: sel ? 15 : 12,
-                              fontWeight: sel ? FontWeight.w700 : FontWeight.w400,
-                              color: sel ? fg : fgDim,
-                            ),
-                          );
-                        },
-                      ),
-                      // Séparateur
-                      Container(width: 1, height: wheelH * 0.6, color: fgDim.withValues(alpha: 0.4)),
-                      // Verset
-                      wheel(
-                        ctrl: _ayahCtrl,
-                        itemCount: _verseCount,
-                        flex: 0.7,
-                        onChanged: _onAyahChanged,
-                        builder: (i) => Text(
-                          '${i + 1}',
-                          style: TextStyle(
-                            fontSize: i == _selAyah - 1 ? 17 : 14,
-                            fontWeight: i == _selAyah - 1 ? FontWeight.w700 : FontWeight.w400,
-                            color: i == _selAyah - 1 ? fg : fgDim,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Bouton Aller
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => widget.onConfirm(_currentSurahId, _selAyah),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Aller', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
-            ),
+
+              // ── Champ de recherche ────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  controller: _searchCtrl,
+                  style: TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    hintText: 'Rechercher une sourate…',
+                    hintStyle: TextStyle(color: subtleColor),
+                    prefixIcon: Icon(Icons.search, color: subtleColor),
+                    filled: true,
+                    fillColor: searchFill,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+
+              // ── Liste unique ──────────────────────────────────────────────
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: visibleItems.length,
+                  itemBuilder: (context, index) {
+                    final item = visibleItems[index];
+
+                    // ── En-tête Juz ─────────────────────────────────────────
+                    if (item is _JuzItem) {
+                      return InkWell(
+                        onTap: () => widget.onJuzTap(item.startPage),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 9),
+                          color: juzBg,
+                          child: Row(
+                            children: [
+                              Text(
+                                'Juz ${item.juzNum}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: accentColor,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Page ${item.startPage}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: accentColor.withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    // ── Ligne sourate ───────────────────────────────────────
+                    final s = (item as _SurahItem).data;
+                    final id = s['id'] as int;
+                    final nameFr = s['nameFr'] as String;
+                    final isHighlighted = id == widget.currentSurah;
+                    final ayahsCount = _kSurahVerseCount[id.clamp(1, 114)];
+                    final madani = _kMadaniSurahs.contains(id);
+                    final firstPage = suraAyahToPage[id]?[1] ?? 1;
+
+                    return InkWell(
+                      onTap: () => widget.onSurahTap(id),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isHighlighted
+                              ? highlightColor
+                              : Colors.transparent,
+                          border: Border(
+                            bottom: BorderSide(color: dividerColor),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // ── Numéro ────────────────────────────────────
+                            SizedBox(
+                              width: 28,
+                              child: Text(
+                                '$id',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: subtleColor,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            // ── Nom FR + sous-titre ───────────────────────
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    nameFr,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: textColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '$ayahsCount versets • ${madani ? 'Médinoise' : 'Mecquoise'}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: subtleColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // ── SVG arabe (grand, bleu, à droite) ─────────
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 120),
+                              child: SvgPicture.asset(
+                                'assets/images/Translated_Quran/surah_svg/$id.svg',
+                                height: 28,
+                                fit: BoxFit.contain,
+                                alignment: Alignment.centerRight,
+                                colorFilter: const ColorFilter.mode(
+                                    Color(0xFF0D47A1), BlendMode.srcIn),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // ── Page ──────────────────────────────────────
+                            Text(
+                              'Page $firstPage',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: infoColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
