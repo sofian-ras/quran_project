@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -7,44 +6,21 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quran_pages_with_ayah_detector/quran_pages_with_ayah_detector.dart';
 
-import '../services/quran_pages_hitbox_db.dart';
+import '../services/mushaf_db.dart';
+import '../services/page_images_service.dart';
 import '../services/mini_player_service.dart';
 import 'widgets/mini_player_widget.dart';
 import 'widgets/ayah_bubble.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
+import '../services/audio_service.dart';
 import '../services/reading_history_service.dart';
-import '../services/last_reading_service.dart';
 import '../services/verse_notes_service.dart';
 
-class GradientText extends StatelessWidget {
-  final String text;
-  final TextStyle? style;
-  final Gradient gradient;
-
-  const GradientText(
-    this.text, {
-    Key? key,
-    this.style,
-    required this.gradient,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (bounds) =>
-          gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
-      child: Text(
-        text,
-        style: (style ?? const TextStyle()).copyWith(color: Colors.white),
-      ),
-    );
-  }
-}
 
 class ReaderScreen extends StatefulWidget {
   final int initialPage;
-  final String reading; // conservé pour la compatibilité API, plus utilisé pour le rendu
+  final String reading;
 
   const ReaderScreen({
     super.key,
@@ -62,7 +38,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   late QuranPageController _qcfController;
 
-  List<Map<String, dynamic>> fullSurahList = [];
+  List<SurahInfo> _surahList = [];
   bool _showUI = true;
   Timer? _saveTimer;
   Offset? _lastTouchPosition;
@@ -129,33 +105,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
     );
 
-    currentPage = widget.initialPage;
-
-    final startPage = (widget.initialPage < 1)
-        ? 1
-        : (widget.initialPage > 604 ? 604 : widget.initialPage);
-
+    currentPage = widget.initialPage.clamp(1, 604);
     _qcfController = QuranPageController();
 
-    _initApp();
+    _loadSurahs();
     _loadReaderTheme();
     _loadNoteKeys();
     MiniPlayerService.instance.currentAyahKey.addListener(_onPlayingAyahChanged);
+    AudioService.instance.suppressGlobalPlayer.value = true;
 
-    () async {
-      try {
-        await QuranPagesHitboxDb.instance.ensureFromAsset(
-          assetPath: 'assets/data/quranpages1024.sqlite',
-        );
-      } catch (e) {
-        debugPrint('Erreur chargement hitbox: $e');
-      }
-    }();
-
-    // Saute à la page initiale après la construction du widget
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (startPage > 1 && mounted) {
-        _qcfController.jumpToPage(startPage);
+      if (currentPage > 1 && mounted) {
+        _qcfController.jumpToPage(currentPage);
       }
     });
   }
@@ -165,6 +126,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
     _saveTimer?.cancel();
 
+    AudioService.instance.suppressGlobalPlayer.value = false;
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -187,37 +149,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final ayah  = int.tryParse(parts[1]);
     if (surah == null || ayah == null) return;
 
-    final page = await QuranPagesHitboxDb.instance.getPageForAyah(surah, ayah);
+    final page = await MushafDb.instance.getPageForAyah(surah, ayah);
     if (!mounted || page == null) return;
 
     if (page != currentPage) {
-      _qcfController.jumpToPage(page);
+      _navigateToPage(page);
     }
     setState(() {});
   }
 
-  Future<void> _initApp() async {
-    final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
-    final quranData = json.decode(jsonStr) as List<dynamic>;
-
-    final added = <int>{};
-    final List<Map<String, dynamic>> list = [];
-
-    for (final v in quranData) {
-      final id = v['surah'] as int;
-      if (!added.contains(id)) {
-        list.add({
-          'id': id,
-          'nameAr': v['sura_name'] ?? 'Sourate $id',
-          'nameFr': surahFr[id] ?? 'Sourate $id',
-          'page': v['page'] ?? 1,
-        });
-        added.add(id);
-      }
-    }
-
+  Future<void> _loadSurahs() async {
+    final list = await MushafDb.instance.getAllSurahs();
     if (!mounted) return;
-    setState(() => fullSurahList = list);
+    setState(() => _surahList = list);
+  }
+
+  void _navigateToPage(int page) {
+    setState(() => currentPage = page.clamp(1, 604));
+    _qcfController.jumpToPage(currentPage);
   }
 
   // ── Éditeur de note ───────────────────────────────────────────────────────
@@ -328,10 +277,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         onNoteEdited: (surah, ayah) => _showNoteEditor(surah, ayah),
         onNavigate: (surah, ayah) async {
           if (mounted) Navigator.pop(context);
-          final page = await QuranPagesHitboxDb.instance.getPageForAyah(surah, ayah);
-          if (page != null && mounted) {
-            _qcfController.jumpToPage(page);
-          }
+          final page = await MushafDb.instance.getPageForAyah(surah, ayah);
+          if (page != null && mounted) _navigateToPage(page);
         },
       ),
     );
@@ -343,13 +290,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _NavigationPicker(
-        surahList: fullSurahList,
+        surahList: _surahList,
         currentPage: currentPage,
         isDark: _readerTheme == 2,
         onConfirm: (surahId, ayah) async {
           Navigator.pop(context);
-          final page = await QuranPagesHitboxDb.instance.getPageForAyah(surahId, ayah);
-          if (page != null && mounted) _qcfController.jumpToPage(page);
+          final page = await MushafDb.instance.getPageForAyah(surahId, ayah);
+          if (page != null && mounted) _navigateToPage(page);
         },
       ),
     );
@@ -374,23 +321,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _saveToHistory(int page) {
-    if (fullSurahList.isEmpty) return;
+    if (_surahList.isEmpty) return;
 
-    final surah = fullSurahList.firstWhere(
-      (s) => s['page'] == page,
-      orElse: () => fullSurahList.last,
+    final surah = _surahList.lastWhere(
+      (s) => s.pageStart <= page,
+      orElse: () => _surahList.last,
     );
 
     ReadingHistoryService.instance.saveLastReading(
       page: page,
-      surahId: surah['id'] as int,
-      surahName: surah['nameFr'] as String,
+      surahId: surah.id,
+      surahName: surah.nameFr,
       reading: widget.reading,
-    );
-
-    LastReadingService.saveLastReading(
-      surahNumber: surah['id'] as int,
-      pageNumber: page,
     );
   }
 
@@ -399,20 +341,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final viewPadding = MediaQuery.of(context).viewPadding;
 
-    final currentSurah = fullSurahList.isEmpty
+    final currentSurah = _surahList.isEmpty
         ? 1
-        : (fullSurahList.lastWhere(
-              (s) => (s['page'] as int) <= currentPage,
-              orElse: () => fullSurahList.first,
-            )['id'] as int? ?? 1);
+        : _surahList.lastWhere(
+              (s) => s.pageStart <= currentPage,
+              orElse: () => _surahList.first,
+            ).id;
 
-    final surahNameFr = fullSurahList.isEmpty
+    final surahNameFr = _surahList.isEmpty
         ? ''
-        : (fullSurahList.lastWhere(
-              (s) => (s['page'] as int) <= currentPage,
-              orElse: () => fullSurahList.first,
-            )['nameFr'] as String? ??
-            '');
+        : _surahList.lastWhere(
+              (s) => s.pageStart <= currentPage,
+              orElse: () => _surahList.first,
+            ).nameFr;
 
     return Scaffold(
       backgroundColor: _themeBg,
@@ -428,7 +369,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
               onPointerDown: (e) => _lastTouchPosition = e.position,
               child: QuranPageView(
                 controller: _qcfController,
-                themeModeAdaption: true,
+                pageImagePath: PageImagesService.localPagesPath != null
+                    ? '${PageImagesService.localPagesPath}/'
+                    : 'assets/pages/',
+                themeModeAdaption: false,
+                quranTextColor: _readerTheme == 2
+                    ? Colors.white
+                    : (_readerTheme == 0 ? Colors.black : const Color(0xFF2C1810)),
+                topBarTextColor: _readerTheme == 2
+                    ? Colors.white70
+                    : (_readerTheme == 0 ? Colors.black87 : const Color(0xFF2C1810)),
                 showSearchIcon: false,
                 showPageNumber: true,
                 highlightColor: const Color(0x554FC3F7),
@@ -440,9 +390,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     _showUI = true;
                   });
                   _saveTimer?.cancel();
-                  _saveTimer = Timer(const Duration(milliseconds: 350), () {
+                  _saveTimer = Timer(const Duration(milliseconds: 800), () {
                     if (!mounted) return;
-                    _saveToHistory(page);
+                    _saveToHistory(currentPage);
                   });
                   final touch = _lastTouchPosition ??
                       Offset(
@@ -468,7 +418,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
 
-          // ── French surah name below package top bar — portrait ───────────
+          // ── French surah name below package top bar — portrait ────────────
           if (!isLandscape)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 220),
@@ -492,7 +442,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
             ),
 
-          // ── French juzz/hizb below package top bar — portrait ────────────
+          // ── French juzz/hizb below package top bar — portrait ─────────────
           if (!isLandscape)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 220),
@@ -566,7 +516,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
             ),
 
-          // ── Cover package's Arabic page-number bar — portrait ────────────
+          // ── Cover package's Arabic page-number bar — portrait ─────────────
           if (!isLandscape)
             Positioned(
               bottom: 0,
@@ -783,32 +733,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 }
 
-
-// ── Nombre de versets par sourate ─────────────────────────────────────────────
-const _kSurahVerseCount = [
-  0,
-   7, 286, 200, 176, 120, 165, 206,  75, 129, 109, // 1-10
- 123, 111,  43,  52,  99, 128, 111, 110,  98, 135, // 11-20
- 112,  78, 118,  64,  77, 227,  93,  88,  69,  60, // 21-30
-  34,  30,  73,  54,  45,  83, 182,  88,  75,  85, // 31-40
-  54,  53,  89,  59,  37,  35,  38,  29,  18,  45, // 41-50
-  60,  49,  62,  55,  78,  96,  29,  22,  24,  13, // 51-60
-  14,  11,  11,  18,  12,  12,  30,  52,  52,  44, // 61-70
-  28,  28,  20,  56,  40,  31,  50,  40,  46,  42, // 71-80
-  29,  19,  36,  25,  22,  17,  19,  26,  30,  20, // 81-90
-  15,  21,  11,   8,   8,  19,   5,   8,   8,  11, // 91-100
-  11,   8,   3,   9,   5,   4,   7,   3,   6,   3, // 101-110
-   5,   4,   5,   6,                               // 111-114
-];
-
-const _kJuzzStart = [
-  [1,   1], [2, 142], [2, 253], [3,  92], [4,  24],
-  [4, 148], [5,  82], [6, 111], [7,  87], [8,  41],
-  [9,  93], [11,  6], [12, 53], [15,   1], [17,  1],
-  [18, 75], [21,   1], [23,   1], [25,  21], [27, 56],
-  [29, 46], [33,  31], [36,  28], [39,  32], [41, 47],
-  [46,  1], [51,  31], [58,   1], [67,   1], [78,   1],
-];
 
 // ── Liste des notes ───────────────────────────────────────────────────────────
 
@@ -1054,9 +978,10 @@ class _NotesListSheetState extends State<_NotesListSheet> {
   }
 }
 
+
 // ── Roulette de navigation : Juzz | Sourate | Verset ─────────────────────────
 class _NavigationPicker extends StatefulWidget {
-  final List<Map<String, dynamic>> surahList;
+  final List<SurahInfo> surahList;
   final int currentPage;
   final bool isDark;
   final Future<void> Function(int surahId, int ayah) onConfirm;
@@ -1082,8 +1007,8 @@ class _NavigationPickerState extends State<_NavigationPicker> {
   late final FixedExtentScrollController _surahCtrl;
   late final FixedExtentScrollController _ayahCtrl;
 
-  int get _currentSurahId => widget.surahList[_selSurahIdx]['id'] as int;
-  int get _verseCount => _kSurahVerseCount[_currentSurahId.clamp(1, 114)];
+  int get _currentSurahId => widget.surahList[_selSurahIdx].id;
+  int get _verseCount => widget.surahList[_selSurahIdx].ayahCount;
 
   int _juzzOfPage(int page) {
     for (int j = juzzMap.length - 1; j >= 0; j--) {
@@ -1092,16 +1017,13 @@ class _NavigationPickerState extends State<_NavigationPicker> {
     return 1;
   }
 
-  int _juzzOfSurah(int idx) {
-    final page = widget.surahList[idx]['page'] as int;
-    return _juzzOfPage(page);
-  }
+  int _juzzOfSurah(int idx) => _juzzOfPage(widget.surahList[idx].pageStart);
 
   @override
   void initState() {
     super.initState();
     _selSurahIdx = widget.surahList.lastIndexWhere(
-      (s) => (s['page'] as int) <= widget.currentPage,
+      (s) => s.pageStart <= widget.currentPage,
     ).clamp(0, widget.surahList.length - 1);
     _selJuzz  = _juzzOfSurah(_selSurahIdx);
     _selAyah  = 1;
@@ -1123,19 +1045,21 @@ class _NavigationPickerState extends State<_NavigationPicker> {
     if (_syncing) return;
     _syncing = true;
     final juzz = idx + 1;
-    final start     = _kJuzzStart[idx];
-    final surahId   = start[0];
-    final startAyah = start[1];
-    final surahIdx  = widget.surahList
-        .indexWhere((s) => s['id'] == surahId)
+    final startPage = juzzMap[idx]['start_page']!;
+    final surahEntry = widget.surahList.lastWhere(
+      (s) => s.pageStart <= startPage,
+      orElse: () => widget.surahList.first,
+    );
+    final surahIdx = widget.surahList
+        .indexWhere((s) => s.id == surahEntry.id)
         .clamp(0, widget.surahList.length - 1);
     setState(() {
       _selJuzz     = juzz;
       _selSurahIdx = surahIdx;
-      _selAyah     = startAyah;
+      _selAyah     = 1;
     });
     _surahCtrl.jumpToItem(surahIdx);
-    _ayahCtrl.jumpToItem(startAyah - 1);
+    _ayahCtrl.jumpToItem(0);
     _syncing = false;
   }
 
@@ -1165,8 +1089,8 @@ class _NavigationPickerState extends State<_NavigationPicker> {
     final fgDim  = widget.isDark ? Colors.white38 : Colors.black26;
     final accent = widget.isDark ? const Color(0xFF7B61FF) : const Color(0xFF5B4FCF);
 
-    const itemH   = 44.0;
-    const wheelH  = 220.0;
+    const itemH  = 44.0;
+    const wheelH = 220.0;
 
     Widget wheel({
       required FixedExtentScrollController ctrl,
@@ -1263,7 +1187,7 @@ class _NavigationPickerState extends State<_NavigationPicker> {
                           final s = widget.surahList[i];
                           final sel = i == _selSurahIdx;
                           return Text(
-                            '${s['id']}. ${s['nameFr']}',
+                            '${s.id}. ${s.nameFr}',
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: sel ? 15 : 12,

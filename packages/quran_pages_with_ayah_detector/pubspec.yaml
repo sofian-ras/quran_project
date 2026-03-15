@@ -25,3 +25,5 @@ executables:
   quran_assets_cli: quran_assets_cli
 flutter:
   uses-material-design: true
+  assets:
+    - lib/data/ayah_data.json

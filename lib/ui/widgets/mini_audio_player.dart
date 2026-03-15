@@ -325,12 +325,16 @@ class _SwipeToDismissPlayerState extends State<_SwipeToDismissPlayer> {
         }
       },
       onVerticalDragEnd: (d) {
-        if (_offset > 60 || d.velocity.pixelsPerSecond.dy > 400) {
+        final shouldDismiss = _offset > 60 || d.velocity.pixelsPerSecond.dy > 400;
+        if (shouldDismiss) {
           widget.onDismiss();
+          return; // ne pas appeler setState sur un widget qui va se démonter
         }
-        setState(() => _offset = 0);
+        if (mounted) setState(() => _offset = 0);
       },
-      onVerticalDragCancel: () => setState(() => _offset = 0),
+      onVerticalDragCancel: () {
+        if (mounted) setState(() => _offset = 0);
+      },
       child: Transform.translate(
         offset: Offset(0, _offset),
         child: Opacity(
@@ -373,8 +377,12 @@ class GlobalMiniPlayerOverlay extends StatelessWidget {
                   bottom: bottomInset,
                   left: 0,
                   right: 0,
-                  child: _SwipeToDismissPlayer(
-                    onDismiss: audio.stop,
+                  child: SafeArea(
+                    bottom: true,
+                    top: false,
+                    child: _SwipeToDismissPlayer(
+                      onDismiss: audio.stop,
+                    ),
                   ),
                 );
               },

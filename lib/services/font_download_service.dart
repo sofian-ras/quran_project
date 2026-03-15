@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 
 /// Service pour le téléchargement et le chargement des polices QCF (Quranic Font Code).
 class FontDownloadService {
@@ -120,13 +120,16 @@ class FontDownloadService {
   }
 
   static void _extractZipTask(Map<String, String> params) {
-    final zipPath = params['zipPath']!;
+    final zipPath        = params['zipPath']!;
     final destinationPath = params['destinationPath']!;
-    final fontsPath = p.join(destinationPath, 'fonts');
+    final fontsPath      = p.join(destinationPath, 'fonts');
     try {
       Directory(fontsPath).createSync(recursive: true);
-      final bytes = File(zipPath).readAsBytesSync();
-      final archive = ZipDecoder().decodeBytes(bytes);
+
+      // Lecture en streaming — le ZIP n'est jamais chargé entièrement en RAM.
+      final inputStream = InputFileStream(zipPath);
+      final archive     = ZipDecoder().decodeStream(inputStream);
+
       int processed = 0;
       for (final file in archive) {
         if (!file.isFile) continue;
@@ -136,17 +139,21 @@ class FontDownloadService {
             name.contains('/.')) {
           continue;
         }
-        // On ne garde que les TTF
         if (!name.toLowerCase().endsWith('.ttf')) continue;
-        final baseName = p.basename(name);
-        final outFile = File(p.join(fontsPath, baseName));
-        outFile.writeAsBytesSync(file.content as List<int>);
+
+        final outPath      = p.join(fontsPath, p.basename(name));
+        final outputStream = OutputFileStream(outPath);
+        file.writeContent(outputStream);
+        outputStream.close();
+
         processed++;
         if (processed % 50 == 0) {
           // ignore: avoid_print
           print('Extraction polices: $processed fichiers');
         }
       }
+
+      inputStream.close();
       // ignore: avoid_print
       print('Extraction terminée: $processed fichiers TTF dans $fontsPath');
     } catch (e) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/font_download_service.dart';
+import '../../services/page_images_service.dart';
 import '../../services/quran_translation_pack_service.dart';
 import '../widgets/download_progress_widget.dart';
 import '../bottom_nav_shell.dart';
@@ -29,11 +30,16 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
     try {
       final fontsReady       = await FontDownloadService.areFontsDownloaded();
       final translationReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
+      final pagesReady       = await PageImagesService.areImagesDownloaded();
 
-      if (fontsReady && translationReady) {
+      if (fontsReady && translationReady && pagesReady) {
+        await PageImagesService.init();
         _navigateToReader();
         return;
       }
+
+      final total = (fontsReady ? 0 : 1) + (translationReady ? 0 : 1) + (pagesReady ? 0 : 1);
+      int step = 1;
 
       // ── 1. Polices QCF ────────────────────────────────────────────────────
       if (!fontsReady) {
@@ -42,7 +48,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
             _isExtracting = false;
             _isDownloading = true;
             _downloadProgress = 0.0;
-            _statusMessage = 'Polices calligraphiques (1/2)';
+            _statusMessage = 'Polices calligraphiques ($step/$total)';
           });
         }
 
@@ -51,7 +57,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
             if (mounted) {
               setState(() {
                 _downloadProgress = progress;
-                _statusMessage = 'Polices QCF… (1/2)';
+                _statusMessage = 'Polices QCF… ($step/$total)';
               });
             }
           },
@@ -65,6 +71,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
           });
         }
         await Future.delayed(const Duration(milliseconds: 300));
+        step++;
       }
 
       // ── 2. Pack de traduction française ───────────────────────────────────
@@ -74,7 +81,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
             _isExtracting = false;
             _isDownloading = true;
             _downloadProgress = 0.0;
-            _statusMessage = 'Traduction française (2/2)';
+            _statusMessage = 'Traduction française ($step/$total)';
           });
         }
 
@@ -84,7 +91,50 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
             if (mounted) {
               setState(() {
                 _downloadProgress = progress;
-                _statusMessage = 'Traduction française… (2/2)';
+                _statusMessage = 'Traduction française… ($step/$total)';
+              });
+            }
+          },
+        );
+
+        if (mounted) {
+          setState(() {
+            _isDownloading = false;
+            _isExtracting = false;
+            _statusMessage = 'Finalisation…';
+          });
+        }
+        await Future.delayed(const Duration(milliseconds: 300));
+        step++;
+      }
+
+      // ── 3. Images des pages Mushaf ────────────────────────────────────────
+      if (!pagesReady) {
+        if (mounted) {
+          setState(() {
+            _isExtracting = false;
+            _isDownloading = true;
+            _downloadProgress = 0.0;
+            _statusMessage = 'Images du Mushaf ($step/$total)';
+          });
+        }
+
+        await PageImagesService.downloadAndExtract(
+          onDownloadProgress: (progress) {
+            if (mounted) {
+              setState(() {
+                _downloadProgress = progress;
+                _statusMessage = 'Images du Mushaf… ($step/$total)';
+              });
+            }
+          },
+          onExtractionProgress: (progress) {
+            if (mounted) {
+              setState(() {
+                _isDownloading = false;
+                _isExtracting = true;
+                _downloadProgress = progress;
+                _statusMessage = 'Extraction des images…';
               });
             }
           },
@@ -100,6 +150,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
         await Future.delayed(const Duration(milliseconds: 300));
       }
 
+      await PageImagesService.init();
       _navigateToReader();
     } catch (e) {
       if (mounted) {

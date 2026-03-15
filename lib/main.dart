@@ -10,7 +10,7 @@ import 'services/app_usage_service.dart';
 import 'services/audio_service.dart';
 import 'services/navigation_service.dart';
 import 'services/quran_translation_pack_service.dart';
-
+import 'services/mushaf_db.dart';
 
 
 Future<void> main() async {
@@ -27,6 +27,7 @@ Future<void> main() async {
       androidStopForegroundOnPause: true,
     ),
     ThemeService.init(),
+    MushafDb.instance.init(),
   ]);
 
   // Opérations non-bloquantes : lancées en arrière-plan sans retarder runApp.

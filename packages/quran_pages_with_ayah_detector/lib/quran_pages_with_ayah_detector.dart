@@ -431,7 +431,7 @@ class _QuranPageViewState extends State<QuranPageView>
     super.initState();
     _pageController = PageController();
     widget.controller?._attach(this);
-    _buildPageAyahMap();
+    _loadPageAyahMap();
     _buildSurasStartingOnPageMap();
     _initQuartersMap();
 
@@ -481,37 +481,11 @@ class _QuranPageViewState extends State<QuranPageView>
     super.dispose();
   }
 
-  /// Builds the internal [_pageAyahMap] from [ayahRows].
-  /// This ensures the mapping matches the actual visual layout of ayahs on each page.
-  void _buildPageAyahMap() {
-    // Use ayahRows as the source of truth for which ayahs are on which page
-    for (final row in ayahRows) {
-      final page = row['page_number'];
-      final surah = row['sura_number'];
-      final ayah = row['ayah_number'];
-
-      if (page is! int || surah is! int || ayah is! int) continue;
-
-      final ayahList = _pageAyahMap.putIfAbsent(page, () => []);
-
-      // Check if this ayah is already in the list (avoid duplicates)
-      final exists =
-          ayahList.any((e) => e['surah'] == surah && e['ayah'] == ayah);
-      if (!exists) {
-        ayahList.add({
-          'surah': surah,
-          'ayah': ayah,
-        });
-      }
-    }
-
-    // Sort ayahs on each page by surah number, then ayah number
-    _pageAyahMap.forEach((page, ayahs) {
-      ayahs.sort((a, b) {
-        if (a['surah'] != b['surah']) return a['surah']!.compareTo(b['surah']!);
-        return a['ayah']!.compareTo(b['ayah']!);
-      });
-    });
+  /// Loads the internal [_pageAyahMap] from the JSON asset (async).
+  Future<void> _loadPageAyahMap() async {
+    final map = await buildPageAyahMap();
+    if (!mounted) return;
+    setState(() => _pageAyahMap.addAll(map));
   }
 
   /// Builds the internal [_surasStartingOnPage] map.
@@ -1707,6 +1681,26 @@ class _QuranPageState extends State<_QuranPage> {
   /// Global key for the ayah menu overlay.
   final GlobalKey _menuKey = GlobalKey();
 
+  Widget _buildPageImage(String imagePath, {double? width, double? height, BoxFit? fit, Color? color}) {
+    final isFile = imagePath.startsWith('/') || (imagePath.length > 2 && imagePath[1] == ':');
+    if (isFile) {
+      return Image.file(
+        File(imagePath),
+        width: width,
+        height: height,
+        fit: fit,
+        color: color,
+      );
+    }
+    return Image.asset(
+      imagePath,
+      width: width,
+      height: height,
+      fit: fit,
+      color: color,
+    );
+  }
+
   @override
 
   /// Updates the selection state when the parent widget changes.
@@ -1728,14 +1722,9 @@ class _QuranPageState extends State<_QuranPage> {
     _loadData();
   }
 
-  /// Loads ayah segment coordinates for this page from [ayahRows].
+  /// Loads ayah segment coordinates for this page from the JSON asset.
   Future<void> _loadData() async {
-    final rows = ayahRows.where((r) {
-      final pn = r['page_number'];
-      if (pn is int) return pn == widget.pageNumber;
-      if (pn is String) return int.tryParse(pn) == widget.pageNumber;
-      return false;
-    });
+    final rows = await ayahRowsForPage(widget.pageNumber);
 
     final Map<String, Segment> grouped = {};
     for (final r in rows) {
@@ -1850,19 +1839,17 @@ class _QuranPageState extends State<_QuranPage> {
       if (page >= 1 && page <= quranTextData.length) {
         final pageLines = quranTextData[page - 1];
 
-        // Filter ayahRows (List<Map>) to get unique ayahs for this page
+        // Get unique ayahs for this page via O(1) lookup
         final Set<String> seen = {};
         final List<Map<String, int>> pageAyahs = [];
 
-        for (final row in ayahRows) {
-          if (row['page_number'] == page) {
-            final s = row['sura_number'] as int;
-            final a = row['ayah_number'] as int;
-            final key = '$s:$a';
-            if (!seen.contains(key)) {
-              seen.add(key);
-              pageAyahs.add({'surah': s, 'ayah': a});
-            }
+        for (final row in await ayahRowsForPage(page)) {
+          final s = row['sura_number'] as int;
+          final a = row['ayah_number'] as int;
+          final key = '$s:$a';
+          if (!seen.contains(key)) {
+            seen.add(key);
+            pageAyahs.add({'surah': s, 'ayah': a});
           }
         }
 
@@ -2322,7 +2309,7 @@ class _QuranPageState extends State<_QuranPage> {
                       height: scrollDispH,
                       child: Stack(
                         children: [
-                          Image.asset(
+                          _buildPageImage(
                             '${widget.pageImagePath}${widget.pageNumber}.png',
                             width: containerW,
                             height: scrollDispH,
@@ -2338,6 +2325,13 @@ class _QuranPageState extends State<_QuranPage> {
                               width: s.width * scrollScale,
                               height: s.height * scrollScale,
                               child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  if (widget.onAyahTap != null) {
+                                    widget.onAyahTap!(
+                                        s.sura, s.ayah, widget.pageNumber);
+                                  }
+                                },
                                 onLongPress: () {
                                   if (widget.showAyahMenu) {
                                     _showAyahMenu(s.sura, s.ayah);
@@ -2560,7 +2554,7 @@ class _QuranPageState extends State<_QuranPage> {
                         top: 0,
                         width: normalDispW,
                         height: normalDispH,
-                        child: Image.asset(
+                        child: _buildPageImage(
                           '${widget.pageImagePath}${widget.pageNumber}.png',
                           fit: BoxFit.contain,
                           color: widget.themeModeAdaption
@@ -2576,6 +2570,13 @@ class _QuranPageState extends State<_QuranPage> {
                           width: s.width * normalScale,
                           height: s.height * normalScale,
                           child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              if (widget.onAyahTap != null) {
+                                widget.onAyahTap!(
+                                    s.sura, s.ayah, widget.pageNumber);
+                              }
+                            },
                             onLongPress: () {
                               _showAyahMenu(s.sura, s.ayah);
                               if (widget.onAyahTap != null) {
