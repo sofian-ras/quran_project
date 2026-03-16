@@ -12,9 +12,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/audio_service.dart';
+import '../services/bookmark_service.dart';
 import '../services/mini_player_service.dart';
 import '../services/reading_history_service.dart';
 import '../services/tafsir_service.dart';
+import '../services/verse_favorites_service.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import 'tafsir_reader_screen.dart';
@@ -38,19 +40,20 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   late int currentPage;
   int _readerTheme = 1; // 0=blanc 1=sepia 2=dark
-  final PageController _pageController = PageController();
+  late final PageController _pageController;
 
   bool _showHud = true;
   bool _showSearch = false;
 
-  // Position temps réel du PageView (0-indexed, double) pour sync HUD
+  // Position temps réel (0-indexed, double) pour l'animation du HUD
   final ValueNotifier<double> _pagePos = ValueNotifier(0.0);
 
-  // Lookup O(1) page → juzz/hizb (construit une fois en initState)
+  // Lookup O(1) page → juzz/hizb
   late final Map<int, int> _pageJuzz;
   late final Map<int, int> _pageHizb;
 
   // ── Thème QCF ──────────────────────────────────────────────────────────────
+
   QcfThemeData get _qcfTheme {
     switch (_readerTheme) {
       case 0:
@@ -62,23 +65,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  // Doit correspondre exactement au pageBackgroundColor du thème QCF
-  // pour que les marges FittedBox soient invisibles pendant le swipe
   Color get _themeBg => _readerTheme == 2
-      ? const Color(0xFF1E1E1E)   // = QcfThemeData.dark().pageBackgroundColor
-      : (_readerTheme == 0
-          ? Colors.white           // = QcfThemeData().pageBackgroundColor
-          : const Color(0xFFF5E6D3)); // = QcfThemeData.sepia().pageBackgroundColor
+      ? const Color(0xFF1E1E1E)
+      : (_readerTheme == 0 ? Colors.white : const Color(0xFFF5E6D3));
 
-  // Couleur des icônes/texte du HUD
   Color get _hudFg =>
       _readerTheme == 2 ? Colors.white70 : const Color(0xFF4A3F30);
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
+
   @override
   void initState() {
     super.initState();
     currentPage = widget.initialPage.clamp(1, 604);
+    _pageController = PageController(initialPage: currentPage - 1);
     _pageJuzz = _buildLookup(juzzMap, 'juz');
     _pageHizb = _buildLookup(hizbMap, 'hizb');
     _loadTheme();
@@ -113,7 +113,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final ayah = int.tryParse(parts[1]);
     if (surah == null || ayah == null) return;
     final page = getPageNumber(surah, ayah);
-    if (page != currentPage && mounted) setState(() => currentPage = page);
+    if (page != currentPage && mounted) {
+      setState(() => currentPage = page);
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          page - 1,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
   }
 
   Future<void> _loadTheme() async {
@@ -139,7 +148,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  // Construit un Map<page, valeur> depuis juzzMap/hizbMap (exécuté une seule fois)
   static Map<int, int> _buildLookup(List<Map<String, int>> src, String key) {
     final map = <int, int>{};
     for (int i = 0; i < src.length; i++) {
@@ -183,23 +191,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
       builder: (_) => _VerseMenuSheet(
         surah: surah,
         verseStart: verse,
+        currentPage: currentPage,
         isDark: _readerTheme == 2,
       ),
     );
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final surahId = getPageData(currentPage).first['surah'] as int;
-
     final mq = MediaQuery.of(context);
-
-    // Compute FittedBox scale (height-constrained) and where QCF text starts.
-    // QcfPage uses a ListView without explicit padding, so Flutter adds
-    // mq.padding (top + bottom) automatically. Inside FittedBox the content is
-    // scaled by safeH/screenH, so the text's y-position in SafeArea coords is:
-    //   textTopInSafeArea = scale * mq.padding.top
     final safeH = mq.size.height - mq.padding.top - mq.padding.bottom;
     final fittedScale = safeH / mq.size.height;
     final textTopInSafeArea = fittedScale * mq.padding.top;
@@ -208,7 +211,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       backgroundColor: _themeBg,
       body: Stack(
         children: [
-          // ── Page (FittedBox préserve le ratio, fond identique = marges invisibles)
+          // ── Pages QCF ─────────────────────────────────────────────────────
           Positioned.fill(
             child: SafeArea(
               child: FittedBox(
@@ -219,20 +222,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   height: mq.size.height,
                   child: MediaQuery(
                     data: mq,
-                    child: PageviewQuran(
+                    child: PageView.builder(
                       controller: _pageController,
-                      initialPageNumber: currentPage,
-                      theme: _qcfTheme,
-                      sp: 1.sp,
-                      h: 1.h,
-                      onPageChanged: (page) {
+                      reverse: true, // RTL : swipe droite = page suivante
+                      itemCount: totalPagesCount,
+                      onPageChanged: (index) {
                         if (!mounted) return;
-                        setState(() => currentPage = page.clamp(1, 604));
-                        _saveHistory(currentPage);
+                        final page = index + 1;
+                        setState(() => currentPage = page);
+                        _saveHistory(page);
                       },
-                      onTap: (surah, verse) => _toggleHud(),
-                      onLongPress: (surah, verse) =>
-                          _showVerseMenu(surah, verse),
+                      itemBuilder: (context, index) {
+                        final pageNumber = index + 1;
+                        return GestureDetector(
+                          onTap: _toggleHud,
+                          child: _QuranPageItem(
+                            pageNumber: pageNumber,
+                            theme: _qcfTheme,
+                            onLongPress: _showVerseMenu,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -240,7 +250,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
 
-          // ── HUD haut — overlay, n'affecte pas la taille de la page ────
+          // ── HUD haut ──────────────────────────────────────────────────────
           Positioned(
             top: 0,
             left: 0,
@@ -255,7 +265,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
 
-          // ── HUD bas — overlay, n'affecte pas la taille de la page ─────
+          // ── HUD bas ───────────────────────────────────────────────────────
           Positioned(
             bottom: 0,
             left: 0,
@@ -270,7 +280,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
 
-          // ── Overlay de recherche ───────────────────────────────────────
+          // ── Overlay de recherche ───────────────────────────────────────────
           if (_showSearch)
             Positioned.fill(
               child: QuranSearchOverlay(
@@ -286,7 +296,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ── HUD haut ──────────────────────────────────────────────────────────────
 
-  // Construit la rangée de contenu HUD pour une page donnée
   Widget _hudRow(int page) {
     final sid = getPageData(page).first['surah'] as int;
     final svgPath = 'assets/images/Translated_Quran/surah_svg/$sid.svg';
@@ -328,7 +337,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: _qcfTheme.verseNumberColor.withValues(alpha: 0.7))),
+                      color:
+                          _qcfTheme.verseNumberColor.withValues(alpha: 0.7))),
               const SizedBox(width: 8),
               Text(_hizbText(page),
                   style: TextStyle(
@@ -344,7 +354,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Widget _topHud(int surahId, double textTopOffset) {
     final screenWidth = MediaQuery.of(context).size.width;
-
     return Container(
       color: Colors.transparent,
       child: SafeArea(
@@ -356,21 +365,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
               animation: _pagePos,
               builder: (_, __) {
                 final pos = _pagePos.value;
-                final base = pos.floor();       // index 0-based de la page courante
-                final frac = pos - base;        // 0.0 → 1.0 pendant le swipe
-
-                // Deux pages simultanément, comme le PageView
-                final pageA = (base + 1).clamp(1, 604); // page sortante
-                final pageB = (base + 2).clamp(1, 604); // page entrante
-
+                final base = pos.floor();
+                final frac = pos - base;
+                final pageA = (base + 1).clamp(1, 604);
+                final pageB = (base + 2).clamp(1, 604);
                 return Stack(
                   children: [
-                    // Page sortante : glisse dans la direction du swipe
                     Transform.translate(
                       offset: Offset(frac * screenWidth, 0),
                       child: _hudRow(pageA),
                     ),
-                    // Page entrante : arrive depuis la direction opposée
                     if (frac > 0.001)
                       Transform.translate(
                         offset: Offset((frac - 1) * screenWidth, 0),
@@ -387,72 +391,132 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   // ── HUD bas ───────────────────────────────────────────────────────────────
+
   Widget _bottomHud(int surahId) {
     return Container(
       color: Colors.transparent,
       child: SafeArea(
         top: false,
         child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Mini lecteur — visible uniquement si audio chargé
-              ValueListenableBuilder<String?>(
-                valueListenable:
-                    MiniPlayerService.instance.currentAyahKey,
-                builder: (_, key, __) {
-                  if (key == null) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
-                    child: MiniPlayerWidget(currentSurah: surahId),
-                  );
-                },
-              ),
-
-              // Barre page : thème · N/604 · fermer
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    // Thème
-                    GestureDetector(
-                      onTap: _cycleTheme,
-                      child: Icon(
-                        _readerTheme == 0
-                            ? Icons.light_mode_outlined
-                            : _readerTheme == 1
-                                ? Icons.brightness_medium_outlined
-                                : Icons.dark_mode_outlined,
-                        size: 18,
-                        color: _hudFg.withValues(alpha: 0.55),
-                      ),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ValueListenableBuilder<String?>(
+              valueListenable: MiniPlayerService.instance.currentAyahKey,
+              builder: (_, key, __) {
+                if (key == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
+                  child: MiniPlayerWidget(currentSurah: surahId),
+                );
+              },
+            ),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: _cycleTheme,
+                    child: Icon(
+                      _readerTheme == 0
+                          ? Icons.light_mode_outlined
+                          : _readerTheme == 1
+                              ? Icons.brightness_medium_outlined
+                              : Icons.dark_mode_outlined,
+                      size: 18,
+                      color: _hudFg.withValues(alpha: 0.55),
                     ),
-
-                    // Page — droite si impaire, gauche si paire
-                    Expanded(
-                      child: Align(
-                        alignment: currentPage.isOdd
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Text(
-                          '$currentPage',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: _hudFg.withValues(alpha: 0.5),
-                          ),
+                  ),
+                  Expanded(
+                    child: Align(
+                      alignment: currentPage.isOdd
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Text(
+                        '$currentPage',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: _hudFg.withValues(alpha: 0.5),
                         ),
                       ),
                     ),
-
-                    const SizedBox(width: 18),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 18),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// _QuranPageItem — rendu d'une page QCF avec surlignage du verset audio
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _QuranPageItem extends StatefulWidget {
+  final int pageNumber;
+  final QcfThemeData theme;
+  final void Function(int surah, int verse) onLongPress;
+
+  const _QuranPageItem({
+    required this.pageNumber,
+    required this.theme,
+    required this.onLongPress,
+  });
+
+  @override
+  State<_QuranPageItem> createState() => _QuranPageItemState();
+}
+
+class _QuranPageItemState extends State<_QuranPageItem> {
+  @override
+  void initState() {
+    super.initState();
+    MiniPlayerService.instance.currentAyahKey.addListener(_onAyahChanged);
+  }
+
+  @override
+  void dispose() {
+    MiniPlayerService.instance.currentAyahKey.removeListener(_onAyahChanged);
+    super.dispose();
+  }
+
+  void _onAyahChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentKey = MiniPlayerService.instance.currentAyahKey.value;
+    final highlightColor =
+        widget.theme.verseNumberColor.withValues(alpha: 0.15);
+
+    final theme = widget.theme.copyWith(
+      verseBackgroundColor: currentKey == null
+          ? null
+          : (surah, verse) =>
+              '$surah:$verse' == currentKey ? highlightColor : null,
+    );
+
+    final p = widget.pageNumber;
+    final double sp = (p == 1 || p == 2)
+        ? 28.sp
+        : (p == 145 || p == 201)
+            ? 22.4.sp
+            : 22.9.sp;
+    final double h = (p == 1 || p == 2) ? 2.h : 1.95.h;
+
+    return QcfPage(
+      pageNumber: widget.pageNumber,
+      theme: theme,
+      sp: sp,
+      h: h,
+      onLongPress: widget.onLongPress,
+    );
   }
 }
 
@@ -463,11 +527,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
 class _VerseMenuSheet extends StatefulWidget {
   final int surah;
   final int verseStart;
+  final int currentPage;
   final bool isDark;
 
   const _VerseMenuSheet({
     required this.surah,
     required this.verseStart,
+    required this.currentPage,
     required this.isDark,
   });
 
@@ -478,6 +544,50 @@ class _VerseMenuSheet extends StatefulWidget {
 class _VerseMenuSheetState extends State<_VerseMenuSheet> {
   bool _sharingImage = false;
   final GlobalKey _verseImageKey = GlobalKey();
+
+  bool _isFavorite = false;
+  bool _isBookmarked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStates();
+  }
+
+  Future<void> _loadStates() async {
+    final key = '${widget.surah}:${widget.verseStart}';
+    final fav = await VerseFavoritesService.instance.isFavorite(key);
+    final bkm = await BookmarkService.instance.isBookmarked(widget.currentPage);
+    if (!mounted) return;
+    setState(() {
+      _isFavorite = fav;
+      _isBookmarked = bkm;
+    });
+  }
+
+  Future<void> _toggleFavorite() async {
+    final key = '${widget.surah}:${widget.verseStart}';
+    final nowFav = await VerseFavoritesService.instance.toggleFavorite(key);
+    if (!mounted) return;
+    setState(() => _isFavorite = nowFav);
+  }
+
+  Future<void> _toggleBookmark() async {
+    if (_isBookmarked) {
+      await BookmarkService.instance.removeBookmark(widget.currentPage);
+      if (!mounted) return;
+      setState(() => _isBookmarked = false);
+    } else {
+      final surahName = surahFr[widget.surah] ?? 'Sourate ${widget.surah}';
+      await BookmarkService.instance.addBookmark(Bookmark(
+        page: widget.currentPage,
+        surahId: widget.surah,
+        surahName: surahName,
+      ));
+      if (!mounted) return;
+      setState(() => _isBookmarked = true);
+    }
+  }
 
   String get _verseText =>
       getVerse(widget.surah, widget.verseStart, verseEndSymbol: true);
@@ -492,8 +602,7 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-          content: Text('Verset copié'),
-          duration: Duration(seconds: 2)),
+          content: Text('Verset copié'), duration: Duration(seconds: 2)),
     );
   }
 
@@ -565,8 +674,7 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
     return Container(
       decoration: BoxDecoration(
         color: bg,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
         top: false,
@@ -586,8 +694,7 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
 
             // Label
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Text(_verseLabel,
                   style: TextStyle(
                       color: subColor,
@@ -609,8 +716,8 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
                         : const Color(0xFFF5F0E6),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: const Color(0xFFC8A97E)
-                          .withValues(alpha: 0.5),
+                      color:
+                          const Color(0xFFC8A97E).withValues(alpha: 0.5),
                     ),
                   ),
                   child: Text(
@@ -636,11 +743,51 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
 
             const SizedBox(height: 8),
             Divider(color: dividerColor, height: 1),
-            _ActionTile(icon: Icons.copy_rounded, label: 'Copier', color: textColor, onTap: _copyText),
-            _ActionTile(icon: Icons.share_rounded, label: 'Partager le texte', color: textColor, onTap: _shareText),
-            _ActionTile(icon: Icons.image_outlined, label: 'Partager en image', color: textColor, onTap: _sharingImage ? null : _shareImage),
-            _ActionTile(icon: Icons.menu_book_rounded, label: 'Lire le Tafsir', color: textColor, onTap: _openTafsir),
-            _ActionTile(icon: Icons.headphones_rounded, label: 'Écouter', color: textColor, onTap: _playAudio),
+            _ActionTile(
+                icon: Icons.copy_rounded,
+                label: 'Copier',
+                color: textColor,
+                onTap: _copyText),
+            _ActionTile(
+                icon: Icons.share_rounded,
+                label: 'Partager le texte',
+                color: textColor,
+                onTap: _shareText),
+            _ActionTile(
+                icon: Icons.image_outlined,
+                label: 'Partager en image',
+                color: textColor,
+                onTap: _sharingImage ? null : _shareImage),
+            _ActionTile(
+              icon: _isFavorite
+                  ? Icons.star_rounded
+                  : Icons.star_border_rounded,
+              label: _isFavorite
+                  ? 'Retirer des favoris'
+                  : 'Ajouter aux favoris',
+              color: _isFavorite ? const Color(0xFFC8A165) : textColor,
+              onTap: _toggleFavorite,
+            ),
+            _ActionTile(
+              icon: _isBookmarked
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
+              label: _isBookmarked
+                  ? 'Supprimer le marque-page'
+                  : 'Ajouter un marque-page',
+              color: _isBookmarked ? const Color(0xFFC8A165) : textColor,
+              onTap: _toggleBookmark,
+            ),
+            _ActionTile(
+                icon: Icons.menu_book_rounded,
+                label: 'Lire le Tafsir',
+                color: textColor,
+                onTap: _openTafsir),
+            _ActionTile(
+                icon: Icons.headphones_rounded,
+                label: 'Écouter',
+                color: textColor,
+                onTap: _playAudio),
             Divider(color: dividerColor, height: 1),
             _ActionTile(
               icon: Icons.close_rounded,
@@ -674,8 +821,7 @@ class _ActionTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
             Icon(icon, size: 20, color: color),

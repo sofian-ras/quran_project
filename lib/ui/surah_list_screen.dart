@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import 'widgets/surah_card.dart';
@@ -33,7 +33,7 @@ class SurahListScreen extends StatelessWidget {
       ..sort((a, b) => (a['page'] as int).compareTo(b['page'] as int));
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         extendBodyBehindAppBar: true,
         appBar: AppBar(
@@ -48,7 +48,7 @@ class SurahListScreen extends StatelessWidget {
           ),
           centerTitle: true,
 
-          // ✅ AJOUT : bouton pour ouvrir l’écran Traduction
+          // ✅ AJOUT : bouton pour ouvrir l'écran Traduction
           actions: [
             IconButton(
               tooltip: 'Traduction',
@@ -71,6 +71,7 @@ class SurahListScreen extends StatelessWidget {
             tabs: const [
               Tab(text: 'Sourates'),
               Tab(text: 'Juz'),
+              Tab(text: 'Hizb'),
             ],
           ),
         ),
@@ -298,6 +299,140 @@ class SurahListScreen extends StatelessWidget {
                           ),
                         );
                       },
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // =========================
+            // Onglet 3 : Hizb
+            // =========================
+            Container(
+              decoration: BoxDecoration(
+                gradient: isDark
+                    ? const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFF020617),
+                          Color(0xFF0B1025),
+                          Color(0xFF1A0033),
+                          Color(0xFF2D1B4E),
+                        ],
+                      )
+                    : const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFFFFFEFB),
+                          Color(0xFFF7F2E8),
+                          Color(0xFFF1E6D0),
+                        ],
+                        stops: [0.0, 0.6, 1.0],
+                      ),
+              ),
+              child: SafeArea(
+                child: ListView.builder(
+                  key: const PageStorageKey('hizb_list_full'),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  itemCount: hizbMap.length,
+                  itemBuilder: (context, i) {
+                    final hizbNumber = hizbMap[i]['hizb']!;
+                    final startPage  = hizbMap[i]['start_page']!;
+                    final endPage    = (i + 1 < hizbMap.length)
+                        ? hizbMap[i + 1]['start_page']! - 1
+                        : 604;
+                    final juzNumber  = ((hizbNumber - 1) ~/ 2) + 1;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: InkWell(
+                          onTap: () => onOpenReader(startPage),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isDark
+                                    ? gold.withValues(alpha: 0.15)
+                                    : Colors.black12,
+                                width: 1,
+                              ),
+                              color: Theme.of(context)
+                                  .cardColor
+                                  .withValues(alpha: isDark ? 0.06 : 0.85),
+                            ),
+                            child: Row(
+                              children: [
+                                // Numéro Hizb
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: gold.withValues(alpha: isDark ? 0.18 : 0.12),
+                                  ),
+                                  child: Text(
+                                    '$hizbNumber',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: isDark
+                                          ? gold
+                                          : const Color(0xFF5B3F12),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Hizb $hizbNumber',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark
+                                                  ? Colors.white
+                                                  : const Color(0xFF1a0033),
+                                            ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Juz $juzNumber • Pages $startPage–$endPage',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: isDark
+                                                  ? Colors.white60
+                                                  : Colors.black45,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: isDark
+                                      ? Colors.white54
+                                      : Colors.black38,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     );
                   },
                 ),
