@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -475,7 +474,7 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
   void _openTafsir() {
     Navigator.pop(context);
     widget.onDismiss();
-    final book = TafsirService.books.first;
+    final book = TafsirService.catalog.first;
     Navigator.push(
       context,
       MaterialPageRoute(
