@@ -62,9 +62,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  // Doit correspondre exactement au pageBackgroundColor du thème QCF
+  // pour que les marges FittedBox soient invisibles pendant le swipe
   Color get _themeBg => _readerTheme == 2
-      ? const Color(0xFF0B1025)
-      : (_readerTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
+      ? const Color(0xFF1E1E1E)   // = QcfThemeData.dark().pageBackgroundColor
+      : (_readerTheme == 0
+          ? Colors.white           // = QcfThemeData().pageBackgroundColor
+          : const Color(0xFFF5E6D3)); // = QcfThemeData.sepia().pageBackgroundColor
 
   // Couleur des icônes/texte du HUD
   Color get _hudFg =>
@@ -191,11 +195,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     final mq = MediaQuery.of(context);
 
+    // Compute FittedBox scale (height-constrained) and where QCF text starts.
+    // QcfPage uses a ListView without explicit padding, so Flutter adds
+    // mq.padding (top + bottom) automatically. Inside FittedBox the content is
+    // scaled by safeH/screenH, so the text's y-position in SafeArea coords is:
+    //   textTopInSafeArea = scale * mq.padding.top
+    final safeH = mq.size.height - mq.padding.top - mq.padding.bottom;
+    final fittedScale = safeH / mq.size.height;
+    final textTopInSafeArea = fittedScale * mq.padding.top;
+
     return Scaffold(
       backgroundColor: _themeBg,
       body: Stack(
         children: [
-          // ── Page : toujours à taille maximale (SafeArea), jamais affectée par les HUDs
+          // ── Page (FittedBox préserve le ratio, fond identique = marges invisibles)
           Positioned.fill(
             child: SafeArea(
               child: FittedBox(
@@ -237,7 +250,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               child: AnimatedOpacity(
                 opacity: _showHud ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 220),
-                child: _topHud(surahId),
+                child: _topHud(surahId, textTopInSafeArea),
               ),
             ),
           ),
@@ -287,14 +300,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
             child: SvgPicture.asset(
               svgPath,
               height: 26,
-              colorFilter:
-                  ColorFilter.mode(_qcfTheme.verseNumberColor, BlendMode.srcIn),
+              colorFilter: ColorFilter.mode(
+                  _qcfTheme.verseNumberColor.withValues(alpha: 0.7),
+                  BlendMode.srcIn),
               placeholderBuilder: (_) => Text(
                 getSurahNameArabic(sid),
                 style: TextStyle(
                   fontFamily: 'ScheherazadeNew',
                   fontSize: 18,
-                  color: _qcfTheme.verseNumberColor,
+                  color: _qcfTheme.verseNumberColor.withValues(alpha: 0.7),
                 ),
               ),
             ),
@@ -314,7 +328,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: _qcfTheme.verseNumberColor)),
+                      color: _qcfTheme.verseNumberColor.withValues(alpha: 0.7))),
               const SizedBox(width: 8),
               Text(_hizbText(page),
                   style: TextStyle(
@@ -328,7 +342,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  Widget _topHud(int surahId) {
+  Widget _topHud(int surahId, double textTopOffset) {
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Container(
@@ -337,7 +351,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         bottom: false,
         child: ClipRect(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+            padding: EdgeInsets.fromLTRB(12, textTopOffset, 12, 8),
             child: AnimatedBuilder(
               animation: _pagePos,
               builder: (_, __) {
@@ -431,15 +445,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ),
                     ),
 
-                    // Fermer
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 18,
-                        color: _hudFg.withValues(alpha: 0.55),
-                      ),
-                    ),
+                    const SizedBox(width: 18),
                   ],
                 ),
               ),
