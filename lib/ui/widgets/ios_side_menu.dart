@@ -8,6 +8,9 @@ import '../bookmarks_screen.dart';
 import '../downloads_screen.dart';
 import '../favorites_screen.dart';
 import '../settings_screen.dart';
+import '../screens/hadith_screen.dart';
+import '../screens/radio_screen.dart';
+import '../screens/asma_screen.dart';
 import 'reciter_selector.dart';
 
 class IOSSideMenu extends StatelessWidget {
@@ -201,6 +204,27 @@ class IOSSideMenu extends StatelessWidget {
                             },
                           ),
                         ),
+                      ),
+                      _MenuSection(
+                        icon: CupertinoIcons.book_solid,
+                        title: 'Hadith',
+                        subtitle: 'Collections de hadiths',
+                        divider: divider,
+                        onTap: () => _closeAndPush(context, const HadithScreen()),
+                      ),
+                      _MenuSection(
+                        icon: CupertinoIcons.antenna_radiowaves_left_right,
+                        title: 'Radio Islamique',
+                        subtitle: 'Écoute en streaming',
+                        divider: divider,
+                        onTap: () => _closeAndPush(context, const RadioScreen()),
+                      ),
+                      _MenuSection(
+                        icon: CupertinoIcons.star_fill,
+                        title: '99 Noms d\'Allah',
+                        subtitle: 'Asmaul Husna',
+                        divider: divider,
+                        onTap: () => _closeAndPush(context, const AsmaScreen()),
                       ),
                       const SizedBox(height: 10),
                       _MenuSection(

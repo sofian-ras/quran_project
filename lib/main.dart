@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'ui/screens/initial_loading_screen.dart';
 import 'ui/widgets/mini_audio_player.dart';
@@ -100,7 +101,10 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
+    return ScreenUtilInit(
+      designSize: const Size(392, 800),
+      minTextAdapt: true,
+      builder: (_, __) => ValueListenableBuilder<ThemeMode>(
       valueListenable: ThemeService.themeMode,
       builder: (context, mode, _) {
         return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -131,7 +135,8 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
         ),       // MaterialApp
         );       // AnnotatedRegion
       },
-    );
+    ),    // ValueListenableBuilder
+    );    // ScreenUtilInit
   }
 }
 
