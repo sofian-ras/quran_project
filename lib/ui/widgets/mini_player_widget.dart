@@ -270,62 +270,58 @@ class MiniPlayerWidget extends StatelessWidget {
   // ── Bouton play/pause ─────────────────────────────────────────────────────
 
   Widget _buildPlayBtn(MiniPlayerService svc, {double size = 26}) {
-    return ValueListenableBuilder<double?>(
-      valueListenable: svc.prepProgress,
-      builder: (_, prep, __) => ValueListenableBuilder<bool>(
-        valueListenable: svc.isPlaying,
-        builder: (_, playing, __) => ValueListenableBuilder<bool>(
-          valueListenable: svc.isLoading,
-          builder: (_, loading, __) => ValueListenableBuilder<bool>(
-            valueListenable: svc.isRangeAutoAdvancing,
-            builder: (_, autoAdvancing, __) {
-              // Pendant la préparation : spinner avec progression circulaire.
-              if (prep != null) {
-                return SizedBox(
-                  width: size,
-                  height: size,
-                  child: CircularProgressIndicator(
-                    value: prep > 0 ? prep : null,
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                );
-              }
-              // Pendant le buffering just_audio (hors auto-transition).
-              if (loading && !autoAdvancing) {
-                return SizedBox(
-                  width: size,
-                  height: size,
-                  child: const CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                );
-              }
-              final showPause = playing || autoAdvancing;
-              return GestureDetector(
-                onTap: () {
-                  if (svc.currentAyahKey.value != null || autoAdvancing) {
-                    svc.playPause();
-                  } else if (svc.selectionStartKey != null) {
-                    final parts = svc.selectionStartKey!.split(':');
-                    final s = int.tryParse(parts[0]) ?? currentSurah;
-                    final a = int.tryParse(parts.length > 1 ? parts[1] : '1') ?? 1;
-                    svc.playFrom(surah: s, ayah: a);
-                  } else {
-                    svc.playFrom(surah: currentSurah, ayah: 1);
-                  }
-                },
-                child: Icon(
-                  showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: size,
-                ),
-              );
-            },
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        svc.prepProgress,
+        svc.isPlaying,
+        svc.isLoading,
+        svc.isRangeAutoAdvancing,
+      ]),
+      builder: (_, __) {
+        final prep          = svc.prepProgress.value;
+        final playing       = svc.isPlaying.value;
+        final loading       = svc.isLoading.value;
+        final autoAdvancing = svc.isRangeAutoAdvancing.value;
+
+        // Pendant la préparation
+        if (prep != null) {
+          return SizedBox(
+            width: size, height: size,
+            child: CircularProgressIndicator(
+              value: prep > 0 ? prep : null,
+              strokeWidth: 2, color: Colors.white,
+            ),
+          );
+        }
+        // Pendant le buffering (hors auto-transition)
+        if (loading && !autoAdvancing) {
+          return SizedBox(
+            width: size, height: size,
+            child: const CircularProgressIndicator(
+              strokeWidth: 2, color: Colors.white,
+            ),
+          );
+        }
+        final showPause = playing || autoAdvancing;
+        return GestureDetector(
+          onTap: () {
+            if (svc.currentAyahKey.value != null || autoAdvancing) {
+              svc.playPause();
+            } else if (svc.selectionStartKey != null) {
+              final parts = svc.selectionStartKey!.split(':');
+              final s = int.tryParse(parts[0]) ?? currentSurah;
+              final a = int.tryParse(parts.length > 1 ? parts[1] : '1') ?? 1;
+              svc.playFrom(surah: s, ayah: a);
+            } else {
+              svc.playFrom(surah: currentSurah, ayah: 1);
+            }
+          },
+          child: Icon(
+            showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            color: Colors.white, size: size,
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

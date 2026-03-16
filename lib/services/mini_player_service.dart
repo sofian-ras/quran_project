@@ -130,6 +130,7 @@ class MiniPlayerService {
   StreamSubscription<ProcessingState>? _processingStateSub;
   StreamSubscription<bool>?            _playingSub;
   StreamSubscription<int?>?            _indexSub;
+  StreamSubscription<dynamic>?         _playbackErrorSub;
 
   // Non-null en mode playlist (surah/selection) : index playlist → numéro d'ayah.
   // Null en mode source unique (verseByVerse).
@@ -157,7 +158,7 @@ class MiniPlayerService {
     });
 
     // Capture les erreurs just_audio (ex: 403, cleartext http, timeout…)
-    _player.playbackEventStream.listen(
+    _playbackErrorSub = _player.playbackEventStream.listen(
       (_) {},
       onError: (Object e, StackTrace _) {
         debugPrint('MiniPlayerService: playbackEventStream error: $e');
@@ -770,6 +771,7 @@ class MiniPlayerService {
     _processingStateSub?.cancel();
     _playingSub?.cancel();
     _indexSub?.cancel();
+    _playbackErrorSub?.cancel();
     _player.dispose();
   }
 }

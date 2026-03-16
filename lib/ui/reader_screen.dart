@@ -19,6 +19,7 @@ import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import 'tafsir_reader_screen.dart';
 import 'widgets/mini_player_widget.dart';
+import 'widgets/quran_search_overlay.dart';
 
 class ReaderScreen extends StatefulWidget {
   final int initialPage;
@@ -39,14 +40,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
   int _readerTheme = 1; // 0=blanc 1=sepia 2=dark
   final PageController _pageController = PageController();
 
-  // ── HUD visibilité ─────────────────────────────────────────────────────────
   bool _showHud = true;
+  bool _showSearch = false;
+
+  // Lookup O(1) page → juzz/hizb (construit une fois en initState)
+  late final Map<int, int> _pageJuzz;
+  late final Map<int, int> _pageHizb;
 
   // ── Thème QCF ──────────────────────────────────────────────────────────────
   QcfThemeData get _qcfTheme {
     switch (_readerTheme) {
       case 0:
-        return QcfThemeData();
+        return const QcfThemeData();
       case 2:
         return QcfThemeData.dark();
       default:
@@ -58,10 +63,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ? const Color(0xFF0B1025)
       : (_readerTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
 
-  Color get _hudBg => _readerTheme == 2
-      ? const Color(0xFF0B1025)
-      : (_readerTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
-
+  // Couleur des icônes/texte du HUD
   Color get _hudFg =>
       _readerTheme == 2 ? Colors.white70 : const Color(0xFF4A3F30);
 
@@ -70,6 +72,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void initState() {
     super.initState();
     currentPage = widget.initialPage.clamp(1, 604);
+    _pageJuzz = _buildLookup(juzzMap, 'juz');
+    _pageHizb = _buildLookup(hizbMap, 'hizb');
     _loadTheme();
     AudioService.instance.suppressGlobalPlayer.value = true;
     MiniPlayerService.instance.currentAyahKey.addListener(_onAyahChanged);
@@ -119,25 +123,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  // Construit un Map<page, valeur> depuis juzzMap/hizbMap (exécuté une seule fois)
+  static Map<int, int> _buildLookup(List<Map<String, int>> src, String key) {
+    final map = <int, int>{};
+    for (int i = 0; i < src.length; i++) {
+      final start = src[i]['start_page']!;
+      final end = (i + 1 < src.length) ? src[i + 1]['start_page']! - 1 : 604;
+      for (int p = start; p <= end; p++) {
+        map[p] = src[i][key]!;
+      }
+    }
+    return map;
+  }
+
   String _hizbText(int page) {
-    if (hizbMap.isEmpty) return '';
-    final h = hizbMap.lastWhere(
-      (e) => e['start_page']! <= page,
-      orElse: () => hizbMap.first,
-    );
-    return 'Hizb ${h['hizb']}';
+    final v = _pageHizb[page];
+    return v != null ? 'Hizb $v' : '';
   }
 
   String _juzzText(int page) {
-    if (juzzMap.isEmpty) return '';
-    final j = juzzMap.lastWhere(
-      (e) => e['start_page']! <= page,
-      orElse: () => juzzMap.first,
-    );
-    return 'Juzz ${j['juz']}';
+    final v = _pageJuzz[page];
+    return v != null ? 'Juzz $v' : '';
   }
 
-  void _toggleHud() => setState(() => _showHud = !_showHud);
+  void _toggleHud() {
+    if (_showSearch) {
+      setState(() => _showSearch = false);
+      return;
+    }
+    setState(() => _showHud = !_showHud);
+  }
+
+  void _openSearch() => setState(() {
+        _showSearch = true;
+        _showHud = true;
+      });
 
   void _showVerseMenu(int surah, int verse) {
     showModalBottomSheet(
@@ -148,7 +168,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
         surah: surah,
         verseStart: verse,
         isDark: _readerTheme == 2,
-        onDismiss: () {},
       ),
     );
   }
@@ -180,14 +199,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     setState(() => currentPage = page.clamp(1, 604));
                     _saveHistory(currentPage);
                   },
-                  onTap: (surah, verse) {
-                    // Tap simple = bascule HUD
-                    _toggleHud();
-                  },
-                  onLongPress: (surah, verse) {
-                    // Long press = menu verset
-                    _showVerseMenu(surah, verse);
-                  },
+                  // Tap simple : bascule HUD
+                  onTap: (surah, verse) => _toggleHud(),
+                  // Long press : menu verset
+                  onLongPress: (surah, verse) =>
+                      _showVerseMenu(surah, verse),
                 ),
               ),
             ),
@@ -222,6 +238,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
             ),
           ),
+
+          // ── Overlay de recherche ───────────────────────────────────────
+          if (_showSearch)
+            Positioned.fill(
+              child: QuranSearchOverlay(
+                pageController: _pageController,
+                isDark: _readerTheme == 2,
+                onClose: () => setState(() => _showSearch = false),
+              ),
+            ),
         ],
       ),
     );
@@ -229,103 +255,103 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ── HUD haut ──────────────────────────────────────────────────────────────
   Widget _topHud(int surahId) {
-    final svgPath = 'assets/images/Translated_Quran/surah_svg/$surahId.svg';
+    final svgPath =
+        'assets/images/Translated_Quran/surah_svg/$surahId.svg';
     final translitFr = surahFr[surahId] ?? 'Sourate $surahId';
-    final gradStart = _hudBg.withValues(alpha: 0.92);
+    final border = _readerTheme == 2
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.06);
 
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [gradStart, _hudBg.withValues(alpha: 0.0)],
-          stops: const [0.55, 1.0],
-        ),
-      ),
+      color: _themeBg,
       child: SafeArea(
         bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(color: border, width: 1)),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ── Nom sourate (gauche) ────────────────────────────────
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SvgPicture.asset(
-                    svgPath,
-                    height: 30,
-                    colorFilter: ColorFilter.mode(_hudFg, BlendMode.srcIn),
-                    placeholderBuilder: (_) => Text(
-                      getSurahNameArabic(surahId),
-                      style: TextStyle(
-                        fontFamily: 'ScheherazadeNew',
-                        fontSize: 18,
-                        color: _hudFg,
+              // ── Nom sourate (gauche) ───────────────────────────────
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset(
+                      svgPath,
+                      height: 28,
+                      colorFilter:
+                          ColorFilter.mode(_hudFg, BlendMode.srcIn),
+                      placeholderBuilder: (_) => Text(
+                        getSurahNameArabic(surahId),
+                        style: TextStyle(
+                          fontFamily: 'ScheherazadeNew',
+                          fontSize: 18,
+                          color: _hudFg,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    translitFr,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: _hudFg.withValues(alpha: 0.65),
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.3,
+                    const SizedBox(height: 2),
+                    Text(
+                      translitFr,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: _hudFg.withValues(alpha: 0.55),
+                        letterSpacing: 0.3,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
-              // ── Recherche (centre) ──────────────────────────────────
-              Expanded(
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () {
-                      // TODO: search overlay
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: _hudFg.withValues(alpha: 0.08),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.search_rounded,
-                        size: 18,
-                        color: _hudFg.withValues(alpha: 0.75),
-                      ),
-                    ),
+              // ── Recherche (centre) ─────────────────────────────────
+              GestureDetector(
+                onTap: _openSearch,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _hudFg.withValues(alpha: 0.07),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.search_rounded,
+                    size: 18,
+                    color: _hudFg.withValues(alpha: 0.7),
                   ),
                 ),
               ),
 
-              // ── Juzz / Hizb (droite) ────────────────────────────────
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _juzzText(currentPage),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _hudFg,
+              // ── Juzz / Hizb (droite) ───────────────────────────────
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _juzzText(currentPage),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _hudFg,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _hizbText(currentPage),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: _hudFg.withValues(alpha: 0.65),
+                    const SizedBox(height: 2),
+                    Text(
+                      _hizbText(currentPage),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: _hudFg.withValues(alpha: 0.55),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -336,37 +362,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ── HUD bas ───────────────────────────────────────────────────────────────
   Widget _bottomHud(int surahId) {
-    final gradEnd = _hudBg.withValues(alpha: 0.92);
+    final border = _readerTheme == 2
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.06);
 
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_hudBg.withValues(alpha: 0.0), gradEnd],
-          stops: const [0.0, 0.5],
-        ),
-      ),
+      color: _themeBg,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(0, 24, 0, 8),
+        child: Container(
+          decoration: BoxDecoration(
+            border:
+                Border(top: BorderSide(color: border, width: 1)),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Mini lecteur flottant (pas pleine largeur)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: MiniPlayerWidget(currentSurah: surahId),
+              // Mini lecteur — visible uniquement si audio chargé
+              ValueListenableBuilder<String?>(
+                valueListenable:
+                    MiniPlayerService.instance.currentAyahKey,
+                builder: (_, key, __) {
+                  if (key == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
+                    child: MiniPlayerWidget(currentSurah: surahId),
+                  );
+                },
               ),
 
-              const SizedBox(height: 6),
-
-              // Numéro de page + thème
+              // Barre page : thème · N/604 · fermer
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     // Thème
                     GestureDetector(
@@ -378,27 +407,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 ? Icons.brightness_medium_outlined
                                 : Icons.dark_mode_outlined,
                         size: 18,
-                        color: _hudFg.withValues(alpha: 0.6),
-                      ),
-                    ),
-
-                    // Page N / 604
-                    Text(
-                      '$currentPage / 604',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
                         color: _hudFg.withValues(alpha: 0.55),
                       ),
                     ),
 
-                    // Fermer / retour
+                    // Page
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          '$currentPage / 604',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: _hudFg.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Fermer
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Icon(
                         Icons.close_rounded,
                         size: 18,
-                        color: _hudFg.withValues(alpha: 0.6),
+                        color: _hudFg.withValues(alpha: 0.55),
                       ),
                     ),
                   ],
@@ -413,20 +446,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// _VerseMenuSheet — Bottom sheet d'actions sur un verset
+// _VerseMenuSheet
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _VerseMenuSheet extends StatefulWidget {
   final int surah;
   final int verseStart;
   final bool isDark;
-  final VoidCallback onDismiss;
 
   const _VerseMenuSheet({
     required this.surah,
     required this.verseStart,
     required this.isDark,
-    required this.onDismiss,
   });
 
   @override
@@ -448,19 +479,16 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
   void _copyText() {
     Clipboard.setData(ClipboardData(text: _verseText));
     Navigator.pop(context);
-    widget.onDismiss();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Verset copié'),
-        duration: Duration(seconds: 2),
-      ),
+          content: Text('Verset copié'),
+          duration: Duration(seconds: 2)),
     );
   }
 
   void _shareText() {
     Share.share(_verseText, subject: _verseLabel);
     Navigator.pop(context);
-    widget.onDismiss();
   }
 
   Future<void> _shareImage() async {
@@ -471,16 +499,16 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
           ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return;
       final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) return;
       final bytes = byteData.buffer.asUint8List();
       final dir = await getTemporaryDirectory();
-      final file =
-          File('${dir.path}/verse_${widget.surah}_${widget.verseStart}.png');
+      final file = File(
+          '${dir.path}/verse_${widget.surah}_${widget.verseStart}.png');
       await file.writeAsBytes(bytes);
       if (!mounted) return;
       Navigator.pop(context);
-      widget.onDismiss();
       await Share.shareXFiles([XFile(file.path)], subject: _verseLabel);
     } finally {
       if (mounted) setState(() => _sharingImage = false);
@@ -489,7 +517,6 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
 
   void _openTafsir() {
     Navigator.pop(context);
-    widget.onDismiss();
     final book = TafsirService.catalog.first;
     Navigator.push(
       context,
@@ -512,24 +539,30 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.isDark ? const Color(0xFF1A2035) : const Color(0xFFFAF6EE);
-    final textColor =
-        widget.isDark ? const Color(0xFFE8D5B3) : const Color(0xFF4A3F30);
-    final subColor =
-        widget.isDark ? const Color(0xFF8B9BB4) : const Color(0xFF8B7355);
+    final bg = widget.isDark
+        ? const Color(0xFF1A2035)
+        : const Color(0xFFFAF6EE);
+    final textColor = widget.isDark
+        ? const Color(0xFFE8D5B3)
+        : const Color(0xFF4A3F30);
+    final subColor = widget.isDark
+        ? const Color(0xFF8B9BB4)
+        : const Color(0xFF8B7355);
     final dividerColor =
         widget.isDark ? Colors.white12 : const Color(0xFFE0D5C5);
 
     return Container(
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Handle
             Container(
               margin: const EdgeInsets.only(top: 12, bottom: 4),
               width: 36,
@@ -539,17 +572,19 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
+
+            // Label
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text(
-                _verseLabel,
-                style: TextStyle(
-                  color: subColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Text(_verseLabel,
+                  style: TextStyle(
+                      color: subColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500)),
             ),
+
+            // Prévisualisation
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: RepaintBoundary(
@@ -563,7 +598,8 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
                         : const Color(0xFFF5F0E6),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: const Color(0xFFC8A97E).withValues(alpha: 0.5),
+                      color: const Color(0xFFC8A97E)
+                          .withValues(alpha: 0.5),
                     ),
                   ),
                   child: Text(
@@ -580,28 +616,26 @@ class _VerseMenuSheetState extends State<_VerseMenuSheet> {
                 ),
               ),
             ),
+
             if (_sharingImage)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
+
             const SizedBox(height: 8),
             Divider(color: dividerColor, height: 1),
-            _ActionTile(icon: Icons.copy_rounded, label: 'Copier', color: textColor, isDark: widget.isDark, onTap: _copyText),
-            _ActionTile(icon: Icons.share_rounded, label: 'Partager le texte', color: textColor, isDark: widget.isDark, onTap: _shareText),
-            _ActionTile(icon: Icons.image_outlined, label: 'Partager en image', color: textColor, isDark: widget.isDark, onTap: _sharingImage ? null : _shareImage),
-            _ActionTile(icon: Icons.menu_book_rounded, label: 'Lire le Tafsir', color: textColor, isDark: widget.isDark, onTap: _openTafsir),
-            _ActionTile(icon: Icons.headphones_rounded, label: 'Écouter', color: textColor, isDark: widget.isDark, onTap: _playAudio),
+            _ActionTile(icon: Icons.copy_rounded, label: 'Copier', color: textColor, onTap: _copyText),
+            _ActionTile(icon: Icons.share_rounded, label: 'Partager le texte', color: textColor, onTap: _shareText),
+            _ActionTile(icon: Icons.image_outlined, label: 'Partager en image', color: textColor, onTap: _sharingImage ? null : _shareImage),
+            _ActionTile(icon: Icons.menu_book_rounded, label: 'Lire le Tafsir', color: textColor, onTap: _openTafsir),
+            _ActionTile(icon: Icons.headphones_rounded, label: 'Écouter', color: textColor, onTap: _playAudio),
             Divider(color: dividerColor, height: 1),
             _ActionTile(
               icon: Icons.close_rounded,
               label: 'Fermer',
               color: subColor,
-              isDark: widget.isDark,
-              onTap: () {
-                Navigator.pop(context);
-                widget.onDismiss();
-              },
+              onTap: () => Navigator.pop(context),
             ),
             const SizedBox(height: 8),
           ],
@@ -615,14 +649,12 @@ class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  final bool isDark;
   final VoidCallback? onTap;
 
   const _ActionTile({
     required this.icon,
     required this.label,
     required this.color,
-    required this.isDark,
     this.onTap,
   });
 
@@ -631,19 +663,17 @@ class _ActionTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
             Icon(icon, size: 20, color: color),
             const SizedBox(width: 16),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            Text(label,
+                style: TextStyle(
+                    color: color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500)),
           ],
         ),
       ),

@@ -44,17 +44,6 @@ class _BottomNavShellState extends State<BottomNavShell> {
     );
   }
 
-  // UX: bouton retour Android
-  // - si tu n'es pas sur Accueil, retour => revient à Accueil
-  // - sinon => laisse Android fermer l'app
-  Future<bool> _onWillPop() async {
-    if (_index != 0) {
-      setState(() => _index = 0);
-      return false;
-    }
-    return true;
-  }
-
   void _onTabChanged(int i) {
     if (i == _index) return;
     setState(() {
@@ -65,8 +54,11 @@ class _BottomNavShellState extends State<BottomNavShell> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(() => _index = 0);
+      },
       child: Scaffold(
         extendBody: true,
         body: PageStorage(
