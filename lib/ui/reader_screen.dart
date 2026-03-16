@@ -43,6 +43,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _showHud = true;
   bool _showSearch = false;
 
+  // Position temps réel du PageView (0-indexed, double) pour sync HUD
+  final ValueNotifier<double> _pagePos = ValueNotifier(0.0);
+
   // Lookup O(1) page → juzz/hizb (construit une fois en initState)
   late final Map<int, int> _pageJuzz;
   late final Map<int, int> _pageHizb;
@@ -77,15 +80,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _loadTheme();
     AudioService.instance.suppressGlobalPlayer.value = true;
     MiniPlayerService.instance.currentAyahKey.addListener(_onAyahChanged);
+    _pageController.addListener(_onPageScroll);
   }
 
   @override
   void dispose() {
+    _pageController.removeListener(_onPageScroll);
+    _pagePos.dispose();
     _pageController.dispose();
     AudioService.instance.suppressGlobalPlayer.value = false;
     MiniPlayerService.instance.currentAyahKey.removeListener(_onAyahChanged);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
+  }
+
+  void _onPageScroll() {
+    if (_pageController.hasClients) {
+      _pagePos.value = _pageController.page ?? (currentPage - 1).toDouble();
+    }
   }
 
   void _onAyahChanged() {
@@ -177,39 +189,45 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     final surahId = getPageData(currentPage).first['surah'] as int;
 
+    final mq = MediaQuery.of(context);
+
     return Scaffold(
       backgroundColor: _themeBg,
       body: Stack(
         children: [
-          // ── Mushaf plein écran ─────────────────────────────────────────
+          // ── Page : toujours à taille maximale (SafeArea), jamais affectée par les HUDs
           Positioned.fill(
-            child: LayoutBuilder(
-              builder: (ctx, constraints) => MediaQuery(
-                data: MediaQuery.of(ctx).copyWith(
-                  size: Size(constraints.maxWidth, constraints.maxHeight),
-                ),
-                child: PageviewQuran(
-                  controller: _pageController,
-                  initialPageNumber: currentPage,
-                  theme: _qcfTheme,
-                  sp: 1.sp,
-                  h: 1.h,
-                  onPageChanged: (page) {
-                    if (!mounted) return;
-                    setState(() => currentPage = page.clamp(1, 604));
-                    _saveHistory(currentPage);
-                  },
-                  // Tap simple : bascule HUD
-                  onTap: (surah, verse) => _toggleHud(),
-                  // Long press : menu verset
-                  onLongPress: (surah, verse) =>
-                      _showVerseMenu(surah, verse),
+            child: SafeArea(
+              child: FittedBox(
+                fit: BoxFit.contain,
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: mq.size.width,
+                  height: mq.size.height,
+                  child: MediaQuery(
+                    data: mq,
+                    child: PageviewQuran(
+                      controller: _pageController,
+                      initialPageNumber: currentPage,
+                      theme: _qcfTheme,
+                      sp: 1.sp,
+                      h: 1.h,
+                      onPageChanged: (page) {
+                        if (!mounted) return;
+                        setState(() => currentPage = page.clamp(1, 604));
+                        _saveHistory(currentPage);
+                      },
+                      onTap: (surah, verse) => _toggleHud(),
+                      onLongPress: (surah, verse) =>
+                          _showVerseMenu(surah, verse),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
 
-          // ── HUD haut ──────────────────────────────────────────────────
+          // ── HUD haut — overlay, n'affecte pas la taille de la page ────
           Positioned(
             top: 0,
             left: 0,
@@ -224,7 +242,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
 
-          // ── HUD bas ───────────────────────────────────────────────────
+          // ── HUD bas — overlay, n'affecte pas la taille de la page ─────
           Positioned(
             bottom: 0,
             left: 0,
@@ -254,106 +272,100 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   // ── HUD haut ──────────────────────────────────────────────────────────────
+
+  // Construit la rangée de contenu HUD pour une page donnée
+  Widget _hudRow(int page) {
+    final sid = getPageData(page).first['surah'] as int;
+    final svgPath = 'assets/images/Translated_Quran/surah_svg/$sid.svg';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 3,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SvgPicture.asset(
+              svgPath,
+              height: 26,
+              colorFilter:
+                  ColorFilter.mode(_qcfTheme.verseNumberColor, BlendMode.srcIn),
+              placeholderBuilder: (_) => Text(
+                getSurahNameArabic(sid),
+                style: TextStyle(
+                  fontFamily: 'ScheherazadeNew',
+                  fontSize: 18,
+                  color: _qcfTheme.verseNumberColor,
+                ),
+              ),
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: _openSearch,
+          child: Icon(Icons.search_rounded,
+              size: 20, color: _hudFg.withValues(alpha: 0.6)),
+        ),
+        Expanded(
+          flex: 3,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(_juzzText(page),
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _qcfTheme.verseNumberColor)),
+              const SizedBox(width: 8),
+              Text(_hizbText(page),
+                  style: TextStyle(
+                      fontSize: 11,
+                      color:
+                          _qcfTheme.verseNumberColor.withValues(alpha: 0.7))),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _topHud(int surahId) {
-    final svgPath =
-        'assets/images/Translated_Quran/surah_svg/$surahId.svg';
-    final translitFr = surahFr[surahId] ?? 'Sourate $surahId';
-    final border = _readerTheme == 2
-        ? Colors.white.withValues(alpha: 0.07)
-        : Colors.black.withValues(alpha: 0.06);
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Container(
-      color: _themeBg,
+      color: Colors.transparent,
       child: SafeArea(
         bottom: false,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-                bottom: BorderSide(color: border, width: 1)),
-          ),
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // ── Nom sourate (gauche) ───────────────────────────────
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SvgPicture.asset(
-                      svgPath,
-                      height: 28,
-                      colorFilter:
-                          ColorFilter.mode(_hudFg, BlendMode.srcIn),
-                      placeholderBuilder: (_) => Text(
-                        getSurahNameArabic(surahId),
-                        style: TextStyle(
-                          fontFamily: 'ScheherazadeNew',
-                          fontSize: 18,
-                          color: _hudFg,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      translitFr,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: _hudFg.withValues(alpha: 0.55),
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+        child: ClipRect(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+            child: AnimatedBuilder(
+              animation: _pagePos,
+              builder: (_, __) {
+                final pos = _pagePos.value;
+                final base = pos.floor();       // index 0-based de la page courante
+                final frac = pos - base;        // 0.0 → 1.0 pendant le swipe
 
-              // ── Recherche (centre) ─────────────────────────────────
-              GestureDetector(
-                onTap: _openSearch,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: _hudFg.withValues(alpha: 0.07),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.search_rounded,
-                    size: 18,
-                    color: _hudFg.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
+                // Deux pages simultanément, comme le PageView
+                final pageA = (base + 1).clamp(1, 604); // page sortante
+                final pageB = (base + 2).clamp(1, 604); // page entrante
 
-              // ── Juzz / Hizb (droite) ───────────────────────────────
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
+                return Stack(
                   children: [
-                    Text(
-                      _juzzText(currentPage),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: _hudFg,
-                      ),
+                    // Page sortante : glisse dans la direction du swipe
+                    Transform.translate(
+                      offset: Offset(frac * screenWidth, 0),
+                      child: _hudRow(pageA),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _hizbText(currentPage),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: _hudFg.withValues(alpha: 0.55),
+                    // Page entrante : arrive depuis la direction opposée
+                    if (frac > 0.001)
+                      Transform.translate(
+                        offset: Offset((frac - 1) * screenWidth, 0),
+                        child: _hudRow(pageB),
                       ),
-                    ),
                   ],
-                ),
-              ),
-            ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -362,20 +374,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ── HUD bas ───────────────────────────────────────────────────────────────
   Widget _bottomHud(int surahId) {
-    final border = _readerTheme == 2
-        ? Colors.white.withValues(alpha: 0.07)
-        : Colors.black.withValues(alpha: 0.06);
-
     return Container(
-      color: _themeBg,
+      color: Colors.transparent,
       child: SafeArea(
         top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            border:
-                Border(top: BorderSide(color: border, width: 1)),
-          ),
-          child: Column(
+        child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Mini lecteur — visible uniquement si audio chargé
@@ -411,11 +414,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ),
                     ),
 
-                    // Page
+                    // Page — droite si impaire, gauche si paire
                     Expanded(
-                      child: Center(
+                      child: Align(
+                        alignment: currentPage.isOdd
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
                         child: Text(
-                          '$currentPage / 604',
+                          '$currentPage',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -440,8 +446,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
