@@ -342,6 +342,9 @@ class QuranPageView extends StatefulWidget {
   /// Called when the currently selected ayah is deselected (second long-press on same ayah).
   final VoidCallback? onAyahLongPressDeselect;
 
+  /// Called whenever the visible page changes (1-based page number).
+  final void Function(int page)? onPageChanged;
+
   /// Creates a [QuranPageView] with customizable behavior and styling.
   const QuranPageView({
     super.key,
@@ -403,6 +406,7 @@ class QuranPageView extends StatefulWidget {
     this.showAyahMenu = true,
     this.onAyahLongPress,
     this.onAyahLongPressDeselect,
+    this.onPageChanged,
     this.controller,
   });
 
@@ -1085,6 +1089,11 @@ class _QuranPageViewState extends State<QuranPageView>
             controller: _pageController,
             itemCount: 604,
             reverse: true,
+            onPageChanged: (index) {
+              if (widget.onPageChanged != null) {
+                widget.onPageChanged!(index + 1);
+              }
+            },
             itemBuilder: (c, i) {
               final page = i + 1;
               return _QuranPage(

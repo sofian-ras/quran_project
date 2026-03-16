@@ -157,6 +157,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final page = await MushafDb.instance.getPageForAyah(surah, ayah);
     if (!mounted || page == null) return;
 
+    // Vérifie que la clé n'a pas changé pendant le await (race condition)
+    if (MiniPlayerService.instance.currentAyahKey.value != key) return;
+
+    // Ne change de page que si la lecture est active
+    if (!MiniPlayerService.instance.isPlaying.value) {
+      _qcfController.highlightAyah(surah, ayah, page);
+      setState(() {});
+      return;
+    }
+
     if (page != currentPage) {
       _navigateToPage(page);
     }
@@ -385,6 +395,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ayahLongPressDuration: const Duration(milliseconds: 220),
                 showAyahMenu: false,
                 customAyahActions: const [],
+                onPageChanged: (page) {
+                  setState(() => currentPage = page);
+                },
                 onAyahTap: (surah, ayah, page) {
                   _lastAyahTapAt = DateTime.now();
                   AyahBubble.dismiss();
