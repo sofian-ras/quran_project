@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/app_usage_service.dart';
-import '../services/quran_image_service.dart';
 import '../theme/theme_service.dart';
 import 'bookmarks_screen.dart';
-import 'downloads_screen.dart';
 import 'favorites_screen.dart';
 import 'statistics_screen.dart';
 
@@ -29,13 +27,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool _time24h = true;
 
-  // ── Quran download ─────────────────────────────────────────────────────────
-  bool   _quranReady       = false;
-  bool   _quranDownloading = false;
-  bool   _quranExtracting  = false;
-  double _quranProgress    = 0.0;
-  Timer? _pollTimer;
-
   // ── Time tracker ───────────────────────────────────────────────────────────
   int    _usageSeconds = 0;
   Timer? _usageTimer;
@@ -44,14 +35,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadPrefs();
-    _refreshQuranState();
-    _startPolling();
     _startUsageTimer();
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     _usageTimer?.cancel();
     super.dispose();
   }
@@ -67,58 +55,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool(_kTime24h, v);
     if (!mounted) return;
     setState(() => _time24h = v);
-  }
-
-  // ── Quran download ─────────────────────────────────────────────────────────
-  Future<void> _refreshQuranState() async {
-    final ready = await QuranImageService.areImagesDownloaded();
-    if (!mounted) return;
-    setState(() => _quranReady = ready);
-  }
-
-  void _startPolling() {
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
-      final st = QuranImageService.getDownloadStatus();
-      final d  = st['isDownloading'] == true;
-      final e  = st['isExtracting']  == true;
-      final p  = (st['downloadProgress'] is double)
-          ? st['downloadProgress'] as double
-          : 0.0;
-      if (!mounted) return;
-      if (d != _quranDownloading || e != _quranExtracting || p != _quranProgress) {
-        setState(() {
-          _quranDownloading = d;
-          _quranExtracting  = e;
-          _quranProgress    = p;
-        });
-      }
-      if (!d && !e && _quranProgress >= 1.0 && !_quranReady) {
-        _refreshQuranState();
-      }
-    });
-  }
-
-  Future<void> _downloadQuran() async {
-    setState(() { _quranDownloading = true; _quranProgress = 0; });
-    try {
-      await QuranImageService.downloadAndExtractImages(
-        onDownloadProgress: (p) {
-          if (!mounted) return;
-          setState(() { _quranDownloading = true; _quranProgress = p; });
-        },
-        onExtractionProgress: (_) {
-          if (!mounted) return;
-          setState(() { _quranExtracting = true; _quranDownloading = false; });
-        },
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() { _quranDownloading = false; _quranExtracting = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Téléchargement échoué. Vérifie ta connexion.')),
-      );
-    }
-    if (mounted) _refreshQuranState();
   }
 
   // ── Usage timer ────────────────────────────────────────────────────────────
@@ -269,20 +205,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     const SizedBox(height: 24),
 
-                    // ── Coran ─────────────────────────────────────────────────
-                    _SectionHeader('Coran', txtS),
-                    _Card(isDark: isDark, children: [
-                      _QuranDownloadTile(
-                        isDark: isDark,
-                        txtP: txtP,
-                        txtS: txtS,
-                        ready: _quranReady,
-                        downloading: _quranDownloading,
-                        extracting: _quranExtracting,
-                        progress: _quranProgress,
-                        onDownload: _downloadQuran,
-                      ),
-                    ]),
 
                     const SizedBox(height: 24),
 
@@ -314,15 +236,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle: 'Suivi de votre progression',
                         isDark: isDark, txtP: txtP, txtS: txtS,
                         onTap: () => _push(const StatisticsScreen()),
-                      ),
-                      Divider(height: 1, indent: 60, color: div),
-                      _NavTile(
-                        icon: Icons.cloud_download_rounded,
-                        iconBg: _kTeal,
-                        title: 'Téléchargements',
-                        subtitle: 'Récitations hors-ligne',
-                        isDark: isDark, txtP: txtP, txtS: txtS,
-                        onTap: () => _push(const DownloadsScreen()),
                       ),
                     ]),
 
@@ -560,102 +473,6 @@ class _ThemeChip extends StatelessWidget {
 }
 
 // ── Quran download tile ───────────────────────────────────────────────────────
-class _QuranDownloadTile extends StatelessWidget {
-  final bool isDark, ready, downloading, extracting;
-  final double progress;
-  final Color txtP, txtS;
-  final VoidCallback onDownload;
-
-  const _QuranDownloadTile({
-    required this.isDark,
-    required this.ready,
-    required this.downloading,
-    required this.extracting,
-    required this.progress,
-    required this.txtP,
-    required this.txtS,
-    required this.onDownload,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final busy   = downloading || extracting;
-    final label  = ready
-        ? 'Pages du Coran téléchargées ✓'
-        : busy
-            ? (extracting ? 'Extraction…' : 'Téléchargement…')
-            : 'Télécharger tout le Coran';
-    final sub    = ready
-        ? 'Lecture hors-ligne disponible'
-        : busy
-            ? (extracting
-                ? 'Décompression en cours…'
-                : '${(progress * 100).toStringAsFixed(0)} %')
-            : 'Images haute qualité (~200 Mo)';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _IconBox(
-                ready
-                    ? Icons.check_circle_rounded
-                    : busy
-                        ? Icons.downloading_rounded
-                        : Icons.download_for_offline_rounded,
-                ready ? const Color(0xFF16A34A) : _kTeal,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label,
-                        style: TextStyle(fontSize: 15,
-                            fontWeight: FontWeight.w600, color: txtP)),
-                    Text(sub, style: TextStyle(fontSize: 12, color: txtS)),
-                  ],
-                ),
-              ),
-              if (!ready && !busy)
-                FilledButton(
-                  onPressed: onDownload,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _kTeal,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    textStyle: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                  child: const Text('Lancer'),
-                ),
-            ],
-          ),
-          if (busy) ...[
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: extracting ? null : progress,
-                backgroundColor: isDark
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.black.withValues(alpha: 0.07),
-                valueColor: const AlwaysStoppedAnimation(_kTeal),
-                minHeight: 5,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 // ── Shared helpers ────────────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String label;

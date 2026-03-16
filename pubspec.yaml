@@ -56,7 +56,6 @@ flutter:
   # Gestion des images et fichiers de données
   assets:
     - assets/data/husn_en.json
-    - assets/data/quranpages1024.sqlite
     - assets/data/dua_pack_v1.json
     - assets/data/juz_mapping.json
     - assets/data/reciters_mapping.json
@@ -72,7 +71,6 @@ flutter:
     - assets/images/Translated_Quran/
     - assets/images/Translated_Quran/surah_svg/
     - assets/data/
-    - assets/data/ayahinfo_1120.db
     # - assets/assetpacks/quran_pages.zip
     - assets/screenshots/
     - assets/fonts/

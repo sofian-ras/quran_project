@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../services/audio_service.dart';
 import '../bookmarks_screen.dart';
-import '../downloads_screen.dart';
 import '../favorites_screen.dart';
 import '../settings_screen.dart';
 import '../screens/hadith_screen.dart';
@@ -227,13 +226,6 @@ class IOSSideMenu extends StatelessWidget {
                         onTap: () => _closeAndPush(context, const AsmaScreen()),
                       ),
                       const SizedBox(height: 10),
-                      _MenuSection(
-                        icon: CupertinoIcons.arrow_down_circle,
-                        title: 'Téléchargements',
-                        subtitle: 'Gérer les fichiers',
-                        divider: divider,
-                        onTap: () => _closeAndPush(context, const DownloadsScreen()),
-                      ),
                       _MenuSection(
                         icon: CupertinoIcons.settings,
                         title: 'Paramètres',

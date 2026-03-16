@@ -33,17 +33,13 @@ class _BottomNavShellState extends State<BottomNavShell> {
     const SettingsScreen(key: PageStorageKey('tab_settings')),
   ];
 
-  Future<void> _openReader() async {
+  Future<void> _openQuranNav() async {
     final last = await LastReadingService.getLastReading();
     final page = last?.pageNumber ?? 1;
     if (!mounted) return;
-
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ReaderScreen(
-          initialPage: page,
-          reading: 'hafs',
-        ),
+        builder: (_) => ReaderScreen(initialPage: page, reading: 'hafs'),
       ),
     );
   }
@@ -88,7 +84,7 @@ class _BottomNavShellState extends State<BottomNavShell> {
         bottomNavigationBar: ModernBottomNavBar(
           index: _index,
           onChanged: _onTabChanged,
-          onCenterTap: _openReader,
+          onCenterTap: _openQuranNav,
         ),
       ),
     );
