@@ -35,12 +35,14 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   late int currentPage;
   int _readerTheme = 1; // 0=blanc, 1=papier, 2=sombre
+  static const Duration _tapDebounce = Duration(milliseconds: 180);
 
   late QuranPageController _qcfController;
 
   List<SurahInfo> _surahList = [];
   bool _showUI = true;
   Timer? _saveTimer;
+  DateTime? _lastAyahTapAt;
   Offset? _lastTouchPosition;
 
   // ── Notes ─────────────────────────────────────────────────────────────────
@@ -112,6 +114,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _loadReaderTheme();
     _loadNoteKeys();
     MiniPlayerService.instance.currentAyahKey.addListener(_onPlayingAyahChanged);
+    MiniPlayerService.instance.isPlaying.addListener(_onIsPlayingChanged);
     AudioService.instance.suppressGlobalPlayer.value = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -124,6 +127,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void dispose() {
     MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
+    MiniPlayerService.instance.isPlaying.removeListener(_onIsPlayingChanged);
     _saveTimer?.cancel();
 
     AudioService.instance.suppressGlobalPlayer.value = false;
@@ -139,6 +143,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final key = MiniPlayerService.instance.currentAyahKey.value;
 
     if (key == null) {
+      _qcfController.clearAyahSelection();
       setState(() {});
       return;
     }
@@ -155,7 +160,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (page != currentPage) {
       _navigateToPage(page);
     }
+    _qcfController.highlightAyah(surah, ayah, page);
     setState(() {});
+  }
+
+  void _onIsPlayingChanged() {
+    if (!mounted) return;
+    if (!MiniPlayerService.instance.isPlaying.value) {
+      _qcfController.clearAyahSelection();
+    }
   }
 
   Future<void> _loadSurahs() async {
@@ -302,24 +315,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  String _hizbText(int page) {
-    if (hizbMap.isEmpty) return '';
-    final h = hizbMap.lastWhere(
-      (e) => e['start_page']! <= page,
-      orElse: () => hizbMap.first,
-    );
-    return 'Hizb ${h['hizb']}';
-  }
-
-  String _juzzText(int page) {
-    if (juzzMap.isEmpty) return '';
-    final j = juzzMap.lastWhere(
-      (e) => e['start_page']! <= page,
-      orElse: () => juzzMap.first,
-    );
-    return 'Juzz ${j['juz']}';
-  }
-
   void _saveToHistory(int page) {
     if (_surahList.isEmpty) return;
 
@@ -348,13 +343,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
               orElse: () => _surahList.first,
             ).id;
 
-    final surahNameFr = _surahList.isEmpty
-        ? ''
-        : _surahList.lastWhere(
-              (s) => s.pageStart <= currentPage,
-              orElse: () => _surahList.first,
-            ).nameFr;
-
     return Scaffold(
       backgroundColor: _themeBg,
       extendBody: true,
@@ -364,10 +352,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
         children: [
           // ── Lecteur QCF ───────────────────────────────────────────────────
           Positioned.fill(
-            child: Listener(
+            child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onPointerDown: (e) => _lastTouchPosition = e.position,
-              child: QuranPageView(
+              onTap: () {
+                final now = DateTime.now();
+                final lastAyahTapAt = _lastAyahTapAt;
+                if (lastAyahTapAt != null && now.difference(lastAyahTapAt) < _tapDebounce) {
+                  return;
+                }
+                AyahBubble.dismiss();
+                _qcfController.clearAyahSelection();
+                setState(() => _showUI = !_showUI);
+              },
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (e) => _lastTouchPosition = e.position,
+                child: QuranPageView(
                 controller: _qcfController,
                 pageImagePath: PageImagesService.localPagesPath != null
                     ? '${PageImagesService.localPagesPath}/'
@@ -382,18 +382,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 showSearchIcon: false,
                 showPageNumber: true,
                 highlightColor: const Color(0x554FC3F7),
+                ayahLongPressDuration: const Duration(milliseconds: 220),
                 showAyahMenu: false,
                 customAyahActions: const [],
                 onAyahTap: (surah, ayah, page) {
+                  _lastAyahTapAt = DateTime.now();
+                  AyahBubble.dismiss();
+                  _qcfController.clearAyahSelection();
                   setState(() {
                     currentPage = page;
-                    _showUI = true;
+                    _showUI = !_showUI;
                   });
                   _saveTimer?.cancel();
                   _saveTimer = Timer(const Duration(milliseconds: 800), () {
                     if (!mounted) return;
                     _saveToHistory(currentPage);
                   });
+                },
+                onAyahLongPress: (surah, ayah, page) {
+                  _lastAyahTapAt = DateTime.now();
+                  AyahBubble.dismiss();
+                  _qcfController.clearAyahSelection();
                   final touch = _lastTouchPosition ??
                       Offset(
                         MediaQuery.of(context).size.width / 2,
@@ -409,62 +418,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     surah: surah,
                     ayah: ayah,
                     anchorGlobalRect: anchor,
-                    onDismiss: () {},
+                    onDismiss: () {
+                      _qcfController.clearAyahSelection();
+                    },
                     onNote: () => _showNoteEditor(surah, ayah),
                     hasNote: _noteKeys.contains('$surah:$ayah'),
                   );
                 },
+                onAyahLongPressDeselect: () {
+                  AyahBubble.dismiss();
+                  _qcfController.clearAyahSelection();
+                },
+              ),
               ),
             ),
           ),
-
-          // ── French surah name below package top bar — portrait ────────────
-          if (!isLandscape)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              top: _showUI ? (viewPadding.top + 60) : (viewPadding.top - 40),
-              left: 30,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 220),
-                opacity: _showUI ? 1.0 : 0.0,
-                child: IgnorePointer(
-                  ignoring: !_showUI,
-                  child: Text(
-                    surahNameFr,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _themeIconColor.withValues(alpha: 0.65),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // ── French juzz/hizb below package top bar — portrait ─────────────
-          if (!isLandscape)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              top: _showUI ? (viewPadding.top + 60) : (viewPadding.top - 40),
-              right: 30,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 220),
-                opacity: _showUI ? 1.0 : 0.0,
-                child: IgnorePointer(
-                  ignoring: !_showUI,
-                  child: Text(
-                    '${_juzzText(currentPage)} · ${_hizbText(currentPage)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _themeIconColor.withValues(alpha: 0.65),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ),
 
           // ── TOP overlay — portrait ────────────────────────────────────────
           if (!isLandscape)
@@ -544,7 +512,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     children: [
                       MiniPlayerWidget(currentSurah: currentSurah),
                       const SizedBox(height: 6),
-                      _bottomBarPortrait(surahNameFr),
+                      _bottomBarPortrait(),
                     ],
                   ),
                 ),
@@ -567,7 +535,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _bottomBarLandscapeInfo(surahNameFr),
+                      _bottomBarLandscapeInfo(),
                       const SizedBox(width: 8),
                       ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 320),
@@ -630,7 +598,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   /// Pill info paysage gauche.
-  Widget _bottomBarLandscapeInfo(String surahNameFr) {
+  Widget _bottomBarLandscapeInfo() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
@@ -645,18 +613,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextButton.icon(
+              IconButton(
                 onPressed: _showNavigationPicker,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  minimumSize: Size.zero,
-                ),
-                icon: Icon(Icons.menu_book, color: _themeIconColor, size: 15),
-                label: Text(
-                  surahNameFr,
-                  style: TextStyle(color: _themeIconColor, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(),
+                icon: Icon(Icons.menu_book, color: _themeIconColor, size: 18),
               ),
               Container(width: 1, height: 14, color: _themeIconColor.withValues(alpha: 0.25),
                   margin: const EdgeInsets.symmetric(horizontal: 6)),
@@ -671,7 +632,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  Widget _bottomBarPortrait(String surahNameFr) {
+  Widget _bottomBarPortrait() {
     return SizedBox(
       height: 44,
       child: Stack(

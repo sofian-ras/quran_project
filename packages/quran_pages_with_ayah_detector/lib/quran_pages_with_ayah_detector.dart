@@ -144,6 +144,16 @@ class QuranPageController {
     _state?._showSelectionSheet(
         initialSurah: initialSurah, initialJuz: initialJuz);
   }
+
+  /// Clears the currently highlighted/selected ayah on all pages.
+  void clearAyahSelection() {
+    _state?._clearAyahSelection();
+  }
+
+  /// Highlights a specific ayah (e.g. currently playing audio verse).
+  void highlightAyah(int sura, int ayah, int page) {
+    _state?._highlightAyah(sura, ayah, page);
+  }
 }
 
 /// A widget that displays Quran pages and allows for ayah detection and interaction.
@@ -190,6 +200,9 @@ class QuranPageView extends StatefulWidget {
 
   /// The duration of the highlight animation.
   final Duration highlightDuration;
+
+  /// The press duration required to trigger ayah long-press actions.
+  final Duration ayahLongPressDuration;
 
   /// Whether to show a search icon in the top bar.
   final bool showSearchIcon;
@@ -323,6 +336,12 @@ class QuranPageView extends StatefulWidget {
   /// Set to false to handle the long press externally (e.g. with a custom overlay).
   final bool showAyahMenu;
 
+  /// Called when an ayah is long-pressed and selected (not fired on deselection).
+  final void Function(int sura, int ayah, int pageNumber)? onAyahLongPress;
+
+  /// Called when the currently selected ayah is deselected (second long-press on same ayah).
+  final VoidCallback? onAyahLongPressDeselect;
+
   /// Creates a [QuranPageView] with customizable behavior and styling.
   const QuranPageView({
     super.key,
@@ -339,6 +358,7 @@ class QuranPageView extends StatefulWidget {
     this.topBarTextColor = Colors.black,
     this.highlightColor = Colors.blue,
     this.highlightDuration = const Duration(milliseconds: 220),
+    this.ayahLongPressDuration = const Duration(milliseconds: 300),
     this.showSearchIcon = true,
     this.searchIconColor = Colors.black,
     this.searchSheetBackgroundColor = Colors.white,
@@ -381,6 +401,8 @@ class QuranPageView extends StatefulWidget {
     this.ayahMenuDividerColor = const Color(0xFFE0E0E0),
     this.customAyahActions = const [],
     this.showAyahMenu = true,
+    this.onAyahLongPress,
+    this.onAyahLongPressDeselect,
     this.controller,
   });
 
@@ -669,6 +691,24 @@ class _QuranPageViewState extends State<QuranPageView>
       setState(() {
         _isSearchOpen = false;
         _searchResults = [];
+      });
+    }
+  }
+
+  void _clearAyahSelection() {
+    if (mounted) {
+      setState(() {
+        _highlightedAyahKey = null;
+        _highlightedPage = null;
+      });
+    }
+  }
+
+  void _highlightAyah(int sura, int ayah, int page) {
+    if (mounted) {
+      setState(() {
+        _highlightedAyahKey = '${sura}_$ayah';
+        _highlightedPage = page;
       });
     }
   }
@@ -1080,6 +1120,7 @@ class _QuranPageViewState extends State<QuranPageView>
                 searchResultGroupTitleColor: widget.searchResultGroupTitleColor,
                 highlightColor: widget.highlightColor,
                 highlightDuration: widget.highlightDuration,
+                ayahLongPressDuration: widget.ayahLongPressDuration,
                 showSearchIcon: widget.showSearchIcon,
                 searchIconColor: widget.searchIconColor,
                 highlightedAyahKey:
@@ -1100,6 +1141,8 @@ class _QuranPageViewState extends State<QuranPageView>
                 ayahMenuDividerColor: widget.ayahMenuDividerColor,
                 customAyahActions: widget.customAyahActions,
                 showAyahMenu: widget.showAyahMenu,
+                onAyahLongPress: widget.onAyahLongPress,
+                onAyahLongPressDeselect: widget.onAyahLongPressDeselect,
               );
             },
           ),
@@ -1580,6 +1623,9 @@ class _QuranPage extends StatefulWidget {
   /// The duration of the highlight animation.
   final Duration highlightDuration;
 
+  /// The press duration required to trigger ayah long-press actions.
+  final Duration ayahLongPressDuration;
+
   /// Whether to show the search icon.
   final bool showSearchIcon;
 
@@ -1619,6 +1665,12 @@ class _QuranPage extends StatefulWidget {
   /// Whether to show the built-in ayah action menu on long press.
   final bool showAyahMenu;
 
+  /// Called when an ayah is long-pressed and selected.
+  final void Function(int sura, int ayah, int pageNumber)? onAyahLongPress;
+
+  /// Called when the currently selected ayah is deselected.
+  final VoidCallback? onAyahLongPressDeselect;
+
   /// Creates a [_QuranPage] with the given configuration.
   const _QuranPage({
     required this.pageNumber,
@@ -1641,6 +1693,7 @@ class _QuranPage extends StatefulWidget {
     required this.searchResultGroupTitleColor,
     required this.highlightColor,
     required this.highlightDuration,
+    required this.ayahLongPressDuration,
     required this.showSearchIcon,
     required this.searchIconColor,
     this.highlightedAyahKey,
@@ -1653,6 +1706,8 @@ class _QuranPage extends StatefulWidget {
     required this.ayahMenuDividerColor,
     required this.customAyahActions,
     this.showAyahMenu = true,
+    this.onAyahLongPress,
+    this.onAyahLongPressDeselect,
   });
 
   @override
@@ -1680,6 +1735,42 @@ class _QuranPageState extends State<_QuranPage> {
 
   /// Global key for the ayah menu overlay.
   final GlobalKey _menuKey = GlobalKey();
+  Timer? _ayahPressTimer;
+  String? _longPressConsumedAyahKey;
+
+  String _ayahKey(int sura, int ayah) => '${sura}_$ayah';
+
+  void _startAyahPressTimer(int sura, int ayah) {
+    _ayahPressTimer?.cancel();
+    _longPressConsumedAyahKey = null;
+    _ayahPressTimer = Timer(widget.ayahLongPressDuration, () {
+      final ayahKey = _ayahKey(sura, ayah);
+      _longPressConsumedAyahKey = ayahKey;
+      final isSameAyah = _selectedAyahKey == ayahKey;
+      if (mounted) {
+        setState(() {
+          _selectedAyahKey = isSameAyah ? null : ayahKey;
+        });
+      }
+      if (isSameAyah) {
+        if (_isAyahMenuVisible && _menuSurah == sura && _menuAyah == ayah) {
+          _hideAyahMenu();
+        }
+        widget.onAyahLongPressDeselect?.call();
+        return;
+      }
+      HapticFeedback.selectionClick();
+      widget.onAyahLongPress?.call(sura, ayah, widget.pageNumber);
+      if (widget.showAyahMenu) {
+        _showAyahMenu(sura, ayah);
+      }
+    });
+  }
+
+  void _cancelAyahPressTimer() {
+    _ayahPressTimer?.cancel();
+    _ayahPressTimer = null;
+  }
 
   Widget _buildPageImage(String imagePath, {double? width, double? height, BoxFit? fit, Color? color}) {
     final isFile = imagePath.startsWith('/') || (imagePath.length > 2 && imagePath[1] == ':');
@@ -1720,6 +1811,12 @@ class _QuranPageState extends State<_QuranPage> {
     super.initState();
     _selectedAyahKey = widget.highlightedAyahKey;
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _cancelAyahPressTimer();
+    super.dispose();
   }
 
   /// Loads ayah segment coordinates for this page from the JSON asset.
@@ -2326,15 +2423,18 @@ class _QuranPageState extends State<_QuranPage> {
                               height: s.height * scrollScale,
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  if (widget.onAyahTap != null) {
-                                    widget.onAyahTap!(
-                                        s.sura, s.ayah, widget.pageNumber);
-                                  }
+                                onTapDown: (_) {
+                                  _startAyahPressTimer(s.sura, s.ayah);
                                 },
-                                onLongPress: () {
-                                  if (widget.showAyahMenu) {
-                                    _showAyahMenu(s.sura, s.ayah);
+                                onTapCancel: _cancelAyahPressTimer,
+                                onTapUp: (_) {
+                                  _cancelAyahPressTimer();
+                                },
+                                onTap: () {
+                                  final key = _ayahKey(s.sura, s.ayah);
+                                  if (_longPressConsumedAyahKey == key) {
+                                    _longPressConsumedAyahKey = null;
+                                    return;
                                   }
                                   if (widget.onAyahTap != null) {
                                     widget.onAyahTap!(
@@ -2571,14 +2671,19 @@ class _QuranPageState extends State<_QuranPage> {
                           height: s.height * normalScale,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              if (widget.onAyahTap != null) {
-                                widget.onAyahTap!(
-                                    s.sura, s.ayah, widget.pageNumber);
-                              }
+                            onTapDown: (_) {
+                              _startAyahPressTimer(s.sura, s.ayah);
                             },
-                            onLongPress: () {
-                              _showAyahMenu(s.sura, s.ayah);
+                            onTapCancel: _cancelAyahPressTimer,
+                            onTapUp: (_) {
+                              _cancelAyahPressTimer();
+                            },
+                            onTap: () {
+                              final key = _ayahKey(s.sura, s.ayah);
+                              if (_longPressConsumedAyahKey == key) {
+                                _longPressConsumedAyahKey = null;
+                                return;
+                              }
                               if (widget.onAyahTap != null) {
                                 widget.onAyahTap!(
                                     s.sura, s.ayah, widget.pageNumber);

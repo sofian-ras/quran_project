@@ -86,11 +86,14 @@ class _BubbleLayout extends StatelessWidget {
 
     return Stack(
       children: [
-        // Pas de barrière : le QuranPageView (arbre principal) reçoit
-        // tous les taps et appelle AyahBubble.dismiss() lui-même en premier
-        // via onAyahTap → AyahBubble.show() → dismiss().
-        // Cela permet en un seul tap de fermer la bulle ET de sélectionner
-        // le nouveau verset (au lieu de deux taps séparés).
+        // Barrière plein-écran : tap hors bulle → dismiss
+        // translucent : les long-press traversent jusqu'au QuranPageView
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: onDismiss,
+          ),
+        ),
         Positioned(
           left: left,
           top: top,
