@@ -11,8 +11,7 @@ import 'services/app_usage_service.dart';
 import 'services/audio_service.dart';
 import 'services/navigation_service.dart';
 import 'services/quran_translation_pack_service.dart';
-
-
+import 'services/page_images_service.dart';
 
 Future<void> main() async {
   // Doit être le premier appel — requis avant tout channel platform.
@@ -32,6 +31,7 @@ Future<void> main() async {
 
   // Opérations non-bloquantes : lancées en arrière-plan sans retarder runApp.
   AppUsageService.init();
+  PageImagesService.init();
   QuranTranslationPackService.migrateLegacyToQulIfNeeded();
 
   SystemChrome.setSystemUIOverlayStyle(

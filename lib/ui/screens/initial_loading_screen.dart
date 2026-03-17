@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/quran_image_service.dart';
+import '../../services/page_images_service.dart';
 import '../../services/font_download_service.dart';
 import '../../services/quran_translation_pack_service.dart';
 import '../widgets/download_progress_widget.dart';
@@ -28,7 +28,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
 
   Future<void> _checkAndDownload() async {
     try {
-      final imagesReady      = await QuranImageService.areImagesDownloaded();
+      final imagesReady      = await PageImagesService.areImagesDownloaded();
       final fontsReady       = await FontDownloadService.areFontsDownloaded();
       final translationReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
 
@@ -47,7 +47,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
           });
         }
 
-        await QuranImageService.downloadAndExtractImages(
+        await PageImagesService.downloadAndExtract(
           onDownloadProgress: (progress) {
             if (mounted) {
               setState(() {
