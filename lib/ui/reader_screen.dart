@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qcf_quran/qcf_quran.dart';
@@ -502,19 +501,9 @@ class _QuranPageItemState extends State<_QuranPageItem> {
               '$surah:$verse' == currentKey ? highlightColor : null,
     );
 
-    final p = widget.pageNumber;
-    final double sp = (p == 1 || p == 2)
-        ? 28.sp
-        : (p == 145 || p == 201)
-            ? 22.4.sp
-            : 22.9.sp;
-    final double h = (p == 1 || p == 2) ? 2.h : 1.95.h;
-
     return QcfPage(
       pageNumber: widget.pageNumber,
       theme: theme,
-      sp: sp,
-      h: h,
       onLongPress: widget.onLongPress,
     );
   }
