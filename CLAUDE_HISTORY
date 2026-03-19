@@ -1,50 +1,251 @@
-﻿Plus d'erreurs liées à mes changements — les warnings restants (withOpacity, _pickMoshaf) sont préexistants.
+﻿Je te conseille pub.dev, pour ces raisons :
 
-Voici le résumé des deux fixes :
+pub.dev ✅ (recommandé)
 
-1. Swipe vers le bas corrigé (mini_audio_player.dart)
+Projet plus propre — pas besoin de garder 604 polices TTF dans notre repo
+Mises à jour automatiques si le dev corrige des bugs
+La version pub.dev est identique au repo GitHub qu'il t'a partagé
+Local ❌ (à éviter)
 
-_SwipeToDismissPlayer est maintenant un StatefulWidget séparé — son setState ne recrée plus le GestureDetector (c'était la cause du bug : le GestureDetector était détruit/recréé à chaque frame de drag)
-GlobalMiniPlayerOverlay redevient StatelessWidget simple
-2. Pastille reciteur (home_screen.dart)
+On avait copié le package entier dans /packages/ — c'est 604 fichiers TTF + les data dans le repo git
+Si le dev met à jour son package, on rate les corrections
+Plus lourd à maintenir
+La seule raison de garder le local serait si on avait fait des modifications custom dedans — vérifions rapidement :
 
-Tap sur reciteur → setReciter() + loadPlaylistAndPlay() directement
-Pas de navigation vers ReciterSurahListScreen
-Le mini player global apparaît en bas du home screen
-Si un surah était déjà en cours pour ce reciteur, il reprend depuis ce surah ; sinon sourate 1
-Hot restart (R) pour tester.
+Bash Check local package version in test branch
+IN
+git show test-quran-package:packages/quran_pages_with_ayah_detector/pubspec.yaml | grep "version"
 
-quaand je vais dans see all que je selectionne un recitateur ensuite retour arriere jusque dans home screen ensuite je tape sur une pastille dun recitateur -> le player ne saffiche pas mais l'audio se lance quand meme
-Le problème vient de la chaîne de navigation : See All → ReciterPickerScreen → ReciterSurahListScreen. Regardons comment suppressGlobalPlayer est géré dans ces écrans.
+OUT
+version: 1.2.0
+Bash Check if local package was ever modified
+IN
+git log test-quran-package -- packages/quran_pages_with_ayah_detector/lib/ --oneline | head -5
 
-Grep "suppressGlobalPlayer" (in c:\Users\Administrateur\Documents\quran_project\lib\ui)
-37 lines of output
-Grep "isActiveStream|isActive" (in c:\Users\Administrateur\Documents\quran_project\lib\services\audio_service.dart)
-10 lines of output
-Grep "Future.*stop\(\)|void stop\(\)|async.*stop|\.stop()" (in c:\Users\Administrateur\Documents\quran_project\lib\services\audio_service.dart)
-35 lines of output
-Grep "void setReciter|setReciter|currentServer" (in c:\Users\Administrateur\Documents\quran_project\lib\services\audio_service.dart)
-41 lines of output
-Read c:\Users\Administrateur\Documents\quran_project\lib\services\audio_service.dart (lines 124-153)
-Read c:\Users\Administrateur\Documents\quran_project\lib\services\audio_service.dart (lines 149-188)
-Grep "initState|dispose|suppressGlobal" (in c:\Users\Administrateur\Documents\quran_project\lib\ui\reciter_picker_screen.dart)
-31 lines of output
-Grep "_openSeeAll|See All|onSeeAll|seeAll|SeeAll" (in c:\Users\Administrateur\Documents\quran_project\lib\ui\home_screen.dart)
-2 lines of output
-Grep "ReciterPickerScreen|reciterPicker|openPicker" (in c:\Users\Administrateur\Documents\quran_project\lib\ui\home_screen.dart)
-2 lines of output
-Grep "ReciterPickerScreen|suppressGlobalPlayer.*true" (in c:\Users\Administrateur\Documents\quran_project\lib\ui)
-90 lines of output
-Grep "_loadReciterServersIfNeeded|_serversLoading|_serversLoaded" (in c:\Users\Administrateur\Documents\quran_project\lib\ui\home_screen.dart)
-41 lines of output
-/compact
-J'ai trouvé le vrai bug. isActiveStream crée un nouveau stream à chaque build() — StreamBuilder reçoit null au premier frame et attend la prochaine émission. Si le state processingState ne change pas (reste ready), le player n'apparaît jamais.
+OUT
+commit f45db002d391ccc169a21f0dd075c83d4894c5fe
+Author: sofian-ras <sofianrasmi@gmail.com>
+Date:   Mon Mar 16 16:34:38 2026 +0100
 
-La fix : remplacer le stream par un ValueNotifier<bool> dans AudioService, mis à jour explicitement.
+    fix selection ayah bubble ayah
+Bash Check if local package lib was modified vs original
+IN
+git show test-quran-package:packages/quran_pages_with_ayah_detector/lib/quran_pages_with_ayah_detector.dart | head -30
 
-Read c:\Users\Administrateur\Documents\quran_project\lib\services\audio_service.dart (lines 31-85)
-Read c:\Users\Administrateur\Documents\quran_project\lib\services\audio_service.dart (lines 85-104)
-You've hit your limit · resets Mar 13, 9am (Europe/Paris)
+OUT
+// ignore_for_file: deprecated_member_use
+
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui' as ui;
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:quran_pages_with_ayah_detector/data/arabic_numbers.dart';
+import 'package:quran_pages_with_ayah_detector/data/ayah_data.dart';
+import 'package:quran_pages_with_ayah_detector/data/image_surah_glyph.dart';
+import 'package:quran_pages_with_ayah_detector/data/juz_glyph.dart';
+import 'package:quran_pages_with_ayah_detector/data/sura_glyph.dart';
+import 'package:quran_pages_with_ayah_detector/data/quran_clean_plain.dart';
+import 'package:quran_pages_with_ayah_detector/data/sura_ayah_to_page.dart';
+import 'package:quran_pages_with_ayah_detector/data/quran_text_data.dart';
+import 'package:quran/quran.dart' as quran;
+import 'package:quran_pages_with_ayah_detector/data/surah_number_of_ayahs.dart';
+import 'package:quran_pages_with_ayah_detector/data/is_madani.dart';
+import 'package:quran_pages_with_ayah_detector/data/hizb_quarters_data.dart';
+import 'package:quran_pages_with_ayah_detector/data/quran_text.dart';
+
+/// Represents a custom action option for the ayah long-press menu.
+class AyahActionOption {
+  /// The title/label of the action.
+  final String title;
+
+  /// The icon to display for this action.
+  final IconData icon;
+Le package local est version 1.2.0 et n'a pas été modifié — c'est une copie exacte du pub.dev.
+
+Verdict : pub.dev sans hésitation. Même code, projet beaucoup plus propre.
+
+On peut commencer à coder ? L'ordre sera :
+
+pubspec.yaml — remplacer qcf_quran par quran_pages_with_ayah_detector: ^1.2.0
+Ramener PageImagesService depuis la branche test
+Mettre à jour initial_loading_screen.dart
+Réécrire reader_screen.dart avec QuranPageView
+vasy
+On commence. D'abord je lis tout ce dont j'ai besoin avant de toucher quoi que ce soit.
+
+Bash Read PageImagesService from test branch
+IN
+git show test-quran-package:lib/services/page_images_service.dart
+
+OUT
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:archive/archive_io.dart';
+
+/// Service pour le téléchargement des images de pages du Mushaf.
+class PageImagesService {
+  static const String zipUrl =
+      'https://github.com/sofian-ras/quran_project/releases/download/version1.0.0/pages_hafs_1920.zip';
+  static const String zipFileName = 'pages_hafs_1920.zip';
+
+  static final Dio _dio = Dio();
+  static bool _isDownloading = false;
+  static bool _isExtracting = false;
+  static double _downloadProgress = 0.0;
+  static double _extractionProgress = 0.0;
+
+  static String? _localPagesPath;
+
+  /// Retourne le chemin local du dossier des images (après init).
+  static String? get localPagesPath => _localPagesPath;
+
+  static Future<String> _getPagesPath() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return p.join(dir.path, 'pages');
+  }
+
+  /// Initialise le chemin local (à appeler au démarrage).
+  static Future<void> init() async {
+    _localPagesPath = await _getPagesPath();
+  }
+
+  /// Vérifie si les images sont déjà téléchargées.
+  static Future<bool> areImagesDownloaded() async {
+    try {
+      final path = await _getPagesPath();
+      final first = File(p.join(path, '1.png'));
+      final last  = File(p.join(path, '604.png'));
+      return await first.exists() && await last.exists();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Télécharge et extrait le ZIP des images de pages.
+  static Future<void> downloadAndExtract({
+    Function(double)? onDownloadProgress,
+    Function(double)? onExtractionProgress,
+  }) async {
+    if (_isDownloading || _isExtracting) {
+      while (_isDownloading || _isExtracting) {
+        await Future.delayed(const Duration(milliseconds: 250));
+      }
+      return;
+    }
+
+    if (await areImagesDownloaded()) return;
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final zipPath = p.join(dir.path, zipFileName);
+
+      _isDownloading = true;
+      debugPrint('Téléchargement des images de pages depuis: $zipUrl');
+      await _dio.download(
+        zipUrl,
+        zipPath,
+        options: Options(
+          receiveTimeout: const Duration(minutes: 30),
+          sendTimeout: const Duration(minutes: 30),
+        ),
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            _downloadProgress = received / total;
+            onDownloadProgress?.call(_downloadProgress);
+          }
+        },
+      );
+
+      _isDownloading = false;
+      _isExtracting = true;
+      _extractionProgress = 0.0;
+      onExtractionProgress?.call(0.0);
+
+      await compute(_extractZipTask, {
+        'zipPath': zipPath,
+        'destinationPath': dir.path,
+      });
+
+      _extractionProgress = 1.0;
+      onExtractionProgress?.call(1.0);
+      _isExtracting = false;
+
+      final zipFile = File(zipPath);
+      if (await zipFile.exists()) await zipFile.delete();
+
+      _localPagesPath = await _getPagesPath();
+      debugPrint('Images de pages extraites dans: $_localPagesPath');
+    } catch (e) {
+      _isDownloading = false;
+      _isExtracting = false;
+      debugPrint('Erreur téléchargement images: $e');
+      rethrow;
+    }
+  }
+
+  static void _extractZipTask(Map<String, String> params) {
+    final zipPath         = params['zipPath']!;
+    final destinationPath = params['destinationPath']!;
+    final pagesPath       = p.join(destinationPath, 'pages');
+
+    Directory(pagesPath).createSync(recursive: true);
+
+    final inputStream = InputFileStream(zipPath);
+    final archive    = ZipDecoder().decodeStream(inputStream);
+
+    int processed = 0;
+    for (final file in archive) {
+      if (!file.isFile) continue;
+      final name = file.name;
+      if (name.contains('__MACOSX') || name.startsWith('.') || name.contains('/.')) continue;
+      if (!name.toLowerCase().endsWith('.png')) continue;
+
+      final outPath      = p.join(pagesPath, p.basename(name));
+      final outputStream = OutputFileStream(outPath);
+      file.writeContent(outputStream);
+      outputStream.close();
+
+      processed++;
+      if (processed % 50 == 0) {
+        // ignore: avoid_print
+        print('Extraction images: $processed fichiers');
+      }
+    }
+
+    inputStream.close();
+    // ignore: avoid_print
+    print('Extraction terminée: $processed images PNG dans $pagesPath');
+  }
+
+  static Map<String, dynamic> getStatus() => {
+    'isDownloading':      _isDownloading,
+    'isExtracting':       _isExtracting,
+    'downloadProgress':   _downloadProgress,
+    'extractionProgress': _extractionProgress,
+  };
+
+  static Future<void> clearCache() async {
+    final path = await _getPagesPath();
+    final dir  = Directory(path);
+    if (await dir.exists()) await dir.delete(recursive: true);
+    _localPagesPath = null;
+    debugPrint('Cache des images supprimé');
+  }
+}
+Read c:\Users\Administrateur\Documents\quran_project\lib\ui\screens\initial_loading_screen.dart
+extension-output-Dart-Code.dart-code-#2-flutter (package:quran)
+en tapant le nom de la sourate je ne veux pas la roulette, je veux comme le projet pub dev
+Simple — au lieu d'appeler notre roulette custom, on appelle directement _qcfController.showSelectionSheet() du package.
+
+Edit c:\Users\Administrateur\Documents\quran_project\lib\ui\reader_screen.dart
+Modified
+You've hit your limit · resets Mar 20, 9am (Europe/Paris)
 
 OPTIMISATION ////////////////////////////////////////////////////////
 
