@@ -31,11 +31,10 @@ class _HomeTopBar extends StatelessWidget {
                 : (mode == ThemeMode.light)
                     ? Icons.light_mode_rounded
                     : Icons.dark_mode_rounded;
-
             return IconButton(
               onPressed: onThemeTap,
               icon: Icon(icon),
-              color: t.colorScheme.onBackground.withOpacity(0.75),
+              color: t.colorScheme.onSurface.withValues(alpha: 0.75),
             );
           },
         ),
@@ -92,9 +91,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                           : (mode == ThemeMode.light)
                               ? Icons.light_mode_rounded
                               : Icons.dark_mode_rounded;
-                      final Color color = isDark
-                          ? ((mode == ThemeMode.light) ? const Color(0xFFFFD54F) : Colors.white)
-                          : const Color(0xFF0F172A);
+                      final Color color = isDark ? Colors.white : const Color(0xFF0F172A);
                       return IconButton(
                         onPressed: onThemeTap,
                         icon: Icon(icon, color: color),

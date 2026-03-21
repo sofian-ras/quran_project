@@ -73,6 +73,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
   bool _isSearchOpen = false;
+  bool _optionsExpanded = false;
   String? _selectedVerseKey;
   Timer? _saveTimer;
   Timer? _preloadDebounce;
@@ -650,36 +651,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
                           style: TextStyle(fontSize: 12, color: _themeIconColor, fontWeight: FontWeight.bold),
                         ),
-                        Opacity(
-                          opacity: 0.6,
-                          child: IconButton(
-                            icon: Icon(
-                              _readerTheme == 0 ? Icons.light_mode_outlined
-                                  : _readerTheme == 1 ? Icons.brightness_medium_outlined
-                                  : Icons.dark_mode_outlined,
-                              size: 20, color: _themeIconColor,
-                            ),
-                            onPressed: _cycleReaderTheme,
-                          ),
-                        ),
-                        Opacity(
-                          opacity: 0.7,
-                          child: IconButton(
-                            icon: Icon(
-                              _noteKeys.isNotEmpty ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
-                              size: 24,
-                              color: _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor,
-                            ),
-                            onPressed: _showNotesListModal,
-                          ),
-                        ),
-                        Opacity(
-                          opacity: 0.7,
-                          child: IconButton(
-                            icon: Icon(Icons.search_rounded, size: 22, color: _themeIconColor),
-                            onPressed: () => setState(() => _isSearchOpen = true),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -1046,30 +1017,139 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _bottomBarPortrait(String surahNameFr) {
+    final noteColor = _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor;
+    final hasNote   = _noteKeys.isNotEmpty;
+    final themeIcon = _readerTheme == 0
+        ? Icons.light_mode_outlined
+        : _readerTheme == 1
+            ? Icons.brightness_medium_outlined
+            : Icons.dark_mode_outlined;
+    final bg     = _themeBg.withValues(alpha: 0.72);
+    final border = _themeIconColor.withValues(alpha: 0.10);
+    final divColor = _themeIconColor.withValues(alpha: 0.18);
+
+    Widget toolBtn(IconData icon, VoidCallback onTap, {Color? color, double opacity = 1}) =>
+        GestureDetector(
+          onTap: onTap,
+          child: Opacity(
+            opacity: opacity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              child: Icon(icon, size: 20, color: color ?? _themeIconColor),
+            ),
+          ),
+        );
+
     return SizedBox(
-      height: 40,
-      child: Stack(
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _showNavigationPicker,
-              icon: Icon(Icons.menu_book, color: _themeIconColor, size: 20),
-              label: Text(
-                surahNameFr,
-                style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          Align(
+      height: 48,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Stack(
             alignment: Alignment.center,
-            child: Text(
-              '$currentPage',
-              style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.bold),
-            ),
+            children: [
+              // ── Gauche : navigation sourate ─────────────────────────────
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Flexible(
+                  child: TextButton.icon(
+                    onPressed: _showNavigationPicker,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: Size.zero,
+                      alignment: Alignment.centerLeft,
+                    ),
+                    icon: Icon(Icons.menu_book_rounded, color: _themeIconColor, size: 16),
+                    label: Text(
+                      surahNameFr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _themeIconColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Centre : numéro de page (toujours centré) ───────────────
+              Text(
+                '$currentPage',
+                style: TextStyle(
+                  color: _themeIconColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  letterSpacing: 0.5,
+                ),
+              ),
+
+              // ── Droite : bouton options + panneau déroulant ─────────────
+              Align(
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icônes qui se déroulent (AnimatedSize)
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      child: _optionsExpanded
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 1, height: 20, color: divColor,
+                                  margin: const EdgeInsets.only(right: 4),
+                                ),
+                                toolBtn(
+                                  Icons.search_rounded,
+                                  () {
+                                    setState(() {
+                                      _optionsExpanded = false;
+                                      _isSearchOpen = true;
+                                    });
+                                  },
+                                  opacity: 0.85,
+                                ),
+                                toolBtn(themeIcon, _cycleReaderTheme, opacity: 0.70),
+                                toolBtn(
+                                  hasNote
+                                      ? Icons.sticky_note_2_rounded
+                                      : Icons.sticky_note_2_outlined,
+                                  _showNotesListModal,
+                                  color: noteColor,
+                                  opacity: 0.85,
+                                ),
+                              ],
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    // Bouton toggle options
+                    GestureDetector(
+                      onTap: () => setState(() => _optionsExpanded = !_optionsExpanded),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: AnimatedRotation(
+                          turns: _optionsExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 220),
+                          child: Icon(
+                            Icons.more_horiz_rounded,
+                            size: 22,
+                            color: _optionsExpanded
+                                ? _themeIconColor
+                                : _themeIconColor.withValues(alpha: 0.55),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
     );
   }
 

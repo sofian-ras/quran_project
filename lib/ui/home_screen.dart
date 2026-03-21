@@ -537,7 +537,6 @@ Future<void> _checkFirstLaunch() async {
         : (current == ThemeMode.light)
             ? ThemeMode.dark
             : ThemeMode.system;
-
     ThemeService.setTheme(next);
   }
 
