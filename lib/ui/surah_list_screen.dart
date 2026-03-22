@@ -12,6 +12,7 @@ class SurahListScreen extends StatelessWidget {
   final ValueNotifier<Set<int>> favoriteIdsNotifier;
   final void Function(int page) onOpenReader;
   final void Function(Map<String, dynamic> s) onPlaySurah;
+  final Widget? titleWidget;
 
   const SurahListScreen({
     super.key,
@@ -19,6 +20,7 @@ class SurahListScreen extends StatelessWidget {
     required this.favoriteIdsNotifier,
     required this.onOpenReader,
     required this.onPlaySurah,
+    this.titleWidget,
   });
 
   @override
@@ -42,7 +44,7 @@ class SurahListScreen extends StatelessWidget {
           elevation: 0,
           scrolledUnderElevation: 0,
           surfaceTintColor: Colors.transparent,
-          title: Text(
+          title: titleWidget ?? Text(
             'Coran',
             style: TextStyle(color: appBarFg),
           ),

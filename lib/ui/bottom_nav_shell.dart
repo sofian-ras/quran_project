@@ -4,9 +4,8 @@ import 'home_screen.dart';
 import 'prayers_screen.dart';
 import 'dua_screen.dart';
 import 'settings_screen.dart';
-import 'reader_screen.dart';
+import 'translated_quran_screen.dart';
 
-import '../services/last_reading_service.dart';
 import 'widgets/modern_bottom_nav_bar.dart';
 
 class BottomNavShell extends StatefulWidget {
@@ -33,16 +32,12 @@ class _BottomNavShellState extends State<BottomNavShell> {
     const SettingsScreen(key: PageStorageKey('tab_settings')),
   ];
 
-  Future<void> _openReader() async {
-    final last = await LastReadingService.getLastReading();
-    final page = last?.pageNumber ?? 1;
-    if (!mounted) return;
-
+  void _openReader() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ReaderScreen(
-          initialPage: page,
-          reading: 'hafs',
+        builder: (_) => const TranslatedQuranScreen(
+          preferOffline: true,
+          showReaderToggle: true,
         ),
       ),
     );

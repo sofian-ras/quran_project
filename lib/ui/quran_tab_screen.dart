@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../surah_name.dart';
 import 'package:flutter/services.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import 'reader_screen.dart';
+import 'translated_quran_screen.dart';
 import 'surah_list_screen.dart';
 
 class QuranTabScreen extends StatefulWidget {
@@ -19,6 +21,9 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
 
   late Future<List<Map<String, dynamic>>> _surahFuture;
   final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>({});
+
+  // true = Coran image (ReaderScreen), false = Coran FR (TranslatedQuranScreen)
+  bool _useImageReader = true;
 
   Future<List<Map<String, dynamic>>> _loadSurahList() async {
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
@@ -54,7 +59,6 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
     return list;
   }
 
-
   @override
   void initState() {
     super.initState();
@@ -74,27 +78,95 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
     _favoriteIdsNotifier.value = ids;
   }
 
-
   void _openReader(int page) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ReaderScreen(
-          initialPage: page,
-          reading: 'hafs',
+    if (_useImageReader) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReaderScreen(initialPage: page, reading: 'hafs'),
         ),
-      ),
-    );
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const TranslatedQuranScreen(preferOffline: true),
+        ),
+      );
+    }
   }
 
   void _playSurah(Map<String, dynamic> surah) async {
     final idRaw = surah['id'];
     final int? surahId = (idRaw is int) ? idRaw : int.tryParse(idRaw.toString());
     if (surahId == null) return;
-
     await _audio.loadPlaylistAndPlay(surahId);
   }
 
+  Widget _buildToggle(bool isDark) {
+    const green = Color(0xFF1B5E20);
+    final bg = isDark ? const Color(0xFF1C2A1C) : const Color(0xFFE8F5E9);
+    final unselText = isDark ? Colors.white54 : const Color(0xFF4A7A4A);
+
+    return Container(
+      height: 34,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.black12,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Option Coran image
+          GestureDetector(
+            onTap: () => setState(() => _useImageReader = true),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _useImageReader ? green : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: SvgPicture.asset(
+                'assets/images/navbar/Quran_Kareem.svg',
+                height: 18,
+                colorFilter: ColorFilter.mode(
+                  _useImageReader ? Colors.white : unselText,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ),
+          // Option Coran FR
+          GestureDetector(
+            onTap: () => setState(() => _useImageReader = false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: !_useImageReader ? green : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                'Coran FR',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: !_useImageReader ? Colors.white : unselText,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -104,6 +176,8 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _loadSurahList(),
       builder: (context, snap) {
@@ -148,9 +222,9 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
           favoriteIdsNotifier: _favoriteIdsNotifier,
           onOpenReader: _openReader,
           onPlaySurah: _playSurah,
+          titleWidget: _buildToggle(isDark),
         );
       },
     );
-
   }
 }

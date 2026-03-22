@@ -21,16 +21,24 @@ import '../surah_name.dart';
 import '../services/tafsir_service.dart' show TafsirService;
 import '../services/quran_ayah_metadata_db.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'reader_screen.dart';
 
 // Notifier partagé entre la liste et l'en-tête (0=blanc, 1=papier, 2=sombre)
 final _tqsThemeNotifier = ValueNotifier<int>(1);
 // Progression du scroll de la liste des sourates (0.0 = visible, 1.0 = caché)
 final _surahListScrollProgress = ValueNotifier<double>(0.0);
+// Mode lecteur image (true) vs traduction (false) — piloté par le toggle du FAB
+final _imageReaderModeNotifier = ValueNotifier<bool>(false);
 
 class TranslatedQuranScreen extends StatefulWidget {
   final bool preferOffline;
+  final bool showReaderToggle;
 
-  const TranslatedQuranScreen({super.key, required this.preferOffline});
+  const TranslatedQuranScreen({
+    super.key,
+    required this.preferOffline,
+    this.showReaderToggle = false,
+  });
 
   @override
   State<TranslatedQuranScreen> createState() => _TranslatedQuranScreenState();
@@ -40,6 +48,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
   @override
   void initState() {
     super.initState();
+    _imageReaderModeNotifier.value = widget.showReaderToggle; // image par défaut si toggle visible
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.landscapeLeft,
@@ -133,37 +142,39 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
                         SizedBox(height: topPad),
                         SizedBox(
                           height: titleH,
-                          child: Stack(
-                            alignment: Alignment.center,
+                          child: Row(
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Coran',
-                                    style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 20),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  SvgPicture.asset(
-                                    'assets/images/navbar/Quran_Kareem.svg',
-                                    height: 20,
-                                    colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
-                                  ),
-                                ],
+                              IconButton(
+                                icon: Icon(Icons.arrow_back_ios_new, color: fg, size: 20),
+                                onPressed: () => Navigator.of(context).pop(),
                               ),
-                              Positioned(
-                                left: 4,
-                                child: IconButton(
-                                  icon: Icon(Icons.arrow_back_ios_new, color: fg, size: 20),
-                                  onPressed: () => Navigator.of(context).pop(),
+                              Expanded(
+                                child: Center(
+                                  child: widget.showReaderToggle
+                                      ? ValueListenableBuilder<bool>(
+                                          valueListenable: _imageReaderModeNotifier,
+                                          builder: (_, useImage, __) => _buildReaderToggle(useImage, fg),
+                                        )
+                                      : Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'Coran',
+                                              style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 20),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            SvgPicture.asset(
+                                              'assets/images/navbar/Quran_Kareem.svg',
+                                              height: 20,
+                                              colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
+                                            ),
+                                          ],
+                                        ),
                                 ),
                               ),
-                              Positioned(
-                                right: 4,
-                                child: IconButton(
-                                  icon: Icon(Icons.settings_outlined, color: fg, size: 22),
-                                  onPressed: () => _showThemeSheet(context, tqsTheme, bg, fg),
-                                ),
+                              IconButton(
+                                icon: Icon(Icons.settings_outlined, color: fg, size: 22),
+                                onPressed: () => _showThemeSheet(context, tqsTheme, bg, fg),
                               ),
                             ],
                           ),
@@ -188,6 +199,70 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
     ); // AnnotatedRegion
     },  // fin builder
   );    // fin ValueListenableBuilder
+  }
+
+  Widget _buildReaderToggle(bool useImage, Color fg) {
+    const green = Color(0xFF1B5E20);
+    final isDark = _tqsThemeNotifier.value == 2;
+    final bg = isDark ? const Color(0xFF1C2A1C) : const Color(0xFFE8F5E9);
+    final unsel = isDark ? Colors.white54 : const Color(0xFF4A7A4A);
+
+    Widget option({
+      required bool selected,
+      required Widget child,
+      required VoidCallback onTap,
+    }) {
+      return GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? green : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: selected
+                ? [BoxShadow(color: green.withValues(alpha: 0.35), blurRadius: 6, offset: const Offset(0, 2))]
+                : [],
+          ),
+          child: child,
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          option(
+            selected: useImage,
+            onTap: () => _imageReaderModeNotifier.value = true,
+            child: SvgPicture.asset(
+              'assets/images/navbar/Quran_Kareem.svg',
+              height: 18,
+              colorFilter: ColorFilter.mode(useImage ? Colors.white : unsel, BlendMode.srcIn),
+            ),
+          ),
+          option(
+            selected: !useImage,
+            onTap: () => _imageReaderModeNotifier.value = false,
+            child: Text(
+              'Coran FR',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: !useImage ? Colors.white : unsel,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showThemeSheet(BuildContext context, int currentTheme, Color bg, Color fg) {
@@ -570,6 +645,29 @@ class _SurahTabState extends State<_SurahTab> {
     _tqsThemeNotifier.value = t;
   }
 
+  void _openSurah(BuildContext context, int surahId, {int initialAyah = 1}) {
+    if (_imageReaderModeNotifier.value) {
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => ReaderScreen(
+          initialPage: _surahStartPages[surahId - 1],
+          reading: 'hafs',
+        ),
+      ));
+    } else {
+      final nameFr = surahFr[surahId] ?? 'Sourate $surahId';
+      final nameAr = TafsirService.surahNames[surahId - 1];
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => TranslatedSurahScreen(
+          surahNumber: surahId,
+          surahNameFr: nameFr,
+          surahNameAr: nameAr,
+          preferOffline: widget.preferOffline,
+          initialAyah: initialAyah <= 0 ? 1 : initialAyah,
+        ),
+      )).then((_) => _loadTheme());
+    }
+  }
+
   // Page de début de chaque sourate dans le mushaf (index 0 = sourate 1).
   static const List<int> _surahStartPages = [
     1,   2,   50,  77,  106, 128, 151, 177, 187, 208,
@@ -739,21 +837,10 @@ class _SurahTabState extends State<_SurahTab> {
                             itemBuilder: (ctx, i) {
                               final h = _recentHistory[i];
                               final sid = h['surahId'] as int;
-                              final nameAr = TafsirService.surahNames[sid - 1];
                               final nameTr = surahFr[sid] ?? 'Sourate $sid';
                               final timeAgo = _timeAgo(h['timestamp'] as String?);
                               return GestureDetector(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => TranslatedSurahScreen(
-                                      surahNumber: sid,
-                                      surahNameFr: nameTr,
-                                      surahNameAr: nameAr,
-                                      preferOffline: widget.preferOffline,
-                                    ),
-                                  ),
-                                ).then((_) => _loadTheme()),
+                                onTap: () => _openSurah(context, sid),
                                 child: Container(
                                   width: 148,
                                   margin: EdgeInsets.only(
@@ -819,31 +906,17 @@ class _SurahTabState extends State<_SurahTab> {
                   final juz   = item['juz']   as int;
                   final surah = item['surah'] as int;
                   final ayah  = item['ayah']  as int;
-                  final nameAr = TafsirService.surahNames[surah - 1];
-                  final nameFr = isEn ? (surahEn[surah] ?? 'Surah $surah') : (surahFr[surah] ?? 'Sourate $surah');
                   return _JuzBanner(
                     juz: juz,
                     surah: surah,
                     ayah: ayah,
                     tqsTheme: tqsTheme,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => TranslatedSurahScreen(
-                          surahNumber: surah,
-                          surahNameFr: nameFr,
-                          surahNameAr: nameAr,
-                          preferOffline: widget.preferOffline,
-                          initialAyah: ayah,
-                        ),
-                      ),
-                    ).then((_) => _loadTheme()),
+                    onTap: () => _openSurah(context, surah, initialAyah: ayah),
                   );
                 }
 
                 // ── Carte sourate ───────────────────────────────────
                 final surahId  = item['id'] as int;
-                final nameAr   = (item['nameAr'] ?? '').toString();
                 final nameTr   = surahFr[surahId] ?? 'Sourate $surahId';
                 final meaning  = surahMeaning[surahId];
                 final ayahCount = item['ayahCount'] as int;
@@ -855,17 +928,7 @@ class _SurahTabState extends State<_SurahTab> {
                     borderRadius: BorderRadius.circular(18),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(18),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TranslatedSurahScreen(
-                            surahNumber: surahId,
-                            surahNameFr: nameTr,
-                            surahNameAr: nameAr,
-                            preferOffline: widget.preferOffline,
-                          ),
-                        ),
-                      ).then((_) => _loadTheme()),
+                      onTap: () => _openSurah(context, surahId),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         child: Row(

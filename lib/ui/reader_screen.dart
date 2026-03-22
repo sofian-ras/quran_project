@@ -705,27 +705,37 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        // Nom sourate — gauche, cliquable
+                        // Retour + Nom sourate — gauche
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: GestureDetector(
-                            onTap: _showNavigationPicker,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.menu_book_rounded, size: 14, color: _themeIconColor),
-                                const SizedBox(width: 5),
-                                Text(
-                                  surahNameFr,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _themeIconColor,
-                                    letterSpacing: 0.3,
-                                  ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () => Navigator.of(context).pop(),
+                                child: Icon(Icons.arrow_back_ios_new, size: 16, color: _themeIconColor),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: _showNavigationPicker,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.menu_book_rounded, size: 14, color: _themeIconColor),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      surahNameFr,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: _themeIconColor,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                         // Recherche — centré
