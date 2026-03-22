@@ -52,7 +52,8 @@ class QuranTextDb {
   }
 
   Future<Database> _openAr() async {
-    if (_dbAr != null) return _dbAr!;
+    if (_dbAr != null && _dbAr!.isOpen) return _dbAr!;
+    _dbAr = null;
     final path = await _arPath();
     _dbAr = await openDatabase(path, readOnly: true);
     _shapeAr = await _inspect(_dbAr!);
@@ -60,7 +61,8 @@ class QuranTextDb {
   }
 
   Future<Database> _openFr() async {
-    if (_dbFr != null) return _dbFr!;
+    if (_dbFr != null && _dbFr!.isOpen) return _dbFr!;
+    _dbFr = null;
     final path = await _frPath();
     _dbFr = await openDatabase(path, readOnly: true);
     _shapeFr = await _inspect(_dbFr!);
@@ -68,7 +70,8 @@ class QuranTextDb {
   }
 
   Future<Database> _openLegacy() async {
-    if (_dbLegacy != null) return _dbLegacy!;
+    if (_dbLegacy != null && _dbLegacy!.isOpen) return _dbLegacy!;
+    _dbLegacy = null;
     final path = await _legacyPath();
     _dbLegacy = await openDatabase(path, readOnly: true);
     _shapeLegacy = await _inspect(_dbLegacy!);
