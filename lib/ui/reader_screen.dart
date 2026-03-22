@@ -76,6 +76,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _isSearchOpen = false;
   bool _isThemePicker = false;
   bool _optionsExpanded = false;
+  bool _showArabicSurahName = false;
   String? _selectedVerseKey;
   Timer? _saveTimer;
   Timer? _preloadDebounce;
@@ -830,6 +831,38 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
               ),
 
+            // ── Nom sourate arabe SVG — UI cachée ──────────────────────────
+            if (!isLandscape)
+              Positioned(
+                top: viewPadding.top + 26,
+                left: 24,
+                right: 24,
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 300),
+                    opacity: _showArabicSurahName ? 1.0 : 0.0,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SvgPicture.asset(
+                            'assets/images/Translated_Quran/surah_svg/$currentSurah.svg',
+                            height: 22,
+                            colorFilter: ColorFilter.mode(_themeIconColor, BlendMode.srcIn),
+                          ),
+                          SvgPicture.asset(
+                            'assets/images/Translated_Quran/surah_svg/0. surah.svg',
+                            height: 22,
+                            colorFilter: ColorFilter.mode(_themeIconColor, BlendMode.srcIn),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
             // ── TOP-LEFT back — landscape ───────────────────────────────────
             if (isLandscape)
               AnimatedPositioned(
@@ -960,7 +993,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
       // Tap sur zone vide OU sur un verset sans sélection active → toggle UI
       final hadSelection = _selectionStartKey != null;
       setState(() {
-        if (!hadSelection) _showUI = !_showUI;
+        if (!hadSelection) {
+          _showUI = !_showUI;
+          _showArabicSurahName = !_showUI;
+        }
         _isThemePicker = false;
         _selectedVerseKey  = null;
         _selectionStartKey = null;
