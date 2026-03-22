@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
@@ -67,16 +68,18 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   late int currentPage;
   String currentReading = 'hafs';
-  int _readerTheme = 1; // 0=blanc, 1=papier, 2=sombre
+  int _readerTheme = 1; // 0=blanc, 1=papier, 2=sombre, 3=sépia, 4=minuit
   late PageController _pageController;
 
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
   bool _isSearchOpen = false;
+  bool _isThemePicker = false;
   bool _optionsExpanded = false;
   String? _selectedVerseKey;
   Timer? _saveTimer;
   Timer? _preloadDebounce;
+  Timer? _uiTimer;
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   Set<String> _noteKeys = {};
@@ -105,29 +108,76 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  Color get _themeBg => _readerTheme == 2
-      ? const Color(0xFF0B1025)
-      : (_readerTheme == 0 ? Colors.white : const Color(0xFFF3E8C0));
+  Color get _themeBg {
+    switch (_readerTheme) {
+      case 0: return Colors.white;
+      case 1: return const Color(0xFFF3E8C0);
+      case 2: return const Color(0xFF0B1025);
+      case 3: return const Color(0xFFEDD9A3);
+      case 4: return const Color(0xFF0A1628);
+      case 5: return const Color(0xFFE8F5E9); // vert clair
+      case 6: return const Color(0xFFE8F0FB); // bleu clair
+      default: return Colors.white;
+    }
+  }
 
-  ColorFilter? get _themeFilter => _readerTheme == 2
-      ? const ColorFilter.matrix([
+  ColorFilter? get _themeFilter {
+    switch (_readerTheme) {
+      case 1: return const ColorFilter.matrix([
+          0.9529, 0, 0, 0, 0,
+          0, 0.9098, 0, 0, 0,
+          0, 0, 0.7529, 0, 0,
+          0, 0, 0, 1, 0,
+        ]);
+      case 2: return const ColorFilter.matrix([
           -1, 0, 0, 0, 255,
            0,-1, 0, 0, 255,
            0, 0,-1, 0, 255,
            0, 0, 0, 1,   0,
-        ])
-      : (_readerTheme == 1
-          ? const ColorFilter.matrix([
-              // multiply(pixel, 0xFFF3E8C0) sans saveLayer :
-              // R × 243/255, G × 232/255, B × 192/255
-              0.9529, 0, 0, 0, 0,
-              0, 0.9098, 0, 0, 0,
-              0, 0, 0.7529, 0, 0,
-              0, 0, 0,     1, 0,
-            ])
-          : null);
+        ]);
+      case 3: return const ColorFilter.matrix([
+          0.85, 0, 0, 0, 0,
+          0, 0.72, 0, 0, 0,
+          0, 0, 0.50, 0, 0,
+          0, 0, 0, 1, 0,
+        ]);
+      case 4: return const ColorFilter.matrix([
+          -1, 0, 0, 0, 200,
+           0,-1, 0, 0, 220,
+           0, 0,-1, 0, 255,
+           0, 0, 0, 1,   0,
+        ]);
+      case 5: return const ColorFilter.matrix([  // vert clair
+          0.91, 0, 0, 0, 0,
+          0, 0.96, 0, 0, 0,
+          0, 0, 0.91, 0, 0,
+          0, 0, 0, 1, 0,
+        ]);
+      case 6: return const ColorFilter.matrix([  // bleu clair
+          0.91, 0, 0, 0, 0,
+          0, 0.94, 0, 0, 0,
+          0, 0, 0.97, 0, 0,
+          0, 0, 0, 1, 0,
+        ]);
+      default: return null;
+    }
+  }
 
-  Color get _themeIconColor => _readerTheme == 2 ? Colors.white60 : Colors.black45;
+  Color get _themeIconColor =>
+      (_readerTheme == 2 || _readerTheme == 4) ? Colors.white60 : Colors.black45;
+
+  IconData get _themeIcon {
+    switch (_readerTheme) {
+      case 0: return Icons.light_mode_outlined;
+      case 1: return Icons.brightness_medium_outlined;
+      case 2: return Icons.dark_mode_outlined;
+      case 3: return Icons.filter_vintage_outlined;
+      case 4: return Icons.nights_stay_outlined;
+      case 5: return Icons.eco_outlined;
+      case 6: return Icons.water_drop_outlined;
+      default: return Icons.brightness_medium_outlined;
+    }
+  }
 
   /// Cache ou affiche les barres système (nav + status) selon [show].
   void _applySystemBars(bool show) {
@@ -153,13 +203,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _applySystemUiStyle(theme);
   }
 
-  Future<void> _cycleReaderTheme() async {
-    final next = (_readerTheme + 1) % 3;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('reader_theme', next);
-    if (!mounted) return;
-    setState(() => _readerTheme = next);
-    _applySystemUiStyle(next);
+  void _showThemePicker() {
+    setState(() => _isThemePicker = !_isThemePicker);
+  }
+
+  void _resetOptionsTimer() {
+    _uiTimer?.cancel();
+    _uiTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      setState(() => _optionsExpanded = false);
+    });
   }
 
 
@@ -282,6 +335,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
     _preloadDebounce?.cancel();
     _saveTimer?.cancel();
+    _uiTimer?.cancel();
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     _imageCache.clear();
@@ -637,19 +691,33 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   opacity: _showUI ? 1.0 : 0.0,
                   child: IgnorePointer(
                     ignoring: !_showUI,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Stack(
+                      alignment: Alignment.center,
                       children: [
-                        Opacity(
-                          opacity: 0.5,
-                          child: IconButton(
-                            icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
-                            onPressed: () => Navigator.pop(context),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Opacity(
+                            opacity: 0.5,
+                            child: IconButton(
+                              icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
+                              onPressed: () => Navigator.pop(context),
+                            ),
                           ),
                         ),
-                        Text(
-                          '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
-                          style: TextStyle(fontSize: 12, color: _themeIconColor, fontWeight: FontWeight.bold),
+                        // Recherche — centré
+                        GestureDetector(
+                          onTap: () => setState(() => _isSearchOpen = true),
+                          child: Opacity(
+                            opacity: 0.65,
+                            child: Icon(Icons.search_rounded, size: 22, color: _themeIconColor),
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
+                            style: TextStyle(fontSize: 12, color: _themeIconColor, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ],
                     ),
@@ -787,12 +855,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
       final hadSelection = _selectionStartKey != null;
       setState(() {
         if (!hadSelection) _showUI = !_showUI;
+        _isThemePicker = false;
         _selectedVerseKey  = null;
         _selectionStartKey = null;
         _selectionEndKey   = null;
         MiniPlayerService.instance.clearSelection();
       });
-      if (!hadSelection) _applySystemBars(_showUI);
+      if (!hadSelection) {
+        _applySystemBars(_showUI);
+        if (!_showUI) setState(() => _optionsExpanded = false);
+      }
       return;
     }
 
@@ -949,13 +1021,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               IconButton(
                 padding: const EdgeInsets.all(6),
                 constraints: const BoxConstraints(),
-                icon: Icon(
-                  _readerTheme == 0 ? Icons.light_mode_outlined
-                      : _readerTheme == 1 ? Icons.brightness_medium_outlined
-                      : Icons.dark_mode_outlined,
-                  size: 18, color: _themeIconColor,
-                ),
-                onPressed: _cycleReaderTheme,
+                icon: Icon(_themeIcon, size: 18, color: _themeIconColor),
+                onPressed: _showThemePicker,
               ),
               IconButton(
                 padding: const EdgeInsets.all(6),
@@ -1019,15 +1086,56 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _bottomBarPortrait(String surahNameFr) {
     final noteColor = _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor;
     final hasNote   = _noteKeys.isNotEmpty;
-    final themeIcon = _readerTheme == 0
-        ? Icons.light_mode_outlined
-        : _readerTheme == 1
-            ? Icons.brightness_medium_outlined
-            : Icons.dark_mode_outlined;
-    final bg     = _themeBg.withValues(alpha: 0.72);
-    final border = _themeIconColor.withValues(alpha: 0.10);
-    final divColor = _themeIconColor.withValues(alpha: 0.18);
+    final ringColor = _themeIconColor;
 
+    // ── Cercles thème ────────────────────────────────────────────────────────
+    if (_isThemePicker) {
+      const circles = [
+        (id: 0, left: Color(0xFFFFFFFF), right: Color(0xFFB8A898)),
+        (id: 1, left: Color(0xFFF3E8C0), right: Color(0xFF9C7E4A)),
+        (id: 3, left: Color(0xFFEDD9A3), right: Color(0xFF8B6340)),
+        (id: 2, left: Color(0xFF0B1025), right: Color(0xFF7C9EBC)),
+        (id: 4, left: Color(0xFF0A1628), right: Color(0xFF6B9EBC)),
+        (id: 5, left: Color(0xFFE8F5E9), right: Color(0xFF4A7C59)),
+        (id: 6, left: Color(0xFFE8F0FB), right: Color(0xFF3A6B9C)),
+      ];
+      return SizedBox(
+        height: 56,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            for (final c in circles)
+              GestureDetector(
+                onTap: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setInt('reader_theme', c.id);
+                  if (!mounted) return;
+                  setState(() { _readerTheme = c.id; _isThemePicker = false; });
+                  _applySystemUiStyle(c.id);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width:  _readerTheme == c.id ? 46 : 38,
+                  height: _readerTheme == c.id ? 46 : 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: _readerTheme == c.id
+                        ? Border.all(color: ringColor, width: 2.5)
+                        : null,
+                    boxShadow: _readerTheme == c.id
+                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 8)]
+                        : null,
+                  ),
+                  child: CustomPaint(painter: _SplitCirclePainter(left: c.left, right: c.right)),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    // ── Barre normale ────────────────────────────────────────────────────────
     Widget toolBtn(IconData icon, VoidCallback onTap, {Color? color, double opacity = 1}) =>
         GestureDetector(
           onTap: onTap,
@@ -1044,54 +1152,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
       height: 48,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // ── Gauche : navigation sourate ─────────────────────────────
-              Align(
+        child: Row(
+          children: [
+            Expanded(
+              child: Align(
                 alignment: Alignment.centerLeft,
-                child: Flexible(
-                  child: TextButton.icon(
-                    onPressed: _showNavigationPicker,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      minimumSize: Size.zero,
-                      alignment: Alignment.centerLeft,
-                    ),
-                    icon: Icon(Icons.menu_book_rounded, color: _themeIconColor, size: 16),
-                    label: Text(
-                      surahNameFr,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _themeIconColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
+                child: TextButton.icon(
+                  onPressed: _showNavigationPicker,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    minimumSize: Size.zero,
+                    alignment: Alignment.centerLeft,
+                  ),
+                  icon: Icon(Icons.menu_book_rounded, color: _themeIconColor, size: 16),
+                  label: Text(
+                    surahNameFr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                 ),
               ),
-
-              // ── Centre : numéro de page (toujours centré) ───────────────
-              Text(
-                '$currentPage',
-                style: TextStyle(
-                  color: _themeIconColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  letterSpacing: 0.5,
-                ),
-              ),
-
-              // ── Droite : bouton options + panneau déroulant ─────────────
-              Align(
+            ),
+            Text(
+              '$currentPage',
+              style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.w700,
+                  fontSize: 15, letterSpacing: 0.5),
+            ),
+            Expanded(
+              child: Align(
                 alignment: Alignment.centerRight,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Icônes qui se déroulent (AnimatedSize)
+                    // Menu déroulant ⋯ → thème + notes
                     AnimatedSize(
                       duration: const Duration(milliseconds: 220),
                       curve: Curves.easeInOut,
@@ -1099,57 +1194,38 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           ? Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  width: 1, height: 20, color: divColor,
-                                  margin: const EdgeInsets.only(right: 4),
-                                ),
+                                toolBtn(_themeIcon, _showThemePicker, opacity: 0.70),
                                 toolBtn(
-                                  Icons.search_rounded,
-                                  () {
-                                    setState(() {
-                                      _optionsExpanded = false;
-                                      _isSearchOpen = true;
-                                    });
-                                  },
-                                  opacity: 0.85,
-                                ),
-                                toolBtn(themeIcon, _cycleReaderTheme, opacity: 0.70),
-                                toolBtn(
-                                  hasNote
-                                      ? Icons.sticky_note_2_rounded
-                                      : Icons.sticky_note_2_outlined,
-                                  _showNotesListModal,
-                                  color: noteColor,
-                                  opacity: 0.85,
-                                ),
+                                  hasNote ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
+                                  _showNotesListModal, color: noteColor, opacity: 0.85),
                               ],
                             )
                           : const SizedBox.shrink(),
                     ),
-                    // Bouton toggle options
                     GestureDetector(
-                      onTap: () => setState(() => _optionsExpanded = !_optionsExpanded),
+                      onTap: () {
+                        setState(() => _optionsExpanded = !_optionsExpanded);
+                        if (_optionsExpanded) _resetOptionsTimer();
+                      },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: AnimatedRotation(
                           turns: _optionsExpanded ? 0.5 : 0,
                           duration: const Duration(milliseconds: 220),
-                          child: Icon(
-                            Icons.more_horiz_rounded,
-                            size: 22,
-                            color: _optionsExpanded
-                                ? _themeIconColor
-                                : _themeIconColor.withValues(alpha: 0.55),
-                          ),
+                          child: Icon(Icons.more_horiz_rounded, size: 22,
+                              color: _optionsExpanded
+                                  ? _themeIconColor
+                                  : _themeIconColor.withValues(alpha: 0.55)),
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
     );
   }
 
@@ -1824,4 +1900,29 @@ class _SurahSelectionSheetState extends State<_SurahSelectionSheet> {
       },
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Theme picker bottom sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+class _SplitCirclePainter extends CustomPainter {
+  final Color left;
+  final Color right;
+  const _SplitCirclePainter({required this.left, required this.right});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+    canvas.drawArc(Rect.fromCircle(center: c, radius: r),
+        math.pi / 2, math.pi, true, Paint()..color = left);
+    canvas.drawArc(Rect.fromCircle(center: c, radius: r),
+        -math.pi / 2, math.pi, true, Paint()..color = right);
+  }
+
+  @override
+  bool shouldRepaint(_SplitCirclePainter old) =>
+      old.left != left || old.right != right;
 }

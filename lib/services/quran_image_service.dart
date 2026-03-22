@@ -90,6 +90,8 @@ class QuranImageService {
         options: Options(
           receiveTimeout: const Duration(minutes: 10),
           sendTimeout: const Duration(minutes: 10),
+          followRedirects: true,
+          maxRedirects: 5,
         ),
         onReceiveProgress: (received, total) {
           if (total != -1) {
