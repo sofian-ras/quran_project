@@ -17,15 +17,17 @@ import '../theme/app_theme.dart';
 
 class _AudioEntry {
   final int surahId;
-  final String filePath;
+  final String filePath; // fichier pour mp3quran/qul, dossier pour ayahCache
   final int sizeBytes;
-  final int? quranComId; // non-null pour les entrées qul_audio
+  final int? quranComId;
+  final bool isAyahCache; // true → filePath est un répertoire
 
   const _AudioEntry({
     required this.surahId,
     required this.filePath,
     required this.sizeBytes,
     this.quranComId,
+    this.isAyahCache = false,
   });
 }
 
@@ -168,24 +170,61 @@ class _DownloadsScreenState extends State<DownloadsScreen>
     }
 
     // ── qul_audio/ ──────────────────────────────────────────────────────────
+    // Sourates complètes téléchargées via le mini-lecteur
     final qulDir = Directory(p.join(docs.path, 'qul_audio'));
     if (await qulDir.exists()) {
       await for (final entity in qulDir.list(recursive: true)) {
         if (entity is! File) continue;
         final fname = p.basename(entity.path);
-        // Seulement les fichiers sourate complète : surah_{n}.mp3
         if (!fname.startsWith('surah_') || !fname.endsWith('.mp3')) continue;
         final surahId = int.tryParse(
             fname.replaceFirst('surah_', '').replaceAll('.mp3', ''));
         if (surahId == null || surahId < 1 || surahId > 114) continue;
-        final qidStr = p.basename(p.dirname(entity.path));
-        final qid = int.tryParse(qidStr);
+        final qid = int.tryParse(p.basename(p.dirname(entity.path)));
         if (qid == null) continue;
         final size = await entity.length();
         result.putIfAbsent('qul_$qid', () => []).add(_AudioEntry(
           surahId: surahId, filePath: entity.path, sizeBytes: size,
           quranComId: qid,
         ));
+      }
+    }
+
+    // ── ayah_cache/ ─────────────────────────────────────────────────────────
+    // Versets téléchargés via la barre audio du Coran traduit
+    // Structure : ayah_cache/{qid|qul_N}/{surah_padded}/001001.mp3 …
+    final ayahDir = Directory(p.join(docs.path, 'ayah_cache'));
+    if (await ayahDir.exists()) {
+      await for (final qidEntity in ayahDir.list()) {
+        if (qidEntity is! Directory) continue;
+        final qidStr = p.basename(qidEntity.path);
+        // folderId est soit un entier (quranComId) soit 'qul_{qulId}'
+        final qid = int.tryParse(qidStr);
+
+        await for (final surahEntity in qidEntity.list()) {
+          if (surahEntity is! Directory) continue;
+          final surahId = int.tryParse(p.basename(surahEntity.path));
+          if (surahId == null || surahId < 1 || surahId > 114) continue;
+
+          int totalSize = 0;
+          int fileCount = 0;
+          await for (final f in surahEntity.list()) {
+            if (f is File && f.path.endsWith('.mp3')) {
+              totalSize += await f.length();
+              fileCount++;
+            }
+          }
+          if (fileCount == 0) continue;
+
+          final groupKey = 'ayah_${qid ?? qidStr}';
+          result.putIfAbsent(groupKey, () => []).add(_AudioEntry(
+            surahId: surahId,
+            filePath: surahEntity.path, // répertoire
+            sizeBytes: totalSize,
+            quranComId: qid,
+            isAyahCache: true,
+          ));
+        }
       }
     }
 
@@ -197,12 +236,18 @@ class _DownloadsScreenState extends State<DownloadsScreen>
 
   Future<void> _deleteAudioEntry(_AudioEntry entry) async {
     try {
-      final f = File(entry.filePath);
-      if (await f.exists()) await f.delete();
-      // Pour les entrées QUL, nettoyer aussi l'état persisté du manager
-      if (entry.quranComId != null) {
-        await AudioDownloadManager.instance.delete(
-            AudioDownloadManager.surahKey(entry.quranComId!, entry.surahId));
+      if (entry.isAyahCache) {
+        // Supprimer tout le répertoire de la sourate
+        final dir = Directory(entry.filePath);
+        if (await dir.exists()) await dir.delete(recursive: true);
+      } else {
+        final f = File(entry.filePath);
+        if (await f.exists()) await f.delete();
+        // Nettoyer l'état persisté de l'AudioDownloadManager pour les entrées QUL
+        if (entry.quranComId != null) {
+          await AudioDownloadManager.instance.delete(
+              AudioDownloadManager.surahKey(entry.quranComId!, entry.surahId));
+        }
       }
     } catch (_) {}
     _refreshAudio();
@@ -212,16 +257,42 @@ class _DownloadsScreenState extends State<DownloadsScreen>
 
   String _reciterLabel(String key) {
     if (key == 'default') return 'Récitation principale';
+
+    // qul_audio : sourate complète téléchargée via mini-lecteur
     if (key.startsWith('qul_')) {
       final qid = int.tryParse(key.substring(4));
       if (qid != null) {
-        final reciter = QulCatalogService.reciters
+        final r = QulCatalogService.reciters
             .where((r) => r.quranComId == qid)
             .firstOrNull;
-        if (reciter != null) return reciter.displayName;
+        if (r != null) return r.displayName;
       }
       return 'Récitateur';
     }
+
+    // ayah_cache : versets téléchargés via Coran traduit
+    if (key.startsWith('ayah_')) {
+      final suffix = key.substring(5);
+      // suffix est un quranComId entier ou 'qul_{qulId}'
+      final qid = int.tryParse(suffix);
+      if (qid != null) {
+        final r = QulCatalogService.reciters
+            .where((r) => r.quranComId == qid)
+            .firstOrNull;
+        if (r != null) return '${r.displayName} — versets';
+      }
+      if (suffix.startsWith('qul_')) {
+        final qulId = int.tryParse(suffix.substring(4));
+        if (qulId != null) {
+          final r = QulCatalogService.reciters
+              .where((r) => r.qulId == qulId)
+              .firstOrNull;
+          if (r != null) return '${r.displayName} — versets';
+        }
+      }
+      return 'Récitateur — versets';
+    }
+
     // Clé serveur mp3quran : nettoyage de l'URL encodée
     final cleaned = key
         .replaceAll(RegExp(r'^server\d+_mp3quran_net_'), '')
