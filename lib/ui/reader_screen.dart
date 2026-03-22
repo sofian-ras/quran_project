@@ -304,9 +304,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (!mounted) return;
     final key = MiniPlayerService.instance.currentAyahKey.value;
 
-    // Stop ou fin de lecture : efface le highlight
+    // Stop ou fin de lecture : efface le highlight et la sélection
     if (key == null) {
-      setState(() {});
+      final svc = MiniPlayerService.instance;
+      if (!svc.isRangeAutoAdvancing.value) {
+        setState(() {
+          _selectedVerseKey  = null;
+          _selectionStartKey = null;
+          _selectionEndKey   = null;
+        });
+        svc.clearSelection();
+      } else {
+        setState(() {});
+      }
       return;
     }
 
@@ -725,15 +735,96 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             child: Icon(Icons.search_rounded, size: 22, color: _themeIconColor),
                           ),
                         ),
-                        // Juzz / Hizb — droite
+                        // Juzz / Hizb + Settings — droite
                         Align(
                           alignment: Alignment.centerRight,
-                          child: Text(
-                            '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
-                            style: TextStyle(fontSize: 12, color: _themeIconColor, fontWeight: FontWeight.bold),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
+                                style: TextStyle(fontSize: 12, color: _themeIconColor, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() => _optionsExpanded = !_optionsExpanded);
+                                  if (_optionsExpanded) _resetOptionsTimer();
+                                },
+                                child: AnimatedRotation(
+                                  turns: _optionsExpanded ? 0.25 : 0.0,
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeOut,
+                                  child: Icon(Icons.settings_outlined, size: 18, color: _themeIconColor),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // ── Dropdown settings — portrait ────────────────────────────────
+            if (!isLandscape)
+              Positioned(
+                top: viewPadding.top + 52,
+                right: 16,
+                child: IgnorePointer(
+                  ignoring: !(_showUI && _optionsExpanded),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: (_showUI && _optionsExpanded) ? 1.0 : 0.0,
+                    child: AnimatedScale(
+                      scale: _optionsExpanded ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      alignment: Alignment.topRight,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: _themeBg.withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: _themeIconColor.withValues(alpha: 0.15)),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                            child: _isThemePicker
+                                ? _themeCirclesDropdown()
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: _showThemePicker,
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(8),
+                                          child: Icon(_themeIcon, size: 20, color: _themeIconColor),
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          _showNotesListModal();
+                                          setState(() => _optionsExpanded = false);
+                                          _uiTimer?.cancel();
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(8),
+                                          child: Icon(
+                                            _noteKeys.isNotEmpty ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
+                                            size: 20,
+                                            color: _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -776,21 +867,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   opacity: _showUI ? 1.0 : 0.0,
                   child: IgnorePointer(
                     ignoring: !_showUI,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _bottomBarPortrait(surahNameFr),
-                        const SizedBox(height: 6),
-                        Center(
-                          child: FractionallySizedBox(
-                            widthFactor: 0.85,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 360),
-                              child: MiniPlayerWidget(currentSurah: currentSurah),
-                            ),
-                          ),
+                    child: Center(
+                      child: FractionallySizedBox(
+                        widthFactor: 0.85,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 360),
+                          child: MiniPlayerWidget(currentSurah: currentSurah),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -1025,6 +1109,51 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   /// Pill theme + notes — affiché à droite du MiniPlayer en paysage.
+  Widget _themeCirclesDropdown() {
+    const circles = [
+      (id: 0, left: Color(0xFFFFFFFF), right: Color(0xFFB8A898)),
+      (id: 1, left: Color(0xFFF3E8C0), right: Color(0xFF9C7E4A)),
+      (id: 3, left: Color(0xFFEDD9A3), right: Color(0xFF8B6340)),
+      (id: 2, left: Color(0xFF0B1025), right: Color(0xFF7C9EBC)),
+      (id: 4, left: Color(0xFF0A1628), right: Color(0xFF6B9EBC)),
+      (id: 5, left: Color(0xFFE8F5E9), right: Color(0xFF4A7C59)),
+      (id: 6, left: Color(0xFFE8F0FB), right: Color(0xFF3A6B9C)),
+    ];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final c in circles)
+          GestureDetector(
+            onTap: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setInt('reader_theme', c.id);
+              if (!mounted) return;
+              setState(() { _readerTheme = c.id; _isThemePicker = false; });
+              _applySystemUiStyle(c.id);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width:  _readerTheme == c.id ? 36 : 28,
+                height: _readerTheme == c.id ? 36 : 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: _readerTheme == c.id
+                      ? Border.all(color: _themeIconColor, width: 2)
+                      : null,
+                  boxShadow: _readerTheme == c.id
+                      ? [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 6)]
+                      : null,
+                ),
+                child: CustomPaint(painter: _SplitCirclePainter(left: c.left, right: c.right)),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _landscapeThemeNotesPill() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -1105,126 +1234,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  Widget _bottomBarPortrait(String surahNameFr) {
-    final noteColor = _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor;
-    final hasNote   = _noteKeys.isNotEmpty;
-    final ringColor = _themeIconColor;
-
-    // ── Cercles thème ────────────────────────────────────────────────────────
-    if (_isThemePicker) {
-      const circles = [
-        (id: 0, left: Color(0xFFFFFFFF), right: Color(0xFFB8A898)),
-        (id: 1, left: Color(0xFFF3E8C0), right: Color(0xFF9C7E4A)),
-        (id: 3, left: Color(0xFFEDD9A3), right: Color(0xFF8B6340)),
-        (id: 2, left: Color(0xFF0B1025), right: Color(0xFF7C9EBC)),
-        (id: 4, left: Color(0xFF0A1628), right: Color(0xFF6B9EBC)),
-        (id: 5, left: Color(0xFFE8F5E9), right: Color(0xFF4A7C59)),
-        (id: 6, left: Color(0xFFE8F0FB), right: Color(0xFF3A6B9C)),
-      ];
-      return SizedBox(
-        height: 56,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            for (final c in circles)
-              GestureDetector(
-                onTap: () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setInt('reader_theme', c.id);
-                  if (!mounted) return;
-                  setState(() { _readerTheme = c.id; _isThemePicker = false; });
-                  _applySystemUiStyle(c.id);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  width:  _readerTheme == c.id ? 46 : 38,
-                  height: _readerTheme == c.id ? 46 : 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: _readerTheme == c.id
-                        ? Border.all(color: ringColor, width: 2.5)
-                        : null,
-                    boxShadow: _readerTheme == c.id
-                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 8)]
-                        : null,
-                  ),
-                  child: CustomPaint(painter: _SplitCirclePainter(left: c.left, right: c.right)),
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    // ── Barre normale ────────────────────────────────────────────────────────
-    Widget toolBtn(IconData icon, VoidCallback onTap, {Color? color, double opacity = 1}) =>
-        GestureDetector(
-          onTap: onTap,
-          child: Opacity(
-            opacity: opacity,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 7),
-              child: Icon(icon, size: 20, color: color ?? _themeIconColor),
-            ),
-          ),
-        );
-
-    return SizedBox(
-      height: 48,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Row(
-          children: [
-            const Expanded(child: SizedBox.shrink()),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Menu déroulant ⋯ → thème + notes
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeInOut,
-                      child: _optionsExpanded
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                toolBtn(_themeIcon, _showThemePicker, opacity: 0.70),
-                                toolBtn(
-                                  hasNote ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
-                                  _showNotesListModal, color: noteColor, opacity: 0.85),
-                              ],
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() => _optionsExpanded = !_optionsExpanded);
-                        if (_optionsExpanded) _resetOptionsTimer();
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: AnimatedRotation(
-                          turns: _optionsExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 220),
-                          child: Icon(Icons.more_horiz_rounded, size: 22,
-                              color: _optionsExpanded
-                                  ? _themeIconColor
-                                  : _themeIconColor.withValues(alpha: 0.55)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum, double navBarHeight) {
     return LayoutBuilder(
@@ -1269,8 +1278,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
                 // Numéro de page — bas droit (impaire) / bas gauche (paire)
                 Positioned(
-                  left:  pageNum.isEven ? 24 : null,
-                  right: pageNum.isOdd  ? 24 : null,
+                  left:  pageNum.isEven ? 10 : null,
+                  right: pageNum.isOdd  ? 10 : null,
                   top:   imgH - navBarHeight - 28,
                   child: IgnorePointer(
                     child: Text(
@@ -1364,8 +1373,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
               // Numéro de page — coin bas droit (impaire) / bas gauche (paire)
               Positioned(
-                left:  pageNum.isEven ? 24 : null,
-                right: pageNum.isOdd  ? 24 : null,
+                left:  pageNum.isEven ? 10 : null,
+                right: pageNum.isOdd  ? 10 : null,
                 top:   displaySize.height - navBarHeight - 28,
                 child: IgnorePointer(
                   child: Text(
