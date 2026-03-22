@@ -25,6 +25,38 @@ class MiniPlayerWidget extends StatefulWidget {
 
 class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
   int get currentSurah => widget.currentSurah;
+  bool _showControls = false;
+
+  @override
+  void initState() {
+    super.initState();
+    MiniPlayerService.instance.isPlaying.addListener(_onPlayingChanged);
+    MiniPlayerService.instance.isRangeAutoAdvancing.addListener(_onPlayingChanged);
+    MiniPlayerService.instance.prepProgress.addListener(_onPrepChanged);
+  }
+
+  @override
+  void dispose() {
+    MiniPlayerService.instance.isPlaying.removeListener(_onPlayingChanged);
+    MiniPlayerService.instance.isRangeAutoAdvancing.removeListener(_onPlayingChanged);
+    MiniPlayerService.instance.prepProgress.removeListener(_onPrepChanged);
+    super.dispose();
+  }
+
+  void _onPlayingChanged() {
+    final svc = MiniPlayerService.instance;
+    if (svc.isPlaying.value || svc.isRangeAutoAdvancing.value) {
+      if (!_showControls && mounted) setState(() => _showControls = true);
+    }
+  }
+
+  void _onPrepChanged() {
+    final svc = MiniPlayerService.instance;
+    // Quand le téléchargement se termine → passer en mode contrôles
+    if (svc.prepProgress.value == null && mounted) {
+      setState(() => _showControls = true);
+    }
+  }
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
@@ -65,23 +97,108 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
                         builder: (_, loading, __) {
                           final isActive =
                               playing || autoAdv || loading || prep != null;
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _header(svc, isActive, playing, autoAdv, loading, prep),
-                              AnimatedSize(
-                                duration: const Duration(milliseconds: 260),
-                                curve: Curves.easeOut,
-                                child: isActive
-                                    ? _controls(svc, playing, autoAdv, loading, prep)
-                                    : const SizedBox.shrink(),
-                              ),
-                            ],
+                          return AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: prep != null
+                                ? _prepOnly(
+                                    key: const ValueKey('prep'),
+                                    prep: prep,
+                                    svc: svc,
+                                  )
+                                : _showControls
+                                    ? _allControls(
+                                        key: const ValueKey('ctrl'),
+                                        svc: svc,
+                                        playing: playing,
+                                        autoAdv: autoAdv,
+                                        loading: loading,
+                                        prep: prep,
+                                      )
+                                    : Column(
+                                        key: const ValueKey('name'),
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _header(svc, isActive, playing, autoAdv, loading, prep),
+                                          AnimatedSize(
+                                            duration: const Duration(milliseconds: 260),
+                                            curve: Curves.easeOut,
+                                            child: isActive
+                                                ? _controls(svc, playing, autoAdv, loading, prep)
+                                                : const SizedBox.shrink(),
+                                          ),
+                                        ],
+                                      ),
                           );
                         },
                       ),
                 ),
           ),
+    );
+  }
+
+  Widget _prepOnly({required Key key, required double prep, required MiniPlayerService svc}) {
+    return Column(
+      key: key,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: prep,
+                  minHeight: 4,
+                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white70),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text('${(prep * 100).round()}%',
+                style: const TextStyle(color: Colors.white60, fontSize: 11)),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: svc.cancelPrep,
+              child: const Icon(Icons.close_rounded, color: Colors.white38, size: 16),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text('Préparation de la lecture…',
+            style: TextStyle(color: Colors.white38, fontSize: 10)),
+      ],
+    );
+  }
+
+  Widget _allControls({
+    required Key key,
+    required MiniPlayerService svc,
+    required bool playing,
+    required bool autoAdv,
+    required bool loading,
+    required double? prep,
+  }) {
+    return Row(
+      key: key,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _CtrlBtn(icon: Icons.skip_previous_rounded, onTap: svc.prevVerse),
+        _playBtn(svc, playing, autoAdv, loading, prep, size: 30),
+        _CtrlBtn(
+          icon: Icons.stop_rounded,
+          onTap: () { svc.stop(); setState(() => _showControls = false); },
+          color: Colors.redAccent.shade100,
+        ),
+        _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
+        ValueListenableBuilder<MiniRepeatMode>(
+          valueListenable: svc.repeatMode,
+          builder: (_, repeat, __) => _ChipBtn(
+            label: _repeatLabel(repeat),
+            onTap: svc.cycleRepeat,
+          ),
+        ),
+      ],
     );
   }
 
@@ -94,9 +211,12 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
       builder: (_, reciter, __) {
         return Row(
           children: [
-            // Bouton play/pause circulaire
+            // Bouton play/pause circulaire — tap lance lecture + affiche contrôles
             GestureDetector(
-              onTap: () => _handlePlayTap(svc, autoAdv),
+              onTap: () {
+                _handlePlayTap(svc, autoAdv);
+                setState(() => _showControls = true);
+              },
               child: _playCircle(playing, autoAdv, loading, prep),
             ),
             const SizedBox(width: 10),
@@ -221,7 +341,7 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
             _playBtn(svc, playing, autoAdv, loading, prep),
             _CtrlBtn(
               icon: Icons.stop_rounded,
-              onTap: svc.stop,
+              onTap: () { svc.stop(); setState(() => _showControls = false); },
               color: Colors.redAccent.shade100,
             ),
             _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
