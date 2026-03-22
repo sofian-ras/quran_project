@@ -1,19 +1,20 @@
 // lib/ui/widgets/mini_player_widget.dart
 //
-// Mini lecteur audio sobre pour le reader screen.
+// Mini lecteur sobre — s'adapte à l'état de lecture :
+//   Repos    : [avatar] [nom récitateur  ›]
+//   Lecture  : [avatar] [nom / En lecture…] [×N]
+//              [⏮]  [⏸/▶ cercle]  [⏹]  [⏭]
+//              (barre pré-téléchargement si applicable)
+//              (message d'indisponibilité si applicable)
 //
-// État collapsed : [Récitateur ▼]  [▶]
-// État expanded  : [Récitateur ▼] [Mode] [Repeat] [⬇]
-//                  [⏮]  [⏸/▶]  [⏹]  [⏭]
-//                  (message d'indisponibilité si applicable)
-//
-// Suit la visibilité des icônes du reader (_showUI).
-// Fond : verre dépoli sombre (BackdropFilter).
+// Tap repos  → lance la lecture (vérification WiFi)
+// Tap actif  → ouvre le sélecteur de récitateur
 
 import 'dart:ui';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import '../../services/mini_player_service.dart';
+
 
 class MiniPlayerWidget extends StatefulWidget {
   final int currentSurah;
@@ -25,78 +26,199 @@ class MiniPlayerWidget extends StatefulWidget {
 class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
   int get currentSurah => widget.currentSurah;
 
-  // ── Build principal ───────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final svc = MiniPlayerService.instance;
-    return ValueListenableBuilder<bool>(
-      valueListenable: svc.isExpanded,
-      builder: (context, expanded, _) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.58),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: expanded
-                  ? _expandedView(context, svc)
-                  : _collapsedView(context, svc),
-            ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(30),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.50),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: _body(svc),
+        ),
+      ),
+    );
+  }
+
+  // ── Corps principal ───────────────────────────────────────────────────────
+
+  Widget _body(MiniPlayerService svc) {
+    return ValueListenableBuilder<double?>(
+      valueListenable: svc.prepProgress,
+      builder: (_, prep, __) =>
+          ValueListenableBuilder<bool>(
+            valueListenable: svc.isPlaying,
+            builder: (_, playing, __) =>
+                ValueListenableBuilder<bool>(
+                  valueListenable: svc.isRangeAutoAdvancing,
+                  builder: (_, autoAdv, __) =>
+                      ValueListenableBuilder<bool>(
+                        valueListenable: svc.isLoading,
+                        builder: (_, loading, __) {
+                          final isActive =
+                              playing || autoAdv || loading || prep != null;
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _header(svc, isActive, playing, autoAdv, loading, prep),
+                              AnimatedSize(
+                                duration: const Duration(milliseconds: 260),
+                                curve: Curves.easeOut,
+                                child: isActive
+                                    ? _controls(svc, playing, autoAdv, loading, prep)
+                                    : const SizedBox.shrink(),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                ),
+          ),
+    );
+  }
+
+  // ── Ligne d'en-tête : avatar + nom + indicateur ───────────────────────────
+
+  Widget _header(MiniPlayerService svc, bool isActive,
+      bool playing, bool autoAdv, bool loading, double? prep) {
+    return ValueListenableBuilder<MiniReciter>(
+      valueListenable: svc.currentReciter,
+      builder: (_, reciter, __) {
+        return Row(
+          children: [
+            // Bouton play/pause circulaire
+            GestureDetector(
+              onTap: () => _handlePlayTap(svc, autoAdv),
+              child: _playCircle(playing, autoAdv, loading, prep),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _nameColumn(
+                reciter: reciter,
+                isActive: isActive,
+                playing: playing,
+                autoAdv: autoAdv,
+                svc: svc,
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
-  // ── Vue collapsed ─────────────────────────────────────────────────────────
-
-  Widget _collapsedView(BuildContext context, MiniPlayerService svc) {
-    return SizedBox(
-      height: 28,
-      child: Row(
-        children: [
-          Expanded(child: _reciterButton(context, svc)),
-          const SizedBox(width: 8),
-          _buildPlayBtn(svc),
-        ],
+  Widget _playCircle(bool playing, bool autoAdv, bool loading, double? prep) {
+    final isActive = playing || autoAdv || loading || prep != null;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: 0.12),
+        border: Border.all(
+          color: isActive
+              ? const Color(0xFFD4A855).withValues(alpha: 0.75)
+              : Colors.white.withValues(alpha: 0.22),
+          width: 1.5,
+        ),
       ),
+      child: prep != null
+          ? Padding(
+              padding: const EdgeInsets.all(7),
+              child: CircularProgressIndicator(
+                value: prep > 0 ? prep : null,
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : loading && !autoAdv
+              ? const Padding(
+                  padding: EdgeInsets.all(7),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : Icon(
+                  (playing || autoAdv) ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: isActive
+                      ? const Color(0xFFD4A855).withValues(alpha: 0.9)
+                      : Colors.white70,
+                  size: 18,
+                ),
     );
   }
 
-  // ── Vue expanded ──────────────────────────────────────────────────────────
-
-  Widget _expandedView(BuildContext context, MiniPlayerService svc) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Ligne 1 : récitateur + mode + repeat + download
-        Row(
-          children: [
-            Expanded(child: _reciterButton(context, svc)),
-            const SizedBox(width: 6),
+  Widget _nameColumn({
+    required MiniReciter reciter,
+    required bool isActive,
+    required bool playing,
+    required bool autoAdv,
+    required MiniPlayerService svc,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _showReciterPicker(context, svc),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  reciter.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (isActive)
+                  Text(
+                    playing || autoAdv ? 'En lecture…' : 'Chargement…',
+                    style: const TextStyle(color: Colors.white54, fontSize: 10),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (isActive)
             ValueListenableBuilder<MiniRepeatMode>(
               valueListenable: svc.repeatMode,
               builder: (_, repeat, __) => _ChipBtn(
                 label: _repeatLabel(repeat),
                 onTap: svc.cycleRepeat,
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // Ligne 2 : contrôles de lecture
+            )
+          else
+            const Icon(Icons.keyboard_arrow_right_rounded,
+                color: Colors.white38, size: 18),
+        ],
+      ),
+    );
+  }
+
+  // ── Contrôles de lecture ──────────────────────────────────────────────────
+
+  Widget _controls(MiniPlayerService svc, bool playing, bool autoAdv,
+      bool loading, double? prep) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _CtrlBtn(icon: Icons.skip_previous_rounded, onTap: svc.prevVerse),
-            _buildPlayBtn(svc, size: 34),
+            _playBtn(svc, playing, autoAdv, loading, prep),
             _CtrlBtn(
               icon: Icons.stop_rounded,
               onTap: svc.stop,
@@ -105,95 +227,126 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
             _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
           ],
         ),
-        // Ligne 2.5 : barre de pré-téléchargement
-        ValueListenableBuilder<double?>(
-          valueListenable: svc.prepProgress,
-          builder: (_, prep, __) {
-            if (prep == null) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(3),
-                          child: LinearProgressIndicator(
-                            value: prep,
-                            minHeight: 3,
-                            backgroundColor: Colors.white.withValues(alpha: 0.15),
-                            valueColor:
-                                const AlwaysStoppedAnimation<Color>(Colors.white70),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${(prep * 100).round()}%',
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: svc.cancelPrep,
-                        child: const Icon(
-                          Icons.close_rounded,
-                          color: Colors.white38,
-                          size: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Préparation de la lecture…',
-                    style: TextStyle(color: Colors.white38, fontSize: 10),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        // Ligne 3 : message d'indisponibilité
-        ValueListenableBuilder<String?>(
-          valueListenable: svc.unavailableMessage,
-          builder: (_, msg, __) {
-            if (msg == null) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Colors.orangeAccent, size: 14),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      msg,
-                      style: const TextStyle(
-                        color: Colors.orangeAccent,
-                        fontSize: 11,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+        _prepBar(prep, svc),
+        _unavailableMsg(svc),
       ],
+    );
+  }
+
+  // ── Bouton play/pause ─────────────────────────────────────────────────────
+
+  Widget _playBtn(MiniPlayerService svc, bool playing, bool autoAdv,
+      bool loading, double? prep,
+      {double size = 36}) {
+    if (prep != null) {
+      return SizedBox(
+        width: size, height: size,
+        child: CircularProgressIndicator(
+          value: prep > 0 ? prep : null,
+          strokeWidth: 2,
+          color: Colors.white,
+        ),
+      );
+    }
+    if (loading && !autoAdv) {
+      return SizedBox(
+        width: size, height: size,
+        child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+      );
+    }
+    final showPause = playing || autoAdv;
+    return GestureDetector(
+      onTap: () => _handlePlayTap(svc, autoAdv),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.16),
+        ),
+        child: Icon(
+          showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          color: Colors.white,
+          size: size * 0.62,
+        ),
+      ),
+    );
+  }
+
+  // ── Barre de pré-téléchargement ───────────────────────────────────────────
+
+  Widget _prepBar(double? prep, MiniPlayerService svc) {
+    if (prep == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: prep,
+                    minHeight: 3,
+                    backgroundColor: Colors.white.withValues(alpha: 0.15),
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(Colors.white70),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('${(prep * 100).round()}%',
+                  style:
+                      const TextStyle(color: Colors.white60, fontSize: 11)),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: svc.cancelPrep,
+                child: const Icon(Icons.close_rounded,
+                    color: Colors.white38, size: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          const Text('Préparation de la lecture…',
+              style: TextStyle(color: Colors.white38, fontSize: 10)),
+        ],
+      ),
+    );
+  }
+
+  // ── Message d'indisponibilité ─────────────────────────────────────────────
+
+  Widget _unavailableMsg(MiniPlayerService svc) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: svc.unavailableMessage,
+      builder: (_, msg, __) {
+        if (msg == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  color: Colors.orangeAccent, size: 14),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(msg,
+                    style: const TextStyle(
+                        color: Colors.orangeAccent, fontSize: 11),
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   // ── Play avec vérification WiFi ───────────────────────────────────────────
 
-  Future<void> _handlePlayTap(MiniPlayerService svc, bool autoAdvancing) async {
-    // Si déjà en lecture ou en auto-avance → play/pause direct
-    if (svc.currentAyahKey.value != null || autoAdvancing) {
+  Future<void> _handlePlayTap(MiniPlayerService svc, bool autoAdv) async {
+    if (svc.currentAyahKey.value != null || autoAdv) {
       svc.playPause();
       return;
     }
@@ -209,25 +362,18 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
       }
     }
 
-    // Vérifier la connexion (fallback : jouer directement en cas d'erreur)
     bool isWifi = true;
     try {
       final result = await Connectivity().checkConnectivity();
       isWifi = result.contains(ConnectivityResult.wifi);
     } catch (_) {
-      // Impossible de vérifier → on joue directement
       if (mounted) startPlay();
       return;
     }
 
     if (!mounted) return;
+    if (isWifi) { startPlay(); return; }
 
-    if (isWifi) {
-      startPlay();
-      return;
-    }
-
-    // Pas en WiFi → demander confirmation
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -252,92 +398,6 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     if (mounted && ok == true) startPlay();
   }
 
-  // ── Bouton récitateur ─────────────────────────────────────────────────────
-
-  Widget _reciterButton(BuildContext context, MiniPlayerService svc) {
-    return ValueListenableBuilder<MiniReciter>(
-      valueListenable: svc.currentReciter,
-      builder: (context, reciter, _) {
-        return GestureDetector(
-          onTap: () => _showReciterPicker(context, svc),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  reciter.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 2),
-              const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: Colors.white60,
-                size: 16,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ── Bouton play/pause ─────────────────────────────────────────────────────
-
-  Widget _buildPlayBtn(MiniPlayerService svc, {double size = 26}) {
-    return ValueListenableBuilder<double?>(
-      valueListenable: svc.prepProgress,
-      builder: (_, prep, __) => ValueListenableBuilder<bool>(
-        valueListenable: svc.isPlaying,
-        builder: (_, playing, __) => ValueListenableBuilder<bool>(
-          valueListenable: svc.isLoading,
-          builder: (_, loading, __) => ValueListenableBuilder<bool>(
-            valueListenable: svc.isRangeAutoAdvancing,
-            builder: (_, autoAdvancing, __) {
-              // Pendant la préparation : spinner avec progression circulaire.
-              if (prep != null) {
-                return SizedBox(
-                  width: size,
-                  height: size,
-                  child: CircularProgressIndicator(
-                    value: prep > 0 ? prep : null,
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                );
-              }
-              // Pendant le buffering just_audio (hors auto-transition).
-              if (loading && !autoAdvancing) {
-                return SizedBox(
-                  width: size,
-                  height: size,
-                  child: const CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                );
-              }
-              final showPause = playing || autoAdvancing;
-              return GestureDetector(
-                onTap: () => _handlePlayTap(svc, autoAdvancing),
-                child: Icon(
-                  showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: size,
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── Sélecteur de récitateur ───────────────────────────────────────────────
 
   void _showReciterPicker(BuildContext context, MiniPlayerService svc) {
@@ -353,9 +413,18 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
         builder: (context, current, _) => ListView.builder(
           itemCount: kMiniReciters.length,
           itemBuilder: (context, i) {
-            final r        = kMiniReciters[i];
+            final r = kMiniReciters[i];
             final selected = r.folder == current.folder;
             return ListTile(
+              leading: CircleAvatar(
+                radius: 18,
+                backgroundColor: isDark
+                    ? const Color(0xFF2A1045)
+                    : const Color(0xFFF0EBF8),
+                child: Icon(Icons.play_arrow_rounded,
+                    size: 18,
+                    color: isDark ? Colors.white60 : Colors.black45),
+              ),
               title: Text(
                 r.name,
                 style: TextStyle(
@@ -365,8 +434,7 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
                 ),
               ),
               trailing: selected
-                  ? const Icon(Icons.check_rounded,
-                      color: Color(0xFF4CAF50))
+                  ? const Icon(Icons.check_rounded, color: Color(0xFF4CAF50))
                   : null,
               onTap: () {
                 svc.setReciter(r);
@@ -379,7 +447,7 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     );
   }
 
-  // ── Labels ────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   String _repeatLabel(MiniRepeatMode mode) {
     switch (mode) {
@@ -391,12 +459,11 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
   }
 }
 
-// ── Chip bouton (mode / repeat) ───────────────────────────────────────────────
+// ── Chip bouton (repeat) ──────────────────────────────────────────────────────
 
 class _ChipBtn extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
-
   const _ChipBtn({required this.label, required this.onTap});
 
   @override
@@ -409,34 +476,29 @@ class _ChipBtn extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        child: Text(label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600)),
       ),
     );
   }
 }
 
-// ── Bouton de contrôle (prev / stop / next) ───────────────────────────────────
+// ── Bouton de contrôle ────────────────────────────────────────────────────────
 
 class _CtrlBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final Color? color;
-
   const _CtrlBtn({required this.icon, required this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Icon(icon, color: color ?? Colors.white, size: 30),
+      child: Icon(icon, color: color ?? Colors.white, size: 28),
     );
   }
 }
-
