@@ -10,11 +10,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../services/mini_player_service.dart';
 import '../../services/quran_text_db.dart';
 import '../../surah_name.dart';
 import 'ayah_action_sheet.dart';
+import 'verse_share_helper.dart';
 
 class AyahBubble {
   static OverlayEntry? _entry;
@@ -205,7 +205,7 @@ class _BubbleState extends State<_Bubble> {
     if (verse == null || !mounted) return;
     final name = surahFr[widget.surah] ?? 'Sourate ${widget.surah}';
     await Clipboard.setData(
-      ClipboardData(text: '${verse.ar}\n\n${verse.fr}\n\n— $name ${widget.ayah}'),
+      ClipboardData(text: '${verse.ar.replaceAll(RegExp(r'<[^>]+>'), '').trim()}\n\n${verse.fr}\n\n— $name ${widget.ayah}'),
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -217,14 +217,12 @@ class _BubbleState extends State<_Bubble> {
   }
 
   Future<void> _share() async {
-    final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
-    if (verse == null) return;
-    final name = surahFr[widget.surah] ?? 'Sourate ${widget.surah}';
-    await Share.share(
-      '﴾${verse.ar}﴿\n\n${verse.fr}\n\n— $name, verset ${widget.ayah}',
-      subject: '$name — verset ${widget.ayah}',
+    await shareVerseAsImage(
+      context: context,
+      surah: widget.surah,
+      ayah: widget.ayah,
     );
-    widget.onDismiss();
+    if (mounted) widget.onDismiss();
   }
 
   void _tafsir() {
@@ -282,7 +280,7 @@ class _BubbleState extends State<_Bubble> {
           ),
           _divider(),
           _Btn(
-            icon: Icons.share_rounded,
+            icon: Icons.image_outlined,
             label: 'Partager',
             color: const Color(0xFF9C27B0),
             onTap: _share,

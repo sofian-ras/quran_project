@@ -6,13 +6,8 @@
 // Usage :
 //   AyahActionSheet.show(context, surah: 2, ayah: 255);
 
-import 'dart:io';
-import 'dart:math' as math;
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/quran_ayah_metadata_db.dart';
@@ -22,8 +17,8 @@ import '../../services/verse_favorites_service.dart';
 import '../../surah_name.dart';
 import '../../data/quran_text_data.dart';
 import '../../data/sura_ayah_to_page.dart';
-import '../../data/image_surah_glyph.dart';
 import '../../services/font_download_service.dart';
+import 'verse_share_helper.dart';
 
 class AyahActionSheet extends StatefulWidget {
   final int surah;
@@ -277,154 +272,11 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
   }
 
   Future<void> _saveAsImage() async {
-    try {
-      // 1. Télécharger les polices si nécessaire
-      if (!await FontDownloadService.areFontsDownloaded()) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Téléchargement des polices en cours…'),
-          duration: Duration(seconds: 10),
-        ));
-        await FontDownloadService.downloadAndExtractFonts();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).clearSnackBars();
-      }
-
-      // 2. Page + polices QCF
-      final page = suraAyahToPage[widget.surah]?[widget.ayah] ?? 1;
-      await FontDownloadService.loadFont(page);
-      await FontDownloadService.loadSuraNameFont();
-      final ayahFontFamily = 'QCF_P${page.toString().padLeft(3, '0')}';
-
-      // 3. Texte QCF de l'ayah — logique identique au développeur référence
-      String ayahText = '';
-      if (page >= 1 && page <= quranTextData.length) {
-        final pageAyahs = _pageAyahsSorted(page);
-        final index = pageAyahs.indexWhere(
-          (e) => e['surah'] == widget.surah && e['ayah'] == widget.ayah,
-        );
-        if (index != -1 && index < quranTextData[page - 1].length) {
-          ayahText = quranTextData[page - 1][index];
-        }
-      }
-      if (ayahText.isEmpty) return;
-
-      // 4. Glyphe du nom de sourate
-      final surahGlyphChar = imageSuraGlyph[widget.surah] ?? '';
-
-      // 5. Canvas — logique identique au développeur référence
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      const double width = 800.0;
-      const double padding = 50.0;
-
-      // Fond blanc
-      canvas.drawRect(
-        const Rect.fromLTWH(0, 0, width, 2000),
-        Paint()..color = Colors.white,
-      );
-
-      // Ornement cadre de la sourate (\u00F2 dans suraNameFont)
-      final containerPainter = TextPainter(
-        text: const TextSpan(
-          text: '\u00F2',
-          style: TextStyle(
-            fontFamily: 'suraNameFont',
-            fontSize: 80,
-            color: Colors.black,
-          ),
-        ),
-        textDirection: TextDirection.rtl,
-      );
-      containerPainter.layout(maxWidth: width - padding * 2);
-      containerPainter.paint(
-        canvas,
-        Offset((width - containerPainter.width) / 2, padding - 40),
-      );
-
-      // Nom de la sourate (\u005C + glyphe)
-      final namePainter = TextPainter(
-        text: TextSpan(
-          text: '\u005C$surahGlyphChar',
-          style: const TextStyle(
-            fontFamily: 'suraNameFont',
-            fontSize: 50,
-            color: Colors.black,
-          ),
-        ),
-        textDirection: TextDirection.rtl,
-      );
-      namePainter.layout(maxWidth: width - padding * 2);
-      namePainter.paint(
-        canvas,
-        Offset((width - namePainter.width) / 2, padding),
-      );
-
-      // Texte QCF de l'ayah — ayahY identique au développeur
-      final double ayahY =
-          padding + math.max(containerPainter.height, namePainter.height) + 50;
-
-      final ayahPainter = TextPainter(
-        text: TextSpan(
-          text: ayahText,
-          style: TextStyle(
-            fontFamily: ayahFontFamily,
-            fontSize: 49,
-            color: Colors.black,
-            height: 1.8,
-          ),
-        ),
-        textDirection: TextDirection.rtl,
-        textAlign: TextAlign.center,
-      );
-      ayahPainter.layout(maxWidth: width - padding * 2);
-      // -80 et -100 identiques au développeur — intentionnels
-      ayahPainter.paint(
-        canvas,
-        Offset((width - ayahPainter.width) / 2, ayahY - 80),
-      );
-
-      final double finalHeight = (ayahY + ayahPainter.height + padding) - 100;
-
-      // 6. Convertir en PNG
-      final picture = recorder.endRecording();
-      final img = await picture.toImage(width.toInt(), finalHeight.toInt());
-      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
-      final buffer = byteData!.buffer.asUint8List();
-
-      // 7. Sauvegarder dans Téléchargements (identique au développeur référence)
-      final Directory? directory = Platform.isAndroid
-          ? Directory('/storage/emulated/0/Download/QuranPages')
-          : await getDownloadsDirectory();
-      if (directory != null && !await directory.exists()) {
-        await directory.create(recursive: true);
-      }
-      final fileName =
-          'ayah_${widget.surah}_${widget.ayah}_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = File('${directory?.path}/$fileName');
-      await file.writeAsBytes(buffer);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Image sauvegardée dans Téléchargements/$fileName'),
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } on MissingPluginException catch (e) {
-      debugPrint('MissingPluginException: $e');
-    } catch (e) {
-      debugPrint('Error saving ayah image: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur de sauvegarde'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    await shareVerseAsImage(
+      context: context,
+      surah: widget.surah,
+      ayah: widget.ayah,
+    );
   }
 
   @override
