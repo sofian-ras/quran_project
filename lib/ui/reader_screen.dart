@@ -643,7 +643,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
                   final cached = _imageCache[pageNum];
                   if (cached != null) {
-                    return _buildPageContent(cached, isLandscape, pageNum);
+                    return _buildPageContent(cached, isLandscape, pageNum, viewPadding.bottom);
                   }
 
                   return FutureBuilder<File?>(
@@ -670,7 +670,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       }
 
                       _imageCache[pageNum] = file;
-                      return _buildPageContent(file, isLandscape, pageNum);
+                      return _buildPageContent(file, isLandscape, pageNum, viewPadding.bottom);
                     },
                   );
                 },
@@ -683,9 +683,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOut,
-                top: _showUI ? (viewPadding.top + 10) : (viewPadding.top - 80),
-                left: 10,
-                right: 10,
+                top: _showUI ? (viewPadding.top + 26) : (viewPadding.top - 60),
+                left: 24,
+                right: 24,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 220),
                   opacity: _showUI ? 1.0 : 0.0,
@@ -694,13 +694,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
+                        // Nom sourate — gauche, cliquable
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: Opacity(
-                            opacity: 0.5,
-                            child: IconButton(
-                              icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
-                              onPressed: () => Navigator.pop(context),
+                          child: GestureDetector(
+                            onTap: _showNavigationPicker,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.menu_book_rounded, size: 14, color: _themeIconColor),
+                                const SizedBox(width: 5),
+                                Text(
+                                  surahNameFr,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _themeIconColor,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -712,6 +725,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             child: Icon(Icons.search_rounded, size: 22, color: _themeIconColor),
                           ),
                         ),
+                        // Juzz / Hizb — droite
                         Align(
                           alignment: Alignment.centerRight,
                           child: Text(
@@ -765,6 +779,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        _bottomBarPortrait(surahNameFr),
+                        const SizedBox(height: 6),
                         Center(
                           child: FractionallySizedBox(
                             widthFactor: 0.85,
@@ -774,8 +790,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        _bottomBarPortrait(surahNameFr),
                       ],
                     ),
                   ),
@@ -1162,32 +1176,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Row(
           children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _showNavigationPicker,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    minimumSize: Size.zero,
-                    alignment: Alignment.centerLeft,
-                  ),
-                  icon: Icon(Icons.menu_book_rounded, color: _themeIconColor, size: 16),
-                  label: Text(
-                    surahNameFr,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                ),
-              ),
-            ),
-            Text(
-              '$currentPage',
-              style: TextStyle(color: _themeIconColor, fontWeight: FontWeight.w700,
-                  fontSize: 15, letterSpacing: 0.5),
-            ),
+            const Expanded(child: SizedBox.shrink()),
             Expanded(
               child: Align(
                 alignment: Alignment.centerRight,
@@ -1237,7 +1226,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum) {
+  Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum, double navBarHeight) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Avec SystemUiMode.edgeToEdge, la fenêtre Flutter couvre toujours
@@ -1276,6 +1265,44 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     selectionStartKey: _selectionStartKey,
                     selectionEndKey:   _selectionEndKey,
                     noteAyahKeys:      _noteKeys,
+                  ),
+                ),
+                // Numéro de page — bas droit (impaire) / bas gauche (paire)
+                Positioned(
+                  left:  pageNum.isEven ? 24 : null,
+                  right: pageNum.isOdd  ? 24 : null,
+                  top:   imgH - navBarHeight - 28,
+                  child: IgnorePointer(
+                    child: Text(
+                      '$pageNum',
+                      style: TextStyle(
+                        color: _themeIconColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+                // Reliure — gauche si page impaire (droite du livre), droite si paire (gauche du livre)
+                Positioned(
+                  left:   pageNum.isOdd  ? 0 : null,
+                  right:  pageNum.isEven ? 0 : null,
+                  top: 0, bottom: 0,
+                  width: 6,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: pageNum.isOdd ? Alignment.centerRight : Alignment.centerLeft,
+                          end:   pageNum.isOdd ? Alignment.centerLeft  : Alignment.centerRight,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.18),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1333,6 +1360,45 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   selectionStartKey: _selectionStartKey,
                   selectionEndKey:   _selectionEndKey,
                   noteAyahKeys:      _noteKeys,
+                ),
+              ),
+              // Numéro de page — coin bas droit (impaire) / bas gauche (paire)
+              Positioned(
+                left:  pageNum.isEven ? 24 : null,
+                right: pageNum.isOdd  ? 24 : null,
+                top:   displaySize.height - navBarHeight - 28,
+                child: IgnorePointer(
+                  child: Text(
+                    '$pageNum',
+                    style: TextStyle(
+                      color: _themeIconColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+              // Reliure — gauche si page impaire (droite du livre), droite si paire (gauche du livre)
+              Positioned(
+                left:  pageNum.isOdd  ? 0 : null,
+                right: pageNum.isEven ? 0 : null,
+                top: offsetY,
+                width: 6,
+                height: imgH,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: pageNum.isOdd ? Alignment.centerRight : Alignment.centerLeft,
+                        end:   pageNum.isOdd ? Alignment.centerLeft  : Alignment.centerRight,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.18),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
