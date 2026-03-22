@@ -11,16 +11,19 @@
 // Fond : verre dépoli sombre (BackdropFilter).
 
 import 'dart:ui';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import '../../services/mini_player_service.dart';
-import '../../services/qul_audio/audio_download_manager.dart';
 
-class MiniPlayerWidget extends StatelessWidget {
-  /// Sourate actuellement visible (pour lancer la lecture depuis le début
-  /// quand rien n'est encore en cours).
+class MiniPlayerWidget extends StatefulWidget {
   final int currentSurah;
-
   const MiniPlayerWidget({super.key, required this.currentSurah});
+  @override
+  State<MiniPlayerWidget> createState() => _MiniPlayerWidgetState();
+}
+
+class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
+  int get currentSurah => widget.currentSurah;
 
   // ── Build principal ───────────────────────────────────────────────────────
 
@@ -78,14 +81,6 @@ class MiniPlayerWidget extends StatelessWidget {
           children: [
             Expanded(child: _reciterButton(context, svc)),
             const SizedBox(width: 6),
-            ValueListenableBuilder<MiniPlayMode>(
-              valueListenable: svc.playMode,
-              builder: (_, mode, __) => _ChipBtn(
-                label: _modeLabel(mode),
-                onTap: svc.cycleMode,
-              ),
-            ),
-            const SizedBox(width: 4),
             ValueListenableBuilder<MiniRepeatMode>(
               valueListenable: svc.repeatMode,
               builder: (_, repeat, __) => _ChipBtn(
@@ -93,8 +88,6 @@ class MiniPlayerWidget extends StatelessWidget {
                 onTap: svc.cycleRepeat,
               ),
             ),
-            const SizedBox(width: 4),
-            _buildDownloadBtn(svc),
           ],
         ),
         const SizedBox(height: 8),
@@ -196,40 +189,67 @@ class MiniPlayerWidget extends StatelessWidget {
     );
   }
 
-  // ── Bouton download ───────────────────────────────────────────────────────
+  // ── Play avec vérification WiFi ───────────────────────────────────────────
 
-  Widget _buildDownloadBtn(MiniPlayerService svc) {
-    return ValueListenableBuilder<String?>(
-      valueListenable: svc.currentAyahKey,
-      builder: (_, key, __) {
-        if (key == null) return const SizedBox.shrink();
-        return ValueListenableBuilder<Map<String, DownloadEntry>>(
-          valueListenable: AudioDownloadManager.instance.entriesNotifier,
-          builder: (_, entries, __) {
-            final dlKey = svc.currentDownloadKey;
-            if (dlKey == null) return const SizedBox.shrink();
-            final entry = entries[dlKey];
-            return _DownloadButton(
-              status:   entry?.status   ?? DownloadStatus.idle,
-              progress: entry?.progress ?? 0.0,
-              onTap: () => _handleDownloadTap(svc, entry),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _handleDownloadTap(MiniPlayerService svc, DownloadEntry? entry) {
-    switch (entry?.status ?? DownloadStatus.idle) {
-      case DownloadStatus.idle:
-      case DownloadStatus.failed:
-        svc.downloadCurrent();
-      case DownloadStatus.downloading:
-        svc.cancelCurrentDownload();
-      case DownloadStatus.done:
-        svc.deleteCurrentDownload();
+  Future<void> _handlePlayTap(MiniPlayerService svc, bool autoAdvancing) async {
+    // Si déjà en lecture ou en auto-avance → play/pause direct
+    if (svc.currentAyahKey.value != null || autoAdvancing) {
+      svc.playPause();
+      return;
     }
+
+    void startPlay() {
+      if (svc.selectionStartKey != null) {
+        final parts = svc.selectionStartKey!.split(':');
+        final s = int.tryParse(parts[0]) ?? currentSurah;
+        final a = int.tryParse(parts.length > 1 ? parts[1] : '1') ?? 1;
+        svc.playFrom(surah: s, ayah: a);
+      } else {
+        svc.playFrom(surah: currentSurah, ayah: 1);
+      }
+    }
+
+    // Vérifier la connexion (fallback : jouer directement en cas d'erreur)
+    bool isWifi = true;
+    try {
+      final result = await Connectivity().checkConnectivity();
+      isWifi = result.contains(ConnectivityResult.wifi);
+    } catch (_) {
+      // Impossible de vérifier → on joue directement
+      if (mounted) startPlay();
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (isWifi) {
+      startPlay();
+      return;
+    }
+
+    // Pas en WiFi → demander confirmation
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+        content: const Text(
+          'Vous n\'êtes pas en Wi-Fi.\nTélécharger la sourate ?',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('✕  Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('✔  Continuer'),
+          ),
+        ],
+      ),
+    );
+    if (mounted && ok == true) startPlay();
   }
 
   // ── Bouton récitateur ─────────────────────────────────────────────────────
@@ -304,18 +324,7 @@ class MiniPlayerWidget extends StatelessWidget {
               }
               final showPause = playing || autoAdvancing;
               return GestureDetector(
-                onTap: () {
-                  if (svc.currentAyahKey.value != null || autoAdvancing) {
-                    svc.playPause();
-                  } else if (svc.selectionStartKey != null) {
-                    final parts = svc.selectionStartKey!.split(':');
-                    final s = int.tryParse(parts[0]) ?? currentSurah;
-                    final a = int.tryParse(parts.length > 1 ? parts[1] : '1') ?? 1;
-                    svc.playFrom(surah: s, ayah: a);
-                  } else {
-                    svc.playFrom(surah: currentSurah, ayah: 1);
-                  }
-                },
+                onTap: () => _handlePlayTap(svc, autoAdvancing),
                 child: Icon(
                   showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   color: Colors.white,
@@ -371,14 +380,6 @@ class MiniPlayerWidget extends StatelessWidget {
   }
 
   // ── Labels ────────────────────────────────────────────────────────────────
-
-  String _modeLabel(MiniPlayMode mode) {
-    switch (mode) {
-      case MiniPlayMode.surah:        return 'Sourate';
-      case MiniPlayMode.verseByVerse: return 'V / V';
-      case MiniPlayMode.selection:    return 'Sélec.';
-    }
-  }
 
   String _repeatLabel(MiniRepeatMode mode) {
     switch (mode) {
@@ -439,56 +440,3 @@ class _CtrlBtn extends StatelessWidget {
   }
 }
 
-// ── Bouton download ───────────────────────────────────────────────────────────
-
-class _DownloadButton extends StatelessWidget {
-  final DownloadStatus status;
-  final double progress;
-  final VoidCallback onTap;
-
-  const _DownloadButton({
-    required this.status,
-    required this.progress,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 28,
-        height: 28,
-        child: switch (status) {
-          DownloadStatus.idle => const Icon(
-              Icons.cloud_download_outlined,
-              color: Colors.white70,
-              size: 20,
-            ),
-          DownloadStatus.downloading => Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  value: progress > 0 ? progress : null,
-                  strokeWidth: 2,
-                  color: Colors.white70,
-                ),
-                const Icon(Icons.close_rounded,
-                    color: Colors.white70, size: 12),
-              ],
-            ),
-          DownloadStatus.done => const Icon(
-              Icons.cloud_done_rounded,
-              color: Colors.greenAccent,
-              size: 20,
-            ),
-          DownloadStatus.failed => const Icon(
-              Icons.cloud_off_rounded,
-              color: Colors.redAccent,
-              size: 20,
-            ),
-        },
-      ),
-    );
-  }
-}

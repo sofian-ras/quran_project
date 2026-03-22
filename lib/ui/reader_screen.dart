@@ -765,7 +765,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        MiniPlayerWidget(currentSurah: currentSurah),
+                        Center(
+                          child: FractionallySizedBox(
+                            widthFactor: 0.85,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 360),
+                              child: MiniPlayerWidget(currentSurah: currentSurah),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         _bottomBarPortrait(surahNameFr),
                       ],
