@@ -34,9 +34,17 @@ class SurahListScreen extends StatelessWidget {
     final surahsByPage = List<Map<String, dynamic>>.from(surahList)
       ..sort((a, b) => (a['page'] as int).compareTo(b['page'] as int));
 
-    return DefaultTabController(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness:
+            isDark ? Brightness.light : Brightness.dark,
+      ),
+      child: DefaultTabController(
       length: 2,
       child: Scaffold(
+        extendBody: true,
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
@@ -308,7 +316,8 @@ class SurahListScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
+      ), // DefaultTabController
+    ); // AnnotatedRegion
   }
 }
 

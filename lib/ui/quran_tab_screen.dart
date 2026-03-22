@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../surah_name.dart';
 import 'package:flutter/services.dart';
 import '../services/audio_service.dart';
@@ -59,11 +60,28 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
     return list;
   }
 
+  static const _kUseImageReader = 'quran_tab_use_image_reader';
+
+  Future<void> _loadReaderPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _useImageReader = prefs.getBool(_kUseImageReader) ?? true;
+    });
+  }
+
+  Future<void> _setReaderPreference(bool value) async {
+    setState(() => _useImageReader = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kUseImageReader, value);
+  }
+
   @override
   void initState() {
     super.initState();
     _surahFuture = _loadSurahs();
     _loadFavorites();
+    _loadReaderPreference();
   }
 
   Future<List<Map<String, dynamic>>> _loadSurahs() async {
@@ -123,7 +141,7 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
         children: [
           // Option Coran image
           GestureDetector(
-            onTap: () => setState(() => _useImageReader = true),
+            onTap: () => _setReaderPreference(true),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
@@ -144,7 +162,7 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
           ),
           // Option Coran FR
           GestureDetector(
-            onTap: () => setState(() => _useImageReader = false),
+            onTap: () => _setReaderPreference(false),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,

@@ -1470,6 +1470,14 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     await p.setBool(_kBoldArabic, _boldArabic);
   }
 
+  Future<void> _saveSingleSetting(String key, dynamic value) async {
+    final p = await SharedPreferences.getInstance();
+    if (value is int)    await p.setInt(key, value);
+    if (value is double) await p.setDouble(key, value);
+    if (value is String) await p.setString(key, value);
+    if (value is bool)   await p.setBool(key, value);
+  }
+
   void _attachAyahListener() {
     AudioService.instance.currentAyahKeyNotifier.removeListener(_onCurrentAyahChanged);
     AudioService.instance.currentAyahKeyNotifier.addListener(_onCurrentAyahChanged);
@@ -1943,6 +1951,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                   onTap: () {
                     setS(() => _localTheme = idx);
                     setState(() => _localTheme = idx);
+                    _tqsThemeNotifier.value = idx;
+                    _saveSingleSetting(_kTheme, idx);
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
@@ -2107,6 +2117,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                                 setS(() { _fontArabic = v; });
                                 if (mounted) { setState(() { _fontArabic = v; }); }
                               },
+                              onChangeEnd: (v) => _saveSingleSetting(_kFontArabic, v),
                             ),
                           ),
                         ),
@@ -2152,6 +2163,7 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               onTap: () {
                                 setS(() => _fontFamily = f.$1);
                                 if (mounted) setState(() => _fontFamily = f.$1);
+                                _saveSingleSetting(_kFontFamily, f.$1);
                               },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
@@ -2219,7 +2231,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               label: 'Couleurs tajwīd',
                               subtitle: 'Coloriser les règles de récitation',
                               value: _showTajweed,
-                              onChanged: (v) => setS(() => _showTajweed = v),
+                              onChanged: (v) {
+                                setS(() => _showTajweed = v);
+                                setState(() => _showTajweed = v);
+                                _saveSingleSetting(_kTajweed, v);
+                              },
                             ),
                           ),
                           const Divider(height: 1, indent: 64, color: divC),
@@ -2230,7 +2246,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               label: 'Traduction',
                               subtitle: 'Afficher la traduction française',
                               value: _showTranslation,
-                              onChanged: (v) => setS(() => _showTranslation = v),
+                              onChanged: (v) {
+                                setS(() => _showTranslation = v);
+                                setState(() => _showTranslation = v);
+                                _saveSingleSetting(_kTranslation, v);
+                              },
                             ),
                           ),
                           const Divider(height: 1, indent: 64, color: divC),
@@ -2243,7 +2263,8 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
                               value: _boldArabic,
                               onChanged: (v) {
                                 setS(() => _boldArabic = v);
-                                if (mounted) setState(() => _boldArabic = v);
+                                setState(() => _boldArabic = v);
+                                _saveSingleSetting(_kBoldArabic, v);
                               },
                             ),
                           ),
