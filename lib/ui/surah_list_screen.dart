@@ -140,6 +140,7 @@ class SurahListScreen extends StatelessWidget {
                               builder: (context, favoriteIds, _) {
                                 return SurahCard(
                                   id: surahId,
+                                  page: s['page'] as int,
                                   nameAr: s['nameAr'] as String,
                                   nameFr: s['nameFr'] as String,
                                   ayahCount: (s['ayahCount'] as int?) ?? 0,

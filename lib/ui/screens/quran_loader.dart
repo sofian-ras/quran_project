@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../services/quran_image_service.dart';
 import '../reader_screen.dart';
 
 /// Écran de chargement initial pour le téléchargement des images du Coran
@@ -51,57 +50,14 @@ class _QuranLoaderState extends State<QuranLoader> {
 
 
   Future<void> _initializeQuranData() async {
-    try {
-      // Vérifier si les images sont déjà téléchargées
-      final isReady = await QuranImageService.areImagesDownloaded();
-
-      if (isReady) {
-        // Déjà prêt, charger directement
-        if (mounted) {
-          setState(() => _isLoading = false);
-          if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              _goToReaderOnce();
-            });
-          }
-        }
-        return;
-      }
-
-      // Télécharger et extraire avec progression
-      await QuranImageService.downloadAndExtractImages(
-        onDownloadProgress: (progress) {
-          if (!mounted) return;
-          setState(() {
-            _downloadProgress = progress;
-            _isExtracting = false;
-          });
-        },
-      );
-
-
-      // Vérifier une dernière fois que tout est bien téléchargé
-      final finalCheck = await QuranImageService.areImagesDownloaded();
-      if (!finalCheck) {
-        throw Exception('Les images n\'ont pas été correctement extraites');
-      }
-
-      // Terminer le chargement
-      if (mounted) {
-        setState(() => _isLoading = false);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          _goToReaderOnce();
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-          _isLoading = false;
-        });
-      }
+    // Les pages sont désormais téléchargées à la demande par le reader.
+    // QuranLoader redirige directement sans téléchargement bloquant.
+    if (mounted) {
+      setState(() => _isLoading = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _goToReaderOnce();
+      });
     }
   }
 

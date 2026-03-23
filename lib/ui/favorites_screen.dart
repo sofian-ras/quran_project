@@ -232,6 +232,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     final s = _favoriteSurahs[index];
                     return SurahCard(
                       id: s['id'],
+                      page: s['page'] as int,
                       nameAr: s['nameAr'],
                       nameFr: s['nameFr'],
                       ayahCount: s['ayahCount'],

@@ -249,6 +249,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _initApp();
     _loadReaderTheme();
     _loadNoteKeys();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _preloadPages(widget.initialPage);
+    });
     MiniPlayerService.instance.currentAyahKey.addListener(_onPlayingAyahChanged);
     () async {
       try {
@@ -652,8 +655,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 itemBuilder: (context, i) {
                   final pageNum = i + 1;
 
-                  final cached = _imageCache[pageNum];
+                  final cached = _imageCache[pageNum]
+                      ?? QuranImageService.getSyncCached(pageNum);
                   if (cached != null) {
+                    _imageCache[pageNum] = cached;
                     return _buildPageContent(cached, isLandscape, pageNum, viewPadding.bottom);
                   }
 
@@ -1102,56 +1107,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _loadingPage(BuildContext context, int pageNum) {
-    return Container(
-      color: Colors.white,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 80,
-              height: 80,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CircularProgressIndicator(
-                    strokeWidth: 6,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  Center(
-                    child: Icon(
-                      Icons.menu_book_outlined,
-                      size: 36,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Page $pageNum',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Chargement en cours...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return Container(color: _themeBg);
   }
 
   /// Pill theme + notes — affiché à droite du MiniPlayer en paysage.
