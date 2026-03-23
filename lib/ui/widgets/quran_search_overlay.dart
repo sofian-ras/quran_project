@@ -43,11 +43,13 @@ const List<String> _surahArabicNames = [
 class QuranSearchOverlay extends StatefulWidget {
   final PageController pageController;
   final VoidCallback onClose;
+  final Future<void> Function(int page)? onNavigateToPage;
 
   const QuranSearchOverlay({
     super.key,
     required this.pageController,
     required this.onClose,
+    this.onNavigateToPage,
   });
 
   @override
@@ -324,9 +326,13 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                             final page = suraAyahToPage[surahNum]?[1] ?? 1;
 
                             return InkWell(
-                              onTap: () {
+                              onTap: () async {
                                 _closeSearch();
-                                widget.pageController.jumpToPage(page - 1);
+                                if (widget.onNavigateToPage != null) {
+                                  await widget.onNavigateToPage!(page);
+                                } else {
+                                  widget.pageController.jumpToPage(page - 1);
+                                }
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -386,10 +392,13 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                               builder: (context, snapshot) {
                                 final fontReady = alreadyLoaded || snapshot.connectionState == ConnectionState.done;
                                 return InkWell(
-                                  onTap: () {
+                                  onTap: () async {
                                     _closeSearch();
-                                    widget.pageController
-                                        .jumpToPage(page - 1);
+                                    if (widget.onNavigateToPage != null) {
+                                      await widget.onNavigateToPage!(page);
+                                    } else {
+                                      widget.pageController.jumpToPage(page - 1);
+                                    }
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(

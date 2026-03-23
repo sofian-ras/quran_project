@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dua_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -502,6 +503,9 @@ Future<void> _checkFirstLaunch() async {
       // La page est déjà dans _syncCache (chargée par SurahCard._handleTap).
       // getPageFile est instantané ici, on navigue immédiatement.
       await QuranImageService.getPageFile(selectedReading, page);
+      if (!mounted) return;
+      final file = QuranImageService.getSyncCached(page);
+      if (file != null) await precacheImage(FileImage(file), context);
       if (!mounted) return;
       Navigator.push(
         context,

@@ -291,6 +291,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  /// Downloads (if needed) and precaches [page] before jumping to it.
+  Future<void> _navigateToPage(int page) async {
+    if (!mounted) return;
+    File? file = QuranImageService.getSyncCached(page);
+    if (file == null) {
+      try {
+        file = await QuranImageService.getPageFile(currentReading, page);
+      } catch (_) {}
+      file = QuranImageService.getSyncCached(page);
+    }
+    if (file != null && mounted) {
+      await precacheImage(FileImage(file), context);
+    }
+    if (!mounted) return;
+    _pageController.jumpToPage(page - 1);
+  }
+
   void _cleanDistantPages(int centerPage) {
     final pagesToRemove = <int>[];
     _imageCache.forEach((pageNum, _) {
@@ -503,13 +520,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
         onNoteDeleted: _loadNoteKeys,
         onNoteEdited: (surah, ayah) => _showNoteEditor(surah, ayah),
         onNavigate: (surah, ayah) async {
-          // Ferme le sheet depuis le contexte du reader (garantit le bon Navigator)
           if (mounted) Navigator.pop(context);
           final page = await QuranPagesHitboxDb.instance
               .getPageForAyah(surah, ayah);
-          if (page != null && mounted) {
-            _pageController.jumpToPage(page - 1);
-          }
+          if (page != null) await _navigateToPage(page);
         },
       ),
     );
@@ -535,20 +549,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
       isDismissible: true,
       enableDrag: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (sheetContext) {
         return _SurahSelectionSheet(
           surahList: fullSurahList,
           currentSurah: initialSurah ?? 1,
           currentPage: currentPage,
           isDark: isDark,
-          onSurahTap: (surahId) {
-            Navigator.pop(context);
+          reading: currentReading,
+          onSurahTap: (surahId, ctx) async {
             final p = suraAyahToPage[surahId]?[1] ?? 1;
-            _pageController.jumpToPage(p - 1);
+            if (ctx.mounted) Navigator.pop(ctx);
+            await _navigateToPage(p);
           },
           onJuzTap: (page) {
-            Navigator.pop(context);
-            _pageController.jumpToPage(page - 1);
+            Navigator.pop(sheetContext);
+            _navigateToPage(page);
           },
         );
       },
@@ -964,6 +979,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 child: QuranSearchOverlay(
                   pageController: _pageController,
                   onClose: () => setState(() => _isSearchOpen = false),
+                  onNavigateToPage: _navigateToPage,
                 ),
               ),
           ],
@@ -1710,7 +1726,8 @@ class _SurahSelectionSheet extends StatefulWidget {
   final int currentSurah;
   final int currentPage;
   final bool isDark;
-  final void Function(int surahId) onSurahTap;
+  final String reading;
+  final Future<void> Function(int surahId, BuildContext sheetContext) onSurahTap;
   final void Function(int page) onJuzTap;
 
   const _SurahSelectionSheet({
@@ -1718,6 +1735,7 @@ class _SurahSelectionSheet extends StatefulWidget {
     required this.currentSurah,
     required this.currentPage,
     required this.isDark,
+    required this.reading,
     required this.onSurahTap,
     required this.onJuzTap,
   });
@@ -1891,90 +1909,25 @@ class _SurahSelectionSheetState extends State<_SurahSelectionSheet> {
                     final s = (item as _SurahItem).data;
                     final id = s['id'] as int;
                     final nameFr = s['nameFr'] as String;
-                    final isHighlighted = id == widget.currentSurah;
                     final ayahsCount = _kSurahVerseCount[id.clamp(1, 114)];
                     final madani = _kMadaniSurahs.contains(id);
                     final firstPage = suraAyahToPage[id]?[1] ?? 1;
 
-                    return InkWell(
-                      onTap: () => widget.onSurahTap(id),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isHighlighted
-                              ? highlightColor
-                              : Colors.transparent,
-                          border: Border(
-                            bottom: BorderSide(color: dividerColor),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            // ── Numéro ────────────────────────────────────
-                            SizedBox(
-                              width: 28,
-                              child: Text(
-                                '$id',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: subtleColor,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            // ── Nom FR + sous-titre ───────────────────────
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    nameFr,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: textColor,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '$ayahsCount versets • ${madani ? 'Médinoise' : 'Mecquoise'}',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: subtleColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // ── SVG arabe (grand, bleu, à droite) ─────────
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 120),
-                              child: SvgPicture.asset(
-                                'assets/images/Translated_Quran/surah_svg/$id.svg',
-                                height: 28,
-                                fit: BoxFit.contain,
-                                alignment: Alignment.centerRight,
-                                colorFilter: const ColorFilter.mode(
-                                    Color(0xFF0D47A1), BlendMode.srcIn),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // ── Page ──────────────────────────────────────
-                            Text(
-                              'Page $firstPage',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: infoColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    return _SurahSheetTile(
+                      surahId: id,
+                      currentSurah: widget.currentSurah,
+                      isDark: isDark,
+                      dividerColor: dividerColor,
+                      highlightColor: highlightColor,
+                      subtleColor: subtleColor,
+                      textColor: textColor,
+                      infoColor: infoColor,
+                      nameFr: nameFr,
+                      ayahsCount: ayahsCount ?? 0,
+                      madani: madani,
+                      firstPage: firstPage,
+                      reading: widget.reading,
+                      onTap: () => widget.onSurahTap(id, context),
                     );
                   },
                 ),
@@ -1991,6 +1944,194 @@ class _SurahSelectionSheetState extends State<_SurahSelectionSheet> {
 // Theme picker bottom sheet
 // ─────────────────────────────────────────────────────────────────────────────
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tile sourate dans la bottom sheet (avec animation de téléchargement)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SurahSheetTile extends StatefulWidget {
+  final int surahId;
+  final int currentSurah;
+  final bool isDark;
+  final Color dividerColor;
+  final Color highlightColor;
+  final Color subtleColor;
+  final Color textColor;
+  final Color infoColor;
+  final String nameFr;
+  final int ayahsCount;
+  final bool madani;
+  final int firstPage;
+  final String reading;
+  final Future<void> Function() onTap;
+
+  const _SurahSheetTile({
+    required this.surahId,
+    required this.currentSurah,
+    required this.isDark,
+    required this.dividerColor,
+    required this.highlightColor,
+    required this.subtleColor,
+    required this.textColor,
+    required this.infoColor,
+    required this.nameFr,
+    required this.ayahsCount,
+    required this.madani,
+    required this.firstPage,
+    required this.reading,
+    required this.onTap,
+  });
+
+  @override
+  State<_SurahSheetTile> createState() => _SurahSheetTileState();
+}
+
+class _SurahSheetTileState extends State<_SurahSheetTile> {
+  double _fillProgress = 0.0;
+  bool _loading = false;
+
+  Future<void> _handleTap() async {
+    if (_loading) return;
+    if (!mounted) return;
+
+    final bool isCached =
+        QuranImageService.getSyncCached(widget.firstPage) != null ||
+        await QuranImageService.isPageCached(widget.firstPage);
+
+    if (isCached) {
+      setState(() => _fillProgress = 1.0);
+      if (QuranImageService.getSyncCached(widget.firstPage) == null) {
+        await QuranImageService.getPageFile(widget.reading, widget.firstPage);
+      }
+      final file = QuranImageService.getSyncCached(widget.firstPage);
+      if (file != null && mounted) {
+        await precacheImage(FileImage(file), context);
+      }
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 80));
+      await widget.onTap();
+      if (mounted) setState(() => _fillProgress = 0.0);
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _fillProgress = 0.0;
+    });
+
+    try {
+      await QuranImageService.getPageFile(
+        widget.reading,
+        widget.firstPage,
+        onProgress: (p) {
+          if (mounted) setState(() => _fillProgress = p);
+        },
+      );
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    final file = QuranImageService.getSyncCached(widget.firstPage);
+    if (file == null) {
+      setState(() { _fillProgress = 0.0; _loading = false; });
+      return;
+    }
+
+    setState(() { _fillProgress = 1.0; _loading = false; });
+    await precacheImage(FileImage(file), context);
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 80));
+    await widget.onTap();
+    if (mounted) setState(() => _fillProgress = 0.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFD4AF37);
+    final isHighlighted = widget.surahId == widget.currentSurah;
+
+    return ClipRect(
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: isHighlighted ? widget.highlightColor : null,
+              border: Border(
+                bottom: BorderSide(color: widget.dividerColor, width: 0.5),
+              ),
+            ),
+            child: InkWell(
+              onTap: _loading ? null : _handleTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      child: Text(
+                        '${widget.surahId}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isHighlighted ? gold : widget.subtleColor,
+                          fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.nameFr,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: isHighlighted ? gold : widget.textColor,
+                          fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${widget.ayahsCount}v · ${widget.madani ? 'Médinoise' : 'Mecquoise'}',
+                      style: TextStyle(fontSize: 11, color: widget.infoColor),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          if (_fillProgress > 0)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _SheetFillPainter(
+                    progress: _fillProgress,
+                    color: gold.withValues(alpha: 0.42),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetFillPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  const _SheetFillPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxRadius =
+        math.sqrt(size.width * size.width + size.height * size.height) / 2;
+    canvas.drawCircle(center, maxRadius * progress, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_SheetFillPainter old) => old.progress != progress;
+}
 
 class _SplitCirclePainter extends CustomPainter {
   final Color left;
