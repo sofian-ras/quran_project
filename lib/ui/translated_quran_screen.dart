@@ -710,18 +710,26 @@ class _SurahTabState extends State<_SurahTab> {
   Future<void> _loadSurahs() async {
     final List<Map<String, dynamic>> flat = [];
 
-    // Grouper les juz par surah d'insertion
-    final Map<int, List<int>> juzBefore = {}; // surahId → liste de juz
+    // Séparer les juz selon leur position :
+    // - ayah == 1 → avant la sourate (le juz démarre avec la sourate)
+    // - ayah > 1  → après la sourate (le juz démarre en milieu de sourate)
+    final Map<int, List<int>> juzBefore = {};
+    final Map<int, List<int>> juzAfter  = {};
     for (final entry in _juzStarts.entries) {
       final surahId = entry.value.$1;
-      juzBefore.putIfAbsent(surahId, () => []).add(entry.key);
+      final ayah    = entry.value.$2;
+      if (ayah == 1) {
+        juzBefore.putIfAbsent(surahId, () => []).add(entry.key);
+      } else {
+        juzAfter.putIfAbsent(surahId, () => []).add(entry.key);
+      }
     }
 
     for (int i = 0; i < 114; i++) {
       final id   = i + 1;
       final page = _surahStartPages[i];
 
-      // Insérer les juz qui commencent dans (ou avant) cette sourate
+      // Juz qui démarrent à l'ayah 1 de cette sourate → avant
       if (juzBefore.containsKey(id)) {
         for (final juz in juzBefore[id]!) {
           final (s, a) = _juzStarts[juz]!;
@@ -736,6 +744,14 @@ class _SurahTabState extends State<_SurahTab> {
         'page': page,
         'ayahCount': TafsirService.surahAyahCounts[i],
       });
+
+      // Juz qui démarrent en milieu de cette sourate → après
+      if (juzAfter.containsKey(id)) {
+        for (final juz in juzAfter[id]!) {
+          final (s, a) = _juzStarts[juz]!;
+          flat.add({'type': 'juz', 'juz': juz, 'surah': s, 'ayah': a});
+        }
+      }
     }
 
     // Sourates visitées + récents
