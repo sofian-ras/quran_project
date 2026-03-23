@@ -85,8 +85,11 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
     return _surahArabicNames[surahNumber - 1];
   }
 
+  static final Map<int, List<(int, int)>> _pageAyahsCache = {};
+
   /// Returns sorted list of (surah, ayah) pairs on a given page.
   List<(int, int)> _pageAyahsSorted(int page) {
+    if (_pageAyahsCache.containsKey(page)) return _pageAyahsCache[page]!;
     final list = <(int, int)>[];
     suraAyahToPage.forEach((s, ayahMap) {
       ayahMap.forEach((a, p) {
@@ -97,6 +100,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
       final sc = x.$1.compareTo(y.$1);
       return sc != 0 ? sc : x.$2.compareTo(y.$2);
     });
+    _pageAyahsCache[page] = list;
     return list;
   }
 
@@ -376,9 +380,11 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                             final fontFamily =
                                 'QCF_P${page.toString().padLeft(3, '0')}';
 
+                            final alreadyLoaded = FontDownloadService.isFontLoaded(page);
                             return FutureBuilder(
-                              future: FontDownloadService.loadFont(page),
+                              future: alreadyLoaded ? null : FontDownloadService.loadFont(page),
                               builder: (context, snapshot) {
+                                final fontReady = alreadyLoaded || snapshot.connectionState == ConnectionState.done;
                                 return InkWell(
                                   onTap: () {
                                     _closeSearch();
@@ -399,18 +405,29 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.end,
                                       children: [
-                                        Directionality(
-                                          textDirection: TextDirection.rtl,
-                                          child: Text(
-                                            qcfText,
-                                            style: TextStyle(
-                                              fontFamily: fontFamily,
-                                              fontSize: 22,
-                                              color: resultTextColor,
-                                            ),
-                                            textAlign: TextAlign.right,
-                                          ),
-                                        ),
+                                        fontReady
+                                            ? Directionality(
+                                                textDirection: TextDirection.rtl,
+                                                child: Text(
+                                                  qcfText,
+                                                  style: TextStyle(
+                                                    fontFamily: fontFamily,
+                                                    fontSize: 22,
+                                                    color: resultTextColor,
+                                                  ),
+                                                  textAlign: TextAlign.right,
+                                                ),
+                                              )
+                                            : const SizedBox(
+                                                height: 28,
+                                                child: Center(
+                                                  child: SizedBox(
+                                                    width: 16,
+                                                    height: 16,
+                                                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                                                  ),
+                                                ),
+                                              ),
                                         const SizedBox(height: 4),
                                         Row(
                                           mainAxisAlignment:
