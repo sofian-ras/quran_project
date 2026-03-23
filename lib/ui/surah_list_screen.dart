@@ -1,6 +1,9 @@
+import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
+import '../services/quran_image_service.dart';
 import 'widgets/surah_card.dart';
 import '../hizb_juzz.dart';
 import 'dart:convert';
@@ -237,40 +240,12 @@ class SurahListScreen extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  InkWell(
-                                    onTap: () => onOpenReader(startPage),
-                                    child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  'Juz $juzNumber',
-                                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                        fontWeight: FontWeight.w800,
-                                                        color: isDark ? Colors.white : const Color(0xFF1a0033),
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 3),
-                                                Text(
-                                                  'Débute: $firstVerseKey • Page $startPage',
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                        color: isDark ? Colors.white70 : Colors.black54,
-                                                      ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Icon(Icons.chevron_right_rounded,
-                                              color: isDark ? Colors.white70 : Colors.black54),
-                                        ],
-                                      ),
-                                    ),
+                                  _JuzHeaderTile(
+                                    juzNumber: juzNumber,
+                                    firstVerseKey: firstVerseKey,
+                                    startPage: startPage,
+                                    isDark: isDark,
+                                    onOpenReader: onOpenReader,
                                   ),
                                   ...surahIds.map((sid) {
                                     final s = surahById[sid];
@@ -284,23 +259,14 @@ class SurahListScreen extends StatelessWidget {
                                     final int openPage =
                                         (from == 1 && s != null) ? (s['page'] as int) : startPage;
 
-                                    return ListTile(
-                                      dense: true,
-                                      title: Text(
-                                        nameFr,
-                                        style: TextStyle(
-                                          color: isDark ? Colors.white : const Color(0xFF1a0033),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        '$nameAr • Versets $from-$to',
-                                        style: TextStyle(
-                                          color: isDark ? Colors.white70 : Colors.black54,
-                                        ),
-                                      ),
-                                      trailing: const Icon(Icons.chevron_right_rounded),
-                                      onTap: () => onOpenReader(openPage),
+                                    return _JuzSurahTile(
+                                      nameFr: nameFr,
+                                      nameAr: nameAr,
+                                      from: from,
+                                      to: to,
+                                      openPage: openPage,
+                                      isDark: isDark,
+                                      onOpenReader: onOpenReader,
                                     );
                                   }),
                                 ],
@@ -380,4 +346,268 @@ Future<Map<int, dynamic>> loadJuzMetadata() async {
 List<int> parseRange(String range) {
   final parts = range.split('-');
   return [int.parse(parts[0]), int.parse(parts[1])];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Juz header tile avec animation de téléchargement
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _JuzHeaderTile extends StatefulWidget {
+  final int juzNumber;
+  final String firstVerseKey;
+  final int startPage;
+  final bool isDark;
+  final void Function(int page) onOpenReader;
+
+  const _JuzHeaderTile({
+    required this.juzNumber,
+    required this.firstVerseKey,
+    required this.startPage,
+    required this.isDark,
+    required this.onOpenReader,
+  });
+
+  @override
+  State<_JuzHeaderTile> createState() => _JuzHeaderTileState();
+}
+
+class _JuzHeaderTileState extends State<_JuzHeaderTile> {
+  double _fillProgress = 0.0;
+  bool _loading = false;
+
+  Future<void> _handleTap() async {
+    if (_loading) return;
+    if (!mounted) return;
+
+    final bool isCached =
+        QuranImageService.getSyncCached(widget.startPage) != null ||
+        await QuranImageService.isPageCached(widget.startPage);
+
+    if (isCached) {
+      setState(() => _fillProgress = 1.0);
+      if (QuranImageService.getSyncCached(widget.startPage) == null) {
+        await QuranImageService.getPageFile('hafs', widget.startPage);
+      }
+      final file = QuranImageService.getSyncCached(widget.startPage);
+      if (file != null && mounted) await precacheImage(FileImage(file), context);
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 80));
+      widget.onOpenReader(widget.startPage);
+      if (mounted) setState(() => _fillProgress = 0.0);
+      return;
+    }
+
+    setState(() { _loading = true; _fillProgress = 0.0; });
+    try {
+      await QuranImageService.getPageFile('hafs', widget.startPage,
+          onProgress: (p) { if (mounted) setState(() => _fillProgress = p); });
+    } catch (_) {}
+    if (!mounted) return;
+
+    final file = QuranImageService.getSyncCached(widget.startPage);
+    if (file == null) {
+      setState(() { _fillProgress = 0.0; _loading = false; });
+      return;
+    }
+
+    setState(() { _fillProgress = 1.0; _loading = false; });
+    await precacheImage(FileImage(file), context);
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 80));
+    widget.onOpenReader(widget.startPage);
+    if (mounted) setState(() => _fillProgress = 0.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFD4AF37);
+    return ClipRect(
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: _loading ? null : _handleTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Juz ${widget.juzNumber}',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: widget.isDark ? Colors.white : const Color(0xFF1a0033),
+                              ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Débute: ${widget.firstVerseKey} • Page ${widget.startPage}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: widget.isDark ? Colors.white70 : Colors.black54,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      color: widget.isDark ? Colors.white70 : Colors.black54),
+                ],
+              ),
+            ),
+          ),
+          if (_fillProgress > 0)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _JuzFillPainter(
+                    progress: _fillProgress,
+                    color: gold.withValues(alpha: 0.42),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sourate dans un Juz avec animation de téléchargement
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _JuzSurahTile extends StatefulWidget {
+  final String nameFr;
+  final String nameAr;
+  final int from;
+  final int to;
+  final int openPage;
+  final bool isDark;
+  final void Function(int page) onOpenReader;
+
+  const _JuzSurahTile({
+    required this.nameFr,
+    required this.nameAr,
+    required this.from,
+    required this.to,
+    required this.openPage,
+    required this.isDark,
+    required this.onOpenReader,
+  });
+
+  @override
+  State<_JuzSurahTile> createState() => _JuzSurahTileState();
+}
+
+class _JuzSurahTileState extends State<_JuzSurahTile> {
+  double _fillProgress = 0.0;
+  bool _loading = false;
+
+  Future<void> _handleTap() async {
+    if (_loading) return;
+    if (!mounted) return;
+
+    final bool isCached =
+        QuranImageService.getSyncCached(widget.openPage) != null ||
+        await QuranImageService.isPageCached(widget.openPage);
+
+    if (isCached) {
+      setState(() => _fillProgress = 1.0);
+      if (QuranImageService.getSyncCached(widget.openPage) == null) {
+        await QuranImageService.getPageFile('hafs', widget.openPage);
+      }
+      final file = QuranImageService.getSyncCached(widget.openPage);
+      if (file != null && mounted) await precacheImage(FileImage(file), context);
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 80));
+      widget.onOpenReader(widget.openPage);
+      if (mounted) setState(() => _fillProgress = 0.0);
+      return;
+    }
+
+    setState(() { _loading = true; _fillProgress = 0.0; });
+    try {
+      await QuranImageService.getPageFile('hafs', widget.openPage,
+          onProgress: (p) { if (mounted) setState(() => _fillProgress = p); });
+    } catch (_) {}
+    if (!mounted) return;
+
+    final file = QuranImageService.getSyncCached(widget.openPage);
+    if (file == null) {
+      setState(() { _fillProgress = 0.0; _loading = false; });
+      return;
+    }
+
+    setState(() { _fillProgress = 1.0; _loading = false; });
+    await precacheImage(FileImage(file), context);
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 80));
+    widget.onOpenReader(widget.openPage);
+    if (mounted) setState(() => _fillProgress = 0.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFD4AF37);
+    return ClipRect(
+      child: Stack(
+        children: [
+          ListTile(
+            dense: true,
+            title: Text(
+              widget.nameFr,
+              style: TextStyle(
+                color: widget.isDark ? Colors.white : const Color(0xFF1a0033),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              '${widget.nameAr} • Versets ${widget.from}-${widget.to}',
+              style: TextStyle(
+                color: widget.isDark ? Colors.white70 : Colors.black54,
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _loading ? null : _handleTap,
+          ),
+          if (_fillProgress > 0)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _JuzFillPainter(
+                    progress: _fillProgress,
+                    color: gold.withValues(alpha: 0.42),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Painter — cercle qui s'étend depuis le centre (identique à SurahCard)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _JuzFillPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  const _JuzFillPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxRadius = sqrt(size.width * size.width + size.height * size.height) / 2;
+    canvas.drawCircle(center, maxRadius * progress, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_JuzFillPainter old) => old.progress != progress;
 }

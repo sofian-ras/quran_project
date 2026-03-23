@@ -20,6 +20,7 @@ import '../services/qul_audio/qul_audio_resolver.dart';
 import '../surah_name.dart';
 import '../services/tafsir_service.dart' show TafsirService;
 import '../services/quran_ayah_metadata_db.dart';
+import '../services/quran_image_service.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'reader_screen.dart';
 
@@ -645,11 +646,19 @@ class _SurahTabState extends State<_SurahTab> {
     _tqsThemeNotifier.value = t;
   }
 
-  void _openSurah(BuildContext context, int surahId, {int initialAyah = 1}) {
+  Future<void> _openSurah(BuildContext context, int surahId, {int initialAyah = 1}) async {
     if (_imageReaderModeNotifier.value) {
+      final int page = _surahStartPages[surahId - 1];
+      try {
+        await QuranImageService.getPageFile('hafs', page);
+        if (!context.mounted) return;
+        final File? file = QuranImageService.getSyncCached(page);
+        if (file != null) await precacheImage(FileImage(file), context);
+        if (!context.mounted) return;
+      } catch (_) {}
       Navigator.push(context, MaterialPageRoute(
         builder: (_) => ReaderScreen(
-          initialPage: _surahStartPages[surahId - 1],
+          initialPage: page,
           reading: 'hafs',
         ),
       ));

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/reading_history_service.dart';
 import 'reader_screen.dart';
@@ -50,6 +51,13 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen> {
       return;
     }
 
+    try {
+      await QuranImageService.getPageFile(reading, page);
+      if (!mounted) return;
+      final File? file = QuranImageService.getSyncCached(page);
+      if (file != null) await precacheImage(FileImage(file), context);
+      if (!mounted) return;
+    } catch (_) {}
     Navigator.push(
       context,
       MaterialPageRoute(

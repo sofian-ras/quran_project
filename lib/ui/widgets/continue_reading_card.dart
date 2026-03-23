@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/last_reading_service.dart';
+import '../../services/quran_image_service.dart';
 import '../reader_screen.dart';
 
 class ContinueReadingCard extends StatefulWidget {
@@ -60,7 +62,14 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
+        try {
+          await QuranImageService.getPageFile('hafs', _pageNumber);
+          if (!mounted) return;
+          final File? file = QuranImageService.getSyncCached(_pageNumber);
+          if (file != null) await precacheImage(FileImage(file), context);
+          if (!mounted) return;
+        } catch (_) {}
         Navigator.push(
           context,
           MaterialPageRoute(

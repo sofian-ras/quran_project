@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,7 @@ import '../surah_name.dart';
 import 'package:flutter/services.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
+import '../services/quran_image_service.dart';
 import 'reader_screen.dart';
 import 'translated_quran_screen.dart';
 import 'surah_list_screen.dart';
@@ -96,8 +98,15 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
     _favoriteIdsNotifier.value = ids;
   }
 
-  void _openReader(int page) {
+  Future<void> _openReader(int page) async {
     if (_useImageReader) {
+      try {
+        await QuranImageService.getPageFile('hafs', page);
+        if (!mounted) return;
+        final File? file = QuranImageService.getSyncCached(page);
+        if (file != null) await precacheImage(FileImage(file), context);
+        if (!mounted) return;
+      } catch (_) {}
       Navigator.push(
         context,
         MaterialPageRoute(
