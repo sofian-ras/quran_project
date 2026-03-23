@@ -129,36 +129,66 @@ class SurahListScreen extends StatelessWidget {
                           width: 1,
                         ),
                       ),
-                      child: ListView.builder(
-                        key: const PageStorageKey('surah_list_full'),
-                        itemCount: surahList.length,
-                        itemBuilder: (context, index) {
-                          final s = surahList[index];
-                          final int surahId = s['id'] as int;
+                      child: FutureBuilder<Map<int, dynamic>>(
+                        future: loadJuzMetadata(),
+                        builder: (context, snap) {
+                          // Build surahId → [(juzNumber, startPage)] map
+                          final Map<int, List<(int, int)>> juzBySurah = {};
+                          if (snap.hasData) {
+                            final juzData = snap.data!;
+                            for (int n = 1; n <= 30; n++) {
+                              final meta = juzData[n] as Map<String, dynamic>;
+                              final firstVerseKey = meta['first_verse_key'] as String;
+                              final sid = int.parse(firstVerseKey.split(':')[0]);
+                              final startPage = juzzMap[n - 1]['start_page']!;
+                              juzBySurah.putIfAbsent(sid, () => []).add((n, startPage));
+                            }
+                          }
 
-                          return _SurahPlayingTileWidget(
-                            surahId: surahId,
-                            childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
-                              valueListenable: favoriteIdsNotifier,
-                              builder: (context, favoriteIds, _) {
-                                return SurahCard(
-                                  id: surahId,
-                                  page: s['page'] as int,
-                                  nameAr: s['nameAr'] as String,
-                                  nameFr: s['nameFr'] as String,
-                                  ayahCount: (s['ayahCount'] as int?) ?? 0,
-                                  isFavorite: favoriteIds.contains(surahId),
-                                  isPlaying: isPlaying,
-                                  onTap: () => onOpenReader(s['page'] as int),
-                                  onPlay: () => onPlaySurah(s),
-                                  onToggleFavorite: () async {
-                                    await FavoritesService.instance.toggleFavorite(surahId);
-                                    favoriteIdsNotifier.value =
-                                        await FavoritesService.instance.getFavorites();
-                                  },
-                                );
-                              },
-                            ),
+                          return ListView.builder(
+                            key: const PageStorageKey('surah_list_full'),
+                            itemCount: surahList.length,
+                            itemBuilder: (context, index) {
+                              final s = surahList[index];
+                              final int surahId = s['id'] as int;
+                              final List<(int, int)> juzItems = juzBySurah[surahId] ?? [];
+
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _SurahPlayingTileWidget(
+                                    surahId: surahId,
+                                    childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
+                                      valueListenable: favoriteIdsNotifier,
+                                      builder: (context, favoriteIds, _) {
+                                        return SurahCard(
+                                          id: surahId,
+                                          page: s['page'] as int,
+                                          nameAr: s['nameAr'] as String,
+                                          nameFr: s['nameFr'] as String,
+                                          ayahCount: (s['ayahCount'] as int?) ?? 0,
+                                          isFavorite: favoriteIds.contains(surahId),
+                                          isPlaying: isPlaying,
+                                          onTap: () => onOpenReader(s['page'] as int),
+                                          onPlay: () => onPlaySurah(s),
+                                          onToggleFavorite: () async {
+                                            await FavoritesService.instance.toggleFavorite(surahId);
+                                            favoriteIdsNotifier.value =
+                                                await FavoritesService.instance.getFavorites();
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  ...juzItems.map((item) => _JuzSubItemTile(
+                                    juzNumber: item.$1,
+                                    startPage: item.$2,
+                                    isDark: isDark,
+                                    onOpenReader: onOpenReader,
+                                  )),
+                                ],
+                              );
+                            },
                           );
                         },
                       ),
@@ -581,6 +611,143 @@ class _JuzSurahTileState extends State<_JuzSurahTile> {
                   painter: _JuzFillPainter(
                     progress: _fillProgress,
                     color: gold.withValues(alpha: 0.42),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sous-item Juz dans l'onglet Sourates
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _JuzSubItemTile extends StatefulWidget {
+  final int juzNumber;
+  final int startPage;
+  final bool isDark;
+  final void Function(int page) onOpenReader;
+
+  const _JuzSubItemTile({
+    required this.juzNumber,
+    required this.startPage,
+    required this.isDark,
+    required this.onOpenReader,
+  });
+
+  @override
+  State<_JuzSubItemTile> createState() => _JuzSubItemTileState();
+}
+
+class _JuzSubItemTileState extends State<_JuzSubItemTile> {
+  double _fillProgress = 0.0;
+  bool _loading = false;
+
+  Future<void> _handleTap() async {
+    if (_loading) return;
+    if (!mounted) return;
+
+    final bool isCached =
+        QuranImageService.getSyncCached(widget.startPage) != null ||
+        await QuranImageService.isPageCached(widget.startPage);
+
+    if (isCached) {
+      setState(() => _fillProgress = 1.0);
+      if (QuranImageService.getSyncCached(widget.startPage) == null) {
+        await QuranImageService.getPageFile('hafs', widget.startPage);
+      }
+      final file = QuranImageService.getSyncCached(widget.startPage);
+      if (file != null && mounted) await precacheImage(FileImage(file), context);
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 80));
+      widget.onOpenReader(widget.startPage);
+      if (mounted) setState(() => _fillProgress = 0.0);
+      return;
+    }
+
+    setState(() { _loading = true; _fillProgress = 0.0; });
+    try {
+      await QuranImageService.getPageFile('hafs', widget.startPage,
+          onProgress: (p) { if (mounted) setState(() => _fillProgress = p); });
+    } catch (_) {}
+    if (!mounted) return;
+
+    final file = QuranImageService.getSyncCached(widget.startPage);
+    if (file == null) {
+      setState(() { _fillProgress = 0.0; _loading = false; });
+      return;
+    }
+
+    setState(() { _fillProgress = 1.0; _loading = false; });
+    await precacheImage(FileImage(file), context);
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 80));
+    widget.onOpenReader(widget.startPage);
+    if (mounted) setState(() => _fillProgress = 0.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFD4AF37);
+    final Color bg = widget.isDark
+        ? gold.withValues(alpha: 0.06)
+        : gold.withValues(alpha: 0.07);
+    final Color textColor = widget.isDark ? Colors.white70 : Colors.black54;
+    final Color accentColor = gold;
+
+    return ClipRect(
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: _loading ? null : _handleTap,
+            child: Container(
+              color: bg,
+              padding: const EdgeInsets.fromLTRB(28, 8, 14, 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Juz ${widget.juzNumber}',
+                      style: TextStyle(
+                        color: accentColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Page ${widget.startPage}',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.chevron_right_rounded, color: textColor, size: 18),
+                ],
+              ),
+            ),
+          ),
+          if (_fillProgress > 0)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _JuzFillPainter(
+                    progress: _fillProgress,
+                    color: gold.withValues(alpha: 0.35),
                   ),
                 ),
               ),

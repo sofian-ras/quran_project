@@ -143,6 +143,8 @@ class QuranImageService {
     try {
       final folder = Directory(_hafsPath!);
       if (await folder.exists()) await folder.delete(recursive: true);
+      _syncCache.clear();
+      _hafsPath = null;
       debugPrint('Cache des images supprimé');
     } catch (e) {
       debugPrint('Erreur suppression cache: $e');
