@@ -12,6 +12,7 @@ import '../surah_name.dart';
 import 'qul_audio/models/qul_reciter.dart';
 import 'qul_audio/qul_catalog_service.dart';
 import 'qul_audio/qul_audio_resolver.dart';
+import 'mp3quran/timed_surah_player.dart';
 
 class PositionData {
   final Duration position;
@@ -271,6 +272,9 @@ class AudioService {
     // Invalide tout _playAyahInternal en cours d'attente async.
     _ayahPlayToken++;
 
+    // Arrêter aussi TimedSurahPlayer s'il est actif.
+    await TimedSurahPlayer.instance.stop();
+
     await _ayahSeqSub?.cancel();
     _ayahSeqSub = null;
     _seqSurah = null;
@@ -334,6 +338,16 @@ class AudioService {
     required int endAyah,
   }) async {
     if (endAyah < startAyah) return;
+
+    // Seek-based : TimedSurahPlayer gère la séquence en interne.
+    final rangeReciter = currentAyahReciterNotifier.value;
+    if (rangeReciter.isSeekBased) {
+      ayahPlayModeNotifier.value = AyahPlayMode.continuous;
+      await TimedSurahPlayer.instance
+          .playAyahRange(rangeReciter.timedSource!, surah, startAyah, endAyah);
+      ayahPlayModeNotifier.value = AyahPlayMode.single;
+      return;
+    }
 
     ayahPlayModeNotifier.value = AyahPlayMode.continuous;
 
@@ -590,6 +604,21 @@ class AudioService {
 
     try {
       final reciter = currentAyahReciterNotifier.value;
+
+      // ── Seek-based (Soufi Hafs) ─────────────────────────────────────────
+      // Pas de fichier MP3 par verset : seek dans le MP3 complet de la sourate.
+      if (reciter.isSeekBased) {
+        if (myToken != _ayahPlayToken || _disposed) return;
+        currentAyahKeyNotifier.value = '$surah:$ayah';
+        currentAyahTitleNotifier.value =
+            'S${surah.toString().padLeft(3, '0')}:'
+            '${ayah.toString().padLeft(3, '0')} • ${reciter.displayName}';
+        await TimedSurahPlayer.instance
+            .playAyah(reciter.timedSource!, surah, ayah);
+        return;
+      }
+      // ───────────────────────────────────────────────────────────────────
+
       final url = await QulAudioResolver.instance.resolveAyah(reciter, surah, ayah);
 
       // Un appel plus récent a démarré → on abandonne celui-ci.

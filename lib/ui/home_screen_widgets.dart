@@ -1,248 +1,298 @@
 part of 'home_screen.dart';
 
 class _HomeTopBar extends StatelessWidget {
-  final VoidCallback onThemeTap;
-
-  const _HomeTopBar({
-    required this.onThemeTap,
-  });
+  const _HomeTopBar();
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
 
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            'Ø§Ù„Ù‚Ø±Ø¢Ù† Ø§Ù„ÙƒØ±ÙŠÙ…',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: t.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        ValueListenableBuilder<ThemeMode>(
-          valueListenable: ThemeService.themeMode,
-          builder: (context, mode, _) {
-            final icon = (mode == ThemeMode.system)
-                ? Icons.brightness_auto_rounded
-                : (mode == ThemeMode.light)
-                    ? Icons.light_mode_rounded
-                    : Icons.dark_mode_rounded;
-            return IconButton(
-              onPressed: onThemeTap,
-              icon: Icon(icon),
-              color: t.colorScheme.onSurface.withValues(alpha: 0.75),
-            );
-          },
-        ),
-      ],
+    return Text(
+      'Ø§Ù„Ù‚Ø±Ø¢Ù† Ø§Ù„ÙƒØ±ÙŠÙ…',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: t.textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.w800,
+      ),
     );
   }
 }
 
 class _DribbbleHomeHeader extends StatelessWidget {
   final bool pauseTicker;
-  final VoidCallback onThemeTap;
   final Future<_PrayerHeaderData> prayerFuture;
   final int Function(List<(String, String)>) activeIndexFromTimes;
   final VoidCallback? onLocationTap;
 
   const _DribbbleHomeHeader({
-    required this.onThemeTap,
     required this.prayerFuture,
     required this.activeIndexFromTimes,
     required this.pauseTicker,
     this.onLocationTap,
   });
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color fg = isDark ? Colors.white : const Color(0xFF0F172A);
-    final Color muted = fg.withOpacity(isDark ? 0.72 : 0.60);
-    final Color pillBg = isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.92);
-    const double prayerCardHeight = 240;
-    final Color pillBorder = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
-    return FutureBuilder<_PrayerHeaderData>(
-      future: prayerFuture,
-      builder: (context, snap) {
-        final data = snap.data;
 
-        final location = data == null ? 'Paris, France' : '${data.city}, ${data.country}';
-        return Padding(
-          padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top + 2,
-            bottom: 10,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Spacer(),
-                  const SizedBox(width: 10),
-                  ValueListenableBuilder<ThemeMode>(
-                    valueListenable: ThemeService.themeMode,
-                    builder: (context, mode, _) {
-                      final IconData icon = (mode == ThemeMode.system)
-                          ? Icons.brightness_auto_rounded
-                          : (mode == ThemeMode.light)
-                              ? Icons.light_mode_rounded
-                              : Icons.dark_mode_rounded;
-                      final Color color = isDark ? Colors.white : const Color(0xFF0F172A);
-                      return IconButton(
-                        onPressed: onThemeTap,
-                        icon: Icon(icon, color: color),
-                        tooltip: 'Thème',
-                      );
-                    },
-                  ),
-                  _NotificationBellButton(
-                    count: 3,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Notifications bientôt')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+  static const _gold = Color(0xFFD4AF37);
 
-              if (snap.connectionState != ConnectionState.done || data == null)
-                SizedBox(
-                  height: prayerCardHeight,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: pillBg,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Chargement des horaires...',
-                        style: TextStyle(
-                          color: (isDark ? Colors.white : Colors.black).withOpacity(0.75),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-              else
-                SizedBox(
-                  height: prayerCardHeight,
-                  child: StreamBuilder<int>(
-                    stream: pauseTicker
-                      ? const Stream.empty()
-                      : Stream.periodic(const Duration(seconds: 1), (i) => i),
-                    builder: (context, _) {
-                      final prayers5 = <(String, String)>[
-                        ('Fajr', data.times['Fajr'] ?? '--:--'),
-                        ('Dhuhr', data.times['Dhohr'] ?? '--:--'),
-                        ('Asr', data.times['Asr'] ?? '--:--'),
-                        ('Maghrib', data.times['Maghrib'] ?? '--:--'),
-                        ('Isha', data.times['Isha'] ?? '--:--'),
-                      ];
-
-                      int nextIndex5 = 0;
-                      final now = DateTime.now();
-                      DateTime? parseToday(String t) {
-                        final parts = t.split(':');
-                        if (parts.length < 2) return null;
-                        final h = int.tryParse(parts[0]);
-                        final m = int.tryParse(parts[1]);
-                        if (h == null || m == null) return null;
-                        return DateTime(now.year, now.month, now.day, h, m);
-                      }
-
-                      for (int i = 0; i < prayers5.length; i++) {
-                        final dt = parseToday(prayers5[i].$2);
-                        if (dt != null && dt.isAfter(now)) {
-                          nextIndex5 = i;
-                          break;
-                        }
-                      }
-
-                      final remaining5 = _DribbbleHomeHeader._remainingToNextPrayer(prayers5, nextIndex5);
-
-                      return PrayerTimesCardV2(
-                        nextPrayerName: prayers5[nextIndex5].$1,
-                        nextPrayerTime: prayers5[nextIndex5].$2,
-                        remaining: remaining5,
-                        prayers: prayers5,
-                        activeIndex: nextIndex5,
-                        location: location,
-                        onLocationTap: () => onLocationTap?.call(),
-                        onExpandTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PrayersScreen()));
-                        },
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
-        );
-
-      },
-    );
-  }
-
-  static IconData _getPrayerIcon(String name) {
+  static IconData _iconFor(String name) {
     switch (name.toLowerCase()) {
-      case 'fajr':
-        return Icons.wb_twilight_rounded;
-      case 'sunrise':
-        return Icons.wb_sunny_rounded;
-      case 'dhohr':
+      case 'fajr':    return Icons.wb_twilight_rounded;
       case 'dhuhr':
-        return Icons.wb_sunny_outlined;
-      case 'asr':
-        return Icons.wb_sunny;
-      case 'maghrib':
-        return Icons.nights_stay_rounded;
-      case 'isha':
-        return Icons.nightlight_round;
-      default:
-        return Icons.access_time_rounded;
+      case 'dhohr':   return Icons.wb_sunny_outlined;
+      case 'asr':     return Icons.wb_sunny;
+      case 'maghrib': return Icons.nights_stay_rounded;
+      case 'isha':    return Icons.nightlight_round;
+      default:        return Icons.access_time_rounded;
     }
   }
-  
-  static Duration _remainingToNextPrayer(List<(String, String)> prayers, int activeIndex) {
-    final now = DateTime.now();
-    final hhmm = prayers[activeIndex].$2;
 
+  static Duration _remaining(String hhmm) {
     if (!hhmm.contains(':') || hhmm.contains('-')) return Duration.zero;
-
     final parts = hhmm.split(':');
     final hh = int.tryParse(parts[0]) ?? 0;
     final mm = int.tryParse(parts[1]) ?? 0;
-
+    final now = DateTime.now();
     var next = DateTime(now.year, now.month, now.day, hh, mm);
     if (!next.isAfter(now)) next = next.add(const Duration(days: 1));
-
     return next.difference(now);
   }
 
-  static String _fmt(Duration d) {
-    if (d.isNegative) d = Duration.zero;
+  static String _fmtRemaining(Duration d) {
+    if (d <= Duration.zero) return '';
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
-
-    if (h > 0) {
-      return '${h.toString().padLeft(2, '0')}h '
-          '${m.toString().padLeft(2, '0')}m '
-          '${s.toString().padLeft(2, '0')}s';
-    }
-    return '${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s';
+    if (h > 0) return 'Dans ${h}h ${m.toString().padLeft(2, '0')}m';
+    if (m > 0) return 'Dans ${m}m ${s.toString().padLeft(2, '0')}s';
+    return 'Dans ${s}s';
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final topPad = MediaQuery.of(context).padding.top;
+
+    final Color accent = isDark ? _gold : const Color(0xFF0E6B63);
+    final Color textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final Color textMuted = isDark
+        ? Colors.white.withValues(alpha: 0.50)
+        : const Color(0xFF64748B);
+
+    // Container.margin ne supporte pas les valeurs négatives.
+    // LayoutBuilder + Transform.translate pour déborder du padding parent (hPad=14).
+    return LayoutBuilder(
+      builder: (context, constraints) => Transform.translate(
+        offset: const Offset(-14, 0),
+        child: SizedBox(
+          width: constraints.maxWidth + 28,
+          child: Container(
+            decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDark
+              ? [
+                  const Color(0xFF020617),
+                  const Color(0xFF0B1025),
+                  const Color(0x000B1025),
+                ]
+              : [
+                  const Color(0xFFF2ECE5),
+                  const Color(0xFFF2ECE5),
+                  const Color(0x00F2ECE5),
+                ],
+          stops: const [0.0, 0.68, 1.0],
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, topPad + 10, 12, 32),
+        child: FutureBuilder<_PrayerHeaderData>(
+          future: prayerFuture,
+          builder: (context, snap) {
+            final data = snap.data;
+            final hijriLine = data?.hijriLine ?? '';
+            final location = data != null
+                ? '${data.city}, ${data.country}'
+                : 'Paris, France';
+
+            final prayers5 = data != null && data.times.isNotEmpty
+                ? <(String, String)>[
+                    ('Fajr',    data.times['Fajr']    ?? '--:--'),
+                    ('Dhuhr',   data.times['Dhohr']   ?? '--:--'),
+                    ('Asr',     data.times['Asr']     ?? '--:--'),
+                    ('Maghrib', data.times['Maghrib'] ?? '--:--'),
+                    ('Isha',    data.times['Isha']    ?? '--:--'),
+                  ]
+                : null;
+
+            return StreamBuilder<int>(
+              stream: pauseTicker || prayers5 == null
+                  ? const Stream.empty()
+                  : Stream.periodic(const Duration(seconds: 1), (i) => i),
+              builder: (context, _) {
+                String nextName = '--';
+                String nextTime = '--:--';
+                Duration rem = Duration.zero;
+
+                if (prayers5 != null) {
+                  final idx = activeIndexFromTimes(prayers5);
+                  nextName = prayers5[idx].$1;
+                  nextTime = prayers5[idx].$2;
+                  rem = _remaining(nextTime);
+                }
+
+                final remLabel = _fmtRemaining(rem);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Ligne 1 : date hijri + lieu + cloche ──────────────
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (hijriLine.isNotEmpty) ...[
+                                Text(
+                                  hijriLine,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: accent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                              ],
+                              GestureDetector(
+                                onTap: onLocationTap,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.place_rounded,
+                                        size: 12, color: textMuted),
+                                    const SizedBox(width: 3),
+                                    Flexible(
+                                      child: Text(
+                                        location,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: textMuted,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _NotificationBellButton(
+                          count: 3,
+                          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Notifications bientôt')),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // ── Ligne 2 : prochaine prière ────────────────────────
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Icône dans un pill arrondi
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: isDark ? 0.14 : 0.10),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(_iconFor(nextName), color: accent, size: 26),
+                        ),
+                        const SizedBox(width: 14),
+                        // Nom + label
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Prochaine prière',
+                              style: TextStyle(
+                                color: textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              nextName,
+                              style: TextStyle(
+                                color: textPrimary,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                height: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        // Heure + compte à rebours
+                        GestureDetector(
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const PrayersScreen())),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                nextTime,
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.0,
+                                  letterSpacing: -1.5,
+                                ),
+                              ),
+                              if (remLabel.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    remLabel,
+                                    style: TextStyle(
+                                      color: textMuted,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),          // closes FutureBuilder
+      ),            // closes Padding
+          ),        // closes Container
+        ),          // closes SizedBox
+      ),            // closes Transform.translate
+    );              // closes LayoutBuilder
+  }
 }
 
 
@@ -258,7 +308,7 @@ class _NotificationBellButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? Colors.white : Colors.black.withOpacity(0.78);
+    final iconColor = isDark ? Colors.white : Colors.black.withValues(alpha: 0.78);
 
     return Stack(
       clipBehavior: Clip.none,
@@ -276,7 +326,7 @@ class _NotificationBellButton extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFFE53935),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withOpacity(0.9), width: 1),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1),
               ),
               child: Text(
                 '$count',
@@ -294,84 +344,8 @@ class _NotificationBellButton extends StatelessWidget {
   }
 }
 
-class _QuranEngagementCard extends StatelessWidget {
-  final int minutes;
-  final String subtitle;
-  final String buttonText;
-  final VoidCallback onPressed;
-
-  const _QuranEngagementCard({
-    required this.minutes,
-    required this.subtitle,
-    required this.buttonText,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Material(
-      color: isDark ? const Color(0xFF0F1734) : Colors.white,
-      elevation: 2,
-      borderRadius: BorderRadius.circular(22),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            // Texte
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$minutes minutes',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF111827),
-                      height: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: (isDark ? Colors.white : const Color(0xFF111827)).withOpacity(0.65),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Bouton
-            FilledButton(
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2C6CB5),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: Text(
-                buttonText,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _HeaderWithEngagement extends StatelessWidget {
   final bool pausePrayerTicker;
-  final VoidCallback onThemeTap;
   final VoidCallback onContinue;
   final Future<_PrayerHeaderData> prayerFuture;
   final int Function(List<(String, String)>) activeIndexFromTimes;
@@ -388,7 +362,6 @@ class _HeaderWithEngagement extends StatelessWidget {
 
   const _HeaderWithEngagement({
     required this.audio,
-    required this.onThemeTap,
     required this.onContinue,
     required this.prayerFuture,
     required this.activeIndexFromTimes,
@@ -408,7 +381,6 @@ class _HeaderWithEngagement extends StatelessWidget {
       children: [
         // Header prières
         _DribbbleHomeHeader(
-          onThemeTap: onThemeTap,
           prayerFuture: prayerFuture,
           activeIndexFromTimes: activeIndexFromTimes,
           pauseTicker: pausePrayerTicker, // <-- AJOUT
@@ -567,15 +539,15 @@ class _RecitersSectionState extends State<_RecitersSection> {
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: isDark
-                                ? Colors.white.withOpacity(0.35)
-                                : const Color(0xFF2C6CB5).withOpacity(0.35),
+                                ? Colors.white.withValues(alpha: 0.35)
+                                : const Color(0xFF2C6CB5).withValues(alpha: 0.35),
                             width: 1.5,
                           ),
                         ),
                         child: CircleAvatar(
                           radius: 18,
                           backgroundColor: isDark
-                              ? Colors.white.withOpacity(0.08)
+                              ? Colors.white.withValues(alpha: 0.08)
                               : const Color.fromARGB(255, 255, 251, 243),
                           backgroundImage: asset.isEmpty ? null : AssetImage(asset),
                           onBackgroundImageError: (_, __) {},
@@ -593,7 +565,7 @@ class _RecitersSectionState extends State<_RecitersSection> {
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: titleColor.withOpacity(0.8),
+                              color: titleColor.withValues(alpha: 0.8),
                             ),
                           ),
                         ),
@@ -730,8 +702,8 @@ class _FeatureChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFF2F6FF);
-    final fg = isDark ? Colors.white.withOpacity(0.9) : const Color(0xFF111827);
+    final bg = isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFF2F6FF);
+    final fg = isDark ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF111827);
     const accent = Color(0xFF2C6CB5);
 
     return InkWell(
@@ -840,11 +812,11 @@ class _ContentCard extends StatelessWidget {
 
     // Bande et texte lisibles en dark/light
     final Color bannerColor = isDark
-        ? Colors.black.withOpacity(0.35)
-        : Colors.white.withOpacity(0.55);
+        ? Colors.black.withValues(alpha: 0.35)
+        : Colors.white.withValues(alpha: 0.55);
 
     final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white.withOpacity(0.85) : Colors.black.withOpacity(0.65);
+    final Color subTextColor = isDark ? Colors.white.withValues(alpha: 0.85) : Colors.black.withValues(alpha: 0.65);
 
     return Material(
       color: Colors.transparent,
@@ -873,9 +845,9 @@ class _ContentCard extends StatelessWidget {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Colors.white.withOpacity(isDark ? 0.03 : 0.06),
+                          Colors.white.withValues(alpha: isDark ? 0.03 : 0.06),
                           Colors.transparent,
-                          Colors.black.withOpacity(isDark ? 0.18 : 0.10),
+                          Colors.black.withValues(alpha: isDark ? 0.18 : 0.10),
                         ],
                       ),
                     ),
@@ -973,11 +945,18 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
   int _surahNumber = 1;
   int _verseNumber = 1;
   bool _isLoading = true;
+  final Dio _dio = Dio();
 
   @override
   void initState() {
     super.initState();
     _loadRandomVerse();
+  }
+
+  @override
+  void dispose() {
+    _dio.close(force: true);
+    super.dispose();
   }
 
   Future<void> _loadRandomVerse() async {
@@ -1023,8 +1002,6 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
                   .replaceAll('\u200E', '')
                   .trim();
               _translationText = (row['fr'] as String?) ?? '';
-              
-              await db.close();
               if (!mounted) return;
               setState(() => _isLoading = false);
               return;
@@ -1036,9 +1013,8 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
       }
       
       // Fallback: utiliser l'API en ligne si le pack offline n'est pas disponible
-      final dio = Dio();
-      final arRes = await dio.get('https://api.alquran.cloud/v1/surah/$_surahNumber/quran-uthmani');
-      final frRes = await dio.get('https://quranenc.com/api/v1/translation/sura/french_hameedullah/$_surahNumber');
+      final arRes = await _dio.get('https://api.alquran.cloud/v1/surah/$_surahNumber/quran-uthmani');
+      final frRes = await _dio.get('https://quranenc.com/api/v1/translation/sura/french_hameedullah/$_surahNumber');
       
       final arAyahs = (arRes.data['data']['ayahs'] as List);
       final frData = (frRes.data['result'] as List);
@@ -1096,8 +1072,7 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                // ignore: deprecated_member_use
-                color: (isDark ? Colors.black : Colors.orange.shade200).withOpacity(0.3),
+                color: (isDark ? Colors.black : Colors.orange.shade200).withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -1194,9 +1169,6 @@ class _HomeCardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const double cardHeight = 190;
-
-
     return Material(
       color: isDark ? const Color(0xFF0F1734) : Colors.white,
       elevation: 2,
@@ -1266,7 +1238,7 @@ class _FeatureSquareItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color labelColor = isDark ? Colors.white.withOpacity(0.8) : const Color(0xFF374151);
+    final Color labelColor = isDark ? Colors.white.withValues(alpha: 0.8) : const Color(0xFF374151);
 
     return Material(
       color: Colors.transparent,
@@ -1304,9 +1276,9 @@ class _FeatureSquareItem extends StatelessWidget {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Colors.white.withOpacity(isDark ? 0.03 : 0.06),
+                          Colors.white.withValues(alpha: isDark ? 0.03 : 0.06),
                           Colors.transparent,
-                          Colors.black.withOpacity(isDark ? 0.18 : 0.10),
+                          Colors.black.withValues(alpha: isDark ? 0.18 : 0.10),
                         ],
                       ),
                     ),
@@ -1323,8 +1295,8 @@ class _FeatureSquareItem extends StatelessWidget {
                   child: Container(
                     height: 70, // bande encore plus large
                     color: isDark
-                        ? Colors.black.withOpacity(0.35)
-                        : Colors.white.withOpacity(0.55),
+                        ? Colors.black.withValues(alpha: 0.35)
+                        : Colors.white.withValues(alpha: 0.55),
                   ),
                 ),
               ),
@@ -1345,7 +1317,7 @@ class _FeatureSquareItem extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                       shadows: [
                         Shadow(
-                          color: Colors.black.withOpacity(0.18),
+                          color: Colors.black.withValues(alpha: 0.18),
                           blurRadius: 4,
                         ),
                       ],

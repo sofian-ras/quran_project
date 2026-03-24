@@ -27,9 +27,16 @@ class AudioPlaybackSource {
   // ── Verset ────────────────────────────────────────────────────────────────
 
   /// Retourne la meilleure source pour un verset :
-  /// fichier local → URL distante QUL → null (indisponible)
+  /// fichier local → URL distante QUL/mp3quran → null (indisponible)
   Future<PlaybackSource?> forAyah(QulReciter reciter, int surah, int ayah) async {
     if (!reciter.isAvailable) return null;
+
+    // Récitateur everyayah direct : URL construite sans cache local
+    if (reciter.isEveryayah) {
+      final remote = await _resolver.resolveAyah(reciter, surah, ayah);
+      return remote != null ? PlaybackSource(url: remote, isLocal: false) : null;
+    }
+
     final qid = reciter.quranComId!;
 
     // 1. Fichier local disponible ?
@@ -40,7 +47,7 @@ class AudioPlaybackSource {
       return PlaybackSource(url: Uri.file(local).toString(), isLocal: true);
     }
 
-    // 2. URL distante
+    // 2. URL distante QUL
     final remote = await _resolver.resolveAyah(reciter, surah, ayah);
     if (remote != null) {
       return PlaybackSource(url: remote, isLocal: false);
@@ -54,7 +61,7 @@ class AudioPlaybackSource {
 
   /// Retourne la meilleure source pour une sourate complète.
   Future<PlaybackSource?> forSurah(QulReciter reciter, int surah) async {
-    if (!reciter.isAvailable) return null;
+    if (!reciter.isAvailable || reciter.isEveryayah) return null;
     final qid = reciter.quranComId!;
 
     // 1. Fichier local disponible ?

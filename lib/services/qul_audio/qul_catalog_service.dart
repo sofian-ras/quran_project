@@ -1,29 +1,65 @@
 // lib/services/qul_audio/qul_catalog_service.dart
 //
-// Catalogue des récitateurs disponibles sur QUL (qul.tarteel.ai).
+// Catalogue des récitateurs verset-par-verset.
 //
-// Source de la liste : https://qul.tarteel.ai/resources/recitation (132 récitations).
+// Trois types de récitateurs :
 //
-// quranComId : ID sur api.quran.com/v4 (résolution des URLs audio).
-//   - null → audio indisponible sur le CDN QUL public.
-//   - Les IDs 1-12 proviennent de api.quran.com/v4/resources/recitations.
+//   1. CDN QUL (quranComId connu)
+//      → URL résolue via api.quran.com/v4/recitations/{id}/by_chapter/{surah}
 //
-// Pour ajouter un récitateur :
-//   1. Trouver son ID sur qul.tarteel.ai (qulId)
-//   2. Trouver son ID sur api.quran.com (quranComId) en testant
-//      api.quran.com/api/v4/recitations/{id}/by_chapter/1
-//   3. Ajouter l'entrée à la liste ci-dessous.
+//   2. everyayah.com direct (everyayahSlug)
+//      → URL directe : https://everyayah.com/data/{slug}/{S:3}{A:3}.mp3
+//
+//   3. Seek-based / timedSource (ReciterAudioSource)
+//      → MP3 sourate complète téléchargé localement + timings API mp3quran
+//      → Délégué à TimedSurahPlayer
+//      → Utiliser quand le récitateur n'a pas de fichiers audio par verset
+//
+// Pour ajouter un récitateur seek-based :
+//   1. Trouver serverBaseUrl  → lien "Download" sur la page mp3quran.net
+//   2. Trouver mp3quranReadId → appeler Mp3QuranTimingCache.instance.logAvailableReads()
+//   3. Choisir un localCacheId stable (nom de dossier pour le stockage local)
 
+import '../../models/reciter_audio_source.dart';
 import 'models/qul_reciter.dart';
+
+// ── Configurations seek-based ─────────────────────────────────────────────────
+//
+// mp3quranReadId : à remplir après avoir appelé :
+//   await Mp3QuranTimingCache.instance.logAvailableReads();
+// Chercher dans les logs la ligne "soufi" + "hafs" et noter l'id.
+
+const _soufiHafs = ReciterAudioSource(
+  localCacheId  : 'soufi_hafs',
+  serverBaseUrl : 'https://server16.mp3quran.net/download/soufi/Rewayat-Hafs-A-n-Assem',
+  mp3quranReadId: null, // ← TODO : remplir après logAvailableReads()
+);
+
+// Pour ajouter un autre récitateur seek-based, déclarer ici :
+// const _autreRecitateur = ReciterAudioSource(
+//   localCacheId  : 'nom_unique',
+//   serverBaseUrl : 'https://...',
+//   mp3quranReadId: 456,
+// );
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class QulCatalogService {
   QulCatalogService._();
   static final QulCatalogService instance = QulCatalogService._();
 
-  /// Liste complète des récitateurs QUL.
-  /// Triée : disponibles d'abord, puis indisponibles.
   static const List<QulReciter> reciters = [
-    // ── Disponibles sur le CDN QUL (quranComId connu) ──────────────────────
+    // ── Seek-based : MP3 complet + timings mp3quran ──────────────────────────
+    QulReciter(
+      qulId      : 9001,
+      name       : 'Soufi',
+      style      : 'Hafs',
+      timedSource: _soufiHafs,
+    ),
+    // Modèle pour en ajouter d'autres :
+    // QulReciter(qulId: 9002, name: '...', style: '...', timedSource: _autreRecitateur),
+
+    // ── CDN QUL (quranComId connu) ───────────────────────────────────────────
     QulReciter(qulId: 118, quranComId: 7,  name: 'Mishary Alafasy'),
     QulReciter(qulId: 102, quranComId: 3,  name: 'Abdur-Rahman as-Sudais'),
     QulReciter(qulId: 107, quranComId: 10, name: "Sa'ud ash-Shuraym"),
@@ -34,10 +70,7 @@ class QulCatalogService {
     QulReciter(qulId: 108, quranComId: 9,  name: 'Mohamed al-Minshawi',   style: 'Murattal'),
     QulReciter(qulId: 314, quranComId: 8,  name: 'Mohamed al-Minshawi',   style: 'Mujawwad'),
     QulReciter(qulId: 112, quranComId: 6,  name: 'Mahmoud Khalil Al-Husary'),
-    // ── Non indexés publiquement (quranComId: null = indisponible) ──────────
-    // Ces récitateurs apparaissent sur qul.tarteel.ai mais leurs URLs audio
-    // ne sont pas accessibles via l'API publique de quran.com.
-    // Pour les activer : trouver leur quranComId et mettre à jour.
+    // ── Non indexés (quranComId: null = indisponible pour l'instant) ─────────
     QulReciter(qulId: 562, quranComId: null, name: 'Maher al-Muaiqly'),
     QulReciter(qulId: 119, quranComId: null, name: 'Saad al-Ghamdi'),
     QulReciter(qulId: 415, quranComId: null, name: 'Abdullah Awad al-Juhani'),
@@ -51,25 +84,16 @@ class QulCatalogService {
     QulReciter(qulId: 421, quranComId: null, name: 'Hady Toure'),
   ];
 
-  /// Récupère un récitateur par son QUL ID. Retourne null si inconnu.
   QulReciter? findByQulId(int qulId) {
-    try {
-      return reciters.firstWhere((r) => r.qulId == qulId);
-    } catch (_) {
-      return null;
-    }
+    try { return reciters.firstWhere((r) => r.qulId == qulId); }
+    catch (_) { return null; }
   }
 
-  /// Récupère un récitateur par son quranComId. Retourne null si inconnu.
   QulReciter? findByQuranComId(int quranComId) {
-    try {
-      return reciters.firstWhere((r) => r.quranComId == quranComId);
-    } catch (_) {
-      return null;
-    }
+    try { return reciters.firstWhere((r) => r.quranComId == quranComId); }
+    catch (_) { return null; }
   }
 
-  /// Récitateurs avec audio disponible.
   List<QulReciter> get available =>
       reciters.where((r) => r.isAvailable).toList();
 }

@@ -201,8 +201,15 @@ class _BubbleState extends State<_Bubble> {
   }
 
   Future<void> _copy() async {
-    final verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
-    if (verse == null || !mounted) return;
+    var verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
+    if (!mounted) return;
+    if (verse == null) {
+      widget.onDismiss();
+      final downloaded = await showTranslationDownloadSheet(context);
+      if (!downloaded || !mounted) return;
+      verse = await QuranTextDb.instance.getVerseByKey(_verseKey);
+      if (verse == null || !mounted) return;
+    }
     final name = surahFr[widget.surah] ?? 'Sourate ${widget.surah}';
     await Clipboard.setData(
       ClipboardData(text: '${verse.ar.replaceAll(RegExp(r'<[^>]+>'), '').trim()}\n\n${verse.fr}\n\n— $name ${widget.ayah}'),
@@ -217,12 +224,20 @@ class _BubbleState extends State<_Bubble> {
   }
 
   Future<void> _share() async {
-    await shareVerseAsImage(
+    final ok = await shareVerseAsImage(
       context: context,
       surah: widget.surah,
       ayah: widget.ayah,
     );
-    if (mounted) widget.onDismiss();
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Impossible de générer l\'image, réessaie.'),
+        duration: Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+    widget.onDismiss();
   }
 
   void _tafsir() {

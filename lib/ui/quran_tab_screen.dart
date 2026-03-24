@@ -1,10 +1,7 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../surah_name.dart';
-import 'package:flutter/services.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import '../services/quran_image_service.dart';
@@ -22,45 +19,11 @@ class QuranTabScreen extends StatefulWidget {
 class _QuranTabScreenState extends State<QuranTabScreen> {
   final AudioService _audio = AudioService.instance;
 
-  late Future<List<Map<String, dynamic>>> _surahFuture;
+  late Future<List<Map<String, dynamic>>> _surahListFuture;
   final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>({});
 
   // true = Coran image (ReaderScreen), false = Coran FR (TranslatedQuranScreen)
   bool _useImageReader = true;
-
-  Future<List<Map<String, dynamic>>> _loadSurahList() async {
-    final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
-    final quranData = json.decode(jsonStr) as List<dynamic>;
-
-    final Map<int, int> ayahCounts = {};
-    final Map<int, int> startPage = {};
-
-    for (final v in quranData) {
-      final surahRaw = v['surah'];
-      final pageRaw = v['page'];
-
-      final int? id = (surahRaw is int) ? surahRaw : int.tryParse('$surahRaw');
-      if (id == null) continue;
-
-      final int page = (pageRaw is int) ? pageRaw : (int.tryParse('$pageRaw') ?? 1);
-
-      ayahCounts[id] = (ayahCounts[id] ?? 0) + 1;
-      startPage[id] = startPage[id] ?? page;
-    }
-
-    final List<Map<String, dynamic>> list = [];
-    for (int id = 1; id <= 114; id++) {
-      list.add({
-        'id': id,
-        'nameAr': 'Sourate $id',
-        'nameFr': surahFr[id] ?? 'Sourate $id',
-        'page': startPage[id] ?? 1,
-        'ayahCount': ayahCounts[id] ?? 0,
-      });
-    }
-
-    return list;
-  }
 
   static const _kUseImageReader = 'quran_tab_use_image_reader';
 
@@ -81,15 +44,9 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
   @override
   void initState() {
     super.initState();
-    _surahFuture = _loadSurahs();
+    _surahListFuture = loadSurahList();
     _loadFavorites();
     _loadReaderPreference();
-  }
-
-  Future<List<Map<String, dynamic>>> _loadSurahs() async {
-    final jsonString = await rootBundle.loadString('assets/quran/surah_list.json');
-    final List<dynamic> decoded = json.decode(jsonString) as List<dynamic>;
-    return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
   Future<void> _loadFavorites() async {
@@ -206,7 +163,7 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _loadSurahList(),
+      future: _surahListFuture,
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());

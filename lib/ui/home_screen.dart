@@ -24,8 +24,6 @@ import 'surah_list_screen.dart';
 import 'translated_quran_screen.dart';
 import 'widgets/continue_reading_card.dart';
 import 'widgets/youtube_video_card.dart';
-import 'widgets/prayer_times_card_v2.dart';
-import '../theme/theme_service.dart';
 import '../models/reciter.dart';
 import 'package:dio/dio.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -47,25 +45,10 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   final ScrollController _scrollCtrl = ScrollController();
   bool _statusBarGreen = false;
   bool _isUserScrolling = false;
+  bool? _lastStatusBarGreen;
+  bool? _lastIsDark;
   static const double hPad = 14;
   static const double vGap = 12;
-  String _prettyMoshafName(String raw) {
-    final s = raw.toLowerCase();
-
-    String riwaya;
-    if (s.contains('hafs')) riwaya = 'Hafs';
-    else if (s.contains('warsh')) riwaya = 'Warsh';
-    else if (s.contains('khalaf')) riwaya = 'Khalaf';
-    else if (s.contains('assosi') || s.contains('soosi') || s.contains('soussi')) riwaya = 'As-Soosi';
-    else riwaya = raw;
-
-    String type = '';
-    if (s.contains('murattal')) type = 'Murattal';
-    else if (s.contains('mujawwad') || s.contains('mujawad')) type = 'Mujawwad';
-
-    return type.isEmpty ? riwaya : '$riwaya â€¢ $type';
-  }
-
   String? _pickDefaultServer(List<_MoshafOption> list) {
     // Priorité: Hafs, sinon 1er
     final hafs = list.where((o) => o.name.toLowerCase().contains('hafs')).toList();
@@ -132,6 +115,7 @@ Future<void> _checkFirstLaunch() async {
   @override
   void dispose() {
     _scrollCtrl.dispose();
+    _dio.close(force: true);
     super.dispose();
   }
 
@@ -141,44 +125,8 @@ Future<void> _checkFirstLaunch() async {
   }
 
   Future<void> _loadSurahData() async {
-    final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
-    final quranData = json.decode(jsonStr) as List<dynamic>;
-
-    final List<Map<String, dynamic>> list = [];
-    final Map<int, int> ayahCounts = {};
-    final Map<int, int> startPage = {};
-
-    for (final v in quranData) {
-      final surahRaw = v['surah'];
-      final pageRaw = v['page'];
-
-      final int? id = (surahRaw is int) ? surahRaw : int.tryParse('$surahRaw');
-      if (id == null) continue; // skip lignes invalides
-
-      final int page = (pageRaw is int) ? pageRaw : (int.tryParse('$pageRaw') ?? 1);
-
-      ayahCounts[id] = (ayahCounts[id] ?? 0) + 1;
-      startPage[id] = startPage[id] ?? page;
-    }
-
-    for (final id in ayahCounts.keys) {
-      final ar = quranData.firstWhere(
-        (e) => e['surah'] == id,
-        orElse: () => null,
-      );
-
-      list.add({
-        'id': id,
-        'nameAr': ar?['sura_name'] ?? 'Sourate $id',
-        'nameFr': surahFr[id] ?? 'Sourate $id',
-        'page': startPage[id] ?? 1,
-        'ayahCount': ayahCounts[id] ?? 0,
-      });
-    }
-
-
-    list.sort((a, b) => (a['id'] as int).compareTo(b['id'] as int));
-
+    final list = await loadSurahList();
+    if (!mounted) return;
     setState(() {
       fullSurahList = list;
       filteredList = List.from(list);
@@ -419,83 +367,6 @@ Future<void> _checkFirstLaunch() async {
     );
   }
 
-  Future<bool> _showPagesDownloadPrompt() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF0F1734) : const Color(0xFFFFFFFF);
-    final titleColor = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF5B3F12);
-    final textColor = isDark ? Colors.white70 : const Color(0xFF5B4A2F);
-    final accent = const Color(0xFFFFFFFF);
-
-    final shouldDownload = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: bg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.cloud_download_rounded, color: accent),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Telechargement requis',
-                      style: TextStyle(
-                        color: titleColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Pour lire les pages (Hafs et Warsh), l\'application doit telecharger les images une seule fois.',
-                  style: TextStyle(color: textColor),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: titleColor,
-                          side: BorderSide(color: accent.withOpacity(0.6)),
-                        ),
-                        child: const Text('Annuler'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: accent,
-                          foregroundColor: const Color(0xFF1B1205),
-                        ),
-                        child: const Text('Telecharger'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    return shouldDownload ?? false;
-  }
-
   Future<void> _openReader(int page, {String? reading}) async {
     final selectedReading = reading ?? _preferredReading;
 
@@ -531,103 +402,8 @@ Future<void> _checkFirstLaunch() async {
   }
 
 
-  void _cycleTheme() {
-    final current = ThemeService.themeMode.value;
-    final next = (current == ThemeMode.system)
-        ? ThemeMode.light
-        : (current == ThemeMode.light)
-            ? ThemeMode.dark
-            : ThemeMode.system;
-    ThemeService.setTheme(next);
-  }
-
-  String _normName(String s) => s.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
-
-  Future<_MoshafOption?> _pickMoshaf(String reciterName, List<_MoshafOption> options) async {
-    final ctx = NavigationService.navigatorKey.currentContext ?? context;
-    final isDark = Theme.of(ctx).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF0F1734) : Colors.white;
-    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
-
-    return showModalBottomSheet<_MoshafOption>(
-      context: ctx,
-      useRootNavigator: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: bg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (sheetCtx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  reciterName,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: titleColor),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Choisir la riwāya',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: titleColor.withOpacity(0.65),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    separatorBuilder: (_, __) => Divider(
-                      height: 1,
-                      color: titleColor.withOpacity(0.10),
-                    ),
-                    itemBuilder: (_, i) {
-                      final o = options[i];
-                      final pretty = _prettyMoshafName(o.name);
-
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          pretty,
-                          style: TextStyle(fontWeight: FontWeight.w800, color: titleColor),
-                        ),
-                        subtitle: Text(
-                          o.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: titleColor.withOpacity(0.55),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        trailing: Text(
-                          '${o.surahTotal} sourates',
-                          style: TextStyle(
-                            color: titleColor.withOpacity(0.55),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                        onTap: () => Navigator.pop(sheetCtx, o),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
+  static final _wsRe = RegExp(r'\s+');
+  String _normName(String s) => s.toLowerCase().replaceAll(_wsRe, ' ').trim();
 
   Future<void> _loadReciterServersIfNeeded() async {
     if (_moshafByName.isNotEmpty || _serversLoading) return;
@@ -681,22 +457,10 @@ Future<void> _checkFirstLaunch() async {
 
 
   Future<void> _onReciterSelected(Reciter r) async {
-    String? server;
-    
-    // Résolution par NOM (plus fiable que reciterId pour les featured reciters)
     await _loadReciterServersIfNeeded();
     final options = _moshafByName[_normName(r.name)] ?? [];
-    
-    if (options.isNotEmpty) {
-      server = _pickDefaultServer(options);
-    }
-    
-    // Fallback: résoudre par nom via API
-    if (server == null || server.isEmpty) {
-      server = await _resolveServerForReciter(r.name);
-    }
-    
-    // Si toujours pas de serveur, afficher une erreur
+    String? server = options.isNotEmpty ? _pickDefaultServer(options) : null;
+
     if (server == null || server.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -705,7 +469,6 @@ Future<void> _checkFirstLaunch() async {
       return;
     }
 
-    // Normalisation: trim et enlever slash final
     server = server.trim();
     if (server.endsWith('/')) {
       server = server.substring(0, server.length - 1);
@@ -716,33 +479,9 @@ Future<void> _checkFirstLaunch() async {
     final moshafLabel = options.isNotEmpty ? options.first.name : 'Hafs';
     final displayName = moshafLabel.isEmpty ? r.name : '${r.name} ($moshafLabel)';
 
-    // Jouer directement sans naviguer — le mini player global apparaît
     _audio.setReciter(displayName, server);
     final lastSurah = _audio.currentPlayingSurahIdNotifier.value ?? 1;
     _audio.loadPlaylistAndPlay(lastSurah);
-  }
-
-
-    
-  Future<String?> _resolveServerForReciter(String reciterName) async {
-    try {
-      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
-      final reciters = (res.data['reciters'] as List?) ?? [];
-
-      for (final item in reciters) {
-        final r = item as Map<String, dynamic>;
-        final name = (r['name'] ?? '').toString();
-
-        if (_normName(name) == _normName(reciterName)) {
-          final moshaf = (r['moshaf'] as List?) ?? [];
-          if (moshaf.isNotEmpty) {
-            final server = (moshaf[0]['server'] ?? '').toString();
-            if (server.isNotEmpty) return server;
-          }
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
 
@@ -756,11 +495,14 @@ Future<void> _checkFirstLaunch() async {
     ? Colors.transparent
     : (_statusBarGreen ? const Color(0xFFF7EEDB) : Colors.transparent);
 
-    final overlay = SystemUiOverlayStyle(
-      statusBarColor: statusBarColor,
-      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-    );
-    SystemChrome.setSystemUIOverlayStyle(overlay);
+    if (_lastIsDark != isDark || _lastStatusBarGreen != _statusBarGreen) {
+      _lastIsDark = isDark;
+      _lastStatusBarGreen = _statusBarGreen;
+      SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+        statusBarColor: statusBarColor,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      ));
+    }
 
     final bgGradient = isDark
       ? const LinearGradient(
@@ -807,9 +549,9 @@ Future<void> _checkFirstLaunch() async {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withOpacity(isDark ? 0.04 : 0.06),
+                        Colors.white.withValues(alpha: isDark ? 0.04 : 0.06),
                         Colors.transparent,
-                        Colors.white.withOpacity(isDark ? 0.02 : 0.03),
+                        Colors.white.withValues(alpha: isDark ? 0.02 : 0.03),
                       ],
                     ),
                   ),
@@ -837,7 +579,6 @@ Future<void> _checkFirstLaunch() async {
                         [
                           _HeaderWithEngagement(
                             audio: _audio,
-                            onThemeTap: _cycleTheme,
                             onContinue: _openSurahListScreen,
                             onLocationTap: _showLocationPicker,
                             prayerFuture: _prayerFuture,

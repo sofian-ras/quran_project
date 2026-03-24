@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
@@ -25,6 +24,7 @@ import '../services/last_reading_service.dart';
 import '../services/verse_notes_service.dart';
 import 'widgets/quran_search_overlay.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'surah_list_screen.dart';
 
 class GradientText extends StatelessWidget {
   final String text;
@@ -286,6 +286,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     try {
       final file = await QuranImageService.getPageFile(currentReading, pageNum);
       _imageCache[pageNum] = file;
+      if (mounted) await precacheImage(FileImage(file), context);
     } catch (e) {
       debugPrint('Erreur préchargement page $pageNum: $e');
     }
@@ -317,7 +318,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
 
     for (final pageNum in pagesToRemove) {
-      _imageCache.remove(pageNum);
+      final file = _imageCache.remove(pageNum);
+      if (file != null) {
+        PaintingBinding.instance.imageCache.evict(FileImage(file));
+      }
     }
   }
 
@@ -385,30 +389,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _initApp() async {
-    final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
-    final quranData = json.decode(jsonStr) as List<dynamic>;
-
-    final added = <int>{};
-    final List<Map<String, dynamic>> list = [];
-
-    for (final v in quranData) {
-      final id = v['surah'] as int;
-      if (!added.contains(id)) {
-        list.add({
-          'id': id,
-          'nameAr': v['sura_name'] ?? 'Sourate $id',
-          'nameFr': surahFr[id] ?? 'Sourate $id',
-          'page': v['page'] ?? 1,
-        });
-        added.add(id);
-      }
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _pagePreloader.preloadAround(context, currentPage, currentReading);
-    });
-
+    final list = await loadSurahList();
     if (!mounted) return;
     setState(() => fullSurahList = list);
   }

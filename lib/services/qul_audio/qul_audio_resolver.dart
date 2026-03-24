@@ -25,12 +25,19 @@ class QulAudioResolver {
 
   // ── Résolution verset ─────────────────────────────────────────────────────
 
-  /// Retourne l'URL audio d'un verset depuis le CDN QUL.
-  /// Retourne null si le récitateur n'est pas disponible sur QUL.
+  /// Retourne l'URL audio d'un verset depuis le CDN QUL ou everyayah.com.
+  /// Retourne null si le récitateur n'est pas disponible.
   Future<String?> resolveAyah(QulReciter reciter, int surah, int ayah) async {
     if (!reciter.isAvailable) {
-      debugPrint('QulAudioResolver: ${reciter.name} indisponible (pas de quranComId)');
+      debugPrint('QulAudioResolver: ${reciter.name} indisponible');
       return null;
+    }
+    // Récitateur everyayah direct : URL construite sans appel API
+    // Format : https://everyayah.com/data/{slug}/{S:3}{A:3}.mp3
+    if (reciter.isEveryayah) {
+      final s = surah.toString().padLeft(3, '0');
+      final a = ayah.toString().padLeft(3, '0');
+      return 'https://everyayah.com/data/${reciter.everyayahSlug}/$s$a.mp3';
     }
     return _client.resolveAyahUrl(reciter.quranComId!, surah, ayah);
   }
@@ -38,10 +45,10 @@ class QulAudioResolver {
   // ── Résolution sourate ────────────────────────────────────────────────────
 
   /// Retourne l'URL audio d'une sourate complète depuis le CDN QUL.
-  /// Retourne null si non disponible.
+  /// Retourne null si non disponible (everyayah ne supporte pas ce mode).
   Future<String?> resolveSurah(QulReciter reciter, int surah) async {
-    if (!reciter.isAvailable) {
-      debugPrint('QulAudioResolver: ${reciter.name} indisponible (pas de quranComId)');
+    if (!reciter.isAvailable || reciter.isEveryayah) {
+      debugPrint('QulAudioResolver: ${reciter.name} indisponible pour sourate complète');
       return null;
     }
     return _client.resolveSurahUrl(reciter.quranComId!, surah);
@@ -50,9 +57,9 @@ class QulAudioResolver {
   // ── Préchargement ─────────────────────────────────────────────────────────
 
   /// Précharge en cache les URLs de tous les versets d'une sourate.
-  /// Appeler avant de démarrer la lecture d'une sourate pour éviter la latence.
+  /// Sans effet pour les récitateurs everyayah (URLs directes, pas de cache nécessaire).
   Future<void> prefetch(QulReciter reciter, int surah) async {
-    if (!reciter.isAvailable) return;
+    if (!reciter.isAvailable || reciter.isEveryayah) return;
     await _client.prefetchChapter(reciter.quranComId!, surah);
   }
 }
