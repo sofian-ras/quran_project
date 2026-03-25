@@ -30,6 +30,7 @@ import 'qul_audio/qul_audio_resolver.dart';
 import 'qul_audio/audio_download_manager.dart';
 import 'qul_audio/audio_playback_source.dart';
 import 'mp3quran/timed_surah_player.dart';
+import 'mp3quran/timed_surah_downloader.dart';
 
 // ── Modèle récitateur (compatibilité UI) ─────────────────────────────────────
 
@@ -236,6 +237,14 @@ class MiniPlayerService {
   QulReciter? get _qulReciter {
     final id = int.tryParse(currentReciter.value.folder);
     return id != null ? QulCatalogService.instance.findByQulId(id) : null;
+  }
+
+  /// Retourne true si l'audio de [surah] est déjà en cache local pour le
+  /// récitateur seek-based courant. Permet d'éviter le dialogue WiFi.
+  Future<bool> isAudioCached(int surah) async {
+    final reciter = _qulReciter;
+    if (reciter == null || !reciter.isSeekBased) return false;
+    return TimedSurahDownloader.instance.isDownloaded(reciter.timedSource!, surah);
   }
 
   // ── Calcul du dernier ayah selon le mode ─────────────────────────────────

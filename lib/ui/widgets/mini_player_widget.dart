@@ -482,6 +482,15 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
       }
     }
 
+    // Si l'audio est déjà téléchargé localement, pas besoin de vérifier le WiFi.
+    final surahToCheck = svc.selectionStartKey != null
+        ? (int.tryParse(svc.selectionStartKey!.split(':')[0]) ?? currentSurah)
+        : currentSurah;
+    if (await svc.isAudioCached(surahToCheck)) {
+      if (mounted) startPlay();
+      return;
+    }
+
     bool isWifi = true;
     try {
       final result = await Connectivity().checkConnectivity();
