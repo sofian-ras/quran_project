@@ -286,10 +286,18 @@ class AudioService {
   int? _seqEndAyah;
   /// Sourate en cours via TimedSurahPlayer (seek-based). null = mode normal.
   int? _timedSurah;
+  /// Listener actif pour répétition seek-based (répété ou infini).
+  VoidCallback? _timedRepeatListener;
 
   Future<void> stopAyah() async {
     // Invalide tout _playAyahInternal en cours d'attente async.
     _ayahPlayToken++;
+
+    // Annule le listener de répétition seek-based s'il est actif.
+    if (_timedRepeatListener != null) {
+      TimedSurahPlayer.instance.currentAyahNotifier.removeListener(_timedRepeatListener!);
+      _timedRepeatListener = null;
+    }
 
     // Arrêter aussi TimedSurahPlayer s'il est actif.
     await TimedSurahPlayer.instance.stop();
@@ -364,6 +372,36 @@ class AudioService {
   }
 
   Future<void> playAyahRepeatOne(int surah, int ayah) async {
+    final reciter = currentAyahReciterNotifier.value;
+    if (reciter.isSeekBased) {
+      ayahPlayModeNotifier.value = AyahPlayMode.repeatOne;
+      _timedSurah = surah;
+      currentAyahKeyNotifier.value = '$surah:$ayah';
+
+      if (_timedRepeatListener != null) {
+        TimedSurahPlayer.instance.currentAyahNotifier.removeListener(_timedRepeatListener!);
+      }
+      final token = ++_ayahPlayToken;
+
+      void onDone() async {
+        if (token != _ayahPlayToken) {
+          TimedSurahPlayer.instance.currentAyahNotifier.removeListener(_timedRepeatListener!);
+          _timedRepeatListener = null;
+          return;
+        }
+        if (TimedSurahPlayer.instance.currentAyahNotifier.value != null) return;
+        final delay = ayahAutoNextDelayNotifier.value;
+        if (delay > Duration.zero) await Future.delayed(delay);
+        if (token != _ayahPlayToken) return;
+        currentAyahKeyNotifier.value = '$surah:$ayah';
+        await TimedSurahPlayer.instance.play(reciter.timedSource!, surah, ayah, toAyah: ayah);
+      }
+
+      _timedRepeatListener = onDone;
+      TimedSurahPlayer.instance.currentAyahNotifier.addListener(_timedRepeatListener!);
+      await TimedSurahPlayer.instance.play(reciter.timedSource!, surah, ayah, toAyah: ayah);
+      return;
+    }
     ayahPlayModeNotifier.value = AyahPlayMode.repeatOne;
     await playAyah(surah, ayah);
   }
@@ -465,6 +503,46 @@ class AudioService {
     if (times <= 1) {
       ayahPlayModeNotifier.value = AyahPlayMode.single;
       await playAyah(surah, ayah);
+      return;
+    }
+
+    final reciter = currentAyahReciterNotifier.value;
+    if (reciter.isSeekBased) {
+      ayahPlayModeNotifier.value = AyahPlayMode.single;
+      _timedSurah = surah;
+      currentAyahKeyNotifier.value = '$surah:$ayah';
+
+      if (_timedRepeatListener != null) {
+        TimedSurahPlayer.instance.currentAyahNotifier.removeListener(_timedRepeatListener!);
+      }
+      final token = ++_ayahPlayToken;
+      var remaining = times;
+
+      void onDone() async {
+        if (token != _ayahPlayToken) {
+          TimedSurahPlayer.instance.currentAyahNotifier.removeListener(_timedRepeatListener!);
+          _timedRepeatListener = null;
+          return;
+        }
+        if (TimedSurahPlayer.instance.currentAyahNotifier.value != null) return;
+        remaining--;
+        if (remaining <= 0) {
+          TimedSurahPlayer.instance.currentAyahNotifier.removeListener(_timedRepeatListener!);
+          _timedRepeatListener = null;
+          _timedSurah = null;
+          ayahPlayModeNotifier.value = AyahPlayMode.single;
+          return;
+        }
+        final delay = ayahAutoNextDelayNotifier.value;
+        if (delay > Duration.zero) await Future.delayed(delay);
+        if (token != _ayahPlayToken) return;
+        currentAyahKeyNotifier.value = '$surah:$ayah';
+        await TimedSurahPlayer.instance.play(reciter.timedSource!, surah, ayah, toAyah: ayah);
+      }
+
+      _timedRepeatListener = onDone;
+      TimedSurahPlayer.instance.currentAyahNotifier.addListener(_timedRepeatListener!);
+      await TimedSurahPlayer.instance.play(reciter.timedSource!, surah, ayah, toAyah: ayah);
       return;
     }
 

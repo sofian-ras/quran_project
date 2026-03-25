@@ -1843,6 +1843,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     } else {
       svc.ayahPlayModeNotifier.value = AyahPlayMode.single;
     }
+
+    // Si une lecture est active, redémarre immédiatement avec les nouveaux réglages.
+    if (svc.currentAyahKeyNotifier.value != null) {
+      _playSelectedAyah();
+    }
   }
 
   String _repeatLabel() => _repeatTimes == -1 ? '∞' : '×$_repeatTimes';
@@ -3605,9 +3610,7 @@ class _AyahTile extends StatelessWidget {
         valueListenable: playingKeyNotifier,
         builder: (context, playingKey, _) {
           final isPlayingThis = playingKey == _verseKey;
-          final highlight = isPlayingThis
-              ? accentColor.withValues(alpha: isDark ? 0.16 : 0.12)
-              : Colors.transparent;
+          const playColor = Color(0xFF4CAF50);
 
           var cleanAr = _strip(ar);
           if (removeBasmala) cleanAr = _dropBasmala(cleanAr);
@@ -3615,7 +3618,14 @@ class _AyahTile extends StatelessWidget {
           return InkWell(
             onTap: () => onTap(ayaNum, ar, tr, taf),
             child: Container(
-              color: highlight,
+              decoration: isPlayingThis
+                  ? BoxDecoration(
+                      color: playColor.withValues(alpha: isDark ? 0.14 : 0.10),
+                      border: const Border(
+                        left: BorderSide(color: playColor, width: 3),
+                      ),
+                    )
+                  : null,
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3625,7 +3635,7 @@ class _AyahTile extends StatelessWidget {
                       Text(
                         '$ayaNum',
                         style: TextStyle(
-                          color: isPlayingThis ? accentColor : (isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230)).withValues(alpha: 0.75),
+                          color: isPlayingThis ? playColor : (isDark ? const Color(0xFFD4A855) : const Color(0xFF9A7230)).withValues(alpha: 0.75),
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           height: 1,
@@ -3639,7 +3649,7 @@ class _AyahTile extends StatelessWidget {
                             return mode == AyahPlayMode.repeatOne ? 'RÉPÉTITION'
                                 : mode == AyahPlayMode.continuous ? 'CONTINU' : 'LECTURE';
                           }(),
-                          style: TextStyle(color: accentColor, fontWeight: FontWeight.w700, fontSize: 10),
+                          style: const TextStyle(color: playColor, fontWeight: FontWeight.w700, fontSize: 10),
                         ),
                       ],
                       const Spacer(),
