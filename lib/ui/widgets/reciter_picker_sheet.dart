@@ -318,17 +318,30 @@ class _ReciterPickerSheetState extends State<ReciterPickerSheet> {
                             : Colors.black.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: TextField(
-                        controller: _searchCtrl,
-                        autofocus: true,
-                        cursorColor: _gold,
-                        style: TextStyle(color: _text, fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'Rechercher un récitateur…',
-                          hintStyle: TextStyle(color: _sub, fontSize: 13),
-                          prefixIcon: Icon(Icons.search_rounded, color: _sub, size: 18),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Theme(
+                        data: ThemeData(
+                          brightness: widget.isDark ? Brightness.dark : Brightness.light,
+                          textSelectionTheme: TextSelectionThemeData(
+                            cursorColor: _gold,
+                            selectionColor: _gold.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: _searchCtrl,
+                          autofocus: true,
+                          cursorColor: _gold,
+                          style: TextStyle(color: _text, fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: 'Rechercher un récitateur…',
+                            hintStyle: TextStyle(color: _sub, fontSize: 13),
+                            prefixIcon: Icon(Icons.search_rounded, color: _sub, size: 18),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: true,
+                            fillColor: Colors.transparent,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
                         ),
                       ),
                     ),
