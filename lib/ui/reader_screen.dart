@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,7 +14,6 @@ import '../services/mini_player_service.dart';
 import 'widgets/ayah_selection_overlay.dart';
 import 'widgets/ayah_bubble.dart';
 import 'widgets/mini_player_widget.dart';
-import '../services/quran_page_preloader.dart';
 import '../hizb_juzz.dart';
 import '../surah_name.dart';
 import '../data/sura_ayah_to_page.dart';
@@ -25,31 +23,6 @@ import '../services/verse_notes_service.dart';
 import 'widgets/quran_search_overlay.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'surah_list_screen.dart';
-
-class GradientText extends StatelessWidget {
-  final String text;
-  final TextStyle? style;
-  final Gradient gradient;
-
-  const GradientText(
-    this.text, {
-    Key? key,
-    this.style,
-    required this.gradient,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (bounds) =>
-          gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
-      child: Text(
-        text,
-        style: (style ?? const TextStyle()).copyWith(color: Colors.white),
-      ),
-    );
-  }
-}
 
 class ReaderScreen extends StatefulWidget {
   final int initialPage;
@@ -96,9 +69,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String? _selectionEndKey;
   DateTime? _lastTapTime; // détection double tap
 
-  final QuranPagePreloader _pagePreloader = QuranPagePreloader(range: 2);
-
   final Map<int, File?> _imageCache = {};
+  final Map<int, Future<File?>> _pageFutures = {};
   final int _preloadRange = 3;
 
   Future<File?> _safeGetPageFile(String reading, int pageNum) async {
@@ -108,6 +80,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return null;
     }
   }
+
+  Future<File?> _getOrCreatePageFuture(int pageNum) =>
+      _pageFutures.putIfAbsent(pageNum, () => _safeGetPageFile(currentReading, pageNum));
 
   Color get _themeBg {
     switch (_readerTheme) {
@@ -180,11 +155,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  /// Cache ou affiche les barres système (nav + status) selon [show].
-  void _applySystemBars(bool show) {
-    // No-op: always edgeToEdge, UI hides via AnimatedOpacity only
-  }
-
   void _applySystemUiStyle(int theme) {
     SystemChrome.setSystemUIOverlayStyle(
       (theme == 2 ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
@@ -227,14 +197,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     ]);
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle.dark.copyWith(
-        statusBarColor: Colors.transparent,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarDividerColor: Colors.transparent,
-      ),
-    );
 
     currentPage = widget.initialPage;
     currentReading = widget.reading;
@@ -322,6 +284,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       if (file != null) {
         PaintingBinding.instance.imageCache.evict(FileImage(file));
       }
+      _pageFutures.remove(pageNum);
     }
   }
 
@@ -398,7 +361,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   void _showNoteEditor(int surah, int ayah) {
     final key = '$surah:$ayah';
-    final isDark = _readerTheme == 2;
+    final isDark = _readerTheme == 2 || _readerTheme == 4;
     final existing = VerseNotesService.instance.getNote(key);
     final ctrl = TextEditingController(text: existing ?? '');
     final name = surahFr[surah] ?? 'Sourate $surah';
@@ -572,9 +535,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _saveToHistory(int page) {
     if (fullSurahList.isEmpty) return;
 
-    final surah = fullSurahList.firstWhere(
-      (s) => s['page'] == page,
-      orElse: () => fullSurahList.last,
+    final surah = fullSurahList.lastWhere(
+      (s) => (s['page'] as int) <= page,
+      orElse: () => fullSurahList.first,
     );
 
     ReadingHistoryService.instance.saveLastReading(
@@ -596,20 +559,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final viewPadding = MediaQuery.of(context).viewPadding;
 
-    final currentSurah = fullSurahList.isEmpty
-        ? 1
-        : (fullSurahList.lastWhere(
-              (s) => (s['page'] as int) <= currentPage,
-              orElse: () => fullSurahList.first,
-            )['id'] as int? ?? 1);
-
-    final surahNameFr = fullSurahList.isEmpty
-        ? ''
-        : (fullSurahList.lastWhere(
-              (s) => (s['page'] as int) <= currentPage,
-              orElse: () => fullSurahList.first,
-            )['nameFr'] as String? ??
-            '');
+    final surahEntry = fullSurahList.isEmpty
+        ? null
+        : fullSurahList.lastWhere(
+            (s) => (s['page'] as int) <= currentPage,
+            orElse: () => fullSurahList.first,
+          );
+    final currentSurah = surahEntry?['id'] as int? ?? 1;
+    final surahNameFr  = surahEntry?['nameFr'] as String? ?? '';
 
     return Scaffold(
       backgroundColor: _themeBg,
@@ -633,15 +590,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   });
                   _preloadPages(p + 1);
 
-                  SchedulerBinding.instance.scheduleTask<void>(
-                    () {
-                      _pagePreloader.preloadAround(context, p + 1, currentReading);
-                      return;
-                    },
-                    Priority.idle,
-                    debugLabel: 'quran_preload_pages',
-                  );
-
                   _saveTimer?.cancel();
                   _saveTimer = Timer(const Duration(milliseconds: 350), () {
                     if (!mounted) return;
@@ -659,7 +607,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   }
 
                   return FutureBuilder<File?>(
-                    future: _safeGetPageFile(currentReading, pageNum),
+                    future: _getOrCreatePageFuture(pageNum),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return _loadingPage(context, pageNum);
@@ -1016,7 +964,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
         MiniPlayerService.instance.clearSelection();
       });
       if (!hadSelection) {
-        _applySystemBars(_showUI);
         if (!_showUI) setState(() => _optionsExpanded = false);
       }
       return;
@@ -1104,7 +1051,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _loadingPage(BuildContext context, int pageNum) {
-    return Container(color: _themeBg);
+    return ColoredBox(
+      color: _themeBg,
+      child: Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: _themeIconColor,
+          ),
+        ),
+      ),
+    );
   }
 
   /// Pill theme + notes — affiché à droite du MiniPlayer en paysage.
