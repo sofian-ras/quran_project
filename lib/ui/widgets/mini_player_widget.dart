@@ -14,6 +14,7 @@ import 'dart:ui';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import '../../services/mini_player_service.dart';
+import 'reciter_picker_sheet.dart';
 
 
 class MiniPlayerWidget extends StatefulWidget {
@@ -533,46 +534,12 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      backgroundColor: isDark ? const Color(0xFF1A0033) : Colors.white,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => ValueListenableBuilder<MiniReciter>(
-        valueListenable: svc.currentReciter,
-        builder: (context, current, _) => ListView.builder(
-          itemCount: kMiniReciters.length,
-          itemBuilder: (context, i) {
-            final r = kMiniReciters[i];
-            final selected = r.folder == current.folder;
-            return ListTile(
-              leading: CircleAvatar(
-                radius: 18,
-                backgroundColor: isDark
-                    ? const Color(0xFF2A1045)
-                    : const Color(0xFFF0EBF8),
-                child: Icon(Icons.play_arrow_rounded,
-                    size: 18,
-                    color: isDark ? Colors.white60 : Colors.black45),
-              ),
-              title: Text(
-                r.name,
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black,
-                  fontWeight:
-                      selected ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-              trailing: selected
-                  ? const Icon(Icons.check_rounded, color: Color(0xFF4CAF50))
-                  : null,
-              onTap: () {
-                svc.setReciter(r);
-                Navigator.pop(context);
-              },
-            );
-          },
-        ),
-      ),
+      builder: (_) => ReciterPickerSheet(svc: svc, isDark: isDark),
     );
   }
 

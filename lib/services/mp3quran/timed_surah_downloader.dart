@@ -123,6 +123,13 @@ class TimedSurahDownloader {
 
   // ── Suppression ────────────────────────────────────────────────────────────
 
+  /// Retourne true si au moins une sourate est téléchargée pour ce récitateur.
+  Future<bool> hasAnyDownloaded(ReciterAudioSource source) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final folder = Directory(p.join(dir.path, 'timed_audio', source.localCacheId));
+    return folder.existsSync() && folder.listSync().isNotEmpty;
+  }
+
   Future<void> delete(ReciterAudioSource source, int surah) async {
     final path = await _localPath(source, surah);
     final file = File(path);
