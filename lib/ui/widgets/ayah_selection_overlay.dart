@@ -220,7 +220,7 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     }
 
     if (widget.playingAyahKey != oldWidget.playingAyahKey) {
-      _loadPlayingRects();
+        _loadPlayingRects();
     }
 
     if (widget.selectionStartKey != oldWidget.selectionStartKey ||
@@ -352,7 +352,7 @@ class _AyahHighlightPainter extends CustomPainter {
     // 2. Plage de sélection — vert très léger
     _drawRects(canvas, selectionRects, const Color(0x3581C784));
     // 3. Verset en lecture — vert vif
-    _drawRects(canvas, playingRects,   const Color(0x6681C784));
+    _drawRects(canvas, playingRects,   const Color(0xAA4CAF50));
     // 4. Verset sélectionné (bulle) — jaune
     _drawRects(canvas, wordRects,      const Color(0x55FFD54F));
   }

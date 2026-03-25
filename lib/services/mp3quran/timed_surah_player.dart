@@ -1,20 +1,16 @@
 // lib/services/mp3quran/timed_surah_player.dart
 //
-// Player seek-based générique pour tout récitateur ayant :
-//   - un MP3 de sourate complète sur un serveur HTTP
-//   - des timings de versets via l'API mp3quran
+// Player seek-based — lecture continue d'une sourate complète.
 //
-// Flux de lecture :
-//   1. ensureDownloaded()  → télécharge le MP3 complet si absent du cache local
-//   2. setAudioSource()    → charge le fichier local dans just_audio
-//   3. getAyahTiming()     → récupère start_time / end_time du verset
-//   4. seek(start)         → positionne le player
-//   5. play()              → lecture
-//   6. auto-stop à end     → via positionStream (défaut) ou Timer
+// Architecture (calquée sur Quran Android) :
+//   1. ensureLoaded()       → télécharge le MP3 complet si absent
+//   2. play(from, to)       → charge timings + seek vers fromAyah + lance
+//   3. positionStream poll  → _ayahAt(pos) retourne l'ayah courant
+//   4. currentAyahNotifier  → notifie l'UI de chaque changement d'ayah
+//   5. auto-pause           → quand pos ≥ fin du dernier ayah demandé
 //
-// Deux modes d'arrêt :
-//   TimedStopMode.positionStream  (défaut) — ±200ms, robuste
-//   TimedStopMode.timer           — ±50ms, démarre après buffering
+// Contrairement à l'ancienne approche (ayah-par-ayah avec seek/stop en boucle),
+// le MP3 joue en continu ; les transitions entre versets sont instantanées.
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -25,15 +21,18 @@ import '../../models/reciter_audio_source.dart';
 import 'mp3quran_timing_cache.dart';
 import 'timed_surah_downloader.dart';
 
-enum TimedStopMode { positionStream, timer }
-
 class TimedSurahPlayer {
   TimedSurahPlayer._() {
     _audio.playerStateStream.listen((state) {
-      isPlayingNotifier.value  = state.playing;
+      isPlayingNotifier.value   = state.playing;
       isBufferingNotifier.value =
           state.processingState == ProcessingState.buffering ||
           state.processingState == ProcessingState.loading;
+      // Fin naturelle du fichier (pas via auto-pause interne)
+      if (state.processingState == ProcessingState.completed) {
+        _cancelPositionSub();
+        currentAyahNotifier.value = null;
+      }
     });
   }
 
@@ -45,11 +44,11 @@ class TimedSurahPlayer {
 
   // ── Notifiers publics ─────────────────────────────────────────────────────
 
-  final ValueNotifier<bool>    isPlayingNotifier   = ValueNotifier(false);
-  final ValueNotifier<bool>    isBufferingNotifier = ValueNotifier(false);
+  final ValueNotifier<bool>    isPlayingNotifier     = ValueNotifier(false);
+  final ValueNotifier<bool>    isBufferingNotifier   = ValueNotifier(false);
   final ValueNotifier<bool>    isDownloadingNotifier = ValueNotifier(false);
-  final ValueNotifier<int?>    currentAyahNotifier = ValueNotifier(null);
-  final ValueNotifier<String?> errorNotifier       = ValueNotifier(null);
+  final ValueNotifier<int?>    currentAyahNotifier   = ValueNotifier(null);
+  final ValueNotifier<String?> errorNotifier         = ValueNotifier(null);
 
   Stream<Duration>  get positionStream => _audio.positionStream;
   Stream<Duration?> get durationStream => _audio.durationStream;
@@ -61,7 +60,8 @@ class TimedSurahPlayer {
   int?                _loadedSurah;
   int                 _token = 0;
 
-  Timer? _stopTimer;
+  List<AyahTiming>              _timings = [];
+  Duration?                     _stopAt;   // fin du dernier ayah demandé
   StreamSubscription<Duration>? _posSub;
 
   // ── Chargement sourate ────────────────────────────────────────────────────
@@ -71,11 +71,9 @@ class TimedSurahPlayer {
     int surah,
     int token,
   ) async {
-    // Déjà chargé
     if (_loadedSource?.localCacheId == source.localCacheId &&
         _loadedSurah == surah) { return; }
 
-    // 1. Télécharger si absent
     isDownloadingNotifier.value = true;
     final String localPath;
     try {
@@ -83,94 +81,71 @@ class TimedSurahPlayer {
     } finally {
       isDownloadingNotifier.value = false;
     }
-
     if (token != _token) return;
 
-    // 2. Charger dans just_audio depuis le fichier local
-    debugPrint('TimedSurahPlayer: chargement local $localPath');
+    debugPrint('TimedSurahPlayer: chargement $localPath');
     await _audio.setAudioSource(
       AudioSource.uri(
         Uri.file(localPath),
         tag: MediaItem(
-          id: '${source.localCacheId}-$surah',
-          title: 'Sourate $surah • ${source.localCacheId}',
+          id:     '${source.localCacheId}-$surah',
+          title:  'Sourate $surah • ${source.localCacheId}',
           artist: source.localCacheId,
-          album: 'Coran',
+          album:  'Coran',
         ),
       ),
     );
-
     if (token != _token) return;
     _loadedSource = source;
     _loadedSurah  = surah;
     debugPrint('TimedSurahPlayer: prêt — ${source.localCacheId}/S$surah');
   }
 
-  // ── Arrêt automatique ─────────────────────────────────────────────────────
+  // ── Surveillance de position ──────────────────────────────────────────────
 
-  void _cancelAutoStop() {
-    _stopTimer?.cancel();
-    _stopTimer = null;
+  void _cancelPositionSub() {
     _posSub?.cancel();
     _posSub = null;
   }
 
-  void _scheduleStop(Duration end, TimedStopMode mode, int token) {
-    _cancelAutoStop();
-    if (mode == TimedStopMode.timer) {
-      _scheduleTimer(end, token);
-    } else {
-      _scheduleStream(end, token);
+  /// Retourne l'ayah dont la plage [start, end[ contient [pos].
+  int? _ayahAt(Duration pos) {
+    for (final t in _timings) {
+      if (pos >= t.start && pos < t.end) return t.ayah;
     }
+    return null;
   }
 
-  /// Timer : attend que le player soit en train de jouer, puis lance le timer
-  /// depuis la position réelle (pas depuis l'instant du seek).
-  void _scheduleTimer(Duration end, int token) {
-    StreamSubscription<PlayerState>? stateSub;
-    stateSub = _audio.playerStateStream.listen((state) {
-      if (token != _token) { stateSub?.cancel(); return; }
-      if (state.playing && state.processingState == ProcessingState.ready) {
-        stateSub?.cancel();
-        final remaining = end - _audio.position;
-        if (remaining <= Duration.zero) {
-          _audio.pause();
-          currentAyahNotifier.value = null;
-          return;
-        }
-        _stopTimer = Timer(remaining, () {
-          if (token != _token) return;
-          _audio.pause();
-          currentAyahNotifier.value = null;
-          debugPrint('TimedSurahPlayer [timer]: stop pos=${_audio.position.inMs}ms');
-        });
-      }
-    });
-  }
-
-  /// positionStream : surveille la position, pause dès que ≥ end.
-  void _scheduleStream(Duration end, int token) {
+  void _startPositionSub(int token) {
+    _cancelPositionSub();
     _posSub = _audio.positionStream.listen((pos) {
-      if (token != _token) { _posSub?.cancel(); return; }
-      if (pos >= end) {
+      if (token != _token) { _cancelPositionSub(); return; }
+
+      // Mise à jour de l'ayah courant
+      final ayah = _ayahAt(pos);
+      if (ayah != currentAyahNotifier.value) {
+        currentAyahNotifier.value = ayah;
+      }
+
+      // Auto-pause quand on dépasse la fin du dernier ayah demandé
+      if (_stopAt != null && pos >= _stopAt!) {
         _audio.pause();
-        _posSub?.cancel();
-        _posSub = null;
+        _cancelPositionSub();
         currentAyahNotifier.value = null;
-        debugPrint('TimedSurahPlayer [stream]: stop pos=${pos.inMs}ms cible=${end.inMs}ms');
+        debugPrint('TimedSurahPlayer: auto-stop pos=${pos.inMs}ms cible=${_stopAt!.inMs}ms');
       }
     });
   }
 
-  // ── playAyah ──────────────────────────────────────────────────────────────
+  // ── play ──────────────────────────────────────────────────────────────────
 
-  /// Joue un verset unique.
-  /// Télécharge la sourate si absente du cache local.
-  Future<void> playAyah(
+  /// Lecture continue de [fromAyah] à [toAyah] inclus.
+  /// Si [toAyah] est null : joue jusqu'à la fin naturelle de la sourate.
+  Future<void> play(
     ReciterAudioSource source,
     int surah,
-    int ayah, {
-    TimedStopMode stopMode = TimedStopMode.positionStream,
+    int fromAyah, {
+    int? toAyah,
   }) async {
     if (!source.isConfigured) {
       errorNotifier.value =
@@ -179,62 +154,10 @@ class TimedSurahPlayer {
     }
 
     final token = ++_token;
-    _cancelAutoStop();
-    currentAyahNotifier.value = null; // force null → ayah pour garantir la notification
-    errorNotifier.value = null;
-
-    try {
-      // Charger sourate + timing en parallèle
-      final results = await Future.wait([
-        _ensureLoaded(source, surah, token),
-        _cache.getAyahTiming(source, surah, ayah),
-      ]);
-      if (token != _token) return;
-
-      final timing = results[1] as AyahTiming?;
-      if (timing == null) {
-        errorNotifier.value = 'Timing introuvable : S$surah:$ayah';
-        return;
-      }
-
-      currentAyahNotifier.value = ayah;
-      _scheduleStop(timing.end, stopMode, token);
-
-      await _audio.seek(timing.start);
-      if (token != _token) return;
-
-      await _audio.play();
-      debugPrint(
-        'TimedSurahPlayer: playAyah ${source.localCacheId} '
-        'S$surah:$ayah [${timing.start.inMs}ms → ${timing.end.inMs}ms]',
-      );
-    } catch (e) {
-      if (token != _token) return;
-      errorNotifier.value = 'Erreur S$surah:$ayah — $e';
-      debugPrint('TimedSurahPlayer: $e');
-    }
-  }
-
-  // ── playAyahRange ─────────────────────────────────────────────────────────
-
-  /// Lecture séquentielle de [fromAyah] à [toAyah] inclus.
-  Future<void> playAyahRange(
-    ReciterAudioSource source,
-    int surah,
-    int fromAyah,
-    int toAyah, {
-    TimedStopMode stopMode = TimedStopMode.positionStream,
-  }) async {
-    if (!source.isConfigured) {
-      errorNotifier.value =
-          'mp3quranReadId non configuré pour ${source.localCacheId}';
-      return;
-    }
-
-    final token = ++_token;
-    _cancelAutoStop();
-    currentAyahNotifier.value = null; // force null → ayah pour garantir la notification
-    errorNotifier.value = null;
+    _cancelPositionSub();
+    // Reset pour éviter qu'une ancienne valeur soit combinée avec le nouveau surah
+    currentAyahNotifier.value = null;
+    errorNotifier.value       = null;
 
     try {
       final results = await Future.wait([
@@ -243,101 +166,87 @@ class TimedSurahPlayer {
       ]);
       if (token != _token) return;
 
-      final allTimings = results[1] as List<AyahTiming>;
-      final range = allTimings
-          .where((t) => t.ayah >= fromAyah && t.ayah <= toAyah)
-          .toList()
-        ..sort((a, b) => a.ayah.compareTo(b.ayah));
+      _timings = results[1] as List<AyahTiming>;
 
-      if (range.isEmpty) {
-        errorNotifier.value =
-            'Aucun timing pour ${source.localCacheId} S$surah:$fromAyah–$toAyah';
+      // Position de départ
+      final startTiming = _timings.cast<AyahTiming?>()
+          .firstWhere((t) => t!.ayah == fromAyah, orElse: () => null);
+      if (startTiming == null) {
+        errorNotifier.value = 'Timing introuvable : S$surah:$fromAyah';
         return;
       }
 
-      for (final timing in range) {
-        if (token != _token) return;
-
-        currentAyahNotifier.value = timing.ayah;
-        await _audio.seek(timing.start);
-        if (token != _token) return;
-
-        await _audio.play();
-        debugPrint(
-          'TimedSurahPlayer: range → ayah=${timing.ayah} '
-          '[${timing.start.inMs}ms → ${timing.end.inMs}ms]',
-        );
-
-        await _waitUntilEnd(timing.end, stopMode, token);
-        if (token != _token) return;
-
-        await _audio.pause();
+      // Position d'arrêt (fin du dernier ayah demandé + 400 ms de marge)
+      // La marge évite de couper les dernières syllabes du mot.
+      if (toAyah != null) {
+        final stopTiming = _timings.cast<AyahTiming?>()
+            .firstWhere((t) => t!.ayah == toAyah, orElse: () => null);
+        _stopAt = stopTiming == null ? null : stopTiming.end + const Duration(milliseconds: 400);
+      } else {
+        _stopAt = null;
       }
 
-      currentAyahNotifier.value = null;
+      // Si on commence au verset 1, partir du début du fichier pour inclure
+      // la Basmalah introductive (ayah 0) qui précède le premier verset.
+      final seekTo = (fromAyah == 1) ? Duration.zero : startTiming.start;
+
+      // Seek d'abord : on démarre la surveillance APRÈS pour que le premier
+      // tick du positionStream reflète la position réelle (pas l'ancienne).
+      await _audio.seek(seekTo);
+      if (token != _token) return;
+
+      _startPositionSub(token);
+      await _audio.play();
+      debugPrint(
+        'TimedSurahPlayer: play ${source.localCacheId} S$surah '
+        '$fromAyah→${toAyah ?? "fin"} depuis ${startTiming.start.inMs}ms',
+      );
     } catch (e) {
       if (token != _token) return;
-      errorNotifier.value =
-          'Erreur range ${source.localCacheId} S$surah:$fromAyah–$toAyah — $e';
+      errorNotifier.value = 'Erreur S$surah — $e';
       debugPrint('TimedSurahPlayer: $e');
     }
   }
 
-  Future<void> _waitUntilEnd(
-    Duration end,
-    TimedStopMode mode,
-    int token,
-  ) {
-    final completer = Completer<void>();
-    void done() { if (!completer.isCompleted) completer.complete(); }
-
-    if (mode == TimedStopMode.timer) {
-      StreamSubscription<PlayerState>? sub;
-      sub = _audio.playerStateStream.listen((state) {
-        if (token != _token) { sub?.cancel(); done(); return; }
-        if (state.playing && state.processingState == ProcessingState.ready) {
-          sub?.cancel();
-          final rem = end - _audio.position;
-          Timer(rem > Duration.zero ? rem : Duration.zero, done);
-        }
-      });
-    } else {
-      StreamSubscription<Duration>? sub;
-      sub = _audio.positionStream.listen((pos) {
-        if (token != _token || pos >= end) { sub?.cancel(); done(); }
-      });
-    }
-
-    return completer.future;
-  }
-
   // ── Contrôles ─────────────────────────────────────────────────────────────
 
-  Future<void> pause() async { _cancelAutoStop(); await _audio.pause(); }
-  Future<void> resume() async => _audio.play();
+  /// Pause : conserve l'ayah courant dans le notifier (highlight visible).
+  Future<void> pause() async {
+    await _audio.pause();
+    // Pas de reset de currentAyahNotifier : le highlight reste visible en pause
+    // Pas de cancel du _posSub : il ne retourne rien tant que l'audio est en pause
+  }
+
+  /// Reprend la lecture depuis la position actuelle.
+  Future<void> resume() async {
+    await _audio.play();
+    // _posSub est déjà actif — reprend immédiatement la surveillance
+  }
 
   Future<void> stop() async {
     ++_token;
-    _cancelAutoStop();
+    _cancelPositionSub();
+    _timings = [];
+    _stopAt  = null;
     currentAyahNotifier.value = null;
     await _audio.stop();
     _loadedSource = null;
     _loadedSurah  = null;
   }
 
-  /// Précharge : télécharge la sourate + les timings en arrière-plan.
+  /// Précharge en arrière-plan : MP3 + timings.
   void prefetch(ReciterAudioSource source, int surah) {
     if (!source.isConfigured) return;
     _cache.prefetchTimings(source, surah);
     _downloader.ensureDownloaded(source, surah).catchError((Object e) {
-      debugPrint('TimedSurahPlayer: prefetch ${source.localCacheId}/$surah — $e');
+      debugPrint('TimedSurahPlayer: prefetch error — $e');
       return '';
     });
   }
 
   void dispose() {
     ++_token;
-    _cancelAutoStop();
+    _cancelPositionSub();
     _audio.dispose();
     isPlayingNotifier.dispose();
     isBufferingNotifier.dispose();

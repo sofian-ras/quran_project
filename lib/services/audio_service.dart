@@ -343,9 +343,9 @@ class AudioService {
     final rangeReciter = currentAyahReciterNotifier.value;
     if (rangeReciter.isSeekBased) {
       ayahPlayModeNotifier.value = AyahPlayMode.continuous;
-      await TimedSurahPlayer.instance
-          .playAyahRange(rangeReciter.timedSource!, surah, startAyah, endAyah);
-      ayahPlayModeNotifier.value = AyahPlayMode.single;
+      await TimedSurahPlayer.instance.play(
+        rangeReciter.timedSource!, surah, startAyah, toAyah: endAyah,
+      );
       return;
     }
 
@@ -613,8 +613,9 @@ class AudioService {
         currentAyahTitleNotifier.value =
             'S${surah.toString().padLeft(3, '0')}:'
             '${ayah.toString().padLeft(3, '0')} • ${reciter.displayName}';
-        await TimedSurahPlayer.instance
-            .playAyah(reciter.timedSource!, surah, ayah);
+        await TimedSurahPlayer.instance.play(
+          reciter.timedSource!, surah, ayah, toAyah: ayah,
+        );
         return;
       }
       // ───────────────────────────────────────────────────────────────────

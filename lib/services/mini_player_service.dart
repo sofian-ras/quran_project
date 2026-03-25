@@ -305,13 +305,12 @@ class MiniPlayerService {
   }
 
   void _launchSeekBased(QulReciter reciter) {
-    final source = reciter.timedSource!;
-    final tp     = TimedSurahPlayer.instance;
-    if (_endAyah <= _curAyah) {
-      tp.playAyah(source, _curSurah, _curAyah);
-    } else {
-      tp.playAyahRange(source, _curSurah, _curAyah, _endAyah);
-    }
+    TimedSurahPlayer.instance.play(
+      reciter.timedSource!,
+      _curSurah,
+      _curAyah,
+      toAyah: _endAyah,
+    );
   }
 
   // ── Pré-téléchargement ────────────────────────────────────────────────────
@@ -625,8 +624,8 @@ class MiniPlayerService {
       final tp = TimedSurahPlayer.instance;
       if (tp.isPlayingNotifier.value) {
         await tp.pause();
-      } else if (_curSurah > 0 && _curAyah > 0) {
-        _launchSeekBased(_qulReciter!);
+      } else {
+        await tp.resume();
       }
       return;
     }
