@@ -351,8 +351,8 @@ class _AyahHighlightPainter extends CustomPainter {
     _drawRects(canvas, noteRects,      const Color(0x25909090));
     // 2. Plage de sélection — vert très léger
     _drawRects(canvas, selectionRects, const Color(0x3581C784));
-    // 3. Verset en lecture — vert (même opacité que la sélection jaune)
-    _drawRects(canvas, playingRects,   const Color(0x5581C784));
+    // 3. Verset en lecture — même vert que la sélection long-press
+    _drawRects(canvas, playingRects,   const Color(0x3581C784));
     // 4. Verset sélectionné (bulle) — jaune
     _drawRects(canvas, wordRects,      const Color(0x55FFD54F));
   }

@@ -155,15 +155,41 @@ class Mp3QuranTimingCache {
 
   // ── Debug ──────────────────────────────────────────────────────────────────
 
-  /// Affiche tous les reads disponibles dans les logs.
-  /// Utiliser pour trouver les mp3quranReadId des récitateurs.
+  /// Affiche les récitateurs Hafs (حفص عن عاصم) disponibles sur mp3quran
+  /// avec leurs readId, URLs serveur et noms anglais.
   Future<void> logAvailableReads() async {
-    final reads = await _api.fetchReads();
-    debugPrint('=== mp3quran reads disponibles (${reads.length}) ===');
-    for (final r in reads) {
-      debugPrint('  id=${r.id.toString().padLeft(4)}  '
-          '"${r.name}"  rewaya="${r.rewaya}"');
+    final results = await Future.wait([
+      _api.fetchReads(),
+      _api.fetchReciters(withReads: true, language: 'eng'),
+    ]);
+    final reads    = results[0] as List<Mp3QuranRead>;
+    final reciters = results[1] as List<Mp3QuranReciter>;
+
+    // Construire les maps readId → server et readId → nom anglais
+    final readIdToServer = <int, String>{};
+    final readIdToName   = <int, String>{};
+    for (final reciter in reciters) {
+      for (final moshaf in reciter.moshafs) {
+        if (moshaf.readId == null) continue;
+        if (moshaf.server.isNotEmpty) readIdToServer[moshaf.readId!] = moshaf.server;
+        if (reciter.name.isNotEmpty)  readIdToName[moshaf.readId!]   = reciter.name;
+      }
     }
-    debugPrint('=== fin ===');
+
+    debugPrint('=== mp3quran : récitateurs Hafs avec timings + serveur ===');
+    int count = 0;
+    for (final read in reads) {
+      final r = read.rewaya.toLowerCase();
+      if (!r.contains('حفص') && !r.contains('hafs')) continue;
+      final server = readIdToServer[read.id] ?? '(serveur inconnu)';
+      final name   = readIdToName[read.id]   ?? read.name;
+      debugPrint(
+        '  mp3quranReadId=${read.id.toString().padLeft(4)}'
+        '  server="$server"'
+        '  name="$name"',
+      );
+      count++;
+    }
+    debugPrint('=== $count récitateurs Hafs listés ===');
   }
 }
