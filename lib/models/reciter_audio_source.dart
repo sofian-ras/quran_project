@@ -1,19 +1,20 @@
 // lib/models/reciter_audio_source.dart
 //
-// Configuration d'un récitateur "seek-based" :
-// lecture via un MP3 de sourate complète + timings API mp3quran.
+// Configuration d'un récitateur "seek-based".
 //
-// Usage :
-//   const soufiHafs = ReciterAudioSource(
-//     localCacheId  : 'soufi_hafs',
-//     serverBaseUrl : 'https://server16.mp3quran.net/download/soufi/Rewayat-Hafs-A-n-Assem',
-//     mp3quranReadId: 123,          // trouver via Mp3QuranTimingCache.logAvailableReads()
-//   );
+// Deux modes pour le mp3quranReadId :
 //
-// Pour ajouter un récitateur compatible :
-//   1. Trouver serverBaseUrl  → page du récitateur sur mp3quran.net → lien Download
-//   2. Trouver mp3quranReadId → appeler Mp3QuranTimingCache.logAvailableReads()
-//      et noter l'id correspondant au récitateur + riwaya voulu.
+//   1. Hardcodé (connu d'avance) :
+//      ReciterAudioSource(mp3quranReadId: 123, ...)
+//
+//   2. Auto-découverte (readId inconnu) :
+//      ReciterAudioSource(
+//        mp3quranReadId: null,
+//        searchName   : 'soufi',    // recherché dans le champ "name" de /reads
+//        searchRewaya : 'hafs',     // recherché dans le champ "rewaya"
+//      )
+//      → Mp3QuranTimingCache résout le readId au premier appel,
+//        le met en cache pour la session.
 
 class ReciterAudioSource {
   /// Identifiant unique stable pour le stockage local.
@@ -21,19 +22,33 @@ class ReciterAudioSource {
   final String localCacheId;
 
   /// URL de base du serveur mp3quran.
-  /// Le fichier sourate est à : {serverBaseUrl}/{surah:3}.mp3
+  /// Fichier sourate : {serverBaseUrl}/{surah:3}.mp3
   final String serverBaseUrl;
 
   /// ID de la récitation dans l'API mp3quran ayat_timing.
-  /// Obtenir via : Mp3QuranTimingCache.instance.logAvailableReads()
-  /// null = non configuré → la lecture seek-based sera désactivée.
+  /// null + searchName/searchRewaya → auto-découverte au premier play.
   final int? mp3quranReadId;
+
+  /// Terme de recherche sur le champ "name" du read (insensible à la casse).
+  /// Utilisé uniquement si mp3quranReadId est null.
+  final String? searchName;
+
+  /// Terme de recherche sur le champ "rewaya" du read (insensible à la casse).
+  /// Utilisé uniquement si mp3quranReadId est null.
+  final String? searchRewaya;
 
   const ReciterAudioSource({
     required this.localCacheId,
     required this.serverBaseUrl,
-    required this.mp3quranReadId,
+    this.mp3quranReadId,
+    this.searchName,
+    this.searchRewaya,
   });
+
+  /// Vrai si le readId est connu OU auto-découvrable.
+  bool get isConfigured =>
+      mp3quranReadId != null ||
+      (searchName != null && searchName!.isNotEmpty);
 
   /// URL du MP3 complet d'une sourate.
   String surahUrl(int surah) {
@@ -41,15 +56,10 @@ class ReciterAudioSource {
     return '$serverBaseUrl/$s.mp3';
   }
 
-  /// Chemin relatif du fichier local dans le dossier timed_audio.
-  /// Format : {localCacheId}/{surah:3}.mp3
   String localRelativePath(int surah) {
     final s = surah.toString().padLeft(3, '0');
     return '$localCacheId/$s.mp3';
   }
-
-  /// Vrai si ce récitateur est prêt pour la lecture seek-based.
-  bool get isConfigured => mp3quranReadId != null;
 
   @override
   String toString() =>

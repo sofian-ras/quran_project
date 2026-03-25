@@ -180,6 +180,7 @@ class TimedSurahPlayer {
 
     final token = ++_token;
     _cancelAutoStop();
+    currentAyahNotifier.value = null; // force null → ayah pour garantir la notification
     errorNotifier.value = null;
 
     try {
@@ -232,6 +233,7 @@ class TimedSurahPlayer {
 
     final token = ++_token;
     _cancelAutoStop();
+    currentAyahNotifier.value = null; // force null → ayah pour garantir la notification
     errorNotifier.value = null;
 
     try {

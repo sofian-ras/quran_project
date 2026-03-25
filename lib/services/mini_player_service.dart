@@ -29,6 +29,7 @@ import 'qul_audio/qul_catalog_service.dart';
 import 'qul_audio/qul_audio_resolver.dart';
 import 'qul_audio/audio_download_manager.dart';
 import 'qul_audio/audio_playback_source.dart';
+import 'mp3quran/timed_surah_player.dart';
 
 // ── Modèle récitateur (compatibilité UI) ─────────────────────────────────────
 
@@ -135,6 +136,11 @@ class MiniPlayerService {
   // Null en mode source unique (verseByVerse).
   List<int>? _playlistAyahs;
 
+  // ── Seek-based (TimedSurahPlayer) ─────────────────────────────────────────
+  bool _isSeekBased = false;
+  VoidCallback? _timedAyahListener;
+  VoidCallback? _timedStateListener;
+
   // ── Init ──────────────────────────────────────────────────────────────────
 
   void _init() {
@@ -177,6 +183,51 @@ class MiniPlayerService {
       await session.configure(const AudioSessionConfiguration.music());
     } catch (e) {
       debugPrint('MiniPlayerService: AudioSession config error: $e');
+    }
+  }
+
+  // ── Seek-based helpers ────────────────────────────────────────────────────
+
+  void _attachTimedListeners() {
+    _detachTimedListeners();
+    final tp = TimedSurahPlayer.instance;
+
+    _timedAyahListener = () {
+      if (!_isSeekBased) return;
+      final ayah = tp.currentAyahNotifier.value;
+      if (ayah != null) {
+        _curAyah             = ayah;
+        currentAyahKey.value = '$_curSurah:$ayah';
+      } else {
+        // ayah=null → verset terminé, plus rien en cours
+        currentAyahKey.value = null;
+        isPlaying.value      = false;
+      }
+    };
+    tp.currentAyahNotifier.addListener(_timedAyahListener!);
+
+    _timedStateListener = () {
+      if (!_isSeekBased) return;
+      isPlaying.value = tp.isPlayingNotifier.value;
+      isLoading.value = tp.isBufferingNotifier.value ||
+                        tp.isDownloadingNotifier.value;
+    };
+    tp.isPlayingNotifier.addListener(_timedStateListener!);
+    tp.isBufferingNotifier.addListener(_timedStateListener!);
+    tp.isDownloadingNotifier.addListener(_timedStateListener!);
+  }
+
+  void _detachTimedListeners() {
+    final tp = TimedSurahPlayer.instance;
+    if (_timedAyahListener != null) {
+      tp.currentAyahNotifier.removeListener(_timedAyahListener!);
+      _timedAyahListener = null;
+    }
+    if (_timedStateListener != null) {
+      tp.isPlayingNotifier.removeListener(_timedStateListener!);
+      tp.isBufferingNotifier.removeListener(_timedStateListener!);
+      tp.isDownloadingNotifier.removeListener(_timedStateListener!);
+      _timedStateListener = null;
     }
   }
 
@@ -231,6 +282,17 @@ class MiniPlayerService {
       return;
     }
 
+    // ── Seek-based (MP3 sourate complète + timings) ───────────────────────
+    if (reciter.isSeekBased) {
+      _isSeekBased = true;
+      _attachTimedListeners();
+      _launchSeekBased(reciter);
+      return;
+    }
+    _isSeekBased = false;
+    _detachTimedListeners();
+    // ─────────────────────────────────────────────────────────────────────
+
     // verseByVerse : un seul verset → streaming direct, pas de pré-téléchargement
     if (playMode.value == MiniPlayMode.verseByVerse) {
       QulAudioResolver.instance.prefetch(reciter, _curSurah);
@@ -240,6 +302,16 @@ class MiniPlayerService {
 
     // surah / selection : pré-télécharger tous les versets avant de lire
     await _prepareAndPlay(reciter, _curSurah, _curAyah);
+  }
+
+  void _launchSeekBased(QulReciter reciter) {
+    final source = reciter.timedSource!;
+    final tp     = TimedSurahPlayer.instance;
+    if (_endAyah <= _curAyah) {
+      tp.playAyah(source, _curSurah, _curAyah);
+    } else {
+      tp.playAyahRange(source, _curSurah, _curAyah, _endAyah);
+    }
   }
 
   // ── Pré-téléchargement ────────────────────────────────────────────────────
@@ -549,6 +621,16 @@ class MiniPlayerService {
   Future<void> playPause() async {
     if (prepProgress.value != null) return; // Préparation en cours → ignorer
 
+    if (_isSeekBased) {
+      final tp = TimedSurahPlayer.instance;
+      if (tp.isPlayingNotifier.value) {
+        await tp.pause();
+      } else if (_curSurah > 0 && _curAyah > 0) {
+        _launchSeekBased(_qulReciter!);
+      }
+      return;
+    }
+
     if (currentAyahKey.value == null) {
       if (_curSurah > 0 && _curAyah > 0) {
         _stopping = false;
@@ -570,6 +652,13 @@ class MiniPlayerService {
     _stopping = true;
     _playToken++;
     isRangeAutoAdvancing.value = false;
+
+    if (_isSeekBased) {
+      _isSeekBased = false;
+      _detachTimedListeners();
+      await TimedSurahPlayer.instance.stop();
+    }
+
     await _player.setLoopMode(LoopMode.off);
     await _player.stop();
     currentAyahKey.value     = null;
@@ -586,6 +675,13 @@ class MiniPlayerService {
     if (_curSurah == 0) return;
     final maxAyah = kSurahAyahCounts[_curSurah - 1];
     if (_curAyah >= maxAyah) return;
+
+    if (_isSeekBased) {
+      _curAyah++;
+      _endAyah = _computeEndAyah(_curSurah, _curAyah);
+      _launchSeekBased(_qulReciter!);
+      return;
+    }
 
     if (_playlistAyahs != null) {
       // Mode playlist : seek vers la première occurrence du verset suivant
@@ -607,6 +703,13 @@ class MiniPlayerService {
 
   Future<void> prevVerse() async {
     if (_curSurah == 0 || _curAyah <= 1) return;
+
+    if (_isSeekBased) {
+      _curAyah--;
+      _endAyah = _computeEndAyah(_curSurah, _curAyah);
+      _launchSeekBased(_qulReciter!);
+      return;
+    }
 
     if (_playlistAyahs != null) {
       final idx = _playlistAyahs!.indexOf(_curAyah - 1);

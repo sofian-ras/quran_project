@@ -32,7 +32,7 @@ import 'models/qul_reciter.dart';
 const _soufiHafs = ReciterAudioSource(
   localCacheId  : 'soufi_hafs',
   serverBaseUrl : 'https://server16.mp3quran.net/download/soufi/Rewayat-Hafs-A-n-Assem',
-  mp3quranReadId: null, // ← TODO : remplir après logAvailableReads()
+  mp3quranReadId: 258, // عبدالرشيد صوفي / حفص عن عاصم
 );
 
 // Pour ajouter un autre récitateur seek-based, déclarer ici :

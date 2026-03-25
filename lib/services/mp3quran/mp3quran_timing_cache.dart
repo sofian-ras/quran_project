@@ -26,6 +26,66 @@ class Mp3QuranTimingCache {
   // Cache : localCacheId → surahNumber → timings
   final Map<String, Map<int, List<AyahTiming>>> _cache = {};
 
+  // Cache des readIds résolus dynamiquement : localCacheId → readId
+  final Map<String, int> _resolvedReadIds = {};
+  // Future en cours pour éviter les requêtes parallèles
+  final Map<String, Future<int>> _readIdFutures = {};
+
+  // ── Résolution du readId ───────────────────────────────────────────────────
+
+  /// Retourne le readId effectif pour une source.
+  /// Si mp3quranReadId est connu → retourne directement.
+  /// Sinon → auto-découverte via /reads en cherchant searchName + searchRewaya.
+  Future<int> resolveReadId(ReciterAudioSource source) async {
+    if (source.mp3quranReadId != null) return source.mp3quranReadId!;
+
+    // Déjà résolu
+    if (_resolvedReadIds.containsKey(source.localCacheId)) {
+      return _resolvedReadIds[source.localCacheId]!;
+    }
+
+    // Éviter les requêtes parallèles pour la même source
+    _readIdFutures[source.localCacheId] ??= _discoverReadId(source);
+    try {
+      final id = await _readIdFutures[source.localCacheId]!;
+      _resolvedReadIds[source.localCacheId] = id;
+      return id;
+    } finally {
+      _readIdFutures.remove(source.localCacheId);
+    }
+  }
+
+  Future<int> _discoverReadId(ReciterAudioSource source) async {
+    assert(source.searchName != null,
+        '${source.localCacheId} : mp3quranReadId null sans searchName');
+
+    final reads = await _api.fetchReads();
+    debugPrint('Mp3QuranTimingCache: résolution readId pour ${source.localCacheId}');
+    for (final r in reads) {
+      debugPrint('  id=${r.id}  "${r.name}"  rewaya="${r.rewaya}"');
+    }
+
+    final name    = source.searchName!.toLowerCase();
+    final rewaya  = source.searchRewaya?.toLowerCase() ?? '';
+
+    final match = reads.firstWhere(
+      (r) =>
+          r.name.toLowerCase().contains(name) &&
+          (rewaya.isEmpty || r.rewaya.toLowerCase().contains(rewaya)),
+      orElse: () => throw StateError(
+        'readId introuvable pour ${source.localCacheId} '
+        '(searchName="${source.searchName}", searchRewaya="${source.searchRewaya}").\n'
+        'IDs disponibles listés ci-dessus. Hardcoder mp3quranReadId dans ReciterAudioSource.',
+      ),
+    );
+
+    debugPrint(
+      'Mp3QuranTimingCache: readId résolu — '
+      '${source.localCacheId} → ${match.id} ("${match.name} / ${match.rewaya}")',
+    );
+    return match.id;
+  }
+
   // ── Timings ────────────────────────────────────────────────────────────────
 
   /// Retourne les timings pour un récitateur + sourate.
@@ -40,9 +100,10 @@ class Mp3QuranTimingCache {
     final surahMap = _cache[source.localCacheId] ??= {};
     if (surahMap.containsKey(surah)) return surahMap[surah]!;
 
+    final readId = await resolveReadId(source);
     final all = await _api.fetchTimings(
       surah: surah,
-      readId: source.mp3quranReadId!,
+      readId: readId,
     );
 
     final filtered = all.where((t) => t.ayah > 0).toList();

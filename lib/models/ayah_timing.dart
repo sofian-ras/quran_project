@@ -22,11 +22,13 @@ class AyahTiming {
 
   Duration get duration => end - start;
 
+  static int _i(dynamic v) => v is int ? v : int.parse(v.toString());
+
   factory AyahTiming.fromJson(Map<String, dynamic> json) => AyahTiming(
-        ayah: json['ayah'] as int,
-        start: Duration(milliseconds: json['start_time'] as int),
-        end: Duration(milliseconds: json['end_time'] as int),
-        page: json['page'] as int?,
+        ayah: _i(json['ayah']),
+        start: Duration(milliseconds: _i(json['start_time'])),
+        end: Duration(milliseconds: _i(json['end_time'])),
+        page: json['page'] is int ? json['page'] as int : null,
       );
 
   @override

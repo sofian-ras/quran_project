@@ -48,11 +48,23 @@ class Mp3QuranTimingApi {
 
   // ── Reads ──────────────────────────────────────────────────────────────────
 
+  /// Extrait une List depuis une réponse qui peut être :
+  ///   - directement une List<dynamic>
+  ///   - un Map contenant la liste sous une des [keys]
+  List<dynamic> _extractList(dynamic data, List<String> keys) {
+    if (data is List) return data;
+    if (data is Map<String, dynamic>) {
+      for (final k in keys) {
+        if (data[k] is List) return data[k] as List<dynamic>;
+      }
+    }
+    throw StateError('Réponse API inattendue : ${data.runtimeType}');
+  }
+
   Future<List<Mp3QuranRead>> fetchReads() async {
     try {
       final resp = await _dio.get('$_base/ayat_timing/reads');
-      final data = resp.data as Map<String, dynamic>;
-      final raw = (data['reads'] ?? data['data'] ?? resp.data) as List<dynamic>;
+      final raw = _extractList(resp.data, ['reads', 'data']);
       return raw
           .map((e) => Mp3QuranRead.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -74,9 +86,7 @@ class Mp3QuranTimingApi {
         '$_base/ayat_timing',
         queryParameters: {'surah': surah, 'read': readId},
       );
-      final data = resp.data as Map<String, dynamic>;
-      final raw =
-          (data['ayat_timing'] ?? data['data'] ?? resp.data) as List<dynamic>;
+      final raw = _extractList(resp.data, ['ayat_timing', 'data']);
       return raw
           .map((e) => AyahTiming.fromJson(e as Map<String, dynamic>))
           .toList();
