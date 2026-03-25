@@ -65,6 +65,23 @@ class AudioService {
     ayahSpeedNotifier.addListener(() {
       _ayahPlayer.setSpeed(ayahSpeedNotifier.value);
     });
+
+    // ── Bridge TimedSurahPlayer → notifiers AudioService ────────────────────
+    // isPlayingNotifier : synchronise isAyahPlayingNotifier quand seek-based actif
+    TimedSurahPlayer.instance.isPlayingNotifier.addListener(() {
+      if (_timedSurah == null) return;
+      isAyahPlayingNotifier.value = TimedSurahPlayer.instance.isPlayingNotifier.value;
+    });
+    // currentAyahNotifier : met à jour currentAyahKeyNotifier verset par verset
+    TimedSurahPlayer.instance.currentAyahNotifier.addListener(() {
+      if (_timedSurah == null) return;
+      final ayah = TimedSurahPlayer.instance.currentAyahNotifier.value;
+      if (ayah != null) {
+        currentAyahKeyNotifier.value = '$_timedSurah:$ayah';
+      }
+      // ayah == null (fin de plage / auto-pause) : on ne réinitialise pas la clé
+      // pour que la barre reste visible ; isAyahPlayingNotifier devient false via le bridge ci-dessus.
+    });
   }
 
   static final AudioService instance = AudioService._();
@@ -267,6 +284,8 @@ class AudioService {
   int? _seqSurah;
   int? _seqAyah;
   int? _seqEndAyah;
+  /// Sourate en cours via TimedSurahPlayer (seek-based). null = mode normal.
+  int? _timedSurah;
 
   Future<void> stopAyah() async {
     // Invalide tout _playAyahInternal en cours d'attente async.
@@ -274,6 +293,7 @@ class AudioService {
 
     // Arrêter aussi TimedSurahPlayer s'il est actif.
     await TimedSurahPlayer.instance.stop();
+    _timedSurah = null;
 
     await _ayahSeqSub?.cancel();
     _ayahSeqSub = null;
@@ -283,24 +303,41 @@ class AudioService {
 
     ayahPlayModeNotifier.value = AyahPlayMode.single;
     currentAyahKeyNotifier.value = null;
+    isAyahPlayingNotifier.value  = false;
 
     await _ayahPlayer.setLoopMode(LoopMode.off);
     await _ayahPlayer.stop();
   }
 
-  Future<void> pauseAyah() async => _ayahPlayer.pause();
+  Future<void> pauseAyah() async {
+    if (_timedSurah != null) {
+      await TimedSurahPlayer.instance.pause();
+    } else {
+      await _ayahPlayer.pause();
+    }
+  }
 
   Future<void> resumeAyah() async {
-    if (!_ayahPlayer.playing) {
+    if (_timedSurah != null) {
+      await TimedSurahPlayer.instance.resume();
+    } else if (!_ayahPlayer.playing) {
       await _ayahPlayer.play();
     }
   }
 
   Future<void> toggleAyahPlayPause() async {
-    if (_ayahPlayer.playing) {
-      await _ayahPlayer.pause();
+    if (_timedSurah != null) {
+      if (TimedSurahPlayer.instance.isPlayingNotifier.value) {
+        await TimedSurahPlayer.instance.pause();
+      } else {
+        await TimedSurahPlayer.instance.resume();
+      }
     } else {
-      await _ayahPlayer.play();
+      if (_ayahPlayer.playing) {
+        await _ayahPlayer.pause();
+      } else {
+        await _ayahPlayer.play();
+      }
     }
   }
 
@@ -342,7 +379,9 @@ class AudioService {
     // Seek-based : TimedSurahPlayer gère la séquence en interne.
     final rangeReciter = currentAyahReciterNotifier.value;
     if (rangeReciter.isSeekBased) {
-      ayahPlayModeNotifier.value = AyahPlayMode.continuous;
+      ayahPlayModeNotifier.value   = AyahPlayMode.continuous;
+      _timedSurah                  = surah;
+      currentAyahKeyNotifier.value = '$surah:$startAyah';
       await TimedSurahPlayer.instance.play(
         rangeReciter.timedSource!, surah, startAyah, toAyah: endAyah,
       );
@@ -609,6 +648,7 @@ class AudioService {
       // Pas de fichier MP3 par verset : seek dans le MP3 complet de la sourate.
       if (reciter.isSeekBased) {
         if (myToken != _ayahPlayToken || _disposed) return;
+        _timedSurah                  = surah;
         currentAyahKeyNotifier.value = '$surah:$ayah';
         currentAyahTitleNotifier.value =
             'S${surah.toString().padLeft(3, '0')}:'
