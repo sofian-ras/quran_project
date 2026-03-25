@@ -504,23 +504,30 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     if (!mounted) return;
     if (isWifi) { startPlay(); return; }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1035) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-        content: const Text(
+        content: Text(
           'Vous n\'êtes pas en Wi-Fi.\nTélécharger la sourate ?',
-          style: TextStyle(fontSize: 14),
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('✕  Annuler'),
+            child: Text('✕  Annuler',
+                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('✔  Continuer'),
+            child: const Text('✔  Continuer',
+                style: TextStyle(color: Color(0xFFC8A165))),
           ),
         ],
       ),

@@ -241,7 +241,9 @@ class _ReciterPickerSheetState extends State<ReciterPickerSheet> {
       }
     }
 
-    return Container(
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: Container(
       height: MediaQuery.of(context).size.height * 0.82,
       color: _bg,
       child: Column(
@@ -257,40 +259,77 @@ class _ReciterPickerSheetState extends State<ReciterPickerSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
-          // ── Header : titre + icône recherche ────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
-            child: Row(
-              children: [
-                if (!_showSearch) ...[
+          // ── Header ──────────────────────────────────────────────────────
+          if (!_showSearch) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
+              child: Row(
+                children: [
+                  // Icône micro dorée
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: _gold.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.mic_rounded, color: _gold, size: 20),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'Récitateurs',
-                      style: TextStyle(
-                        color: _text,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 17,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Récitateurs',
+                          style: TextStyle(
+                            color: _text,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        Text(
+                          'Hafs An Assem · ${QulCatalogService.reciters.length} récitateurs',
+                          style: TextStyle(color: _sub, fontSize: 11),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
                     icon: Icon(Icons.search_rounded, color: _sub, size: 22),
                     onPressed: () => setState(() => _showSearch = true),
                   ),
-                ] else ...[
+                ],
+              ),
+            ),
+          ] else ...[
+            // ── Barre de recherche ─────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
+              child: Row(
+                children: [
                   Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      autofocus: true,
-                      style: TextStyle(color: _text, fontSize: 15),
-                      decoration: InputDecoration(
-                        hintText: 'Rechercher…',
-                        hintStyle: TextStyle(color: _sub, fontSize: 14),
-                        prefixIcon: Icon(Icons.search_rounded, color: _sub, size: 20),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: widget.isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        autofocus: true,
+                        cursorColor: _gold,
+                        style: TextStyle(color: _text, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher un récitateur…',
+                          hintStyle: TextStyle(color: _sub, fontSize: 13),
+                          prefixIcon: Icon(Icons.search_rounded, color: _sub, size: 18),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
                       ),
                     ),
                   ),
@@ -302,10 +341,11 @@ class _ReciterPickerSheetState extends State<ReciterPickerSheet> {
                     },
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
+          ],
 
+          const SizedBox(height: 8),
           Divider(height: 1, thickness: 0.5, color: _div),
 
           // ── Liste ────────────────────────────────────────────────────────
@@ -318,6 +358,6 @@ class _ReciterPickerSheetState extends State<ReciterPickerSheet> {
           ),
         ],
       ),
-    );
+    ));
   }
 }
