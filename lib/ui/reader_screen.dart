@@ -473,46 +473,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  int _getCurrentSurahForPage(int page) {
-    if (fullSurahList.isEmpty) return 1;
-    return fullSurahList.lastWhere(
-      (s) => (s['page'] as int) <= page,
-      orElse: () => fullSurahList.first,
-    )['id'] as int;
-  }
-
-  void _showNavigationPicker() {
-    _showSurahSelectionSheet(initialSurah: _getCurrentSurahForPage(currentPage));
-  }
-
-  void _showSurahSelectionSheet({int? initialSurah}) {
-    final isDark = _readerTheme == 2;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: true,
-      enableDrag: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return _SurahSelectionSheet(
-          surahList: fullSurahList,
-          currentSurah: initialSurah ?? 1,
-          currentPage: currentPage,
-          isDark: isDark,
-          reading: currentReading,
-          onSurahTap: (surahId, ctx) async {
-            final p = suraAyahToPage[surahId]?[1] ?? 1;
-            if (ctx.mounted) Navigator.pop(ctx);
-            await _navigateToPage(p);
-          },
-          onJuzTap: (page) {
-            Navigator.pop(sheetContext);
-            _navigateToPage(page);
-          },
-        );
-      },
-    );
-  }
 
   String _hizbText(int page) {
     if (hizbMap.isEmpty) return '';
@@ -665,23 +625,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 child: Icon(Icons.arrow_back_ios_new, size: 16, color: _themeIconColor),
                               ),
                               const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: _showNavigationPicker,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.menu_book_rounded, size: 14, color: _themeIconColor),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      surahNameFr,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: _themeIconColor,
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                surahNameFr,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _themeIconColor,
+                                  letterSpacing: 0.3,
                                 ),
                               ),
                             ],
@@ -1166,18 +1116,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextButton.icon(
-                onPressed: _showNavigationPicker,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  minimumSize: Size.zero,
-                ),
-                icon: Icon(Icons.menu_book, color: _themeIconColor, size: 15),
-                label: Text(
-                  surahNameFr,
-                  style: TextStyle(color: _themeIconColor, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
+              Text(
+                surahNameFr,
+                style: TextStyle(color: _themeIconColor, fontSize: 12, fontWeight: FontWeight.bold),
               ),
               Container(width: 1, height: 14, color: _themeIconColor.withValues(alpha: 0.25),
                   margin: const EdgeInsets.symmetric(horizontal: 6)),

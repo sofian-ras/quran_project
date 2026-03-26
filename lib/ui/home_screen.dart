@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dua_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -9,19 +8,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/navigation_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/quran_image_service.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
-import '../services/reading_history_service.dart';
 import '../services/quran_translation_pack_service.dart';
 import 'package:sqflite/sqflite.dart';
 import '../surah_name.dart';
 import 'reciter_picker_screen.dart';
-import 'reader_screen.dart';
 import 'tafsir_library_screen.dart';
-import 'screens/quran_loader.dart';
-import 'surah_list_screen.dart';
-import 'translated_quran_screen.dart';
 import 'widgets/continue_reading_card.dart';
 import 'widgets/youtube_video_card.dart';
 import '../models/reciter.dart';
@@ -61,12 +54,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   final AudioService _audio = AudioService.instance;
 
-  List<Map<String, dynamic>> fullSurahList = [];
   final Map<String, List<_MoshafOption>> _moshafByName = {};
   final Map<int, List<_MoshafOption>> _moshafById = {}; // Ajout pour indexation par reciterId
   bool _isLoading = true;
-  List<Map<String, dynamic>> filteredList = [];
-  String _preferredReading = 'hafs';
   final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>(<int>{});
   List<Reciter> _reciters = [];
   bool _recitersLoading = true;
@@ -89,7 +79,6 @@ void initState() {
   
   _prayerFuture = _loadPrayerHeader();
   _loadSurahData();
-  _loadPreferredReading();
   _loadFavorites();
   _loadReciters();
   _loadReciterServersIfNeeded();
@@ -119,25 +108,9 @@ Future<void> _checkFirstLaunch() async {
     super.dispose();
   }
 
-  void _startSurahAudio(Map<String, dynamic> s) {
-    // Appelle la nouvelle fonction de playlist dans le service audio
-    _audio.loadPlaylistAndPlay(s['id'] as int);
-  }
-
   Future<void> _loadSurahData() async {
-    final list = await loadSurahList();
     if (!mounted) return;
-    setState(() {
-      fullSurahList = list;
-      filteredList = List.from(list);
-      _isLoading = false;
-    });
-  }
-  Future<void> _loadPreferredReading() async {
-    final reading = await ReadingHistoryService.instance.getPreferredReading();
-    if (mounted) {
-      setState(() => _preferredReading = reading);
-    }
+    setState(() => _isLoading = false);
   }
   Future<void> _loadFavorites() async {
     final favs = await FavoritesService.instance.getFavorites();
@@ -353,53 +326,6 @@ Future<void> _checkFirstLaunch() async {
     return 0;
   }
 
-  void _openSurahListScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SurahListScreen(
-          surahList: filteredList,
-          favoriteIdsNotifier: _favoriteIdsNotifier,
-          onOpenReader: (page) => _openReader(page),
-          onPlaySurah: (s) => _startSurahAudio(s),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openReader(int page, {String? reading}) async {
-    final selectedReading = reading ?? _preferredReading;
-
-    try {
-      // La page est déjà dans _syncCache (chargée par SurahCard._handleTap).
-      // getPageFile est instantané ici, on navigue immédiatement.
-      await QuranImageService.getPageFile(selectedReading, page);
-      if (!mounted) return;
-      final file = QuranImageService.getSyncCached(page);
-      if (file != null) await precacheImage(FileImage(file), context);
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ReaderScreen(
-            initialPage: page,
-            reading: selectedReading,
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      final ok = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(builder: (_) => const QuranLoader()),
-      );
-
-      if (ok == true && mounted) {
-        await _openReader(page, reading: selectedReading);
-      }
-    }
-  }
 
 
   static final _wsRe = RegExp(r'\s+');
@@ -579,7 +505,7 @@ Future<void> _checkFirstLaunch() async {
                         [
                           _HeaderWithEngagement(
                             audio: _audio,
-                            onContinue: _openSurahListScreen,
+                            onContinue: () {},
                             onLocationTap: _showLocationPicker,
                             prayerFuture: _prayerFuture,
                             activeIndexFromTimes: _activeIndexFromTimes,
@@ -618,8 +544,8 @@ Future<void> _checkFirstLaunch() async {
                           _ContentCardsSection(
                             items: const [
                               _ContentCardData(
-                                title: 'Coran en français',
-                                subtitle: 'Lire avec traduction',
+                                title: 'Apprendre l\'arabe',
+                                subtitle: 'Vocabulaire & grammaire',
                                 imageAsset: 'assets/images/Programmes/coran_fr_thumbnail.webp',
                               ),
                               _ContentCardData(
@@ -629,13 +555,8 @@ Future<void> _checkFirstLaunch() async {
                               ),
                             ],
                             onTap: (item) {
-                              if (item.title == 'Coran en français') {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const TranslatedQuranScreen(preferOffline: true),
-                                  ),
-                                );
+                              if (item.title == 'Apprendre l\'arabe') {
+                                // réservé pour "Apprendre l'arabe"
                               } else if (item.title == 'Tafsir Session') {
                                 Navigator.push(
                                   context,
