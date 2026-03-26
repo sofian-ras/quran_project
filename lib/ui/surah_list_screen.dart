@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../surah_name.dart';
 import '../services/audio_service.dart';
@@ -131,8 +130,9 @@ class SurahListScreen extends StatelessWidget {
                       child: FutureBuilder<Map<int, dynamic>>(
                         future: loadJuzMetadata(),
                         builder: (context, snap) {
+                          final data = snap.data ?? _juzMetadataCache;
                           final Map<int, List<(int, int)>> juzBySurah =
-                              snap.hasData ? _buildJuzBySurah(snap.data!) : {};
+                              data != null ? _buildJuzBySurah(data) : {};
 
                           return ListView.builder(
                             key: const PageStorageKey('surah_list_full'),
@@ -221,7 +221,6 @@ class SurahListScreen extends StatelessWidget {
                     if (!snap.hasData) {
                       return const Center(child: CircularProgressIndicator());
                     }
-
                     final juzData = snap.data!;
 
                     final Map<int, Map<String, dynamic>> surahById = {
@@ -275,8 +274,7 @@ class SurahListScreen extends StatelessWidget {
                                     final nameFr = (s?['nameFr'] ?? 'Sourate $sid').toString();
                                     final nameAr = (s?['nameAr'] ?? '').toString();
 
-                                    final int openPage =
-                                        (from == 1 && s != null) ? (s['page'] as int) : startPage;
+                                    final int openPage = startPage;
 
                                     return _JuzSurahTile(
                                       nameFr: nameFr,
@@ -450,6 +448,7 @@ class _JuzHeaderTileState extends State<_JuzHeaderTile> {
 
   Future<void> _handleTap() async {
     if (_loading) return;
+    debugPrint('>>> JuzHeaderTile tapped juz=${widget.juzNumber} startPage=${widget.startPage}');
     await openPageWithPrecache(
       context, widget.startPage, () => widget.onOpenReader(widget.startPage),
       (v) { if (mounted) setState(() => _loading = v); },
@@ -528,6 +527,7 @@ class _JuzSurahTileState extends State<_JuzSurahTile> {
 
   Future<void> _handleTap() async {
     if (_loading) return;
+    debugPrint('>>> JuzSurahTile tapped "${widget.nameFr}" openPage=${widget.openPage}');
     await openPageWithPrecache(
       context, widget.openPage, () => widget.onOpenReader(widget.openPage),
       (v) { if (mounted) setState(() => _loading = v); },
@@ -583,6 +583,7 @@ class _JuzSubItemTileState extends State<_JuzSubItemTile> {
 
   Future<void> _handleTap() async {
     if (_loading) return;
+    debugPrint('>>> JuzSubItemTile tapped juz=${widget.juzNumber} startPage=${widget.startPage}');
     await openPageWithPrecache(
       context, widget.startPage, () => widget.onOpenReader(widget.startPage),
       (v) { if (mounted) setState(() => _loading = v); },

@@ -23,6 +23,7 @@ import '../services/quran_ayah_metadata_db.dart';
 import '../services/quran_image_service.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'reader_screen.dart';
+import '../hizb_juzz.dart';
 
 // Notifier partagé entre la liste et l'en-tête (0=blanc, 1=papier, 2=sombre)
 final _tqsThemeNotifier = ValueNotifier<int>(1);
@@ -646,9 +647,9 @@ class _SurahTabState extends State<_SurahTab> {
     _tqsThemeNotifier.value = t;
   }
 
-  Future<void> _openSurah(BuildContext context, int surahId, {int initialAyah = 1}) async {
+  Future<void> _openSurah(BuildContext context, int surahId, {int initialAyah = 1, int? overridePage}) async {
     if (_imageReaderModeNotifier.value) {
-      final int page = _surahStartPages[surahId - 1];
+      final int page = overridePage ?? _surahStartPages[surahId - 1];
       try {
         await QuranImageService.getPageFile('hafs', page);
         if (!context.mounted) return;
@@ -936,7 +937,8 @@ class _SurahTabState extends State<_SurahTab> {
                     surah: surah,
                     ayah: ayah,
                     tqsTheme: tqsTheme,
-                    onTap: () => _openSurah(context, surah, initialAyah: ayah),
+                    onTap: () => _openSurah(context, surah, initialAyah: ayah,
+                        overridePage: juzzMap[juz - 1]['start_page']!),
                   );
                 }
 

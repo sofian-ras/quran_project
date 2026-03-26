@@ -56,6 +56,7 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
   }
 
   Future<void> _openReader(int page) async {
+    debugPrint('🔥🔥🔥 _openReader page=$page useImage=$_useImageReader');
     if (_useImageReader) {
       try {
         await QuranImageService.getPageFile('hafs', page);

@@ -113,17 +113,17 @@ class _SurahCardState extends State<SurahCard> {
 
     final Color tileBg = isDark ? const Color(0xFF1A0033) : Colors.transparent;
 
-    return Container(
-      margin: EdgeInsets.zero,
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: tileBg,
-        border: Border(
-          bottom: BorderSide(color: dividerColor, width: 1),
+    return InkWell(
+      onTap: _loading ? null : _handleTap,
+      child: Container(
+        margin: EdgeInsets.zero,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: tileBg,
+          border: Border(
+            bottom: BorderSide(color: dividerColor, width: 1),
+          ),
         ),
-      ),
-      child: InkWell(
-        onTap: _loading ? null : _handleTap,
         child: Row(
           children: [
             Container(

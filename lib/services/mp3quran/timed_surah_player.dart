@@ -121,18 +121,21 @@ class TimedSurahPlayer {
     _posSub = _audio.positionStream.listen((pos) {
       if (token != _token) { _cancelPositionSub(); return; }
 
-      // Mise à jour de l'ayah courant
-      final ayah = _ayahAt(pos);
-      if (ayah != currentAyahNotifier.value) {
-        currentAyahNotifier.value = ayah;
-      }
-
-      // Auto-pause quand on dépasse la fin du dernier ayah demandé
+      // Auto-pause d'abord : vérifier la fin AVANT de mettre à jour l'ayah courant.
+      // Sinon, si pos dépasse _stopAt, _ayahAt(pos) retournerait le verset suivant
+      // et le notifier flasherait brièvement sur ce verset avant de passer à null.
       if (_stopAt != null && pos >= _stopAt!) {
         _audio.pause();
         _cancelPositionSub();
         currentAyahNotifier.value = null;
         debugPrint('TimedSurahPlayer: auto-stop pos=${pos.inMs}ms cible=${_stopAt!.inMs}ms');
+        return;
+      }
+
+      // Mise à jour de l'ayah courant
+      final ayah = _ayahAt(pos);
+      if (ayah != currentAyahNotifier.value) {
+        currentAyahNotifier.value = ayah;
       }
     });
   }
