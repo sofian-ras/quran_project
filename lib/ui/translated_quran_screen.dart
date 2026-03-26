@@ -1676,6 +1676,10 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
             _normalizeLengths();
           });
           await _refreshSurahDownloadedFlag();
+          if (_isTafsirMostlyEmpty()) {
+            await _loadTafsirOnlineFallback();
+            if (mounted) setState(_normalizeLengths);
+          }
           return;
         }
       }

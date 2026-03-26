@@ -33,14 +33,15 @@ Future<void> main() async {
   AppUsageService.init();
   QuranTranslationPackService.migrateLegacyToQulIfNeeded();
 
+  final bool initDark = ThemeService.themeMode.value == ThemeMode.dark;
   SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
+    SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: Color(0x33000000),
+      statusBarIconBrightness: initDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: initDark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: initDark ? const Color(0xFF0F1F18) : const Color(0xFFF5F7F6),
       systemNavigationBarDividerColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarIconBrightness: initDark ? Brightness.light : Brightness.dark,
       systemNavigationBarContrastEnforced: false,
     ),
   );
@@ -62,11 +63,18 @@ class QuranApp extends StatefulWidget {
 }
 
 class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
-  static void _applyNavBarStyle() {
+  static Color _navBarColor(bool isDark) =>
+      isDark ? const Color(0xFF0F1F18) : const Color(0xFFF5F7F6);
+
+  void _applyNavBarStyle() {
+    final isDark = ThemeService.themeMode.value == ThemeMode.dark ||
+        (ThemeService.themeMode.value == ThemeMode.system &&
+            WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark);
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        systemNavigationBarColor: Color(0x33000000),
+      SystemUiOverlayStyle(
+        systemNavigationBarColor: _navBarColor(isDark),
         systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         systemNavigationBarContrastEnforced: false,
       ),
     );
@@ -103,11 +111,15 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: ThemeService.themeMode,
       builder: (context, mode, _) {
+        final isDark = mode == ThemeMode.dark ||
+            (mode == ThemeMode.system &&
+                MediaQuery.platformBrightnessOf(context) == Brightness.dark);
         return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: const SystemUiOverlayStyle(
+          value: SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
-            systemNavigationBarColor: Color(0x33000000),
+            systemNavigationBarColor: _navBarColor(isDark),
             systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
             systemNavigationBarContrastEnforced: false,
           ),
           child: MaterialApp(
