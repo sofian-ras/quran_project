@@ -41,6 +41,7 @@ class SurahListScreen extends StatelessWidget {
         systemNavigationBarDividerColor: Colors.transparent,
         systemNavigationBarIconBrightness:
             isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarContrastEnforced: false,
       ),
       child: DefaultTabController(
       length: 2,

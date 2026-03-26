@@ -339,7 +339,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _imageCache.clear();
 
     // Restaure les icônes système par défaut à la sortie du reader
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark.copyWith(
+      systemNavigationBarColor: Colors.transparent,
+    ));
 
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,

@@ -79,7 +79,11 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
         final fg = isDark ? Colors.white.withValues(alpha: 0.92) : Colors.black.withValues(alpha: 0.90);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      value: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarContrastEnforced: false,
+      ),
       child: DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -3281,7 +3285,11 @@ class _TranslatedSurahScreenState extends State<TranslatedSurahScreen>
     final playerHPad = _isLandscape ? math.max(14.0, (screenW - 400) / 2) : 14.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      value: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarContrastEnforced: false,
+      ),
       child: Scaffold(
       backgroundColor: _bg(isDark),
       body: Container(
