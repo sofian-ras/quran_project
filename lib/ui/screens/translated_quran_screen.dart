@@ -655,9 +655,9 @@ class _SurahTabState extends State<_SurahTab> {
     if (_imageReaderModeNotifier.value) {
       final int page = overridePage ?? _surahStartPages[surahId - 1];
       try {
-        await QuranImageService.getPageFile('hafs', page);
+        await QuranImageService.instance.getPageFile('hafs', page);
         if (!context.mounted) return;
-        final File? file = QuranImageService.getSyncCached(page);
+        final File? file = QuranImageService.instance.getSyncCached(page);
         if (file != null) await precacheImage(FileImage(file), context);
         if (!context.mounted) return;
       } catch (_) {}

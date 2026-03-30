@@ -71,14 +71,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ── Quran download ─────────────────────────────────────────────────────────
   Future<void> _refreshQuranState() async {
-    final ready = await QuranImageService.areImagesDownloaded();
+    final ready = await QuranImageService.instance.areImagesDownloaded();
     if (!mounted) return;
     setState(() => _quranReady = ready);
   }
 
   void _startPolling() {
     _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
-      final st = QuranImageService.getDownloadStatus();
+      final st = QuranImageService.instance.getDownloadStatus();
       final d  = st['isDownloading'] == true;
       final e  = st['isExtracting']  == true;
       final p  = (st['downloadProgress'] is double)
@@ -101,7 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _downloadQuran() async {
     setState(() { _quranDownloading = true; _quranProgress = 0; });
     try {
-      await QuranImageService.downloadAndExtractImages(
+      await QuranImageService.instance.downloadAndExtractImages(
         onDownloadProgress: (p) {
           if (!mounted) return;
           setState(() { _quranDownloading = true; _quranProgress = p; });

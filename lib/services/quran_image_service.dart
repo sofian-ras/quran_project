@@ -7,35 +7,38 @@ import 'package:path_provider/path_provider.dart';
 /// Service d'accès aux pages du Coran (Hafs 1024px).
 /// Chaque page est téléchargée individuellement à la demande et mise en cache localement.
 class QuranImageService {
+  QuranImageService._();
+  static final QuranImageService instance = QuranImageService._();
+
   static const String _cdnBase =
       'https://quran.islam-db.com/data/pages/quranpages_1024/images';
 
   static const int totalPages = 604;
 
-  static final Dio _dio = Dio();
-  static String? _hafsPath;
+  final Dio _dio = Dio();
+  String? _hafsPath;
 
   // Évite les téléchargements simultanés de la même page.
-  static final Map<int, Future<File>> _inProgress = {};
+  final Map<int, Future<File>> _inProgress = {};
 
   // Cache synchrone : pages dont le fichier local est confirmé disponible.
-  static final Map<int, File> _syncCache = {};
+  final Map<int, File> _syncCache = {};
 
   /// Retourne le fichier immédiatement si déjà connu, sans I/O.
-  static File? getSyncCached(int page) => _syncCache[page];
+  File? getSyncCached(int page) => _syncCache[page];
 
-  static Future<void> _ensurePaths() async {
+  Future<void> _ensurePaths() async {
     if (_hafsPath != null) return;
     final dir = await getApplicationDocumentsDirectory();
     _hafsPath = p.join(dir.path, 'hafs');
     await Directory(_hafsPath!).create(recursive: true);
   }
 
-  static String _pageFileName(int page) =>
+  String _pageFileName(int page) =>
       'page${page.toString().padLeft(3, '0')}.png';
 
   /// Retourne le fichier local de la page, en le téléchargeant depuis le CDN si absent.
-  static Future<File> getPageFile(
+  Future<File> getPageFile(
     String reading,
     int page, {
     void Function(double progress)? onProgress,
@@ -66,7 +69,7 @@ class QuranImageService {
     }
   }
 
-  static Future<File> _downloadPage(
+  Future<File> _downloadPage(
     int page,
     File dest, {
     void Function(double)? onProgress,
@@ -97,13 +100,13 @@ class QuranImageService {
   }
 
   /// Vérifie si le fichier local d'une page existe déjà.
-  static Future<bool> isPageCached(int page) async {
+  Future<bool> isPageCached(int page) async {
     await _ensurePaths();
     return File(p.join(_hafsPath!, _pageFileName(page))).exists();
   }
 
   /// Compatibilité : vérifie si toutes les pages sont présentes (anciens utilisateurs avec ZIP).
-  static Future<bool> areImagesDownloaded() async {
+  Future<bool> areImagesDownloaded() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final hafsPath = p.join(dir.path, 'hafs');
@@ -116,14 +119,14 @@ class QuranImageService {
   }
 
   /// Chemin local d'une page si elle existe déjà.
-  static Future<String?> getPagePathIfExists(String reading, int page) async {
+  Future<String?> getPagePathIfExists(String reading, int page) async {
     await _ensurePaths();
     final path = p.join(_hafsPath!, _pageFileName(page));
     if (await File(path).exists()) return path;
     return null;
   }
 
-  static Map<String, dynamic> getDownloadStatus() => {
+  Map<String, dynamic> getDownloadStatus() => {
         'isDownloading': _inProgress.isNotEmpty,
         'isExtracting': false,
         'downloadProgress': 0.0,
@@ -131,14 +134,14 @@ class QuranImageService {
       };
 
   /// Conservé pour compatibilité — le téléchargement est désormais per-page via getPageFile().
-  static Future<void> downloadAndExtractImages({
+  Future<void> downloadAndExtractImages({
     Function(double)? onDownloadProgress,
     Function(double)? onExtractionProgress,
   }) async {
     debugPrint('downloadAndExtractImages: obsolète, téléchargement per-page actif.');
   }
 
-  static Future<void> clearCache() async {
+  Future<void> clearCache() async {
     await _ensurePaths();
     try {
       final folder = Directory(_hafsPath!);
@@ -152,7 +155,7 @@ class QuranImageService {
     }
   }
 
-  static Future<int> getCacheSize() async {
+  Future<int> getCacheSize() async {
     await _ensurePaths();
     try {
       final folder = Directory(_hafsPath!);

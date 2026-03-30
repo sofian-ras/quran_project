@@ -9,14 +9,14 @@ Future<void> openPageWithPrecache(
   VoidCallback onOpen,
   void Function(bool loading) setLoading,
 ) async {
-  final bool isCached = QuranImageService.getSyncCached(pageNum) != null ||
-      await QuranImageService.isPageCached(pageNum);
+  final bool isCached = QuranImageService.instance.getSyncCached(pageNum) != null ||
+      await QuranImageService.instance.isPageCached(pageNum);
 
   if (isCached) {
-    if (QuranImageService.getSyncCached(pageNum) == null) {
-      await QuranImageService.getPageFile('hafs', pageNum);
+    if (QuranImageService.instance.getSyncCached(pageNum) == null) {
+      await QuranImageService.instance.getPageFile('hafs', pageNum);
     }
-    final file = QuranImageService.getSyncCached(pageNum);
+    final file = QuranImageService.instance.getSyncCached(pageNum);
     if (file != null && context.mounted) await precacheImage(FileImage(file), context);
     if (!context.mounted) return;
     onOpen();
@@ -25,12 +25,12 @@ Future<void> openPageWithPrecache(
 
   setLoading(true);
   try {
-    await QuranImageService.getPageFile('hafs', pageNum);
+    await QuranImageService.instance.getPageFile('hafs', pageNum);
   } catch (_) {}
   if (!context.mounted) return;
   setLoading(false);
 
-  final file = QuranImageService.getSyncCached(pageNum);
+  final file = QuranImageService.instance.getSyncCached(pageNum);
   if (file == null) return;
 
   await precacheImage(FileImage(file), context);

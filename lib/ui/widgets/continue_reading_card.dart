@@ -64,9 +64,9 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
     return GestureDetector(
       onTap: () async {
         try {
-          await QuranImageService.getPageFile('hafs', _pageNumber);
+          await QuranImageService.instance.getPageFile('hafs', _pageNumber);
           if (!mounted) return;
-          final File? file = QuranImageService.getSyncCached(_pageNumber);
+          final File? file = QuranImageService.instance.getSyncCached(_pageNumber);
           if (file != null) await precacheImage(FileImage(file), context);
           if (!mounted) return;
         } catch (_) {}

@@ -96,9 +96,9 @@ class _QuranPageViewState extends State<QuranPageView> {
     });
 
     try {
-      final imagesAvailable = await QuranImageService.areImagesDownloaded();
+      final imagesAvailable = await QuranImageService.instance.areImagesDownloaded();
       if (!imagesAvailable) {
-        await QuranImageService.downloadAndExtractImages(
+        await QuranImageService.instance.downloadAndExtractImages(
           onDownloadProgress: (p) =>
               debugPrint('Téléchargement: ${(p * 100).toStringAsFixed(1)}%'),
         );
@@ -154,7 +154,7 @@ class _QuranPageViewState extends State<QuranPageView> {
   Future<void> _loadPageIntoCache(int pageNum) async {
     try {
       final file =
-          await QuranImageService.getPageFile(widget.reading, pageNum);
+          await QuranImageService.instance.getPageFile(widget.reading, pageNum);
       if (!mounted) return;
       _imageCache[pageNum] = file;
       if (context.mounted) {

@@ -63,7 +63,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
     _refreshQuranPagesState();
     _refreshAudio();
     _quranPollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
-      final st = QuranImageService.getDownloadStatus();
+      final st = QuranImageService.instance.getDownloadStatus();
       final bool d = st['isDownloading'] == true;
       final bool e = st['isExtracting'] == true;
       final double prog = (st['downloadProgress'] is double)
@@ -91,8 +91,8 @@ class _DownloadsScreenState extends State<DownloadsScreen>
   // ── Quran pages ─────────────────────────────────────────────────────────────
 
   Future<void> _refreshQuranPagesState() async {
-    final ready = await QuranImageService.areImagesDownloaded();
-    final size = ready ? await QuranImageService.getCacheSize() : 0;
+    final ready = await QuranImageService.instance.areImagesDownloaded();
+    final size = ready ? await QuranImageService.instance.getCacheSize() : 0;
     if (!mounted) return;
     setState(() {
       _quranReady = ready;
@@ -107,7 +107,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
       _quranProgress = 0.0;
     });
     try {
-      await QuranImageService.downloadAndExtractImages(
+      await QuranImageService.instance.downloadAndExtractImages(
         onDownloadProgress: (prog) {
           if (!mounted) return;
           setState(() {
@@ -129,7 +129,7 @@ class _DownloadsScreenState extends State<DownloadsScreen>
   }
 
   Future<void> _clearQuranPages() async {
-    await QuranImageService.clearCache();
+    await QuranImageService.instance.clearCache();
     await _refreshQuranPagesState();
   }
 

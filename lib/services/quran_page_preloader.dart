@@ -23,7 +23,7 @@ class QuranPagePreloader {
 
   Future<void> _preloadOne(BuildContext context, int pageNum, String reading) async {
     try {
-      final File file = await QuranImageService.getPageFile(reading, pageNum);
+      final File file = await QuranImageService.instance.getPageFile(reading, pageNum);
       if (!context.mounted) return;
       await precacheImage(FileImage(file), context);
     } catch (e) {

@@ -75,7 +75,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<File?> _safeGetPageFile(String reading, int pageNum) async {
     try {
-      return await QuranImageService.getPageFile(reading, pageNum);
+      return await QuranImageService.instance.getPageFile(reading, pageNum);
     } catch (_) {
       return null;
     }
@@ -246,7 +246,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _loadPageIntoCache(int pageNum) async {
     try {
-      final file = await QuranImageService.getPageFile(currentReading, pageNum);
+      final file = await QuranImageService.instance.getPageFile(currentReading, pageNum);
       _imageCache[pageNum] = file;
       if (mounted) await precacheImage(FileImage(file), context);
     } catch (e) {
@@ -257,12 +257,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// Downloads (if needed) and precaches [page] before jumping to it.
   Future<void> _navigateToPage(int page) async {
     if (!mounted) return;
-    File? file = QuranImageService.getSyncCached(page);
+    File? file = QuranImageService.instance.getSyncCached(page);
     if (file == null) {
       try {
-        file = await QuranImageService.getPageFile(currentReading, page);
+        file = await QuranImageService.instance.getPageFile(currentReading, page);
       } catch (_) {}
-      file = QuranImageService.getSyncCached(page);
+      file = QuranImageService.instance.getSyncCached(page);
     }
     if (file != null && mounted) {
       await precacheImage(FileImage(file), context);
@@ -562,7 +562,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   final pageNum = i + 1;
 
                   final cached = _imageCache[pageNum]
-                      ?? QuranImageService.getSyncCached(pageNum);
+                      ?? QuranImageService.instance.getSyncCached(pageNum);
                   if (cached != null) {
                     _imageCache[pageNum] = cached;
                     return _buildPageContent(cached, isLandscape, pageNum, viewPadding.bottom);
@@ -1878,15 +1878,15 @@ class _SurahSheetTileState extends State<_SurahSheetTile> {
     if (!mounted) return;
 
     final bool isCached =
-        QuranImageService.getSyncCached(widget.firstPage) != null ||
-        await QuranImageService.isPageCached(widget.firstPage);
+        QuranImageService.instance.getSyncCached(widget.firstPage) != null ||
+        await QuranImageService.instance.isPageCached(widget.firstPage);
 
     if (isCached) {
       setState(() => _fillProgress = 1.0);
-      if (QuranImageService.getSyncCached(widget.firstPage) == null) {
-        await QuranImageService.getPageFile(widget.reading, widget.firstPage);
+      if (QuranImageService.instance.getSyncCached(widget.firstPage) == null) {
+        await QuranImageService.instance.getPageFile(widget.reading, widget.firstPage);
       }
-      final file = QuranImageService.getSyncCached(widget.firstPage);
+      final file = QuranImageService.instance.getSyncCached(widget.firstPage);
       if (file != null && mounted) {
         await precacheImage(FileImage(file), context);
       }
@@ -1903,7 +1903,7 @@ class _SurahSheetTileState extends State<_SurahSheetTile> {
     });
 
     try {
-      await QuranImageService.getPageFile(
+      await QuranImageService.instance.getPageFile(
         widget.reading,
         widget.firstPage,
         onProgress: (p) {
@@ -1914,7 +1914,7 @@ class _SurahSheetTileState extends State<_SurahSheetTile> {
 
     if (!mounted) return;
 
-    final file = QuranImageService.getSyncCached(widget.firstPage);
+    final file = QuranImageService.instance.getSyncCached(widget.firstPage);
     if (file == null) {
       setState(() { _fillProgress = 0.0; _loading = false; });
       return;

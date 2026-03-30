@@ -203,7 +203,7 @@ class _QuranReaderExampleScreenState extends State<QuranReaderExampleScreen> {
               leading: const Icon(Icons.delete_outline),
               title: const Text('Vider le cache'),
               subtitle: FutureBuilder<int>(
-                future: QuranImageService.getCacheSize(),
+                future: QuranImageService.instance.getCacheSize(),
                 builder: (context, snapshot) {
                   if (snapshot.hasData) {
                     final sizeMB = (snapshot.data! / (1024 * 1024)).toStringAsFixed(1);
@@ -251,7 +251,7 @@ class _QuranReaderExampleScreenState extends State<QuranReaderExampleScreen> {
         ),
       );
 
-      await QuranImageService.clearCache();
+      await QuranImageService.instance.clearCache();
 
       if (mounted) {
         Navigator.pop(context); // Fermer le loading
@@ -279,7 +279,7 @@ class _QuranReaderExampleScreenState extends State<QuranReaderExampleScreen> {
   Future<void> _redownloadImages() async {
     try {
       // Vider le cache d'abord
-      await QuranImageService.clearCache();
+      await QuranImageService.instance.clearCache();
 
       // Relancer l'écran
       if (mounted) {

@@ -59,9 +59,9 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
     debugPrint('🔥🔥🔥 _openReader page=$page useImage=$_useImageReader');
     if (_useImageReader) {
       try {
-        await QuranImageService.getPageFile('hafs', page);
+        await QuranImageService.instance.getPageFile('hafs', page);
         if (!mounted) return;
-        final File? file = QuranImageService.getSyncCached(page);
+        final File? file = QuranImageService.instance.getSyncCached(page);
         if (file != null) await precacheImage(FileImage(file), context);
         if (!mounted) return;
       } catch (_) {}

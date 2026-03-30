@@ -27,7 +27,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
 
   Future<void> _checkAndDownload() async {
     try {
-      final imagesReady      = await QuranImageService.areImagesDownloaded();
+      final imagesReady      = await QuranImageService.instance.areImagesDownloaded();
       final translationReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
 
       if (imagesReady && translationReady) {
@@ -45,7 +45,7 @@ class _InitialLoadingScreenState extends State<InitialLoadingScreen> {
           });
         }
 
-        await QuranImageService.downloadAndExtractImages(
+        await QuranImageService.instance.downloadAndExtractImages(
           onDownloadProgress: (progress) {
             if (mounted) {
               setState(() {

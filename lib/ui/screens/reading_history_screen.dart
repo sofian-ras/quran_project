@@ -35,7 +35,7 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen> {
     final int page = (it['page'] is int) ? it['page'] as int : int.tryParse('${it['page']}') ?? 1;
     final String reading = (it['reading']?.toString() ?? 'hafs');
 
-    final downloaded = await QuranImageService.areImagesDownloaded();
+    final downloaded = await QuranImageService.instance.areImagesDownloaded();
     if (!mounted) return;
 
     if (!downloaded) {
@@ -52,9 +52,9 @@ class _ReadingHistoryScreenState extends State<ReadingHistoryScreen> {
     }
 
     try {
-      await QuranImageService.getPageFile(reading, page);
+      await QuranImageService.instance.getPageFile(reading, page);
       if (!mounted) return;
-      final File? file = QuranImageService.getSyncCached(page);
+      final File? file = QuranImageService.instance.getSyncCached(page);
       if (file != null) await precacheImage(FileImage(file), context);
       if (!mounted) return;
     } catch (_) {}
