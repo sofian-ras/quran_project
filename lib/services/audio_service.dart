@@ -8,7 +8,7 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'package:rxdart/rxdart.dart';
 import 'download_service.dart';
 
-import '../surah_name.dart';
+import '../data/surah_name.dart';
 import 'qul_audio/models/qul_reciter.dart';
 import 'qul_audio/qul_catalog_service.dart';
 import 'qul_audio/qul_audio_resolver.dart';

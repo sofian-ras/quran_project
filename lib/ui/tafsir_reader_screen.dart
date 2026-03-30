@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/tafsir_service.dart';
 import '../services/quran_text_db.dart';
 import '../services/quran_ayah_metadata_db.dart';
-import '../surah_name.dart';
+import '../data/surah_name.dart';
 
 class TafsirReaderScreen extends StatefulWidget {
   final TafsirBook book;

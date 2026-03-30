@@ -12,7 +12,7 @@ import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
 import '../services/quran_translation_pack_service.dart';
 import 'package:sqflite/sqflite.dart';
-import '../surah_name.dart';
+import '../data/surah_name.dart';
 import 'reciter_picker_screen.dart';
 import 'tafsir_library_screen.dart';
 import 'widgets/continue_reading_card.dart';

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../surah_name.dart';
+import '../../data/surah_name.dart';
 
 class SurahSelectorSheet extends StatefulWidget {
   final Function(int) onSelected;

@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../services/quran_text_db.dart';
 import '../../services/quran_translation_pack_service.dart';
-import '../../surah_name.dart';
+import '../../data/surah_name.dart';
 
 /// Affiche un bottom sheet proposant de télécharger la traduction.
 /// Retourne true si le téléchargement a réussi.

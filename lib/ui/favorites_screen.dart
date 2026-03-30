@@ -4,7 +4,7 @@ import 'dart:convert';
 import '../services/favorites_service.dart';
 import '../services/audio_service.dart';
 import '../theme/app_theme.dart';
-import '../surah_name.dart';
+import '../data/surah_name.dart';
 import 'screens/quran_loader.dart';
 import 'widgets/surah_card.dart';
 

@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/mini_player_service.dart';
 import '../../services/quran_text_db.dart';
-import '../../surah_name.dart';
+import '../../data/surah_name.dart';
 import 'ayah_action_sheet.dart';
 import 'verse_share_helper.dart';
 

@@ -17,13 +17,13 @@ import '../services/verse_notes_service.dart';
 import '../services/audio_service.dart';
 import '../services/reading_history_service.dart';
 import '../services/qul_audio/qul_audio_resolver.dart';
-import '../surah_name.dart';
+import '../data/surah_name.dart';
 import '../services/tafsir_service.dart' show TafsirService;
 import '../services/quran_ayah_metadata_db.dart';
 import '../services/quran_image_service.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'reader_screen.dart';
-import '../hizb_juzz.dart';
+import '../data/hizb_juzz.dart';
 
 // Notifier partagé entre la liste et l'en-tête (0=blanc, 1=papier, 2=sombre)
 final _tqsThemeNotifier = ValueNotifier<int>(1);

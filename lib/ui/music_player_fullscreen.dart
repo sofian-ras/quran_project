@@ -4,7 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:just_audio/just_audio.dart';
 import '../services/audio_service.dart';
 import '../services/favorites_service.dart';
-import '../surah_name.dart';
+import '../data/surah_name.dart';
 import 'widgets/reciter_selector.dart';
 import 'package:dio/dio.dart';
 

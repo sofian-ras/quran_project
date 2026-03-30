@@ -14,7 +14,7 @@ import '../../services/quran_ayah_metadata_db.dart';
 import '../../services/quran_text_db.dart';
 import '../../services/quran_translation_pack_service.dart';
 import '../../services/verse_favorites_service.dart';
-import '../../surah_name.dart';
+import '../../data/surah_name.dart';
 import '../../data/quran_text_data.dart';
 import '../../data/sura_ayah_to_page.dart';
 import '../../services/font_download_service.dart';

@@ -10,7 +10,7 @@ import '../services/download_service.dart';
 import '../services/quran_image_service.dart';
 import '../services/qul_audio/audio_download_manager.dart' hide DownloadStatus;
 import '../services/qul_audio/qul_catalog_service.dart';
-import '../surah_name.dart';
+import '../data/surah_name.dart';
 import '../theme/app_theme.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
