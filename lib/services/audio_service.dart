@@ -54,9 +54,9 @@ class AudioService {
     });
     _ayahPlayer.sequenceStateStream.listen((seq) {
       final tag = seq?.currentSource?.tag;
-      if (tag is String) {
-        currentAyahKeyNotifier.value = tag; // ex: "2:255"
-        currentAyahTitleNotifier.value = tag;
+      if (tag is MediaItem) {
+        currentAyahKeyNotifier.value = tag.id; // ex: "2:255"
+        currentAyahTitleNotifier.value = tag.title;
       }
     });
 
@@ -791,5 +791,23 @@ class AudioService {
 
     await _player.dispose();
     await _ayahPlayer.dispose();
+
+    // ValueNotifiers
+    isFullPlayerOpenNotifier.dispose();
+    suppressGlobalPlayer.dispose();
+    currentPlayingSurahIdNotifier.dispose();
+    currentTitleNotifier.dispose();
+    currentReciterNotifier.dispose();
+    isBuffering.dispose();
+    loopModeNotifier.dispose();
+    isShuffleEnabled.dispose();
+    currentAyahReciterNotifier.dispose();
+    isAyahBuffering.dispose();
+    currentAyahTitleNotifier.dispose();
+    ayahSpeedNotifier.dispose();
+    ayahAutoNextDelayNotifier.dispose();
+    currentAyahKeyNotifier.dispose();
+    isAyahPlayingNotifier.dispose();
+    ayahPlayModeNotifier.dispose();
   }
 }
