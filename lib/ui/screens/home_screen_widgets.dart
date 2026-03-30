@@ -20,7 +20,7 @@ class _HomeTopBar extends StatelessWidget {
 
 class _DribbbleHomeHeader extends StatelessWidget {
   final bool pauseTicker;
-  final Future<_PrayerHeaderData> prayerFuture;
+  final Future<PrayerHeaderData> prayerFuture;
   final int Function(List<(String, String)>) activeIndexFromTimes;
   final VoidCallback? onLocationTap;
 
@@ -105,7 +105,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(20, topPad + 10, 12, 32),
-        child: FutureBuilder<_PrayerHeaderData>(
+        child: FutureBuilder<PrayerHeaderData>(
           future: prayerFuture,
           builder: (context, snap) {
             final data = snap.data;
@@ -347,7 +347,7 @@ class _NotificationBellButton extends StatelessWidget {
 class _HeaderWithEngagement extends StatelessWidget {
   final bool pausePrayerTicker;
   final VoidCallback onContinue;
-  final Future<_PrayerHeaderData> prayerFuture;
+  final Future<PrayerHeaderData> prayerFuture;
   final int Function(List<(String, String)>) activeIndexFromTimes;
   final List<Reciter> reciters;
   final bool recitersLoading;
@@ -1179,47 +1179,6 @@ class _HomeCardShell extends StatelessWidget {
   }
 }
 
-class _MoshafOption {
-  final int id;
-  final String name;
-  final String server;
-  final int surahTotal;
-
-  const _MoshafOption({
-    required this.id,
-    required this.name,
-    required this.server,
-    required this.surahTotal,
-  });
-}
-
-
-class _PrayerHeaderData {
-  final String city;
-  final String country;
-  final String hijriLine;
-  final Map<String, String> times;
-  final String methodLabel;
-
-  const _PrayerHeaderData({
-    required this.city,
-    required this.country,
-    required this.hijriLine,
-    required this.times,
-    required this.methodLabel,
-  });
-
-  factory _PrayerHeaderData.error({required String city, required String country}) {
-    return _PrayerHeaderData(
-      city: city,
-      country: country,
-      hijriLine: '',
-      times: const {},
-      methodLabel: '',
-    );
-  }
-}
-
 
 class _FeatureSquareItem extends StatelessWidget {
   final String label;
@@ -1334,3 +1293,18 @@ class _FeatureSquareItem extends StatelessWidget {
 
 }
 
+
+// Model local à home_screen (différent de _HomeMoshafServer dans reciter_picker_screen)
+class _HomeMoshafServer {
+  final int id;
+  final String name;
+  final String server;
+  final int surahTotal;
+
+  const _HomeMoshafServer({
+    required this.id,
+    required this.name,
+    required this.server,
+    required this.surahTotal,
+  });
+}

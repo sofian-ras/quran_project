@@ -18,6 +18,7 @@ import 'tafsir_library_screen.dart';
 import '../widgets/continue_reading_card.dart';
 import '../widgets/youtube_video_card.dart';
 import '../../models/reciter.dart';
+import '../../models/prayer_header_data.dart';
 import 'package:dio/dio.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../widgets/location_picker_dialog.dart';
@@ -42,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   bool? _lastIsDark;
   static const double hPad = 14;
   static const double vGap = 12;
-  String? _pickDefaultServer(List<_MoshafOption> list) {
+  String? _pickDefaultServer(List<_HomeMoshafServer> list) {
     // Priorité: Hafs, sinon 1er
     final hafs = list.where((o) => o.name.toLowerCase().contains('hafs')).toList();
     if (hafs.isNotEmpty) return hafs.first.server;
@@ -54,8 +55,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   final AudioService _audio = AudioService.instance;
 
-  final Map<String, List<_MoshafOption>> _moshafByName = {};
-  final Map<int, List<_MoshafOption>> _moshafById = {}; // Ajout pour indexation par reciterId
+  final Map<String, List<_HomeMoshafServer>> _moshafByName = {};
+  final Map<int, List<_HomeMoshafServer>> _moshafById = {}; // Ajout pour indexation par reciterId
   bool _isLoading = true;
   final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>(<int>{});
   List<Reciter> _reciters = [];
@@ -65,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   final Dio _dio = Dio();
   bool _serversLoading = false;
 
-  late Future<_PrayerHeaderData> _prayerFuture;
+  late Future<PrayerHeaderData> _prayerFuture;
 
 
   
@@ -209,7 +210,7 @@ Future<void> _checkFirstLaunch() async {
     return labels[id] ?? 'Méthode $id';
   }
 
-  Future<_PrayerHeaderData> _loadPrayerHeader() async {
+  Future<PrayerHeaderData> _loadPrayerHeader() async {
     final location = await LocationService.getSavedOrCurrentLocation();
     final prefs = await SharedPreferences.getInstance();
     final methodRaw = (prefs.getString('prayer_method') ?? '12').trim();
@@ -236,7 +237,7 @@ Future<void> _checkFirstLaunch() async {
     try {
       final res = await http.get(uri).timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) {
-        return _PrayerHeaderData.error(city: location.city, country: location.country);
+        return PrayerHeaderData.error(city: location.city, country: location.country);
       }
 
       final payload = jsonDecode(res.body) as Map<String, dynamic>;
@@ -249,7 +250,7 @@ Future<void> _checkFirstLaunch() async {
       final hijriLine = _formatHijri(hijri);
       final times = _extractTimes(timings);
 
-      return _PrayerHeaderData(
+      return PrayerHeaderData(
         city: location.city,      // â† Affiche seulement la ville
         country: location.country,
         hijriLine: hijriLine,
@@ -257,7 +258,7 @@ Future<void> _checkFirstLaunch() async {
         methodLabel: methodLabel,
       );
     } catch (e) {
-      return _PrayerHeaderData.error(city: location.city, country: location.country);
+      return PrayerHeaderData.error(city: location.city, country: location.country);
     }
   }
 
@@ -346,7 +347,7 @@ Future<void> _checkFirstLaunch() async {
         final moshaf = (r['moshaf'] as List?) ?? const [];
         if (name.isEmpty || moshaf.isEmpty) continue;
 
-        final List<_MoshafOption> options = [];
+        final List<_HomeMoshafServer> options = [];
 
         for (final m in moshaf) {
           final mm = m as Map<String, dynamic>;
@@ -357,7 +358,7 @@ Future<void> _checkFirstLaunch() async {
           final mName = (mm['name'] ?? '').toString().trim();
           final total = (mm['surah_total'] is int) ? (mm['surah_total'] as int) : int.tryParse('${mm['surah_total']}') ?? 114;
 
-          options.add(_MoshafOption(
+          options.add(_HomeMoshafServer(
             id: id,
             name: mName,
             server: server.endsWith('/') ? server.substring(0, server.length - 1) : server,
