@@ -7,8 +7,10 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:rxdart/rxdart.dart';
 import 'download_service.dart';
+import 'radio_service.dart';
 
 import '../data/surah_name.dart';
+import '../models/radio_station.dart';
 import 'qul_audio/models/qul_reciter.dart';
 import 'qul_audio/qul_catalog_service.dart';
 import 'qul_audio/qul_audio_resolver.dart';
@@ -809,5 +811,60 @@ class AudioService {
     currentAyahKeyNotifier.dispose();
     isAyahPlayingNotifier.dispose();
     ayahPlayModeNotifier.dispose();
+    isRadioModeNotifier.dispose();
+  }
+
+  // =======================
+  //  C) Radio
+  // =======================
+
+  final ValueNotifier<bool> isRadioModeNotifier = ValueNotifier<bool>(false);
+
+  Future<void> playRadio(RadioStation station) async {
+    await stopAyah();
+    await _player.stop();
+    _playlist         = null;
+    _audioSourceReady = false;
+    currentPlayingSurahIdNotifier.value = null;
+    currentTitleNotifier.value   = station.displayName;
+    currentReciterNotifier.value = station.domain;
+    // Passer en mode radio AVANT setAudioSource pour que le badge LIVE
+    // s'affiche dès le buffering.
+    isRadioModeNotifier.value = true;
+    try {
+      await _player.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(station.url),
+          tag: MediaItem(
+            id:     station.url,
+            title:  station.displayName,
+            artist: station.domain,
+            album:  'Radio Quran',
+          ),
+        ),
+      );
+      await _player.play();
+    } catch (e) {
+      isRadioModeNotifier.value = false;
+      debugPrint('AudioService: playRadio error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> stopRadio() async {
+    isRadioModeNotifier.value = false;
+    RadioService.instance.currentStationNotifier.value = null;
+    await _player.stop();
+    currentTitleNotifier.value   = 'Aucune lecture';
+    currentReciterNotifier.value = 'Abdelrashid as-Soufy';
+  }
+
+  /// Arrête tout (radio ou sourate) — utilisé par le swipe-to-dismiss.
+  Future<void> stopAll() async {
+    if (isRadioModeNotifier.value) {
+      await stopRadio();
+    } else {
+      await stop();
+    }
   }
 }

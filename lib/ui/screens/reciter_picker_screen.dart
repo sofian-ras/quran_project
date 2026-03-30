@@ -109,6 +109,7 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
 
   @override
   void dispose() {
+    _audio.suppressGlobalPlayer.value = false;
     _pageCtrl.removeListener(_onPageScroll);
     _pageCtrl.dispose();
     _search.dispose();

@@ -194,6 +194,9 @@ class _DribbbleHomeHeader extends StatelessWidget {
                             ],
                           ),
                         ),
+                        _RadioIconButton(
+                          onTap: () => RadioBottomSheet.show(context),
+                        ),
                         _NotificationBellButton(
                           count: 3,
                           onTap: () => ScaffoldMessenger.of(context).showSnackBar(
@@ -340,6 +343,28 @@ class _NotificationBellButton extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _RadioIconButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _RadioIconButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark    = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black.withValues(alpha: 0.78);
+    return ValueListenableBuilder<bool>(
+      valueListenable: AudioService.instance.isRadioModeNotifier,
+      builder: (_, isRadio, __) => IconButton(
+        onPressed: onTap,
+        tooltip: 'Radio',
+        icon: Icon(
+          isRadio ? Icons.radio : Icons.radio_outlined,
+          color: isRadio ? const Color(0xFF38C172) : iconColor,
+        ),
+      ),
     );
   }
 }
