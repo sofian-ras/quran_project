@@ -4,10 +4,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/audio_service.dart';
-import '../bookmarks_screen.dart';
-import '../downloads_screen.dart';
-import '../favorites_screen.dart';
-import '../settings_screen.dart';
+import '../screens/bookmarks_screen.dart';
+import '../screens/downloads_screen.dart';
+import '../screens/favorites_screen.dart';
+import '../screens/settings_screen.dart';
 import 'reciter_selector.dart';
 
 class IOSSideMenu extends StatelessWidget {

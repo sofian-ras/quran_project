@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../services/audio_service.dart';
-import '../models/reciter.dart';
+import '../../services/audio_service.dart';
+import '../../models/reciter.dart';
 
 class ReciterDetailScreen extends StatelessWidget {
   final Reciter reciter;

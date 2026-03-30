@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import '../services/bookmark_service.dart';
-import '../theme/app_theme.dart';
-import 'screens/quran_loader.dart';
+import '../../services/bookmark_service.dart';
+import '../../theme/app_theme.dart';
+import 'quran_loader.dart';
 
 /// Écran de gestion des marque-pages
 class BookmarksScreen extends StatefulWidget {

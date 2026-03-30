@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import '../services/reading_history_service.dart';
-import '../theme/app_theme.dart';
+import '../../services/reading_history_service.dart';
+import '../../theme/app_theme.dart';
 
 /// Écran des statistiques de lecture
 class StatisticsScreen extends StatefulWidget {

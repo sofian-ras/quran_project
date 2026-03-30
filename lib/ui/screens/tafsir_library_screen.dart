@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../services/tafsir_service.dart';
-import '../services/tafsir_download_manager.dart';
+import '../../services/tafsir_service.dart';
+import '../../services/tafsir_download_manager.dart';
 import 'tafsir_reader_screen.dart';
 
 class TafsirLibraryScreen extends StatefulWidget {

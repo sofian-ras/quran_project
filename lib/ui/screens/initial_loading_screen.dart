@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/quran_image_service.dart';
 import '../../services/quran_translation_pack_service.dart';
 import '../widgets/download_progress_widget.dart';
-import '../bottom_nav_shell.dart';
+import 'bottom_nav_shell.dart';
 
 /// Écran de chargement initial avec progression de téléchargement
 class InitialLoadingScreen extends StatefulWidget {

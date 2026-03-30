@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/quran_translation_pack_service.dart';
-import '../translated_quran_screen.dart';
+import '../screens/translated_quran_screen.dart';
 
 enum _FrenchMode { online, offline }
 

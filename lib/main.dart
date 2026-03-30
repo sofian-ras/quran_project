@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-import 'ui/bottom_nav_shell.dart';
+import 'ui/screens/bottom_nav_shell.dart';
 import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';

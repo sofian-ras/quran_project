@@ -2,10 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:just_audio/just_audio.dart';
-import '../services/audio_service.dart';
-import '../services/favorites_service.dart';
-import '../data/surah_name.dart';
-import 'widgets/reciter_selector.dart';
+import '../../services/audio_service.dart';
+import '../../services/favorites_service.dart';
+import '../../data/surah_name.dart';
+import '../widgets/reciter_selector.dart';
 import 'package:dio/dio.dart';
 
 class MusicPlayerFullScreen extends StatefulWidget {

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../data/surah_name.dart';
-import '../services/audio_service.dart';
-import '../services/favorites_service.dart';
-import 'widgets/surah_card.dart' show SurahCard, openPageWithPrecache;
-import '../data/hizb_juzz.dart';
+import '../../data/surah_name.dart';
+import '../../services/audio_service.dart';
+import '../../services/favorites_service.dart';
+import '../widgets/surah_card.dart' show SurahCard, openPageWithPrecache;
+import '../../data/hizb_juzz.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'translated_quran_screen.dart';

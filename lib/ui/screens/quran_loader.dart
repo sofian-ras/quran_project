@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../reader_screen.dart';
+import 'reader_screen.dart';
 
 /// Écran de chargement initial pour le téléchargement des images du Coran
 class QuranLoader extends StatefulWidget {

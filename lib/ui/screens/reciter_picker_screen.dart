@@ -8,8 +8,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/audio_service.dart';
-import '../services/download_service.dart';
+import '../../services/audio_service.dart';
+import '../../services/download_service.dart';
 import 'reciter_surah_list_screen.dart';
 
 // ── Gradients (identiques au home screen) ────────────────────────────────────

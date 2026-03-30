@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../services/reading_history_service.dart';
+import '../../services/reading_history_service.dart';
 import 'reader_screen.dart';
-import 'screens/quran_loader.dart';
-import '../services/quran_image_service.dart';
+import 'quran_loader.dart';
+import '../../services/quran_image_service.dart';
 
 class ReadingHistoryScreen extends StatefulWidget {
   const ReadingHistoryScreen({super.key});

@@ -3,7 +3,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
-import '../music_player_fullscreen.dart';
+import '../screens/music_player_fullscreen.dart';
 
 class MiniAudioPlayer extends StatefulWidget {
   const MiniAudioPlayer({super.key});

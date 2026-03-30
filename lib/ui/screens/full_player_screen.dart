@@ -8,9 +8,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:dio/dio.dart';
-import '../services/audio_service.dart';
-import '../services/favorites_service.dart';
-import '../data/surah_name.dart';
+import '../../services/audio_service.dart';
+import '../../services/favorites_service.dart';
+import '../../data/surah_name.dart';
 import 'reciter_picker_screen.dart';
 
 class FullPlayerScreen extends StatefulWidget {

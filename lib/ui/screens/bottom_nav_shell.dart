@@ -6,7 +6,7 @@ import 'dua_screen.dart';
 import 'settings_screen.dart';
 import 'translated_quran_screen.dart';
 
-import 'widgets/modern_bottom_nav_bar.dart';
+import '../widgets/modern_bottom_nav_bar.dart';
 
 class BottomNavShell extends StatefulWidget {
   const BottomNavShell({super.key});

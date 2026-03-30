@@ -15,8 +15,8 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:just_audio/just_audio.dart';
-import '../services/location_service.dart';
-import 'widgets/location_picker_dialog.dart';
+import '../../services/location_service.dart';
+import '../widgets/location_picker_dialog.dart';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const _kTeal  = Color(0xFF0E6B63);

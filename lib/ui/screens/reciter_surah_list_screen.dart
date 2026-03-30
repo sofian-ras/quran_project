@@ -7,9 +7,9 @@ import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
-import '../services/audio_service.dart';
-import '../services/download_service.dart';
-import '../data/surah_name.dart';
+import '../../services/audio_service.dart';
+import '../../services/download_service.dart';
+import '../../data/surah_name.dart';
 
 // ── Gradients (même que home screen) ─────────────────────────────────────────
 const _kDarkBgColors = [

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../models/reciter.dart';
+import '../../models/reciter.dart';
 import 'reciter_detail_screen.dart';
 
 class RecitersGalleryScreen extends StatelessWidget {

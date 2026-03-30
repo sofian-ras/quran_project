@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/last_reading_service.dart';
 import '../../services/quran_image_service.dart';
-import '../reader_screen.dart';
+import '../screens/reader_screen.dart';
 
 class ContinueReadingCard extends StatefulWidget {
   const ContinueReadingCard({super.key});

@@ -1,7 +1,7 @@
 // lib/ui/dua_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../services/dua_db.dart';
+import '../../services/dua_db.dart';
 
 class DuaScreen extends StatefulWidget {
   const DuaScreen({super.key});

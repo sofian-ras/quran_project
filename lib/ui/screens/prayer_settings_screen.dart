@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/location_service.dart';
-import 'widgets/location_picker_dialog.dart';
+import '../../services/location_service.dart';
+import '../widgets/location_picker_dialog.dart';
 
 class PrayerSettingsScreen extends StatefulWidget {
   const PrayerSettingsScreen({super.key});
