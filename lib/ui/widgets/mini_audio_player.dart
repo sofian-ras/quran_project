@@ -443,24 +443,32 @@ class _SwipeToDismissPlayerState extends State<_SwipeToDismissPlayer> {
     final totalDisp = _offsetX.abs() > _offsetY ? _offsetX.abs() : _offsetY;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPanStart: (_) {},
-      onPanUpdate: (d) {
-        setState(() {
-          _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 140.0);
-          _offsetX = (_offsetX + d.delta.dx).clamp(-150.0, 150.0);
-        });
+      // ── Swipe bas ──────────────────────────────────────────────────────────
+      onVerticalDragUpdate: (d) {
+        if (d.delta.dy > 0 || _offsetY > 0) {
+          setState(() => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 140.0));
+        }
       },
-      onPanEnd: (d) {
-        final vel = d.velocity.pixelsPerSecond;
-        final dismiss = _offsetX.abs() > 80 || vel.dx.abs() > 400 ||
-            _offsetY > 60 || vel.dy > 400;
-        if (dismiss) {
+      onVerticalDragEnd: (d) {
+        if (_offsetY > 60 || d.velocity.pixelsPerSecond.dy > 400) {
           widget.onDismiss();
           return;
         }
-        setState(() { _offsetX = 0; _offsetY = 0; });
+        setState(() => _offsetY = 0);
       },
-      onPanCancel: () => setState(() { _offsetX = 0; _offsetY = 0; }),
+      onVerticalDragCancel: () => setState(() => _offsetY = 0),
+      // ── Swipe gauche / droite ───────────────────────────────────────────────
+      onHorizontalDragUpdate: (d) {
+        setState(() => _offsetX = (_offsetX + d.delta.dx).clamp(-150.0, 150.0));
+      },
+      onHorizontalDragEnd: (d) {
+        if (_offsetX.abs() > 80 || d.velocity.pixelsPerSecond.dx.abs() > 400) {
+          widget.onDismiss();
+          return;
+        }
+        setState(() => _offsetX = 0);
+      },
+      onHorizontalDragCancel: () => setState(() => _offsetX = 0),
       child: Transform.translate(
         offset: Offset(_offsetX, _offsetY),
         child: Opacity(
