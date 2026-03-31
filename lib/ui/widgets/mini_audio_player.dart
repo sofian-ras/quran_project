@@ -65,9 +65,13 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
             iconColor: iconColor,
           );
         }
-        return Material(
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Material(
           color: bg,
           elevation: 8,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -195,6 +199,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
               ),
             ],
           ),
+          ),
         );
       },
     );
@@ -209,9 +214,13 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
     required Color iconBg,
     required Color iconColor,
   }) {
-    return Material(
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Material(
       color: bg,
       elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
         child: Row(
@@ -303,6 +312,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
