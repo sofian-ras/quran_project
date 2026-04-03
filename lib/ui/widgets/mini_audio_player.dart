@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -7,6 +8,43 @@ import '../../data/reciter_photos.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../screens/music_player_fullscreen.dart';
+
+// ── Nav bar height constant (must match ModernBottomNavBar) ───────────────────
+// fabSize(72) + vMargin(14) + extra(16) = 102
+const double _kNavBarAboveSafeArea = 102.0;
+
+// ── Glassmorphic container helper ─────────────────────────────────────────────
+Widget _glass({required Widget child, EdgeInsets margin = EdgeInsets.zero}) {
+  const radius = BorderRadius.all(Radius.circular(16));
+  return Container(
+    margin: margin,
+    decoration: BoxDecoration(
+      borderRadius: radius,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.25),
+          blurRadius: 18,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    ),
+    child: ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            color: Colors.white.withValues(alpha: 0.35),
+          ),
+          child: child,
+        ),
+      ),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class MiniAudioPlayer extends StatefulWidget {
   final VoidCallback onCollapse;
@@ -46,7 +84,6 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   Widget build(BuildContext context) {
     const accent = Color(0xFF38C172);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1A1A2E) : const Color(0xFFFFFFFF);
     final textPrimary =
         isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
     final textSecondary =
@@ -61,117 +98,108 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
           return _buildRadioMode(
             context,
             accent: accent,
-            bg: bg,
             textPrimary: textPrimary,
             textSecondary: textSecondary,
             iconColor: iconColor,
           );
         }
-        return Container(
+        return _glass(
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: Material(
-            color: bg,
-            elevation: 8,
-            borderRadius: BorderRadius.circular(16),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ── Barre de progression interactive ────────────────────────
-                _SeekBar(audio: _audio, accent: accent),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Barre de progression ──────────────────────────────────────
+              _SeekBar(audio: _audio, accent: accent),
 
-                // ── Ligne principale ─────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-                  child: Row(
-                    children: [
-                      // Titre + récitateur
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _openFullPlayer,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ValueListenableBuilder<String>(
-                                valueListenable: _audio.currentTitleNotifier,
-                                builder: (_, title, __) => Text(
-                                  title,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: textPrimary,
-                                    fontSize: 14,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+              // ── Ligne principale ──────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+                child: Row(
+                  children: [
+                    // Titre + récitateur
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _openFullPlayer,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ValueListenableBuilder<String>(
+                              valueListenable: _audio.currentTitleNotifier,
+                              builder: (_, title, __) => Text(
+                                title,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: textPrimary,
+                                  fontSize: 14,
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              ValueListenableBuilder<String>(
-                                valueListenable: _audio.currentReciterNotifier,
-                                builder: (_, name, __) => Text(
-                                  name,
-                                  style: TextStyle(
-                                      color: textSecondary, fontSize: 12),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                            ),
+                            ValueListenableBuilder<String>(
+                              valueListenable: _audio.currentReciterNotifier,
+                              builder: (_, name, __) => Text(
+                                name,
+                                style:
+                                    TextStyle(color: textSecondary, fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
+                    ),
 
-                      // ▶/⏸
-                      StreamBuilder<PlayerState>(
-                        stream: _audio.playerStateStream,
-                        builder: (_, snapshot) {
-                          final state = snapshot.data;
-                          final isPlaying = state?.playing ?? false;
-                          final loading =
-                              state?.processingState ==
-                                      ProcessingState.loading ||
-                                  state?.processingState ==
-                                      ProcessingState.buffering;
-                          if (loading) {
-                            return const SizedBox(
-                              width: 36,
-                              height: 36,
-                              child: Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                      color: accent, strokeWidth: 2),
-                                ),
+                    // ▶/⏸
+                    StreamBuilder<PlayerState>(
+                      stream: _audio.playerStateStream,
+                      builder: (_, snapshot) {
+                        final state = snapshot.data;
+                        final isPlaying = state?.playing ?? false;
+                        final loading =
+                            state?.processingState == ProcessingState.loading ||
+                                state?.processingState ==
+                                    ProcessingState.buffering;
+                        if (loading) {
+                          return const SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    color: Color(0xFF38C172), strokeWidth: 2),
                               ),
-                            );
-                          }
-                          return IconButton(
-                            icon: Icon(
-                              isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: iconColor,
-                              size: 32,
                             ),
-                            onPressed: _audio.togglePlayPause,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                                minWidth: 36, minHeight: 36),
                           );
-                        },
-                      ),
+                        }
+                        return IconButton(
+                          icon: Icon(
+                            isPlaying ? Icons.pause : Icons.play_arrow,
+                            color: iconColor,
+                            size: 32,
+                          ),
+                          onPressed: _audio.togglePlayPause,
+                          padding: EdgeInsets.zero,
+                          constraints:
+                              const BoxConstraints(minWidth: 36, minHeight: 36),
+                        );
+                      },
+                    ),
 
-                      // → Réduire en cercle
-                      IconButton(
-                        icon: Icon(Icons.chevron_right,
-                            color: iconColor, size: 26),
-                        onPressed: widget.onCollapse,
-                        padding: EdgeInsets.zero,
-                        constraints:
-                            const BoxConstraints(minWidth: 36, minHeight: 36),
-                      ),
-                    ],
-                  ),
+                    // → Réduire en cercle
+                    IconButton(
+                      icon: Icon(Icons.chevron_right, color: iconColor, size: 26),
+                      onPressed: widget.onCollapse,
+                      padding: EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(minWidth: 36, minHeight: 36),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -181,118 +209,106 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   Widget _buildRadioMode(
     BuildContext context, {
     required Color accent,
-    required Color bg,
     required Color textPrimary,
     required Color textSecondary,
     required Color iconColor,
   }) {
-    return Container(
+    return _glass(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: Material(
-        color: bg,
-        elevation: 8,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-          child: Row(
-            children: [
-              // Icône radio
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isDark(context)
-                      ? const Color(0xFF253554)
-                      : const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.radio, color: accent, size: 22),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+        child: Row(
+          children: [
+            // Icône radio
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: Icon(Icons.radio, color: accent, size: 22),
+            ),
 
-              const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-              // Titre + domaine
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            // Titre + domaine
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ValueListenableBuilder<String>(
+                    valueListenable: _audio.currentTitleNotifier,
+                    builder: (_, title, __) => Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                        fontSize: 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  ValueListenableBuilder<String>(
+                    valueListenable: _audio.currentReciterNotifier,
+                    builder: (_, domain, __) => Text(
+                      domain,
+                      style: TextStyle(color: textSecondary, fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Badge LIVE + play/pause
+            StreamBuilder<PlayerState>(
+              stream: _audio.playerStateStream,
+              builder: (_, snapshot) {
+                final state = snapshot.data;
+                final isPlaying = state?.playing ?? false;
+                final loading =
+                    state?.processingState == ProcessingState.loading ||
+                        state?.processingState == ProcessingState.buffering;
+                return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ValueListenableBuilder<String>(
-                      valueListenable: _audio.currentTitleNotifier,
-                      builder: (_, title, __) => Text(
-                        title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: textPrimary,
-                          fontSize: 14,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    ValueListenableBuilder<String>(
-                      valueListenable: _audio.currentReciterNotifier,
-                      builder: (_, domain, __) => Text(
-                        domain,
-                        style: TextStyle(color: textSecondary, fontSize: 12),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Badge LIVE + play/pause
-              StreamBuilder<PlayerState>(
-                stream: _audio.playerStateStream,
-                builder: (_, snapshot) {
-                  final state = snapshot.data;
-                  final isPlaying = state?.playing ?? false;
-                  final loading =
-                      state?.processingState == ProcessingState.loading ||
-                          state?.processingState == ProcessingState.buffering;
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const _LiveBadge(),
-                      const SizedBox(width: 4),
-                      loading
-                          ? SizedBox(
-                              width: 36,
-                              height: 36,
-                              child: Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                      color: accent, strokeWidth: 2),
-                                ),
+                    const _LiveBadge(),
+                    const SizedBox(width: 4),
+                    loading
+                        ? SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    color: accent, strokeWidth: 2),
                               ),
-                            )
-                          : IconButton(
-                              icon: Icon(
-                                isPlaying ? Icons.pause : Icons.play_arrow,
-                                color: iconColor,
-                                size: 32,
-                              ),
-                              onPressed: _audio.togglePlayPause,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
                             ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
+                          )
+                        : IconButton(
+                            icon: Icon(
+                              isPlaying ? Icons.pause : Icons.play_arrow,
+                              color: iconColor,
+                              size: 32,
+                            ),
+                            onPressed: _audio.togglePlayPause,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
+                          ),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
   }
-
-  bool isDark(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark;
 }
 
 // ── Barre de progression interactive (glissable) ──────────────────────────────
@@ -362,16 +378,14 @@ class _SeekBarState extends State<_SeekBar> {
                     final f = (d.localPosition.dx / constraints.maxWidth)
                         .clamp(0.0, 1.0);
                     setState(() {
-                      _dragging =
-                          Duration(milliseconds: (f * maxMs).toInt());
+                      _dragging = Duration(milliseconds: (f * maxMs).toInt());
                     });
                   },
                   onHorizontalDragUpdate: (d) {
                     final f = (d.localPosition.dx / constraints.maxWidth)
                         .clamp(0.0, 1.0);
                     setState(() {
-                      _dragging =
-                          Duration(milliseconds: (f * maxMs).toInt());
+                      _dragging = Duration(milliseconds: (f * maxMs).toInt());
                     });
                   },
                   onHorizontalDragEnd: (_) {
@@ -387,7 +401,7 @@ class _SeekBarState extends State<_SeekBar> {
                         .seek(Duration(milliseconds: (f * maxMs).toInt()));
                   },
                   child: SizedBox(
-                    height: 16,
+                    height: 10,
                     child: Align(
                       alignment: Alignment.topCenter,
                       child: SizedBox(
@@ -395,8 +409,7 @@ class _SeekBarState extends State<_SeekBar> {
                         child: LinearProgressIndicator(
                           value: fraction,
                           backgroundColor: trackBg,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(accent),
+                          valueColor: AlwaysStoppedAnimation<Color>(accent),
                         ),
                       ),
                     ),
@@ -430,64 +443,54 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
   @override
   Widget build(BuildContext context) {
     if (_isCollapsed) {
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        child: Align(
-          key: const ValueKey('collapsed'),
-          alignment: Alignment.centerRight,
-          child: _CollapsedCirclePlayer(
-            onExpand: () => setState(() => _isCollapsed = false),
-          ),
+      return Align(
+        alignment: Alignment.centerRight,
+        child: _CollapsedCirclePlayer(
+          onExpand: () => setState(() => _isCollapsed = false),
         ),
       );
     }
 
     final totalDisp = _offsetX.abs() > _offsetY ? _offsetX.abs() : _offsetY;
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 250),
-      child: GestureDetector(
-        key: const ValueKey('expanded'),
-        behavior: HitTestBehavior.opaque,
-        // ── Swipe bas → dismiss ───────────────────────────────────────────────
-        onVerticalDragUpdate: (d) {
-          if (d.delta.dy > 0 || _offsetY > 0) {
-            setState(
-                () => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 140.0));
-          }
-        },
-        onVerticalDragEnd: (d) {
-          if (_offsetY > 60 || d.velocity.pixelsPerSecond.dy > 400) {
-            widget.onDismiss();
-            return;
-          }
-          setState(() => _offsetY = 0);
-        },
-        onVerticalDragCancel: () => setState(() => _offsetY = 0),
-        // ── Swipe droite → précédent, gauche → suivant ────────────────────────
-        onHorizontalDragUpdate: (d) {
-          setState(
-              () => _offsetX = (_offsetX + d.delta.dx).clamp(-150.0, 150.0));
-        },
-        onHorizontalDragEnd: (d) {
-          final vx = d.velocity.pixelsPerSecond.dx;
-          if (_offsetX > 60 || vx > 400) {
-            _audio.skipToPrevious();
-            setState(() => _offsetX = 0);
-          } else if (_offsetX < -60 || vx < -400) {
-            _audio.skipToNext();
-            setState(() => _offsetX = 0);
-          } else {
-            setState(() => _offsetX = 0);
-          }
-        },
-        onHorizontalDragCancel: () => setState(() => _offsetX = 0),
-        child: Transform.translate(
-          offset: Offset(_offsetX, _offsetY),
-          child: Opacity(
-            opacity: (1.0 - totalDisp / 150.0).clamp(0.3, 1.0),
-            child: MiniAudioPlayer(
-              onCollapse: () => setState(() => _isCollapsed = true),
-            ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // ── Swipe bas → dismiss ───────────────────────────────────────────────
+      onVerticalDragUpdate: (d) {
+        if (d.delta.dy > 0 || _offsetY > 0) {
+          setState(() => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 140.0));
+        }
+      },
+      onVerticalDragEnd: (d) {
+        if (_offsetY > 60 || d.velocity.pixelsPerSecond.dy > 400) {
+          widget.onDismiss();
+          return;
+        }
+        setState(() => _offsetY = 0);
+      },
+      onVerticalDragCancel: () => setState(() => _offsetY = 0),
+      // ── Swipe droite → précédent, gauche → suivant ────────────────────────
+      onHorizontalDragUpdate: (d) {
+        setState(() => _offsetX = (_offsetX + d.delta.dx).clamp(-150.0, 150.0));
+      },
+      onHorizontalDragEnd: (d) {
+        final vx = d.velocity.pixelsPerSecond.dx;
+        if (_offsetX > 60 || vx > 400) {
+          _audio.skipToPrevious();
+          setState(() => _offsetX = 0);
+        } else if (_offsetX < -60 || vx < -400) {
+          _audio.skipToNext();
+          setState(() => _offsetX = 0);
+        } else {
+          setState(() => _offsetX = 0);
+        }
+      },
+      onHorizontalDragCancel: () => setState(() => _offsetX = 0),
+      child: Transform.translate(
+        offset: Offset(_offsetX, _offsetY),
+        child: Opacity(
+          opacity: (1.0 - totalDisp / 150.0).clamp(0.3, 1.0),
+          child: MiniAudioPlayer(
+            onCollapse: () => setState(() => _isCollapsed = true),
           ),
         ),
       ),
@@ -513,28 +516,31 @@ class _CollapsedCirclePlayer extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: const Color(0xFF38C172), width: 2.5),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x44000000),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 10,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipOval(
-          child: ValueListenableBuilder<String>(
-            valueListenable: audio.currentReciterNotifier,
-            builder: (_, name, __) {
-              final url = getReciterPhoto(name);
-              if (url != null) {
-                return Image.network(
-                  url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const _AnimatedSoundBars(),
-                );
-              }
-              return const _AnimatedSoundBars();
-            },
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+            child: ValueListenableBuilder<String>(
+              valueListenable: audio.currentReciterNotifier,
+              builder: (_, name, __) {
+                final url = getReciterPhoto(name);
+                if (url != null) {
+                  return Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const _AnimatedSoundBars(),
+                  );
+                }
+                return const _AnimatedSoundBars();
+              },
+            ),
           ),
         ),
       ),
@@ -554,9 +560,8 @@ class _AnimatedSoundBars extends StatefulWidget {
 class _AnimatedSoundBarsState extends State<_AnimatedSoundBars>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
+  late final _sub = AudioService.instance.playerStateStream.listen(_onState);
 
-  static const _barCount = 3;
-  // Phase offsets so each bar bounces at a different rhythm
   static const _phases = [0.0, 0.33, 0.66];
 
   @override
@@ -568,19 +573,28 @@ class _AnimatedSoundBarsState extends State<_AnimatedSoundBars>
     )..repeat();
   }
 
+  void _onState(PlayerState state) {
+    if (state.playing) {
+      if (!_ctrl.isAnimating) _ctrl.repeat();
+    } else {
+      if (_ctrl.isAnimating) _ctrl.stop();
+    }
+  }
+
   @override
   void dispose() {
+    _sub.cancel();
     _ctrl.dispose();
     super.dispose();
   }
 
+  double _sine(double t) =>
+      (1 + math.sin(t * 2 * math.pi)) / 2;
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1A1A2E) : const Color(0xFFE8F5E9);
-
     return ColoredBox(
-      color: bg,
+      color: Colors.white.withValues(alpha: 0.55),
       child: Center(
         child: AnimatedBuilder(
           animation: _ctrl,
@@ -588,10 +602,9 @@ class _AnimatedSoundBarsState extends State<_AnimatedSoundBars>
             return Row(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(_barCount, (i) {
-                // Sinusoidal height for each bar
+              children: List.generate(3, (i) {
                 final t = (_ctrl.value + _phases[i]) % 1.0;
-                final h = 8.0 + 16.0 * (0.5 + 0.5 * _sine(t));
+                final h = 8.0 + 16.0 * _sine(t);
                 return Container(
                   width: 5,
                   height: h,
@@ -608,10 +621,6 @@ class _AnimatedSoundBarsState extends State<_AnimatedSoundBars>
       ),
     );
   }
-
-  // t in [0,1] → normalized sine in [0,1]
-  double _sine(double t) =>
-      (1 + math.sin(t * 2 * math.pi)) / 2;
 }
 
 // ── Overlay global ────────────────────────────────────────────────────────────
@@ -642,7 +651,7 @@ class GlobalMiniPlayerOverlay extends StatelessWidget {
                 return AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  bottom: bottomInset,
+                  bottom: bottomInset + _kNavBarAboveSafeArea,
                   left: 0,
                   right: 0,
                   child: _MiniPlayerContainer(
