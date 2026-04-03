@@ -1,12 +1,16 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../../data/reciter_photos.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../screens/music_player_fullscreen.dart';
 
 class MiniAudioPlayer extends StatefulWidget {
-  const MiniAudioPlayer({super.key});
+  final VoidCallback onCollapse;
+  const MiniAudioPlayer({super.key, required this.onCollapse});
 
   @override
   State<MiniAudioPlayer> createState() => _MiniAudioPlayerState();
@@ -47,7 +51,6 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
         isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
     final textSecondary =
         isDark ? const Color(0xFFB6C7E8) : const Color(0xFF6B7280);
-    final iconBg = isDark ? const Color(0xFF253554) : const Color(0xFFE8F5E9);
     final iconColor =
         isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
 
@@ -61,144 +64,114 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
             bg: bg,
             textPrimary: textPrimary,
             textSecondary: textSecondary,
-            iconBg: iconBg,
             iconColor: iconColor,
           );
         }
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: Material(
-          color: bg,
-          elevation: 8,
-          borderRadius: BorderRadius.circular(16),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── Barre de progression interactive en haut ─────────────────────
-              _SeekBar(audio: _audio, accent: accent),
+            color: bg,
+            elevation: 8,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Barre de progression interactive ────────────────────────
+                _SeekBar(audio: _audio, accent: accent),
 
-              // ── Ligne principale ──────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-                child: Row(
-                  children: [
-                    // Icône son
-                    GestureDetector(
-                      onTap: _openFullPlayer,
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: iconBg,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.music_note,
-                            color: accent, size: 22),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // Titre + récitateur
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: _openFullPlayer,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ValueListenableBuilder<String>(
-                              valueListenable: _audio.currentTitleNotifier,
-                              builder: (_, title, __) => Text(
-                                title,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: textPrimary,
-                                  fontSize: 14,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            ValueListenableBuilder<String>(
-                              valueListenable: _audio.currentReciterNotifier,
-                              builder: (_, name, __) => Text(
-                                name,
-                                style: TextStyle(
-                                    color: textSecondary, fontSize: 12),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Contrôles ⏮ ▶/⏸ ⏭
-                    StreamBuilder<PlayerState>(
-                      stream: _audio.playerStateStream,
-                      builder: (_, snapshot) {
-                        final state = snapshot.data;
-                        final isPlaying = state?.playing ?? false;
-                        final loading =
-                            state?.processingState == ProcessingState.loading ||
-                                state?.processingState ==
-                                    ProcessingState.buffering;
-
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(Icons.skip_previous,
-                                  color: iconColor, size: 28),
-                              onPressed: _audio.skipToPrevious,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
-                            ),
-                            loading
-                                ? const SizedBox(
-                                    width: 36,
-                                    height: 36,
-                                    child: Center(
-                                      child: SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                            color: accent, strokeWidth: 2),
-                                      ),
-                                    ),
-                                  )
-                                : IconButton(
-                                    icon: Icon(
-                                      isPlaying
-                                          ? Icons.pause
-                                          : Icons.play_arrow,
-                                      color: iconColor,
-                                      size: 32,
-                                    ),
-                                    onPressed: _audio.togglePlayPause,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(
-                                        minWidth: 36, minHeight: 36),
+                // ── Ligne principale ─────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                  child: Row(
+                    children: [
+                      // Titre + récitateur
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _openFullPlayer,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ValueListenableBuilder<String>(
+                                valueListenable: _audio.currentTitleNotifier,
+                                builder: (_, title, __) => Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: textPrimary,
+                                    fontSize: 14,
                                   ),
-                            IconButton(
-                              icon: Icon(Icons.skip_next,
-                                  color: iconColor, size: 28),
-                              onPressed: _audio.skipToNext,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              ValueListenableBuilder<String>(
+                                valueListenable: _audio.currentReciterNotifier,
+                                builder: (_, name, __) => Text(
+                                  name,
+                                  style: TextStyle(
+                                      color: textSecondary, fontSize: 12),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // ▶/⏸
+                      StreamBuilder<PlayerState>(
+                        stream: _audio.playerStateStream,
+                        builder: (_, snapshot) {
+                          final state = snapshot.data;
+                          final isPlaying = state?.playing ?? false;
+                          final loading =
+                              state?.processingState ==
+                                      ProcessingState.loading ||
+                                  state?.processingState ==
+                                      ProcessingState.buffering;
+                          if (loading) {
+                            return const SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      color: accent, strokeWidth: 2),
+                                ),
+                              ),
+                            );
+                          }
+                          return IconButton(
+                            icon: Icon(
+                              isPlaying ? Icons.pause : Icons.play_arrow,
+                              color: iconColor,
+                              size: 32,
                             ),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
+                            onPressed: _audio.togglePlayPause,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
+                          );
+                        },
+                      ),
+
+                      // → Réduire en cercle
+                      IconButton(
+                        icon: Icon(Icons.chevron_right,
+                            color: iconColor, size: 26),
+                        onPressed: widget.onCollapse,
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 36, minHeight: 36),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         );
       },
@@ -211,111 +184,115 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
     required Color bg,
     required Color textPrimary,
     required Color textSecondary,
-    required Color iconBg,
     required Color iconColor,
   }) {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: Material(
-      color: bg,
-      elevation: 8,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-        child: Row(
-          children: [
-            // Icône radio
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(8),
+        color: bg,
+        elevation: 8,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+          child: Row(
+            children: [
+              // Icône radio
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDark(context)
+                      ? const Color(0xFF253554)
+                      : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.radio, color: accent, size: 22),
               ),
-              child: Icon(Icons.radio, color: accent, size: 22),
-            ),
 
-            const SizedBox(width: 12),
+              const SizedBox(width: 12),
 
-            // Titre + domaine
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ValueListenableBuilder<String>(
-                    valueListenable: _audio.currentTitleNotifier,
-                    builder: (_, title, __) => Text(
-                      title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: textPrimary,
-                        fontSize: 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  ValueListenableBuilder<String>(
-                    valueListenable: _audio.currentReciterNotifier,
-                    builder: (_, domain, __) => Text(
-                      domain,
-                      style: TextStyle(color: textSecondary, fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Badge LIVE + play/pause
-            StreamBuilder<PlayerState>(
-              stream: _audio.playerStateStream,
-              builder: (_, snapshot) {
-                final state     = snapshot.data;
-                final isPlaying = state?.playing ?? false;
-                final loading   =
-                    state?.processingState == ProcessingState.loading ||
-                        state?.processingState == ProcessingState.buffering;
-                return Row(
+              // Titre + domaine
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const _LiveBadge(),
-                    const SizedBox(width: 4),
-                    loading
-                        ? SizedBox(
-                            width: 36,
-                            height: 36,
-                            child: Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    color: accent, strokeWidth: 2),
-                              ),
-                            ),
-                          )
-                        : IconButton(
-                            icon: Icon(
-                              isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: iconColor,
-                              size: 32,
-                            ),
-                            onPressed: _audio.togglePlayPause,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                                minWidth: 36, minHeight: 36),
-                          ),
+                    ValueListenableBuilder<String>(
+                      valueListenable: _audio.currentTitleNotifier,
+                      builder: (_, title, __) => Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: textPrimary,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    ValueListenableBuilder<String>(
+                      valueListenable: _audio.currentReciterNotifier,
+                      builder: (_, domain, __) => Text(
+                        domain,
+                        style: TextStyle(color: textSecondary, fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
-                );
-              },
-            ),
-          ],
+                ),
+              ),
+
+              // Badge LIVE + play/pause
+              StreamBuilder<PlayerState>(
+                stream: _audio.playerStateStream,
+                builder: (_, snapshot) {
+                  final state = snapshot.data;
+                  final isPlaying = state?.playing ?? false;
+                  final loading =
+                      state?.processingState == ProcessingState.loading ||
+                          state?.processingState == ProcessingState.buffering;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const _LiveBadge(),
+                      const SizedBox(width: 4),
+                      loading
+                          ? SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      color: accent, strokeWidth: 2),
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              icon: Icon(
+                                isPlaying ? Icons.pause : Icons.play_arrow,
+                                color: iconColor,
+                                size: 32,
+                              ),
+                              onPressed: _audio.togglePlayPause,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
+                            ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
+
+  bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
 }
 
 // ── Barre de progression interactive (glissable) ──────────────────────────────
@@ -434,60 +411,207 @@ class _SeekBarState extends State<_SeekBar> {
   }
 }
 
-// ── Swipe vers le bas pour fermer (widget isolé pour stabilité du GestureDetector) ──
+// ── Conteneur principal : gère collapse + swipe prev/next/dismiss ─────────────
 
-class _SwipeToDismissPlayer extends StatefulWidget {
+class _MiniPlayerContainer extends StatefulWidget {
   final VoidCallback onDismiss;
-  const _SwipeToDismissPlayer({required this.onDismiss});
+  const _MiniPlayerContainer({required this.onDismiss});
 
   @override
-  State<_SwipeToDismissPlayer> createState() => _SwipeToDismissPlayerState();
+  State<_MiniPlayerContainer> createState() => _MiniPlayerContainerState();
 }
 
-class _SwipeToDismissPlayerState extends State<_SwipeToDismissPlayer> {
+class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
+  final AudioService _audio = AudioService.instance;
   double _offsetY = 0;
   double _offsetX = 0;
+  bool _isCollapsed = false;
 
   @override
   Widget build(BuildContext context) {
+    if (_isCollapsed) {
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        child: Align(
+          key: const ValueKey('collapsed'),
+          alignment: Alignment.centerRight,
+          child: _CollapsedCirclePlayer(
+            onExpand: () => setState(() => _isCollapsed = false),
+          ),
+        ),
+      );
+    }
+
     final totalDisp = _offsetX.abs() > _offsetY ? _offsetX.abs() : _offsetY;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // ── Swipe bas ──────────────────────────────────────────────────────────
-      onVerticalDragUpdate: (d) {
-        if (d.delta.dy > 0 || _offsetY > 0) {
-          setState(() => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 140.0));
-        }
-      },
-      onVerticalDragEnd: (d) {
-        if (_offsetY > 60 || d.velocity.pixelsPerSecond.dy > 400) {
-          widget.onDismiss();
-          return;
-        }
-        setState(() => _offsetY = 0);
-      },
-      onVerticalDragCancel: () => setState(() => _offsetY = 0),
-      // ── Swipe gauche / droite ───────────────────────────────────────────────
-      onHorizontalDragUpdate: (d) {
-        setState(() => _offsetX = (_offsetX + d.delta.dx).clamp(-150.0, 150.0));
-      },
-      onHorizontalDragEnd: (d) {
-        if (_offsetX.abs() > 80 || d.velocity.pixelsPerSecond.dx.abs() > 400) {
-          widget.onDismiss();
-          return;
-        }
-        setState(() => _offsetX = 0);
-      },
-      onHorizontalDragCancel: () => setState(() => _offsetX = 0),
-      child: Transform.translate(
-        offset: Offset(_offsetX, _offsetY),
-        child: Opacity(
-          opacity: (1.0 - totalDisp / 150.0).clamp(0.3, 1.0),
-          child: const MiniAudioPlayer(),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: GestureDetector(
+        key: const ValueKey('expanded'),
+        behavior: HitTestBehavior.opaque,
+        // ── Swipe bas → dismiss ───────────────────────────────────────────────
+        onVerticalDragUpdate: (d) {
+          if (d.delta.dy > 0 || _offsetY > 0) {
+            setState(
+                () => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 140.0));
+          }
+        },
+        onVerticalDragEnd: (d) {
+          if (_offsetY > 60 || d.velocity.pixelsPerSecond.dy > 400) {
+            widget.onDismiss();
+            return;
+          }
+          setState(() => _offsetY = 0);
+        },
+        onVerticalDragCancel: () => setState(() => _offsetY = 0),
+        // ── Swipe droite → précédent, gauche → suivant ────────────────────────
+        onHorizontalDragUpdate: (d) {
+          setState(
+              () => _offsetX = (_offsetX + d.delta.dx).clamp(-150.0, 150.0));
+        },
+        onHorizontalDragEnd: (d) {
+          final vx = d.velocity.pixelsPerSecond.dx;
+          if (_offsetX > 60 || vx > 400) {
+            _audio.skipToPrevious();
+            setState(() => _offsetX = 0);
+          } else if (_offsetX < -60 || vx < -400) {
+            _audio.skipToNext();
+            setState(() => _offsetX = 0);
+          } else {
+            setState(() => _offsetX = 0);
+          }
+        },
+        onHorizontalDragCancel: () => setState(() => _offsetX = 0),
+        child: Transform.translate(
+          offset: Offset(_offsetX, _offsetY),
+          child: Opacity(
+            opacity: (1.0 - totalDisp / 150.0).clamp(0.3, 1.0),
+            child: MiniAudioPlayer(
+              onCollapse: () => setState(() => _isCollapsed = true),
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+// ── Cercle réduit (état collapsed) ───────────────────────────────────────────
+
+class _CollapsedCirclePlayer extends StatelessWidget {
+  final VoidCallback onExpand;
+  const _CollapsedCirclePlayer({required this.onExpand});
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = AudioService.instance;
+    return GestureDetector(
+      onTap: onExpand,
+      child: Container(
+        width: 60,
+        height: 60,
+        margin: const EdgeInsets.only(right: 16, bottom: 8),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFF38C172), width: 2.5),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x44000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: ValueListenableBuilder<String>(
+            valueListenable: audio.currentReciterNotifier,
+            builder: (_, name, __) {
+              final url = getReciterPhoto(name);
+              if (url != null) {
+                return Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const _AnimatedSoundBars(),
+                );
+              }
+              return const _AnimatedSoundBars();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Barres de son animées (fallback image récitateur) ─────────────────────────
+
+class _AnimatedSoundBars extends StatefulWidget {
+  const _AnimatedSoundBars();
+
+  @override
+  State<_AnimatedSoundBars> createState() => _AnimatedSoundBarsState();
+}
+
+class _AnimatedSoundBarsState extends State<_AnimatedSoundBars>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  static const _barCount = 3;
+  // Phase offsets so each bar bounces at a different rhythm
+  static const _phases = [0.0, 0.33, 0.66];
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1A1A2E) : const Color(0xFFE8F5E9);
+
+    return ColoredBox(
+      color: bg,
+      child: Center(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, __) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(_barCount, (i) {
+                // Sinusoidal height for each bar
+                final t = (_ctrl.value + _phases[i]) % 1.0;
+                final h = 8.0 + 16.0 * (0.5 + 0.5 * _sine(t));
+                return Container(
+                  width: 5,
+                  height: h,
+                  margin: EdgeInsets.only(left: i == 0 ? 0 : 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF38C172),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                );
+              }),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // t in [0,1] → normalized sine in [0,1]
+  double _sine(double t) =>
+      (1 + math.sin(t * 2 * math.pi)) / 2;
 }
 
 // ── Overlay global ────────────────────────────────────────────────────────────
@@ -521,7 +645,7 @@ class GlobalMiniPlayerOverlay extends StatelessWidget {
                   bottom: bottomInset,
                   left: 0,
                   right: 0,
-                  child: _SwipeToDismissPlayer(
+                  child: _MiniPlayerContainer(
                     onDismiss: audio.stopAll,
                   ),
                 );
