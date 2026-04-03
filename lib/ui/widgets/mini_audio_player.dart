@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -83,13 +84,9 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
   @override
   Widget build(BuildContext context) {
     const accent = Color(0xFF38C172);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary =
-        isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
-    final textSecondary =
-        isDark ? const Color(0xFFB6C7E8) : const Color(0xFF6B7280);
-    final iconColor =
-        isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
+    const textPrimary = Color(0xFF111827);
+    const textSecondary = Color(0xFF374151);
+    const iconColor = Color(0xFF111827);
 
     return ValueListenableBuilder<bool>(
       valueListenable: _audio.isRadioModeNotifier,
@@ -488,7 +485,7 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
       child: Transform.translate(
         offset: Offset(_offsetX, _offsetY),
         child: Opacity(
-          opacity: (1.0 - totalDisp / 150.0).clamp(0.3, 1.0),
+          opacity: (1.0 - totalDisp / 150.0 * 0.75).clamp(0.20, 1.0),
           child: MiniAudioPlayer(
             onCollapse: () => setState(() => _isCollapsed = true),
           ),
@@ -560,7 +557,7 @@ class _AnimatedSoundBars extends StatefulWidget {
 class _AnimatedSoundBarsState extends State<_AnimatedSoundBars>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late final _sub = AudioService.instance.playerStateStream.listen(_onState);
+  late final StreamSubscription<PlayerState> _sub;
 
   static const _phases = [0.0, 0.33, 0.66];
 
@@ -571,6 +568,7 @@ class _AnimatedSoundBarsState extends State<_AnimatedSoundBars>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat();
+    _sub = AudioService.instance.playerStateStream.listen(_onState);
   }
 
   void _onState(PlayerState state) {
