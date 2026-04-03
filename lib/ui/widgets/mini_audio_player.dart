@@ -449,6 +449,14 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
     }
 
     final totalDisp = _offsetX.abs() > _offsetY ? _offsetX.abs() : _offsetY;
+    final absDx      = _offsetX.abs();
+    final thresholdReached = absDx > 60;
+
+    // Intensité du dégradé : 0 → 0.45 progressivement
+    final gradientAlpha = (absDx / 80).clamp(0.0, 0.45);
+    // Icône centrale : apparaît et pulse quand seuil atteint
+    final iconScale = thresholdReached ? 1.15 : 0.0;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       // ── Swipe bas → dismiss ───────────────────────────────────────────────
@@ -473,21 +481,75 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
         final vx = d.velocity.pixelsPerSecond.dx;
         if (_offsetX > 60 || vx > 400) {
           _audio.skipToPrevious();
-          setState(() => _offsetX = 0);
         } else if (_offsetX < -60 || vx < -400) {
           _audio.skipToNext();
-          setState(() => _offsetX = 0);
-        } else {
-          setState(() => _offsetX = 0);
         }
+        setState(() => _offsetX = 0);
       },
       onHorizontalDragCancel: () => setState(() => _offsetX = 0),
       child: Transform.translate(
         offset: Offset(_offsetX, _offsetY),
         child: Opacity(
           opacity: (1.0 - totalDisp / 150.0 * 0.75).clamp(0.20, 1.0),
-          child: MiniAudioPlayer(
-            onCollapse: () => setState(() => _isCollapsed = true),
+          child: Stack(
+            children: [
+              MiniAudioPlayer(
+                onCollapse: () => setState(() => _isCollapsed = true),
+              ),
+
+              // ── Flash directionnel ──────────────────────────────────────
+              if (_offsetX != 0)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.all(Radius.circular(16)),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: _offsetX > 0
+                                ? Alignment.centerLeft
+                                : Alignment.centerRight,
+                            end: _offsetX > 0
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            colors: [
+                              const Color(0xFF38C172).withValues(alpha: gradientAlpha),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.6],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Icône centrale au dépassement du seuil ──────────────────
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(
+                    child: AnimatedScale(
+                      scale: iconScale,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.elasticOut,
+                      child: Icon(
+                        _offsetX > 0
+                            ? Icons.skip_previous_rounded
+                            : Icons.skip_next_rounded,
+                        color: const Color(0xFF38C172),
+                        size: 36,
+                        shadows: const [
+                          Shadow(
+                            color: Color(0x6638C172),
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
