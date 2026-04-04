@@ -29,6 +29,8 @@ class AudioService {
   final ValueNotifier<bool> isFullPlayerOpenNotifier = ValueNotifier<bool>(false);
   /// Mettre à true quand un écran affiche son propre lecteur audio.
   final ValueNotifier<bool> suppressGlobalPlayer = ValueNotifier<bool>(false);
+  /// false quand l'écran courant n'a pas de nav bar (ex: ReciterPickerScreen).
+  final ValueNotifier<bool> hasNavBar = ValueNotifier<bool>(true);
 
   AudioService._() {
     // Player sourate complète
@@ -797,6 +799,7 @@ class AudioService {
     // ValueNotifiers
     isFullPlayerOpenNotifier.dispose();
     suppressGlobalPlayer.dispose();
+    hasNavBar.dispose();
     currentPlayingSurahIdNotifier.dispose();
     currentTitleNotifier.dispose();
     currentReciterNotifier.dispose();

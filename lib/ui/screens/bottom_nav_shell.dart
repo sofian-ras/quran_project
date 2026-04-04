@@ -6,6 +6,7 @@ import 'dua_screen.dart';
 import 'settings_screen.dart';
 import 'translated_quran_screen.dart';
 
+import '../../services/audio_service.dart';
 import '../widgets/modern_bottom_nav_bar.dart';
 
 class BottomNavShell extends StatefulWidget {
@@ -17,6 +18,18 @@ class BottomNavShell extends StatefulWidget {
 
 class _BottomNavShellState extends State<BottomNavShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    AudioService.instance.suppressGlobalPlayer.value = true;
+  }
+
+  @override
+  void dispose() {
+    AudioService.instance.suppressGlobalPlayer.value = false;
+    super.dispose();
+  }
 
   // Onglets déjà visités : seuls ceux-ci sont construits dans l'IndexedStack.
   // Les autres restent un SizedBox.shrink() jusqu'à leur première visite,

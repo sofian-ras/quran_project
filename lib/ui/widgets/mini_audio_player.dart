@@ -620,10 +620,10 @@ class _CollapsedCirclePlayer extends StatelessWidget {
                   return Image.network(
                     url,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const _AnimatedSoundBars(),
+                    errorBuilder: (_, __, ___) => const AnimatedSoundBars(),
                   );
                 }
-                return const _AnimatedSoundBars();
+                return const AnimatedSoundBars();
               },
             ),
           ),
@@ -635,14 +635,14 @@ class _CollapsedCirclePlayer extends StatelessWidget {
 
 // ── Barres de son animées (fallback image récitateur) ─────────────────────────
 
-class _AnimatedSoundBars extends StatefulWidget {
-  const _AnimatedSoundBars();
+class AnimatedSoundBars extends StatefulWidget {
+  const AnimatedSoundBars({super.key});
 
   @override
-  State<_AnimatedSoundBars> createState() => _AnimatedSoundBarsState();
+  State<AnimatedSoundBars> createState() => AnimatedSoundBarsState();
 }
 
-class _AnimatedSoundBarsState extends State<_AnimatedSoundBars>
+class AnimatedSoundBarsState extends State<AnimatedSoundBars>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late final StreamSubscription<PlayerState> _sub;
@@ -725,24 +725,30 @@ class GlobalMiniPlayerOverlay extends StatelessWidget {
         return ValueListenableBuilder<bool>(
           valueListenable: audio.isFullPlayerOpenNotifier,
           builder: (_, isFullOpen, __) {
-            return StreamBuilder<bool>(
-              stream: audio.isActiveStream,
-              builder: (_, snapshot) {
-                final isActive = snapshot.data ?? false;
+            return ValueListenableBuilder<bool>(
+              valueListenable: audio.hasNavBar,
+              builder: (_, navBarVisible, __) {
+                return StreamBuilder<bool>(
+                  stream: audio.isActiveStream,
+                  builder: (_, snapshot) {
+                    final isActive = snapshot.data ?? false;
 
-                if (isSuppressed || isFullOpen || !isActive) {
-                  return const SizedBox.shrink();
-                }
+                    if (isSuppressed || isFullOpen || !isActive) {
+                      return const SizedBox.shrink();
+                    }
 
-                return AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  bottom: bottomInset + _kNavBarAboveSafeArea,
-                  left: 0,
-                  right: 0,
-                  child: _MiniPlayerContainer(
-                    onDismiss: audio.stopAll,
-                  ),
+                    return AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      bottom: bottomInset +
+                          (navBarVisible ? _kNavBarAboveSafeArea : 0),
+                      left: 0,
+                      right: 0,
+                      child: _MiniPlayerContainer(
+                        onDismiss: audio.stopAll,
+                      ),
+                    );
+                  },
                 );
               },
             );
