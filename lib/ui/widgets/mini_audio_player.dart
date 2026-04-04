@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
-import '../../data/reciter_photos.dart';
 import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
@@ -49,8 +48,7 @@ Widget _glass({required Widget child, EdgeInsets margin = EdgeInsets.zero}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class MiniAudioPlayer extends StatefulWidget {
-  final VoidCallback onCollapse;
-  const MiniAudioPlayer({super.key, required this.onCollapse});
+  const MiniAudioPlayer({super.key});
 
   @override
   State<MiniAudioPlayer> createState() => _MiniAudioPlayerState();
@@ -186,14 +184,6 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                       },
                     ),
 
-                    // → Réduire en cercle
-                    IconButton(
-                      icon: Icon(Icons.chevron_right, color: iconColor, size: 26),
-                      onPressed: widget.onCollapse,
-                      padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 36, minHeight: 36),
-                    ),
                   ],
                 ),
               ),
@@ -436,20 +426,10 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
   final AudioService _audio = AudioService.instance;
   double _offsetY = 0;
   double _offsetX = 0;
-  bool _isCollapsed = false;
-  bool _showHints   = false;
+  bool _showHints = false;
 
   @override
   Widget build(BuildContext context) {
-    if (_isCollapsed) {
-      return Align(
-        alignment: Alignment.centerRight,
-        child: _CollapsedCirclePlayer(
-          onExpand: () => setState(() => _isCollapsed = false),
-        ),
-      );
-    }
-
     final id       = _audio.currentSurahId ?? 1;
     final prevName = id > 1   ? (surahFr[id - 1] ?? '') : null;
     final nextName = id < 114 ? (surahFr[id + 1] ?? '') : null;
@@ -493,9 +473,7 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
             opacity: (1.0 - totalDisp / 150.0 * 0.75).clamp(0.20, 1.0),
             child: Stack(
               children: [
-                MiniAudioPlayer(
-                  onCollapse: () => setState(() => _isCollapsed = true),
-                ),
+                const MiniAudioPlayer(),
 
                 // ── Labels prev / next ──────────────────────────────────────
                 Positioned.fill(
@@ -575,56 +553,6 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Cercle réduit (état collapsed) ───────────────────────────────────────────
-
-class _CollapsedCirclePlayer extends StatelessWidget {
-  final VoidCallback onExpand;
-  const _CollapsedCirclePlayer({required this.onExpand});
-
-  @override
-  Widget build(BuildContext context) {
-    final audio = AudioService.instance;
-    return GestureDetector(
-      onTap: onExpand,
-      child: Container(
-        width: 60,
-        height: 60,
-        margin: const EdgeInsets.only(right: 16, bottom: 8),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFF38C172), width: 2.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipOval(
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-            child: ValueListenableBuilder<String>(
-              valueListenable: audio.currentReciterNotifier,
-              builder: (_, name, __) {
-                final url = getReciterPhoto(name);
-                if (url != null) {
-                  return Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const AnimatedSoundBars(),
-                  );
-                }
-                return const AnimatedSoundBars();
-              },
             ),
           ),
         ),

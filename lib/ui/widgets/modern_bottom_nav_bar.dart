@@ -6,12 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:just_audio/just_audio.dart';
 
-import '../../data/reciter_photos.dart';
 import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../screens/music_player_fullscreen.dart';
-import 'mini_audio_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -180,7 +178,6 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
 
   // ── Pill (barre droite) ───────────────────────────────────────────────────
   Widget _navPill(double barH) {
-    const avatarSize = 56.0;
     final showPlayer = _isAudioActive && _isPlayerMode;
 
     return Expanded(
@@ -221,7 +218,6 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                         child: showPlayer
                             ? _PlayerPillContent(
                                 key: const ValueKey('player'),
-                                leftPadding: avatarSize + 4,
                                 onToggleToNav: () =>
                                     setState(() => _isPlayerMode = false),
                                 onDismiss: AudioService.instance.stopAll,
@@ -244,13 +240,6 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
               ),
             ),
 
-            // ── Avatar récitateur (déborde au-dessus/dessous) ─────────────
-            if (showPlayer)
-              Positioned(
-                left: 8,
-                top: -(avatarSize - barH) / 2,
-                child: const _ReciterAvatar(size: avatarSize),
-              ),
           ],
         ),
       ),
@@ -427,13 +416,11 @@ class _NavIconsContent extends StatelessWidget {
 // ── Contenu : mini player dans la pill ───────────────────────────────────────
 
 class _PlayerPillContent extends StatefulWidget {
-  final double leftPadding;
   final VoidCallback onToggleToNav;
   final VoidCallback onDismiss;
 
   const _PlayerPillContent({
     super.key,
-    required this.leftPadding,
     required this.onToggleToNav,
     required this.onDismiss,
   });
@@ -513,7 +500,7 @@ class _PlayerPillContentState extends State<_PlayerPillContent> {
             children: [
               // ── Ligne principale ──────────────────────────────────────
               Padding(
-                padding: EdgeInsets.only(left: widget.leftPadding, right: 4),
+                padding: const EdgeInsets.only(left: 12, right: 4),
                 child: Row(
                   children: [
                     // Titre + récitateur
@@ -614,8 +601,8 @@ class _PlayerPillContentState extends State<_PlayerPillContent> {
                           opacity: _showHints && prevName != null ? 1.0 : 0.0,
                           duration: const Duration(milliseconds: 200),
                           child: Container(
-                            padding: EdgeInsets.only(
-                                left: widget.leftPadding, right: 6),
+                            padding: const EdgeInsets.only(
+                                left: 12, right: 6),
                             decoration: const BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
@@ -689,41 +676,3 @@ class _PlayerPillContentState extends State<_PlayerPillContent> {
 
 // ── Avatar récitateur (déborde de la pill) ────────────────────────────────────
 
-class _ReciterAvatar extends StatelessWidget {
-  final double size;
-  const _ReciterAvatar({required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    final audio = AudioService.instance;
-    return ValueListenableBuilder<String>(
-      valueListenable: audio.currentReciterNotifier,
-      builder: (_, name, __) {
-        final url = getReciterPhoto(name);
-        return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: ClipOval(
-            child: url != null
-                ? Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const AnimatedSoundBars(),
-                  )
-                : const AnimatedSoundBars(),
-          ),
-        );
-      },
-    );
-  }
-}
