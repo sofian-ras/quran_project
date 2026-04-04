@@ -13,7 +13,7 @@ const kRadioCategories = <String>[
   '📚 Tafsir',
   '🕌 Conférences',
   '🤲 Adhkar & Doua',
-  '🌙 Ambiance',
+  '🙏 Du\'a',
   '🎓 Apprentissage',
   '🌍 Traductions',
 ];
@@ -24,7 +24,7 @@ const _kCatGradients = <String, List<Color>>{
   '📚 Tafsir':        [Color(0xFF6B35A8), Color(0xFF3D1472)],
   '🕌 Conférences':   [Color(0xFF9B3232), Color(0xFF601515)],
   '🤲 Adhkar & Doua': [Color(0xFF1A8A68), Color(0xFF0D5240)],
-  '🌙 Ambiance':      [Color(0xFF252585), Color(0xFF100F55)],
+  '🙏 Du\'a':         [Color(0xFF6B3580), Color(0xFF35104A)],
   '🎓 Apprentissage': [Color(0xFF9A7020), Color(0xFF60430D)],
   '🌍 Traductions':   [Color(0xFF1A7A6B), Color(0xFF0D4A40)],
 };
@@ -39,7 +39,25 @@ String categorizeStation(RadioStation s) {
       n.contains('français') || n.contains('urdu') ||
       n.contains('türk') || n.contains('indonesia') ||
       n.contains('swahili') || n.contains('bangla')) { return '🌍 Traductions'; }
-  if (n.contains('tafsir') || n.contains('تفسير')) { return '📚 Tafsir'; }
+  if (n.contains('tafsir') || n.contains('تفسير') ||
+      // Interprétation / résumé
+      n.contains('interpré') || n.contains('interpret') ||
+      n.contains('résumé') || n.contains('resume') || n.contains('mukhtasar') ||
+      // Sira / biographie du Prophète
+      n.contains('biographie') || n.contains('sira') || n.contains('sirat') ||
+      n.contains('nabawi') || n.contains('سيرة') || n.contains('نبوي') ||
+      // Hadith (Sahih Bukhari / Sahih Muslim)
+      n.contains('sahih') || n.contains('bukhari') || n.contains('bukhary') ||
+      // Histoires des prophètes / compagnons
+      n.contains('histoir') || n.contains('قصص') ||
+      n.contains('compagnon') || n.contains('sahaba') || n.contains('صحابة') ||
+      // Fatwas
+      n.contains('fatwa') || n.contains('فتوى') || n.contains('فتاوى') ||
+      // Mérites / vertus
+      n.contains('mérite') || n.contains('merite') || n.contains('فضائل') ||
+      // Fiqh / juridique / royauté
+      n.contains('juridique') || n.contains('fiqh') || n.contains('فقه') ||
+      n.contains('royaut')) { return '📚 Tafsir'; }
   if (n.contains('adhkar') || n.contains('azkar') || n.contains('doua') ||
       n.contains('dua') || n.contains('ruqya') || n.contains('dhikr') ||
       n.contains('zikr') || n.contains('أذكار')) { return '🤲 Adhkar & Doua'; }
@@ -47,9 +65,10 @@ String categorizeStation(RadioStation s) {
       n.contains('conférence') || n.contains('conference') ||
       n.contains('dars') || n.contains('lecture') ||
       n.contains('محاضر')) { return '🕌 Conférences'; }
-  if (n.contains('relax') || n.contains('sleep') || n.contains('nuit') ||
-      n.contains('soir') || n.contains('calm') || n.contains('meditat') ||
-      n.contains('douce') || n.contains('lente')) { return '🌙 Ambiance'; }
+  if (n.contains('الدعاء') || n.contains('أدعية') || n.contains('supplication') ||
+      n.contains('relax') || n.contains('sleep') || n.contains('calm')) {
+    return '🙏 Du\'a';
+  }
   if (n.contains('hifz') || n.contains('memoriz') || n.contains('tajwid') ||
       n.contains('tajweed') || n.contains('تجويد') || n.contains('حفظ') ||
       n.contains('repeat') || n.contains('تكرار') || n.contains('talim') ||
@@ -88,7 +107,19 @@ String _stationLabel(RadioStation s) {
     return 'Traduction persane';
   }
   if (n.contains('bosni')) return 'Traduction bosniaque';
-  return s.displayName;
+  // Option D fallback: find "traduct/translat" and right-truncate so the
+  // language (always at the end) is always visible
+  final match = RegExp(r'traduct|translat', caseSensitive: false)
+      .firstMatch(s.name);
+  if (match != null) {
+    final fromHere = s.name.substring(match.start).trim();
+    final label = fromHere[0].toUpperCase() + fromHere.substring(1);
+    // Right-truncate: keep the end (= language name)
+    return label.length > 26 ? '…${label.substring(label.length - 24)}' : label;
+  }
+  // Final fallback: right-truncate on displayName
+  final dn = s.displayName;
+  return dn.length > 26 ? '…${dn.substring(dn.length - 24)}' : dn;
 }
 
 /// Deterministic bar fill: values 0.4 – 0.9, unique per station.
