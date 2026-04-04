@@ -1,6 +1,9 @@
 // lib/services/audio_service.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:flutter/services.dart' show rootBundle;
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -33,6 +36,7 @@ class AudioService {
   final ValueNotifier<bool> hasNavBar = ValueNotifier<bool>(true);
 
   AudioService._() {
+    _loadReciterAssets();
     // Player sourate complète
     _player.setLoopMode(loopModeNotifier.value);
 
@@ -103,6 +107,7 @@ class AudioService {
   final ValueNotifier<String>  currentTitleNotifier        = ValueNotifier("Aucune lecture");
   final ValueNotifier<String>  currentReciterNotifier      = ValueNotifier("Abdelrashid as-Soufy");
   final ValueNotifier<String?> currentReciterAssetNotifier = ValueNotifier<String?>(null);
+  Map<String, String> _reciterAssetByName = {};
   final ValueNotifier<bool>    isBuffering                 = ValueNotifier(false);
 
   final ValueNotifier<LoopMode> loopModeNotifier = ValueNotifier(LoopMode.off);
@@ -134,11 +139,30 @@ class AudioService {
         ),
       ).asBroadcastStream();
 
+  Future<void> _loadReciterAssets() async {
+    try {
+      final raw  = await rootBundle.loadString('assets/data/reciters_mapping.json');
+      final list = jsonDecode(raw) as List<dynamic>;
+      _reciterAssetByName = {
+        for (final m in list)
+          (m['name'] as String): (m['asset'] as String),
+      };
+    } catch (_) {}
+  }
+
+  /// Retourne l'asset correspondant à [name] depuis la map pré-chargée.
+  /// Gère les noms composés "Maher Al Meaqli (Hafs)" → cherche "Maher Al Meaqli".
+  String? _assetForName(String name) {
+    if (_reciterAssetByName.containsKey(name)) return _reciterAssetByName[name];
+    final base = name.contains('(') ? name.substring(0, name.indexOf('(')).trim() : name;
+    return _reciterAssetByName[base];
+  }
+
   void setReciter(String name, String server, {String? assetPath}) {
     if (currentReciterNotifier.value != name || currentServer != server) {
       currentReciterNotifier.value = name;
       currentServer = server;
-      currentReciterAssetNotifier.value = assetPath;
+      currentReciterAssetNotifier.value = assetPath ?? _assetForName(name);
       _playlist = null;
       _audioSourceReady = false;
     }
