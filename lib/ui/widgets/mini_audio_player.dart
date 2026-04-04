@@ -304,8 +304,14 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
 class SeekBar extends StatefulWidget {
   final AudioService audio;
   final Color accent;
+  final bool showLabels;
 
-  const SeekBar({super.key, required this.audio, required this.accent});
+  const SeekBar({
+    super.key,
+    required this.audio,
+    required this.accent,
+    this.showLabels = true,
+  });
 
   @override
   State<SeekBar> createState() => SeekBarState();
@@ -336,7 +342,7 @@ class SeekBarState extends State<SeekBar> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_dragging != null)
+            if (widget.showLabels && _dragging != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
                 child: Row(

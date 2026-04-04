@@ -125,7 +125,7 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
     final displayName = widget.moshafLabel.isEmpty
         ? widget.name
         : '${widget.name} (${widget.moshafLabel})';
-    _audio.setReciter(displayName, widget.server);
+    _audio.setReciter(displayName, widget.server, assetPath: widget.asset);
     _audio.loadPlaylistAndPlay(surahId);
   }
 

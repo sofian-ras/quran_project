@@ -100,9 +100,10 @@ class AudioService {
   final ValueNotifier<int?> currentPlayingSurahIdNotifier = ValueNotifier<int?>(null);
   StreamSubscription<int?>? _currentIndexSub;
 
-  final ValueNotifier<String> currentTitleNotifier = ValueNotifier("Aucune lecture");
-  final ValueNotifier<String> currentReciterNotifier = ValueNotifier("Abdelrashid as-Soufy");
-  final ValueNotifier<bool> isBuffering = ValueNotifier(false);
+  final ValueNotifier<String>  currentTitleNotifier        = ValueNotifier("Aucune lecture");
+  final ValueNotifier<String>  currentReciterNotifier      = ValueNotifier("Abdelrashid as-Soufy");
+  final ValueNotifier<String?> currentReciterAssetNotifier = ValueNotifier<String?>(null);
+  final ValueNotifier<bool>    isBuffering                 = ValueNotifier(false);
 
   final ValueNotifier<LoopMode> loopModeNotifier = ValueNotifier(LoopMode.off);
   final ValueNotifier<bool> isShuffleEnabled = ValueNotifier(false);
@@ -133,10 +134,11 @@ class AudioService {
         ),
       ).asBroadcastStream();
 
-  void setReciter(String name, String server) {
+  void setReciter(String name, String server, {String? assetPath}) {
     if (currentReciterNotifier.value != name || currentServer != server) {
       currentReciterNotifier.value = name;
       currentServer = server;
+      currentReciterAssetNotifier.value = assetPath;
       _playlist = null;
       _audioSourceReady = false;
     }
@@ -803,6 +805,7 @@ class AudioService {
     currentPlayingSurahIdNotifier.dispose();
     currentTitleNotifier.dispose();
     currentReciterNotifier.dispose();
+    currentReciterAssetNotifier.dispose();
     isBuffering.dispose();
     loopModeNotifier.dispose();
     isShuffleEnabled.dispose();

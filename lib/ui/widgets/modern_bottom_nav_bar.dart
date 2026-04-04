@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:just_audio/just_audio.dart';
 
-import '../../data/reciter_photos.dart';
 import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
@@ -182,7 +181,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
   Widget _navPill(double barH) {
     final showPlayer = _isAudioActive && _isPlayerMode;
     const double pillHNav    = 52.0;
-    const double pillHPlayer = 64.0;
+    const double pillHPlayer = 70.0;
     final double pillH = showPlayer ? pillHPlayer : pillHNav;
 
     return Expanded(
@@ -237,15 +236,17 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                                       iconScale: _iconScale,
                                       barH: pillHNav,
                                       onTap: _tapItem,
+                                      hasCircle: _isAudioActive,
                                     ),
                             ),
                           ),
                           if (showPlayer)
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                              padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
                               child: SeekBar(
                                 audio: AudioService.instance,
                                 accent: const Color(0xFF38C172),
+                                showLabels: false,
                               ),
                             ),
                         ],
@@ -259,14 +260,14 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
             // ── Cercle récitateur (déborde sur le côté actif) ─────────────
             if (_isAudioActive)
               Positioned.fill(
-                child: AnimatedAlign(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  alignment: showPlayer
-                      ? Alignment.centerLeft
-                      : Alignment.centerRight,
-                  child: Transform.translate(
-                    offset: Offset(showPlayer ? -22 : 22, 0),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: AnimatedAlign(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    alignment: showPlayer
+                        ? Alignment.centerLeft
+                        : Alignment.centerRight,
                     child: _ReciterCircle(
                       onToggle: () =>
                           setState(() => _isPlayerMode = !_isPlayerMode),
@@ -321,6 +322,7 @@ class _NavIconsContent extends StatelessWidget {
   final Map<int, Animation<double>>   iconScale;
   final double barH;
   final ValueChanged<int> onTap;
+  final bool hasCircle;
 
   const _NavIconsContent({
     super.key,
@@ -329,6 +331,7 @@ class _NavIconsContent extends StatelessWidget {
     required this.iconScale,
     required this.barH,
     required this.onTap,
+    this.hasCircle = false,
   });
 
   @override
@@ -343,7 +346,9 @@ class _NavIconsContent extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final double totalW = constraints.maxWidth;
-        final double itemW  = totalW / 4;
+        // Reserve 48px on the right when circle is present
+        final double navW  = hasCircle ? totalW - 48 : totalW;
+        final double itemW = navW / 4;
         const double pillW  = 44.0;
 
         final double pillLeft = (selectedIndex == 0 || selectedIndex == 3)
@@ -698,13 +703,12 @@ class _ReciterCircle extends StatelessWidget {
           ],
         ),
         child: ClipOval(
-          child: ValueListenableBuilder<String>(
-            valueListenable: AudioService.instance.currentReciterNotifier,
-            builder: (_, name, __) {
-              final url = getReciterPhoto(name);
-              if (url != null) {
-                return Image.network(
-                  url,
+          child: ValueListenableBuilder<String?>(
+            valueListenable: AudioService.instance.currentReciterAssetNotifier,
+            builder: (_, assetPath, __) {
+              if (assetPath != null && assetPath.isNotEmpty) {
+                return Image.asset(
+                  assetPath,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => _soundBarsContainer(),
                 );
