@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,10 +8,12 @@ class RadioService {
   RadioService._();
   static final RadioService instance = RadioService._();
 
-  static const _kCacheKey     = 'radio_stations_cache';
-  static const _kTimestampKey = 'radio_stations_timestamp';
-  static const _kTtlMs        = 24 * 60 * 60 * 1000; // 24 h
-  static const _kApiUrl       = 'https://mp3quran.net/api/v3/radios';
+  static const _kCacheKey      = 'radio_stations_cache';
+  static const _kTimestampKey  = 'radio_stations_timestamp';
+  static const _kTtlMs         = 24 * 60 * 60 * 1000; // 24 h
+  static const _kApiUrl        = 'https://mp3quran.net/api/v3/radios';
+  static const _kRecentIdsKey  = 'radio_recent_ids_v1';
+  static const _kPlayCountsKey = 'radio_play_counts_v1';
 
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 10),
@@ -78,6 +81,70 @@ class RadioService {
       await prefs.setInt(_kTimestampKey, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       debugPrint('RadioService: cache save error: $e');
+    }
+  }
+
+  // ── Tracking récents + popularité ──────────────────────────────────────────
+
+  /// Enregistre une lecture : met la station en tête des récents + incrémente son compteur.
+  Future<void> trackPlay(RadioStation station) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Récents (max 10)
+      final ids = prefs.getStringList(_kRecentIdsKey) ?? [];
+      ids.remove(station.id.toString());
+      ids.insert(0, station.id.toString());
+      if (ids.length > 10) ids.removeRange(10, ids.length);
+      await prefs.setStringList(_kRecentIdsKey, ids);
+      // Compteur
+      final raw    = prefs.getString(_kPlayCountsKey);
+      final counts = raw != null
+          ? Map<String, dynamic>.from(jsonDecode(raw) as Map)
+          : <String, dynamic>{};
+      final k = station.id.toString();
+      counts[k] = ((counts[k] as int?) ?? 0) + 1;
+      await prefs.setString(_kPlayCountsKey, jsonEncode(counts));
+    } catch (e) {
+      debugPrint('RadioService: trackPlay error: $e');
+    }
+  }
+
+  /// Retourne les stations récemment écoutées (dans l'ordre chronologique).
+  Future<List<RadioStation>> getRecents() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids   = prefs.getStringList(_kRecentIdsKey) ?? [];
+      if (ids.isEmpty) return [];
+      final all  = await getStations();
+      final byId = {for (final s in all) s.id: s};
+      return ids
+          .map((id) => byId[int.tryParse(id) ?? -1])
+          .whereType<RadioStation>()
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Retourne les stations les plus écoutées (triées par nombre de lectures).
+  Future<List<RadioStation>> getPopular({int limit = 8}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw   = prefs.getString(_kPlayCountsKey);
+      if (raw == null) return [];
+      final counts = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      final sorted = counts.entries.toList()
+        ..sort((a, b) => (b.value as int).compareTo(a.value as int));
+      final topIds = sorted
+          .take(limit)
+          .map((e) => int.tryParse(e.key) ?? -1)
+          .where((id) => id != -1)
+          .toList();
+      final all  = await getStations();
+      final byId = {for (final s in all) s.id: s};
+      return topIds.map((id) => byId[id]).whereType<RadioStation>().toList();
+    } catch (e) {
+      return [];
     }
   }
 

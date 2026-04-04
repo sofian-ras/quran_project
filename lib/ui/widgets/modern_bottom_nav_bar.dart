@@ -10,7 +10,7 @@ import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../screens/music_player_fullscreen.dart';
-import '../screens/radio_bottom_sheet.dart';
+import '../screens/radio_browser_screen.dart';
 import 'mini_audio_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -815,7 +815,7 @@ class _RadioPillContentState extends State<_RadioPillContent> {
               // ── Nom tappable ──────────────────────────────────────────
               Expanded(
                 child: GestureDetector(
-                  onTap: () => RadioBottomSheet.show(context),
+                  onTap: () => RadioBrowserScreen.show(context),
                   child: ValueListenableBuilder<String>(
                     valueListenable: _audio.currentTitleNotifier,
                     builder: (_, name, __) => Text(

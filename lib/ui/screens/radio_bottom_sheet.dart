@@ -3,75 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/radio_station.dart';
 import '../../services/audio_service.dart';
 import '../../services/radio_service.dart';
-
-// ── Catégories ────────────────────────────────────────────────────────────────
-
-const _kCategories = <String>[
-  'Tous',
-  '📖 Coran',
-  '👤 Récitateurs',
-  '📚 Tafsir',
-  '🕌 Conférences',
-  '🤲 Adhkar & Doua',
-  '🌙 Ambiance',
-  '🎓 Apprentissage',
-  '🌍 Traductions',
-];
-
-String _categorize(RadioStation s) {
-  final n = s.name.toLowerCase();
-
-  // Traductions — langues explicites en premier
-  if (n.contains('translat') || n.contains('traduct') ||
-      n.contains('english') || n.contains('french') ||
-      n.contains('français') || n.contains('urdu') ||
-      n.contains('türk') || n.contains('indonesia') ||
-      n.contains('swahili') || n.contains('bangla')) {
-    return '🌍 Traductions';
-  }
-
-  // Tafsir
-  if (n.contains('tafsir') || n.contains('تفسير')) { return '📚 Tafsir'; }
-
-  // Adhkar & Doua
-  if (n.contains('adhkar') || n.contains('azkar') || n.contains('doua') ||
-      n.contains('dua') || n.contains('ruqya') || n.contains('dhikr') ||
-      n.contains('zikr') || n.contains('أذكار')) { return '🤲 Adhkar & Doua'; }
-
-  // Conférences & Khoutbas
-  if (n.contains('khutba') || n.contains('khotba') || n.contains('khoutba') ||
-      n.contains('conférence') || n.contains('conference') ||
-      n.contains('dars') || n.contains('lecture') || n.contains('محاضر')) {
-    return '🕌 Conférences';
-  }
-
-  // Ambiance
-  if (n.contains('relax') || n.contains('sleep') || n.contains('nuit') ||
-      n.contains('soir') || n.contains('calm') || n.contains('meditat') ||
-      n.contains('douce') || n.contains('lente')) { return '🌙 Ambiance'; }
-
-  // Apprentissage / Hifz
-  if (n.contains('hifz') || n.contains('memoriz') || n.contains('tajwid') ||
-      n.contains('tajweed') || n.contains('تجويد') || n.contains('حفظ') ||
-      n.contains('repeat') || n.contains('تكرار') || n.contains('talim') ||
-      n.contains('apprentis')) { return '🎓 Apprentissage'; }
-
-  // Récitateurs — noms connus
-  if (n.contains('mishary') || n.contains('alafasy') ||
-      n.contains('sudais') || n.contains('shuraim') ||
-      n.contains('minshawi') || n.contains('husary') || n.contains('husari') ||
-      n.contains('abdulbasit') || n.contains('abdul basit') || n.contains('basit') ||
-      n.contains('ghamdi') || n.contains('ajmi') || n.contains('shatri') ||
-      n.contains('baleela') || n.contains('arrifai') || n.contains('muaiqly') ||
-      n.contains('jabir') || n.contains('soufi') || n.contains('qatami') ||
-      n.contains('hudhaify') || n.contains('tablawi') || n.contains('menshawi') ||
-      n.contains('basfar') || n.contains('maher') || n.contains('peshawa')) {
-    return '👤 Récitateurs';
-  }
-
-  // Coran — tout le reste (lecture générale, hizb, juz, boucle…)
-  return '📖 Coran';
-}
+import 'radio_browser_screen.dart';
 
 // ── Widget principal ──────────────────────────────────────────────────────────
 
@@ -138,8 +70,8 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
 
   /// Catégories qui ont au moins une station dans la liste actuelle.
   List<String> get _activeCategories {
-    final present = _stations.map(_categorize).toSet();
-    return _kCategories.where((c) => c == 'Tous' || present.contains(c)).toList();
+    final present = _stations.map(categorizeStation).toSet();
+    return kRadioCategories.where((c) => c == 'Tous' || present.contains(c)).toList();
   }
 
   // ── Build ───────────────────────────────────────────────────────────────────
@@ -310,7 +242,7 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
     // Catégorie spécifique → liste plate filtrée
     if (_selectedCategory != 'Tous') {
       final filtered = _stations
-          .where((s) => _categorize(s) == _selectedCategory)
+          .where((s) => categorizeStation(s) == _selectedCategory)
           .toList();
       if (filtered.isEmpty) {
         return Center(child: Text('Aucune station dans cette catégorie',
@@ -364,12 +296,12 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
   /// Construit une liste plate [String header, RadioStation, RadioStation, …]
   List<dynamic> _buildSectionedItems(List<RadioStation> stations) {
     final grouped = <String, List<RadioStation>>{
-      for (final c in _kCategories.skip(1)) c: [],
+      for (final c in kRadioCategories.skip(1)) c: [],
     };
-    for (final s in stations) { grouped[_categorize(s)]!.add(s); }
+    for (final s in stations) { grouped[categorizeStation(s)]!.add(s); }
 
     final items = <dynamic>[];
-    for (final cat in _kCategories.skip(1)) {
+    for (final cat in kRadioCategories.skip(1)) {
       final list = grouped[cat]!;
       if (list.isEmpty) continue;
       items.add(cat);
