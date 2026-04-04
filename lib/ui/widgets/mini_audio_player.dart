@@ -305,14 +305,17 @@ class SeekBar extends StatefulWidget {
   final AudioService audio;
   final Color accent;
   /// false (défaut) : labels position/durée au-dessus pendant le drag
-  /// true (compact)  : temps inline à droite pendant le drag, sans labels au-dessus
+  /// true (compact)  : barre seule, le parent gère l'affichage du temps
   final bool compact;
+  /// Appelé pendant le drag avec (fraction 0-1, position) ; null à la fin du drag.
+  final void Function(double? fraction, Duration? pos)? onDragChanged;
 
   const SeekBar({
     super.key,
     required this.audio,
     required this.accent,
     this.compact = false,
+    this.onDragChanged,
   });
 
   @override
@@ -333,17 +336,22 @@ class SeekBarState extends State<SeekBar> {
       behavior: HitTestBehavior.opaque,
       onHorizontalDragStart: (d) {
         final f = (d.localPosition.dx / maxW).clamp(0.0, 1.0);
-        setState(() => _dragging = Duration(milliseconds: (f * maxMs).toInt()));
+        final dur = Duration(milliseconds: (f * maxMs).toInt());
+        setState(() => _dragging = dur);
+        widget.onDragChanged?.call(f, dur);
       },
       onHorizontalDragUpdate: (d) {
         final f = (d.localPosition.dx / maxW).clamp(0.0, 1.0);
-        setState(() => _dragging = Duration(milliseconds: (f * maxMs).toInt()));
+        final dur = Duration(milliseconds: (f * maxMs).toInt());
+        setState(() => _dragging = dur);
+        widget.onDragChanged?.call(f, dur);
       },
       onHorizontalDragEnd: (_) {
         if (_dragging != null) {
           widget.audio.seek(_dragging!);
           setState(() => _dragging = null);
         }
+        widget.onDragChanged?.call(null, null);
       },
       onTapDown: (d) {
         final f = (d.localPosition.dx / maxW).clamp(0.0, 1.0);
@@ -381,40 +389,12 @@ class SeekBarState extends State<SeekBar> {
         final fraction = (pos.inMilliseconds / maxMs).clamp(0.0, 1.0);
 
         if (widget.compact) {
-          // ── Mode compact : barre pleine largeur + temps en overlay ──────
-          // Stack → barre toujours full-width, temps affiché par-dessus
-          // à droite pendant le drag. Hauteur fixe 10px, zéro overflow.
+          // Barre seule pleine largeur — le parent gère l'affichage du temps.
           return SizedBox(
             height: 10,
             child: LayoutBuilder(builder: (ctx, constraints) {
-              return Stack(
-                children: [
-                  _buildBar(constraints.maxWidth, maxMs, fraction,
-                      accent, trackBg, lineH: 10),
-                  if (_dragging != null)
-                    Positioned(
-                      right: 6,
-                      top: 0,
-                      bottom: 0,
-                      child: Center(
-                        child: Text(
-                          _fmt(_dragging!),
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: accent,
-                            fontWeight: FontWeight.w700,
-                            shadows: const [
-                              Shadow(
-                                color: Colors.white,
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              );
+              return _buildBar(constraints.maxWidth, maxMs, fraction,
+                  accent, trackBg, lineH: 10);
             }),
           );
         }

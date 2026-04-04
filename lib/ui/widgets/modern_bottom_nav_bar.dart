@@ -47,8 +47,10 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
   final Map<int, Animation<double>>   _iconScale = {};
 
   // ── Audio state ───────────────────────────────────────────────────────────
-  bool _isAudioActive = false;
-  bool _isPlayerMode  = true;
+  bool     _isAudioActive = false;
+  bool     _isPlayerMode  = true;
+  double?  _seekFraction;
+  Duration? _seekDragPos;
   late final StreamSubscription<bool> _activeSub;
 
   @override
@@ -185,7 +187,9 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
     final double pillH  = showPlayer ? barH + seekH : barH;
 
     return Expanded(
-      child: AnimatedContainer(
+      child: LayoutBuilder(builder: (_, constraints) {
+        final pillW = constraints.maxWidth;
+        return AnimatedContainer(
         duration: const Duration(milliseconds: 280),
         curve: Curves.easeInOut,
         height: pillH,
@@ -240,16 +244,27 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                                     ),
                             ),
                           ),
-                          // Seek bar pleine hauteur — ClipRRect arrondit les coins
-                          if (showPlayer)
-                            SizedBox(
-                              height: seekH,
-                              child: SeekBar(
-                                audio: AudioService.instance,
-                                accent: const Color(0xFF38C172),
-                                compact: true,
-                              ),
-                            ),
+                          // Seek bar — AnimatedSize en sync avec AnimatedContainer
+                          // pour éviter l'overflow pendant la transition nav→player.
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 280),
+                            curve: Curves.easeInOut,
+                            clipBehavior: Clip.hardEdge,
+                            child: showPlayer
+                                ? SizedBox(
+                                    height: seekH,
+                                    child: SeekBar(
+                                      audio: AudioService.instance,
+                                      accent: const Color(0xFF38C172),
+                                      compact: true,
+                                      onDragChanged: (f, pos) => setState(() {
+                                        _seekFraction = f;
+                                        _seekDragPos  = pos;
+                                      }),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
                         ],
                       ),
                     ),
@@ -274,16 +289,71 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                         ? Alignment.centerLeft
                         : Alignment.centerRight,
                     child: _ReciterCircle(
-                      onToggle: () =>
-                          setState(() => _isPlayerMode = !_isPlayerMode),
+                      onToggle: () => setState(() {
+                        _isPlayerMode = !_isPlayerMode;
+                        if (!_isPlayerMode) {
+                          _seekFraction = null;
+                          _seekDragPos  = null;
+                        }
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+
+            // ── Temps total (hors ClipRRect, sous la pill) ──────────────
+            if (showPlayer && _seekDragPos == null)
+              Positioned(
+                right: 8,
+                bottom: -12,
+                child: StreamBuilder<PositionData>(
+                  stream: AudioService.instance.positionDataStream,
+                  builder: (_, snap) {
+                    final total = snap.data?.duration ?? Duration.zero;
+                    if (total == Duration.zero) return const SizedBox.shrink();
+                    return Text(
+                      _fmtDur(total),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF38C172),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+            // ── Tooltip position drag (suit le pouce) ───────────────────
+            if (showPlayer && _seekDragPos != null)
+              Positioned(
+                left: ((_seekFraction ?? 0) * pillW - 18).clamp(0.0, pillW - 36.0),
+                bottom: -14,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF38C172),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    _fmtDur(_seekDragPos!),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ),
           ],
         ),
-      ),
-    );
+        );   // AnimatedContainer
+      }),    // LayoutBuilder
+    );       // Expanded
+  }
+
+  String _fmtDur(Duration d) {
+    String p(int n) => n.toString().padLeft(2, '0');
+    return '${p(d.inMinutes.remainder(60))}:${p(d.inSeconds.remainder(60))}';
   }
 
   @override
