@@ -6,10 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../../data/reciter_photos.dart';
 import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../screens/music_player_fullscreen.dart';
+import 'mini_audio_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -179,10 +181,15 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
   // ── Pill (barre droite) ───────────────────────────────────────────────────
   Widget _navPill(double barH) {
     final showPlayer = _isAudioActive && _isPlayerMode;
+    const double pillHNav    = 52.0;
+    const double pillHPlayer = 64.0;
+    final double pillH = showPlayer ? pillHPlayer : pillHNav;
 
     return Expanded(
-      child: SizedBox(
-        height: barH,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOut,
+        height: pillH,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -190,7 +197,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(barH / 2),
+                  borderRadius: BorderRadius.circular(pillH / 2),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.25),
@@ -200,39 +207,48 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(barH / 2),
+                  borderRadius: BorderRadius.circular(pillH / 2),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
                     child: Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(barH / 2),
+                        borderRadius: BorderRadius.circular(pillH / 2),
                         color: Colors.white.withValues(alpha: 0.55),
                       ),
                       // ── Contenu animé ──────────────────────────────────
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 280),
-                        transitionBuilder: (child, anim) => FadeTransition(
-                          opacity: anim,
-                          child: child,
-                        ),
-                        child: showPlayer
-                            ? _PlayerPillContent(
-                                key: const ValueKey('player'),
-                                onToggleToNav: () =>
-                                    setState(() => _isPlayerMode = false),
-                                onDismiss: AudioService.instance.stopAll,
-                              )
-                            : _NavIconsContent(
-                                key: const ValueKey('nav'),
-                                selectedIndex: widget.index,
-                                iconCtrl: _iconCtrl,
-                                iconScale: _iconScale,
-                                barH: barH,
-                                onTap: _tapItem,
-                                showPlayerToggle: _isAudioActive,
-                                onToggleToPlayer: () =>
-                                    setState(() => _isPlayerMode = true),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            height: pillHNav,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 280),
+                              transitionBuilder: (child, anim) =>
+                                  FadeTransition(opacity: anim, child: child),
+                              child: showPlayer
+                                  ? _PlayerPillContent(
+                                      key: const ValueKey('player'),
+                                      onDismiss: AudioService.instance.stopAll,
+                                    )
+                                  : _NavIconsContent(
+                                      key: const ValueKey('nav'),
+                                      selectedIndex: widget.index,
+                                      iconCtrl: _iconCtrl,
+                                      iconScale: _iconScale,
+                                      barH: pillHNav,
+                                      onTap: _tapItem,
+                                    ),
+                            ),
+                          ),
+                          if (showPlayer)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                              child: SeekBar(
+                                audio: AudioService.instance,
+                                accent: const Color(0xFF38C172),
                               ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -240,6 +256,24 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
               ),
             ),
 
+            // ── Cercle récitateur (déborde sur le côté actif) ─────────────
+            if (_isAudioActive)
+              Positioned.fill(
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  alignment: showPlayer
+                      ? Alignment.centerLeft
+                      : Alignment.centerRight,
+                  child: Transform.translate(
+                    offset: Offset(showPlayer ? -22 : 22, 0),
+                    child: _ReciterCircle(
+                      onToggle: () =>
+                          setState(() => _isPlayerMode = !_isPlayerMode),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -287,8 +321,6 @@ class _NavIconsContent extends StatelessWidget {
   final Map<int, Animation<double>>   iconScale;
   final double barH;
   final ValueChanged<int> onTap;
-  final bool showPlayerToggle;
-  final VoidCallback onToggleToPlayer;
 
   const _NavIconsContent({
     super.key,
@@ -297,8 +329,6 @@ class _NavIconsContent extends StatelessWidget {
     required this.iconScale,
     required this.barH,
     required this.onTap,
-    required this.showPlayerToggle,
-    required this.onToggleToPlayer,
   });
 
   @override
@@ -313,9 +343,7 @@ class _NavIconsContent extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final double totalW = constraints.maxWidth;
-        // Si toggle visible, on réserve 32px à droite
-        final double navW   = showPlayerToggle ? totalW - 32 : totalW;
-        final double itemW  = navW / 4;
+        final double itemW  = totalW / 4;
         const double pillW  = 44.0;
 
         final double pillLeft = (selectedIndex == 0 || selectedIndex == 3)
@@ -388,22 +416,6 @@ class _NavIconsContent extends StatelessWidget {
                   );
                 }),
 
-                // ›  Revenir au mini player
-                if (showPlayerToggle)
-                  SizedBox(
-                    width: 32,
-                    height: barH,
-                    child: GestureDetector(
-                      onTap: onToggleToPlayer,
-                      child: const Center(
-                        child: Icon(
-                          Icons.chevron_right_rounded,
-                          color: Color(0xFF38C172),
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ],
@@ -416,12 +428,10 @@ class _NavIconsContent extends StatelessWidget {
 // ── Contenu : mini player dans la pill ───────────────────────────────────────
 
 class _PlayerPillContent extends StatefulWidget {
-  final VoidCallback onToggleToNav;
   final VoidCallback onDismiss;
 
   const _PlayerPillContent({
     super.key,
-    required this.onToggleToNav,
     required this.onDismiss,
   });
 
@@ -500,7 +510,7 @@ class _PlayerPillContentState extends State<_PlayerPillContent> {
             children: [
               // ── Ligne principale ──────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.only(left: 12, right: 4),
+                padding: const EdgeInsets.only(left: 56, right: 4),
                 child: Row(
                   children: [
                     // Titre + récitateur
@@ -575,18 +585,6 @@ class _PlayerPillContentState extends State<_PlayerPillContent> {
                       },
                     ),
 
-                    // ‹ Revenir aux icônes
-                    IconButton(
-                      icon: const Icon(
-                        Icons.chevron_left_rounded,
-                        color: Color(0xFF374151),
-                        size: 22,
-                      ),
-                      onPressed: widget.onToggleToNav,
-                      padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 28, minHeight: 28),
-                    ),
                   ],
                 ),
               ),
@@ -674,5 +672,56 @@ class _PlayerPillContentState extends State<_PlayerPillContent> {
   }
 }
 
-// ── Avatar récitateur (déborde de la pill) ────────────────────────────────────
+// ── Cercle récitateur (déborde de la pill, tap = toggle mode) ────────────────
+
+class _ReciterCircle extends StatelessWidget {
+  final VoidCallback onToggle;
+
+  const _ReciterCircle({required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    const double size = 44.0;
+    return GestureDetector(
+      onTap: onToggle,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.30),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: ValueListenableBuilder<String>(
+            valueListenable: AudioService.instance.currentReciterNotifier,
+            builder: (_, name, __) {
+              final url = getReciterPhoto(name);
+              if (url != null) {
+                return Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _soundBarsContainer(),
+                );
+              }
+              return _soundBarsContainer();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _soundBarsContainer() => Container(
+        color: const Color(0xFFE8F5E9),
+        child: const Center(
+          child: AnimatedSoundBars(),
+        ),
+      );
+}
 

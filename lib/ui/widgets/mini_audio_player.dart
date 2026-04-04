@@ -105,7 +105,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // ── Barre de progression ──────────────────────────────────────
-              _SeekBar(audio: _audio, accent: accent),
+              SeekBar(audio: _audio, accent: accent),
 
               // ── Ligne principale ──────────────────────────────────────────
               Padding(
@@ -301,17 +301,17 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
 
 // ── Barre de progression interactive (glissable) ──────────────────────────────
 
-class _SeekBar extends StatefulWidget {
+class SeekBar extends StatefulWidget {
   final AudioService audio;
   final Color accent;
 
-  const _SeekBar({required this.audio, required this.accent});
+  const SeekBar({super.key, required this.audio, required this.accent});
 
   @override
-  State<_SeekBar> createState() => _SeekBarState();
+  State<SeekBar> createState() => SeekBarState();
 }
 
-class _SeekBarState extends State<_SeekBar> {
+class SeekBarState extends State<SeekBar> {
   Duration? _dragging;
 
   String _fmt(Duration d) {
