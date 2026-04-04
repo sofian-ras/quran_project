@@ -304,13 +304,15 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
 class SeekBar extends StatefulWidget {
   final AudioService audio;
   final Color accent;
-  final bool showLabels;
+  /// false (défaut) : labels position/durée au-dessus pendant le drag
+  /// true (compact)  : temps inline à droite pendant le drag, sans labels au-dessus
+  final bool compact;
 
   const SeekBar({
     super.key,
     required this.audio,
     required this.accent,
-    this.showLabels = true,
+    this.compact = false,
   });
 
   @override
@@ -325,6 +327,45 @@ class SeekBarState extends State<SeekBar> {
     return '${p(d.inMinutes.remainder(60))}:${p(d.inSeconds.remainder(60))}';
   }
 
+  Widget _buildBar(double maxW, double maxMs, double fraction, Color accent,
+      Color trackBg, {Alignment lineAlignment = Alignment.topCenter, double lineH = 2}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragStart: (d) {
+        final f = (d.localPosition.dx / maxW).clamp(0.0, 1.0);
+        setState(() => _dragging = Duration(milliseconds: (f * maxMs).toInt()));
+      },
+      onHorizontalDragUpdate: (d) {
+        final f = (d.localPosition.dx / maxW).clamp(0.0, 1.0);
+        setState(() => _dragging = Duration(milliseconds: (f * maxMs).toInt()));
+      },
+      onHorizontalDragEnd: (_) {
+        if (_dragging != null) {
+          widget.audio.seek(_dragging!);
+          setState(() => _dragging = null);
+        }
+      },
+      onTapDown: (d) {
+        final f = (d.localPosition.dx / maxW).clamp(0.0, 1.0);
+        widget.audio.seek(Duration(milliseconds: (f * maxMs).toInt()));
+      },
+      child: SizedBox(
+        height: 10,
+        child: Align(
+          alignment: lineAlignment,
+          child: SizedBox(
+            height: lineH,
+            child: LinearProgressIndicator(
+              value: fraction,
+              backgroundColor: trackBg,
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -334,83 +375,68 @@ class SeekBarState extends State<SeekBar> {
     return StreamBuilder<PositionData>(
       stream: widget.audio.positionDataStream,
       builder: (_, snapshot) {
-        final dur = snapshot.data?.duration ?? Duration.zero;
-        final pos = _dragging ?? snapshot.data?.position ?? Duration.zero;
-        final maxMs = dur.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+        final dur    = snapshot.data?.duration ?? Duration.zero;
+        final pos    = _dragging ?? snapshot.data?.position ?? Duration.zero;
+        final maxMs  = dur.inMilliseconds.toDouble().clamp(1.0, double.infinity);
         final fraction = (pos.inMilliseconds / maxMs).clamp(0.0, 1.0);
 
+        if (widget.compact) {
+          // ── Mode compact : barre + temps à droite pendant le drag ──────
+          // Les 40px du label sont TOUJOURS réservés → layout stable,
+          // calcul de fraction correct (barW constant).
+          return LayoutBuilder(builder: (ctx, constraints) {
+            const double labelW = 40.0;
+            final double barW = constraints.maxWidth - labelW;
+            return Row(
+              children: [
+                SizedBox(
+                  width: barW,
+                  child: _buildBar(barW, maxMs, fraction, accent, trackBg,
+                      lineAlignment: Alignment.bottomCenter, lineH: 3),
+                ),
+                SizedBox(
+                  width: labelW,
+                  child: _dragging != null
+                      ? Text(
+                          _fmt(_dragging!),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      : null,
+                ),
+              ],
+            );
+          });
+        }
+
+        // ── Mode normal : labels au-dessus pendant le drag ─────────────
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (widget.showLabels && _dragging != null)
+            if (_dragging != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      _fmt(pos),
-                      style: TextStyle(
-                          fontSize: 10,
-                          color: accent,
-                          fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      _fmt(dur),
-                      style: TextStyle(
-                          fontSize: 10,
-                          color: isDark ? Colors.white38 : Colors.black38),
-                    ),
+                    Text(_fmt(pos),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: accent,
+                            fontWeight: FontWeight.w600)),
+                    Text(_fmt(dur),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.white38 : Colors.black38)),
                   ],
                 ),
               ),
-            LayoutBuilder(
-              builder: (ctx, constraints) {
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onHorizontalDragStart: (d) {
-                    final f = (d.localPosition.dx / constraints.maxWidth)
-                        .clamp(0.0, 1.0);
-                    setState(() {
-                      _dragging = Duration(milliseconds: (f * maxMs).toInt());
-                    });
-                  },
-                  onHorizontalDragUpdate: (d) {
-                    final f = (d.localPosition.dx / constraints.maxWidth)
-                        .clamp(0.0, 1.0);
-                    setState(() {
-                      _dragging = Duration(milliseconds: (f * maxMs).toInt());
-                    });
-                  },
-                  onHorizontalDragEnd: (_) {
-                    if (_dragging != null) {
-                      widget.audio.seek(_dragging!);
-                      setState(() => _dragging = null);
-                    }
-                  },
-                  onTapDown: (d) {
-                    final f = (d.localPosition.dx / constraints.maxWidth)
-                        .clamp(0.0, 1.0);
-                    widget.audio
-                        .seek(Duration(milliseconds: (f * maxMs).toInt()));
-                  },
-                  child: SizedBox(
-                    height: 10,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: SizedBox(
-                        height: 2,
-                        child: LinearProgressIndicator(
-                          value: fraction,
-                          backgroundColor: trackBg,
-                          valueColor: AlwaysStoppedAnimation<Color>(accent),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+            LayoutBuilder(builder: (ctx, constraints) {
+              return _buildBar(constraints.maxWidth, maxMs, fraction, accent, trackBg);
+            }),
           ],
         );
       },
