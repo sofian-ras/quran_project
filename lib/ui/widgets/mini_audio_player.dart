@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../data/reciter_photos.dart';
+import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../screens/music_player_fullscreen.dart';
@@ -436,6 +437,7 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
   double _offsetY = 0;
   double _offsetX = 0;
   bool _isCollapsed = false;
+  bool _showHints   = false;
 
   @override
   Widget build(BuildContext context) {
@@ -448,108 +450,132 @@ class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
       );
     }
 
+    final id       = _audio.currentSurahId ?? 1;
+    final prevName = id > 1   ? (surahFr[id - 1] ?? '') : null;
+    final nextName = id < 114 ? (surahFr[id + 1] ?? '') : null;
+
     final totalDisp = _offsetX.abs() > _offsetY ? _offsetX.abs() : _offsetY;
-    final absDx      = _offsetX.abs();
-    final thresholdReached = absDx > 60;
 
-    // Intensité du dégradé : 0 → 0.45 progressivement
-    final gradientAlpha = (absDx / 80).clamp(0.0, 0.45);
-    // Icône centrale : apparaît et pulse quand seuil atteint
-    final iconScale = thresholdReached ? 1.15 : 0.0;
+    return Listener(
+      onPointerDown:   (_) => setState(() => _showHints = true),
+      onPointerUp:     (_) => setState(() => _showHints = false),
+      onPointerCancel: (_) => setState(() => _showHints = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        // ── Swipe bas → dismiss ─────────────────────────────────────────────
+        onVerticalDragUpdate: (d) {
+          if (d.delta.dy > 0 || _offsetY > 0) {
+            setState(() => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 140.0));
+          }
+        },
+        onVerticalDragEnd: (d) {
+          if (_offsetY > 60 || d.velocity.pixelsPerSecond.dy > 400) {
+            widget.onDismiss();
+            return;
+          }
+          setState(() => _offsetY = 0);
+        },
+        onVerticalDragCancel: () => setState(() => _offsetY = 0),
+        // ── Swipe droite → précédent, gauche → suivant ──────────────────────
+        onHorizontalDragUpdate: (d) {
+          setState(() => _offsetX = (_offsetX + d.delta.dx).clamp(-150.0, 150.0));
+        },
+        onHorizontalDragEnd: (d) {
+          final vx = d.velocity.pixelsPerSecond.dx;
+          if (_offsetX > 60 || vx > 400) { _audio.skipToPrevious(); }
+          else if (_offsetX < -60 || vx < -400) { _audio.skipToNext(); }
+          setState(() => _offsetX = 0);
+        },
+        onHorizontalDragCancel: () => setState(() => _offsetX = 0),
+        child: Transform.translate(
+          offset: Offset(_offsetX, _offsetY),
+          child: Opacity(
+            opacity: (1.0 - totalDisp / 150.0 * 0.75).clamp(0.20, 1.0),
+            child: Stack(
+              children: [
+                MiniAudioPlayer(
+                  onCollapse: () => setState(() => _isCollapsed = true),
+                ),
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // ── Swipe bas → dismiss ───────────────────────────────────────────────
-      onVerticalDragUpdate: (d) {
-        if (d.delta.dy > 0 || _offsetY > 0) {
-          setState(() => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 140.0));
-        }
-      },
-      onVerticalDragEnd: (d) {
-        if (_offsetY > 60 || d.velocity.pixelsPerSecond.dy > 400) {
-          widget.onDismiss();
-          return;
-        }
-        setState(() => _offsetY = 0);
-      },
-      onVerticalDragCancel: () => setState(() => _offsetY = 0),
-      // ── Swipe droite → précédent, gauche → suivant ────────────────────────
-      onHorizontalDragUpdate: (d) {
-        setState(() => _offsetX = (_offsetX + d.delta.dx).clamp(-150.0, 150.0));
-      },
-      onHorizontalDragEnd: (d) {
-        final vx = d.velocity.pixelsPerSecond.dx;
-        if (_offsetX > 60 || vx > 400) {
-          _audio.skipToPrevious();
-        } else if (_offsetX < -60 || vx < -400) {
-          _audio.skipToNext();
-        }
-        setState(() => _offsetX = 0);
-      },
-      onHorizontalDragCancel: () => setState(() => _offsetX = 0),
-      child: Transform.translate(
-        offset: Offset(_offsetX, _offsetY),
-        child: Opacity(
-          opacity: (1.0 - totalDisp / 150.0 * 0.75).clamp(0.20, 1.0),
-          child: Stack(
-            children: [
-              MiniAudioPlayer(
-                onCollapse: () => setState(() => _isCollapsed = true),
-              ),
-
-              // ── Flash directionnel ──────────────────────────────────────
-              if (_offsetX != 0)
+                // ── Labels prev / next ──────────────────────────────────────
                 Positioned.fill(
                   child: IgnorePointer(
                     child: ClipRRect(
                       borderRadius: const BorderRadius.all(Radius.circular(16)),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: _offsetX > 0
-                                ? Alignment.centerLeft
-                                : Alignment.centerRight,
-                            end: _offsetX > 0
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            colors: [
-                              const Color(0xFF38C172).withValues(alpha: gradientAlpha),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.6],
+                      child: Row(
+                        children: [
+                          // Gauche : précédent (swipe droite)
+                          AnimatedOpacity(
+                            opacity: _showHints && prevName != null ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Color(0xCC38C172), Colors.transparent],
+                                  stops: [0.0, 1.0],
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.arrow_back_ios_rounded,
+                                      color: Colors.white, size: 12),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    prevName ?? '',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
 
-              // ── Icône centrale au dépassement du seuil ──────────────────
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Center(
-                    child: AnimatedScale(
-                      scale: iconScale,
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.elasticOut,
-                      child: Icon(
-                        _offsetX > 0
-                            ? Icons.skip_previous_rounded
-                            : Icons.skip_next_rounded,
-                        color: const Color(0xFF38C172),
-                        size: 36,
-                        shadows: const [
-                          Shadow(
-                            color: Color(0x6638C172),
-                            blurRadius: 12,
+                          const Spacer(),
+
+                          // Droite : suivant (swipe gauche)
+                          AnimatedOpacity(
+                            opacity: _showHints && nextName != null ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.transparent, Color(0xCC38C172)],
+                                  stops: [0.0, 1.0],
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Icon(Icons.arrow_forward_ios_rounded,
+                                      color: Colors.white, size: 12),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    nextName ?? '',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
