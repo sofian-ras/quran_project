@@ -10,6 +10,7 @@ import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../screens/music_player_fullscreen.dart';
+import '../screens/radio_bottom_sheet.dart';
 import 'mini_audio_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
   // ── Audio state ───────────────────────────────────────────────────────────
   bool     _isAudioActive = false;
   bool     _isPlayerMode  = true;
+  bool     _isRadioMode   = false;
   double?  _seekFraction;
   Duration? _seekDragPos;
   late final StreamSubscription<bool> _activeSub;
@@ -85,11 +87,27 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
         });
       }
     });
+    AudioService.instance.isRadioModeNotifier.addListener(_onRadioModeChanged);
+  }
+
+  void _onRadioModeChanged() {
+    if (!mounted) return;
+    final isRadio = AudioService.instance.isRadioModeNotifier.value;
+    setState(() {
+      _isRadioMode = isRadio;
+      if (isRadio) {
+        // Forcer le mode player + nettoyer le state seek quand la radio démarre.
+        _isPlayerMode = true;
+        _seekFraction = null;
+        _seekDragPos  = null;
+      }
+    });
   }
 
   @override
   void dispose() {
     _activeSub.cancel();
+    AudioService.instance.isRadioModeNotifier.removeListener(_onRadioModeChanged);
     _fabCtrl.dispose();
     _haloCtrl.dispose();
     for (final c in _iconCtrl.values) { c.dispose(); }
@@ -184,7 +202,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
     final showPlayer = _isAudioActive && _isPlayerMode;
     const double seekH = 10.0;
     final double radius = barH / 2;
-    final double pillH  = showPlayer ? barH + seekH : barH;
+    final double pillH  = showPlayer ? (_isRadioMode ? barH : barH + seekH) : barH;
 
     return Expanded(
       child: LayoutBuilder(builder: (_, constraints) {
@@ -229,10 +247,15 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                               transitionBuilder: (child, anim) =>
                                   FadeTransition(opacity: anim, child: child),
                               child: showPlayer
-                                  ? _PlayerPillContent(
-                                      key: const ValueKey('player'),
-                                      onDismiss: AudioService.instance.stopAll,
-                                    )
+                                  ? (_isRadioMode
+                                      ? _RadioPillContent(
+                                          key: const ValueKey('radio'),
+                                          onDismiss: AudioService.instance.stopAll,
+                                        )
+                                      : _PlayerPillContent(
+                                          key: const ValueKey('player'),
+                                          onDismiss: AudioService.instance.stopAll,
+                                        ))
                                   : _NavIconsContent(
                                       key: const ValueKey('nav'),
                                       selectedIndex: widget.index,
@@ -244,13 +267,12 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                                     ),
                             ),
                           ),
-                          // Seek bar — AnimatedSize en sync avec AnimatedContainer
-                          // pour éviter l'overflow pendant la transition nav→player.
+                          // Seek bar — cachée en mode radio (stream live)
                           AnimatedSize(
                             duration: const Duration(milliseconds: 280),
                             curve: Curves.easeInOut,
                             clipBehavior: Clip.hardEdge,
-                            child: showPlayer
+                            child: (showPlayer && !_isRadioMode)
                                 ? SizedBox(
                                     height: seekH,
                                     child: SeekBar(
@@ -273,7 +295,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
               ),
             ),
 
-            // ── Cercle récitateur ───────────────────────────────────────
+            // ── Cercle récitateur / radio (toggle nav↔player) ───────────
             if (_isAudioActive)
               Positioned(
                 top: 0,
@@ -288,21 +310,26 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                     alignment: showPlayer
                         ? Alignment.centerLeft
                         : Alignment.centerRight,
-                    child: _ReciterCircle(
-                      onToggle: () => setState(() {
-                        _isPlayerMode = !_isPlayerMode;
-                        if (!_isPlayerMode) {
-                          _seekFraction = null;
-                          _seekDragPos  = null;
-                        }
-                      }),
-                    ),
+                    child: _isRadioMode
+                        ? _RadioCircle(
+                            onToggle: () => setState(() =>
+                                _isPlayerMode = !_isPlayerMode),
+                          )
+                        : _ReciterCircle(
+                            onToggle: () => setState(() {
+                              _isPlayerMode = !_isPlayerMode;
+                              if (!_isPlayerMode) {
+                                _seekFraction = null;
+                                _seekDragPos  = null;
+                              }
+                            }),
+                          ),
                   ),
                 ),
               ),
 
             // ── Temps total (hors ClipRRect, sous la pill) ──────────────
-            if (showPlayer && _seekDragPos == null)
+            if (showPlayer && !_isRadioMode && _seekDragPos == null)
               Positioned(
                 right: 8,
                 bottom: -12,
@@ -324,7 +351,7 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
               ),
 
             // ── Tooltip position drag (suit le pouce) ───────────────────
-            if (showPlayer && _seekDragPos != null)
+            if (showPlayer && !_isRadioMode && _seekDragPos != null)
               Positioned(
                 left: ((_seekFraction ?? 0) * pillW - 18).clamp(0.0, pillW - 36.0),
                 bottom: -14,
@@ -752,6 +779,115 @@ class _PlayerPillContentState extends State<_PlayerPillContent> {
   }
 }
 
+// ── Contenu radio : nom + badge LIVE + play/pause ────────────────────────────
+
+class _RadioPillContent extends StatefulWidget {
+  final VoidCallback onDismiss;
+  const _RadioPillContent({super.key, required this.onDismiss});
+  @override
+  State<_RadioPillContent> createState() => _RadioPillContentState();
+}
+
+class _RadioPillContentState extends State<_RadioPillContent> {
+  final _audio = AudioService.instance;
+  double _dy = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: (d) {
+        if (d.delta.dy > 0 || _dy > 0) {
+          setState(() => _dy = (_dy + d.delta.dy).clamp(0.0, 60.0));
+        }
+      },
+      onVerticalDragEnd: (d) {
+        if (_dy > 30 || d.velocity.pixelsPerSecond.dy > 400) widget.onDismiss();
+        setState(() => _dy = 0);
+      },
+      onVerticalDragCancel: () => setState(() => _dy = 0),
+      child: Transform.translate(
+        offset: Offset(0, _dy),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 56, right: 8),
+          child: Row(
+            children: [
+              // ── Nom tappable ──────────────────────────────────────────
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => RadioBottomSheet.show(context),
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: _audio.currentTitleNotifier,
+                    builder: (_, name, __) => Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111827),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // ── Badge LIVE ────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: const Text(
+                  'LIVE',
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              // ── Play / Pause ──────────────────────────────────────────
+              StreamBuilder<PlayerState>(
+                stream: _audio.playerStateStream,
+                builder: (_, snap) {
+                  final st      = snap.data;
+                  final playing = st?.playing ?? false;
+                  final loading = st?.processingState == ProcessingState.loading ||
+                      st?.processingState == ProcessingState.buffering;
+                  if (loading) {
+                    return const SizedBox(
+                      width: 36, height: 36,
+                      child: Center(
+                        child: SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(
+                            color: Color(0xFFDC2626), strokeWidth: 2),
+                        ),
+                      ),
+                    );
+                  }
+                  return IconButton(
+                    icon: Icon(
+                      playing ? Icons.pause : Icons.play_arrow,
+                      color: const Color(0xFF111827),
+                      size: 28,
+                    ),
+                    onPressed: _audio.togglePlayPause,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Cercle récitateur (déborde de la pill, tap = toggle mode) ────────────────
 
 class _ReciterCircle extends StatelessWidget {
@@ -802,5 +938,38 @@ class _ReciterCircle extends StatelessWidget {
           child: AnimatedSoundBars(),
         ),
       );
+}
+
+// ── Cercle radio (toggle nav↔player en mode radio) ────────────────────────────
+
+class _RadioCircle extends StatelessWidget {
+  final VoidCallback onToggle;
+  const _RadioCircle({required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    const double size = 44.0;
+    return GestureDetector(
+      onTap: onToggle,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFFDC2626),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.30),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Icon(Icons.radio_rounded, color: Colors.white, size: 22),
+        ),
+      ),
+    );
+  }
 }
 

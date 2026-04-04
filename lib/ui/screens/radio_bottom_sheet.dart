@@ -4,6 +4,77 @@ import '../../models/radio_station.dart';
 import '../../services/audio_service.dart';
 import '../../services/radio_service.dart';
 
+// ── Catégories ────────────────────────────────────────────────────────────────
+
+const _kCategories = <String>[
+  'Tous',
+  '📖 Coran',
+  '👤 Récitateurs',
+  '📚 Tafsir',
+  '🕌 Conférences',
+  '🤲 Adhkar & Doua',
+  '🌙 Ambiance',
+  '🎓 Apprentissage',
+  '🌍 Traductions',
+];
+
+String _categorize(RadioStation s) {
+  final n = s.name.toLowerCase();
+
+  // Traductions — langues explicites en premier
+  if (n.contains('translat') || n.contains('traduct') ||
+      n.contains('english') || n.contains('french') ||
+      n.contains('français') || n.contains('urdu') ||
+      n.contains('türk') || n.contains('indonesia') ||
+      n.contains('swahili') || n.contains('bangla')) {
+    return '🌍 Traductions';
+  }
+
+  // Tafsir
+  if (n.contains('tafsir') || n.contains('تفسير')) { return '📚 Tafsir'; }
+
+  // Adhkar & Doua
+  if (n.contains('adhkar') || n.contains('azkar') || n.contains('doua') ||
+      n.contains('dua') || n.contains('ruqya') || n.contains('dhikr') ||
+      n.contains('zikr') || n.contains('أذكار')) { return '🤲 Adhkar & Doua'; }
+
+  // Conférences & Khoutbas
+  if (n.contains('khutba') || n.contains('khotba') || n.contains('khoutba') ||
+      n.contains('conférence') || n.contains('conference') ||
+      n.contains('dars') || n.contains('lecture') || n.contains('محاضر')) {
+    return '🕌 Conférences';
+  }
+
+  // Ambiance
+  if (n.contains('relax') || n.contains('sleep') || n.contains('nuit') ||
+      n.contains('soir') || n.contains('calm') || n.contains('meditat') ||
+      n.contains('douce') || n.contains('lente')) { return '🌙 Ambiance'; }
+
+  // Apprentissage / Hifz
+  if (n.contains('hifz') || n.contains('memoriz') || n.contains('tajwid') ||
+      n.contains('tajweed') || n.contains('تجويد') || n.contains('حفظ') ||
+      n.contains('repeat') || n.contains('تكرار') || n.contains('talim') ||
+      n.contains('apprentis')) { return '🎓 Apprentissage'; }
+
+  // Récitateurs — noms connus
+  if (n.contains('mishary') || n.contains('alafasy') ||
+      n.contains('sudais') || n.contains('shuraim') ||
+      n.contains('minshawi') || n.contains('husary') || n.contains('husari') ||
+      n.contains('abdulbasit') || n.contains('abdul basit') || n.contains('basit') ||
+      n.contains('ghamdi') || n.contains('ajmi') || n.contains('shatri') ||
+      n.contains('baleela') || n.contains('arrifai') || n.contains('muaiqly') ||
+      n.contains('jabir') || n.contains('soufi') || n.contains('qatami') ||
+      n.contains('hudhaify') || n.contains('tablawi') || n.contains('menshawi') ||
+      n.contains('basfar') || n.contains('maher') || n.contains('peshawa')) {
+    return '👤 Récitateurs';
+  }
+
+  // Coran — tout le reste (lecture générale, hizb, juz, boucle…)
+  return '📖 Coran';
+}
+
+// ── Widget principal ──────────────────────────────────────────────────────────
+
 class RadioBottomSheet extends StatefulWidget {
   const RadioBottomSheet({super.key});
 
@@ -23,21 +94,20 @@ class RadioBottomSheet extends StatefulWidget {
 
 class _RadioBottomSheetState extends State<RadioBottomSheet> {
   List<RadioStation> _stations = [];
-  List<RadioStation> _filtered = [];
   bool _loading = true;
   String? _error;
+  String _selectedCategory = 'Tous';
   final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _searchCtrl.addListener(_onSearch);
+    _searchCtrl.addListener(() => setState(() {}));
     _load();
   }
 
   @override
   void dispose() {
-    _searchCtrl.removeListener(_onSearch);
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -45,33 +115,34 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
   Future<void> _load() async {
     try {
       final stations = await RadioService.instance.getStations();
-      if (mounted) {
-        setState(() {
-          _stations = stations;
-          _filtered = stations;
-          _loading  = false;
-        });
-      }
+      if (mounted) { setState(() { _stations = stations; _loading = false; }); }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error   = 'Impossible de charger les stations.\nVérifiez votre connexion.';
-          _loading = false;
-        });
-      }
+      if (mounted) { setState(() {
+        _error   = 'Impossible de charger les stations.\nVérifiez votre connexion.';
+        _loading = false;
+      }); }
     }
   }
 
-  void _onSearch() {
+  // ── Filtrage ────────────────────────────────────────────────────────────────
+
+  bool get _isSearching => _searchCtrl.text.trim().isNotEmpty;
+
+  List<RadioStation> get _searchFiltered {
     final q = _searchCtrl.text.toLowerCase().trim();
-    setState(() {
-      _filtered = q.isEmpty
-          ? _stations
-          : _stations.where((s) =>
-              s.displayName.toLowerCase().contains(q) ||
-              s.domain.toLowerCase().contains(q)).toList();
-    });
+    if (q.isEmpty) return _stations;
+    return _stations.where((s) =>
+        s.displayName.toLowerCase().contains(q) ||
+        s.domain.toLowerCase().contains(q)).toList();
   }
+
+  /// Catégories qui ont au moins une station dans la liste actuelle.
+  List<String> get _activeCategories {
+    final present = _stations.map(_categorize).toSet();
+    return _kCategories.where((c) => c == 'Tous' || present.contains(c)).toList();
+  }
+
+  // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +152,7 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
     final textPrimary = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
     final textMuted   = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
     const accent      = Color(0xFF38C172);
+    final chipBg      = isDark ? const Color(0xFF252542) : const Color(0xFFEEF2F7);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -93,12 +165,11 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
         ),
         child: Column(
           children: [
-            // ── Drag handle ─────────────────────────────────────────────────
+            // ── Drag handle ─────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.only(top: 10, bottom: 4),
               child: Container(
-                width: 40,
-                height: 4,
+                width: 40, height: 4,
                 decoration: BoxDecoration(
                   color: textMuted.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
@@ -106,21 +177,16 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
               ),
             ),
 
-            // ── Header ──────────────────────────────────────────────────────
+            // ── Header ──────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
               child: Row(
                 children: [
                   const Icon(Icons.radio, color: accent, size: 22),
                   const SizedBox(width: 10),
-                  Text(
-                    'Radio Quran',
-                    style: TextStyle(
-                      color: textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  Text('Radio Quran',
+                      style: TextStyle(color: textPrimary, fontSize: 18,
+                          fontWeight: FontWeight.w700)),
                   const Spacer(),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
@@ -132,9 +198,9 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
               ),
             ),
 
-            // ── Barre de recherche ───────────────────────────────────────────
+            // ── Barre de recherche ───────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
               child: TextField(
                 controller: _searchCtrl,
                 style: TextStyle(color: textPrimary, fontSize: 14),
@@ -142,6 +208,13 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
                   hintText: 'Rechercher une station…',
                   hintStyle: TextStyle(color: textMuted, fontSize: 14),
                   prefixIcon: Icon(Icons.search_rounded, color: textMuted, size: 20),
+                  suffixIcon: _isSearching
+                      ? IconButton(
+                          icon: Icon(Icons.clear_rounded, color: textMuted, size: 18),
+                          onPressed: () => _searchCtrl.clear(),
+                          padding: EdgeInsets.zero,
+                        )
+                      : null,
                   filled: true,
                   fillColor: surface,
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -153,7 +226,44 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
               ),
             ),
 
-            // ── Corps ────────────────────────────────────────────────────────
+            // ── Chips catégories (masqués pendant la recherche) ──────────
+            if (!_isSearching && _stations.isNotEmpty)
+              SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  itemCount: _activeCategories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final cat = _activeCategories[i];
+                    final selected = cat == _selectedCategory;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedCategory = cat),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: selected ? accent : chipBg,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          cat,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                            color: selected ? Colors.white : textMuted,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              )
+            else
+              const SizedBox(height: 8),
+
+            // ── Corps ────────────────────────────────────────────────────
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator(color: accent))
@@ -167,28 +277,127 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
                           textMuted: textMuted,
                           accent: accent,
                         )
-                      : _filtered.isEmpty
-                          ? Center(
-                              child: Text('Aucune station trouvée',
-                                  style: TextStyle(color: textMuted)),
-                            )
-                          : ListView.builder(
-                              controller: scrollCtrl,
-                              itemCount: _filtered.length,
-                              itemBuilder: (_, i) => _StationTile(
-                                station: _filtered[i],
-                                textPrimary: textPrimary,
-                                textMuted: textMuted,
-                                accent: accent,
-                                onTap: () {
-                                  AudioService.instance.playRadio(_filtered[i]);
-                                  RadioService.instance.currentStationNotifier.value = _filtered[i];
-                                  Navigator.of(context).pop();
-                                },
-                              ),
-                            ),
+                      : _buildList(scrollCtrl, textPrimary, textMuted, accent),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(ScrollController scrollCtrl, Color textPrimary,
+      Color textMuted, Color accent) {
+    // Recherche active → liste plate cross-catégories
+    if (_isSearching) {
+      final results = _searchFiltered;
+      if (results.isEmpty) {
+        return Center(child: Text('Aucune station trouvée',
+            style: TextStyle(color: textMuted)));
+      }
+      return ListView.builder(
+        controller: scrollCtrl,
+        itemCount: results.length,
+        itemBuilder: (_, i) => _StationTile(
+          station: results[i],
+          textPrimary: textPrimary,
+          textMuted: textMuted,
+          accent: accent,
+          onTap: () => _play(results[i]),
+        ),
+      );
+    }
+
+    // Catégorie spécifique → liste plate filtrée
+    if (_selectedCategory != 'Tous') {
+      final filtered = _stations
+          .where((s) => _categorize(s) == _selectedCategory)
+          .toList();
+      if (filtered.isEmpty) {
+        return Center(child: Text('Aucune station dans cette catégorie',
+            style: TextStyle(color: textMuted)));
+      }
+      return ListView.builder(
+        controller: scrollCtrl,
+        itemCount: filtered.length,
+        itemBuilder: (_, i) => _StationTile(
+          station: filtered[i],
+          textPrimary: textPrimary,
+          textMuted: textMuted,
+          accent: accent,
+          onTap: () => _play(filtered[i]),
+        ),
+      );
+    }
+
+    // Tous → liste avec en-têtes de sections
+    final items = _buildSectionedItems(_stations);
+    if (items.isEmpty) {
+      return Center(child: Text('Aucune station disponible',
+          style: TextStyle(color: textMuted)));
+    }
+    return ListView.builder(
+      controller: scrollCtrl,
+      itemCount: items.length,
+      itemBuilder: (_, i) {
+        final item = items[i];
+        if (item is String) {
+          return _SectionHeader(label: item, textMuted: textMuted);
+        }
+        final station = item as RadioStation;
+        return _StationTile(
+          station: station,
+          textPrimary: textPrimary,
+          textMuted: textMuted,
+          accent: accent,
+          onTap: () => _play(station),
+        );
+      },
+    );
+  }
+
+  void _play(RadioStation station) {
+    AudioService.instance.playRadio(station);
+    RadioService.instance.currentStationNotifier.value = station;
+    Navigator.of(context).pop();
+  }
+
+  /// Construit une liste plate [String header, RadioStation, RadioStation, …]
+  List<dynamic> _buildSectionedItems(List<RadioStation> stations) {
+    final grouped = <String, List<RadioStation>>{
+      for (final c in _kCategories.skip(1)) c: [],
+    };
+    for (final s in stations) { grouped[_categorize(s)]!.add(s); }
+
+    final items = <dynamic>[];
+    for (final cat in _kCategories.skip(1)) {
+      final list = grouped[cat]!;
+      if (list.isEmpty) continue;
+      items.add(cat);
+      items.addAll(list);
+    }
+    return items;
+  }
+}
+
+// ── En-tête de section ────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  final Color textMuted;
+
+  const _SectionHeader({required this.label, required this.textMuted});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: textMuted,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -228,10 +437,8 @@ class _StationTile extends StatelessWidget {
               fontSize: 14,
             ),
           ),
-          subtitle: Text(
-            station.domain,
-            style: TextStyle(color: textMuted, fontSize: 12),
-          ),
+          subtitle: Text(station.domain,
+              style: TextStyle(color: textMuted, fontSize: 12)),
           trailing: isActive
               ? Icon(Icons.graphic_eq_rounded, color: accent, size: 20)
               : null,
@@ -242,7 +449,7 @@ class _StationTile extends StatelessWidget {
   }
 }
 
-// ── Icône leading : dot animé si actif, icône radio sinon ────────────────────
+// ── Icône leading : dot animé si actif ───────────────────────────────────────
 
 class _LeadingIcon extends StatefulWidget {
   final bool isActive;
@@ -268,19 +475,14 @@ class _LeadingIconState extends State<_LeadingIcon>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+        vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.3, end: 1.0)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _ctrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -290,8 +492,7 @@ class _LeadingIconState extends State<_LeadingIcon>
     return FadeTransition(
       opacity: _anim,
       child: Container(
-        width: 10,
-        height: 10,
+        width: 10, height: 10,
         margin: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: widget.accent,
@@ -299,8 +500,7 @@ class _LeadingIconState extends State<_LeadingIcon>
           boxShadow: [
             BoxShadow(
               color: widget.accent.withValues(alpha: 0.5),
-              blurRadius: 6,
-              spreadRadius: 2,
+              blurRadius: 6, spreadRadius: 2,
             ),
           ],
         ),
@@ -334,11 +534,9 @@ class _ErrorView extends StatelessWidget {
           children: [
             Icon(Icons.wifi_off_rounded, color: textMuted, size: 40),
             const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: textMuted, fontSize: 14),
-            ),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: textMuted, fontSize: 14)),
             const SizedBox(height: 16),
             TextButton.icon(
               onPressed: onRetry,

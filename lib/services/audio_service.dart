@@ -856,8 +856,9 @@ class AudioService {
     _playlist         = null;
     _audioSourceReady = false;
     currentPlayingSurahIdNotifier.value = null;
-    currentTitleNotifier.value   = station.displayName;
-    currentReciterNotifier.value = station.domain;
+    currentTitleNotifier.value        = station.displayName;
+    currentReciterNotifier.value      = station.domain;
+    currentReciterAssetNotifier.value = null;
     // Passer en mode radio AVANT setAudioSource pour que le badge LIVE
     // s'affiche dès le buffering.
     isRadioModeNotifier.value = true;
