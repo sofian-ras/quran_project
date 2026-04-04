@@ -124,7 +124,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                               valueListenable: _audio.currentTitleNotifier,
                               builder: (_, title, __) => Text(
                                 title,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   color: textPrimary,
                                   fontSize: 14,
@@ -137,7 +137,7 @@ class _MiniAudioPlayerState extends State<MiniAudioPlayer> {
                               builder: (_, name, __) => Text(
                                 name,
                                 style:
-                                    TextStyle(color: textSecondary, fontSize: 12),
+                                    const TextStyle(color: textSecondary, fontSize: 12),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -381,35 +381,42 @@ class SeekBarState extends State<SeekBar> {
         final fraction = (pos.inMilliseconds / maxMs).clamp(0.0, 1.0);
 
         if (widget.compact) {
-          // ── Mode compact : barre + temps à droite pendant le drag ──────
-          // Les 40px du label sont TOUJOURS réservés → layout stable,
-          // calcul de fraction correct (barW constant).
-          return LayoutBuilder(builder: (ctx, constraints) {
-            const double labelW = 40.0;
-            final double barW = constraints.maxWidth - labelW;
-            return Row(
-              children: [
-                SizedBox(
-                  width: barW,
-                  child: _buildBar(barW, maxMs, fraction, accent, trackBg,
-                      lineAlignment: Alignment.bottomCenter, lineH: 3),
-                ),
-                SizedBox(
-                  width: labelW,
-                  child: _dragging != null
-                      ? Text(
+          // ── Mode compact : barre pleine largeur + temps en overlay ──────
+          // Stack → barre toujours full-width, temps affiché par-dessus
+          // à droite pendant le drag. Hauteur fixe 10px, zéro overflow.
+          return SizedBox(
+            height: 10,
+            child: LayoutBuilder(builder: (ctx, constraints) {
+              return Stack(
+                children: [
+                  _buildBar(constraints.maxWidth, maxMs, fraction,
+                      accent, trackBg, lineH: 10),
+                  if (_dragging != null)
+                    Positioned(
+                      right: 6,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Text(
                           _fmt(_dragging!),
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 9,
                             color: accent,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
+                            shadows: const [
+                              Shadow(
+                                color: Colors.white,
+                                blurRadius: 6,
+                              ),
+                            ],
                           ),
-                        )
-                      : null,
-                ),
-              ],
-            );
-          });
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            }),
+          );
         }
 
         // ── Mode normal : labels au-dessus pendant le drag ─────────────

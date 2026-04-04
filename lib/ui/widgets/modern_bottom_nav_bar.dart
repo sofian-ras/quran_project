@@ -180,10 +180,8 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
   // ── Pill (barre droite) ───────────────────────────────────────────────────
   Widget _navPill(double barH) {
     final showPlayer = _isAudioActive && _isPlayerMode;
-    const double seekH  = 10.0;
-    const double topR   = 26.0; // radius haut — toujours pill
-    const double bottomRNav    = 26.0;
-    const double bottomRPlayer = 8.0;  // bas presque plat → seek bar flush
+    const double seekH = 10.0;
+    final double radius = barH / 2;
     final double pillH  = showPlayer ? barH + seekH : barH;
 
     return Expanded(
@@ -194,82 +192,69 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // ── Verre dépoli — radius bas animé ──────────────────────────
+            // ── Verre dépoli ─────────────────────────────────────────────
             Positioned.fill(
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(
-                  begin: showPlayer ? bottomRNav : bottomRPlayer,
-                  end:   showPlayer ? bottomRPlayer : bottomRNav,
-                ),
-                duration: const Duration(milliseconds: 280),
-                curve: Curves.easeInOut,
-                builder: (_, bottomR, __) {
-                  final br = BorderRadius.only(
-                    topLeft:     const Radius.circular(topR),
-                    topRight:    const Radius.circular(topR),
-                    bottomLeft:  Radius.circular(bottomR),
-                    bottomRight: Radius.circular(bottomR),
-                  );
-                  return Container(
-                    decoration: BoxDecoration(
-                      borderRadius: br,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 18,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(radius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
                     ),
-                    child: ClipRRect(
-                      borderRadius: br,
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: br,
-                            color: Colors.white.withValues(alpha: 0.55),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(radius),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(radius),
+                        color: Colors.white.withValues(alpha: 0.55),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Contenu principal (toujours barH)
+                          SizedBox(
+                            height: barH,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 280),
+                              transitionBuilder: (child, anim) =>
+                                  FadeTransition(opacity: anim, child: child),
+                              child: showPlayer
+                                  ? _PlayerPillContent(
+                                      key: const ValueKey('player'),
+                                      onDismiss: AudioService.instance.stopAll,
+                                    )
+                                  : _NavIconsContent(
+                                      key: const ValueKey('nav'),
+                                      selectedIndex: widget.index,
+                                      iconCtrl: _iconCtrl,
+                                      iconScale: _iconScale,
+                                      barH: barH,
+                                      onTap: _tapItem,
+                                      hasCircle: _isAudioActive,
+                                    ),
+                            ),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Contenu principal (toujours barH)
-                              SizedBox(
-                                height: barH,
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 280),
-                                  transitionBuilder: (child, anim) =>
-                                      FadeTransition(opacity: anim, child: child),
-                                  child: showPlayer
-                                      ? _PlayerPillContent(
-                                          key: const ValueKey('player'),
-                                          onDismiss: AudioService.instance.stopAll,
-                                        )
-                                      : _NavIconsContent(
-                                          key: const ValueKey('nav'),
-                                          selectedIndex: widget.index,
-                                          iconCtrl: _iconCtrl,
-                                          iconScale: _iconScale,
-                                          barH: barH,
-                                          onTap: _tapItem,
-                                          hasCircle: _isAudioActive,
-                                        ),
-                                ),
+                          // Seek bar pleine hauteur — ClipRRect arrondit les coins
+                          if (showPlayer)
+                            SizedBox(
+                              height: seekH,
+                              child: SeekBar(
+                                audio: AudioService.instance,
+                                accent: const Color(0xFF38C172),
+                                compact: true,
                               ),
-                              // Seek bar — dernier enfant du ClipRRect
-                              if (showPlayer)
-                                SeekBar(
-                                  audio: AudioService.instance,
-                                  accent: const Color(0xFF38C172),
-                                  compact: true,
-                                ),
-                            ],
-                          ),
-                        ),
+                            ),
+                        ],
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
             ),
 
