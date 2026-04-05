@@ -14,6 +14,7 @@ class RadioService {
   static const _kApiUrl        = 'https://mp3quran.net/api/v3/radios';
   static const _kRecentIdsKey  = 'radio_recent_ids_v1';
   static const _kPlayCountsKey = 'radio_play_counts_v1';
+  static const _kFavoritesKey  = 'radio_favorites_v1';
 
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 10),
@@ -146,6 +147,56 @@ class RadioService {
     } catch (e) {
       return [];
     }
+  }
+
+  // ── Favoris ────────────────────────────────────────────────────────────────
+
+  Future<Set<int>> getFavoriteIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids = prefs.getStringList(_kFavoritesKey) ?? [];
+      return ids.map((s) => int.tryParse(s) ?? -1).where((id) => id != -1).toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<List<RadioStation>> getFavorites() async {
+    try {
+      final results = await Future.wait([getFavoriteIds(), getStations()]);
+      final ids  = results[0] as Set<int>;
+      final all  = results[1] as List<RadioStation>;
+      if (ids.isEmpty) return [];
+      final byId = {for (final s in all) s.id: s};
+      return ids.map((id) => byId[id]).whereType<RadioStation>().toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Ajoute ou retire la station des favoris. Retourne true si désormais en favori.
+  Future<bool> toggleFavorite(RadioStation station) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids   = prefs.getStringList(_kFavoritesKey) ?? [];
+      final key   = station.id.toString();
+      if (ids.contains(key)) {
+        ids.remove(key);
+        await prefs.setStringList(_kFavoritesKey, ids);
+        return false;
+      } else {
+        ids.add(key);
+        await prefs.setStringList(_kFavoritesKey, ids);
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> isFavorite(int stationId) async {
+    final ids = await getFavoriteIds();
+    return ids.contains(stationId);
   }
 
   Future<List<RadioStation>> _fetchFromApi() async {

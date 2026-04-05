@@ -195,7 +195,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                           ),
                         ),
                         _RadioIconButton(
-                          onTap: () => RadioBottomSheet.show(context),
+                          onTap: () => RadioBrowserScreen.show(context),
                         ),
                         _NotificationBellButton(
                           count: 3,

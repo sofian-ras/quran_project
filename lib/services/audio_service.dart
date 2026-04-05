@@ -45,6 +45,7 @@ class AudioService {
     });
 
     _currentIndexSub = _player.currentIndexStream.listen((index) {
+      if (isRadioModeNotifier.value) return; // radio active → ne pas écraser le nom de la station
       final int? surahId = index == null ? null : index + 1;
       currentPlayingSurahIdNotifier.value = surahId;
       if (surahId != null) {

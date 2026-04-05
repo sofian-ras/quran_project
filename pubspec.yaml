@@ -73,6 +73,7 @@ flutter:
     - assets/data/
     - assets/data/ayahinfo_1120.db
     # - assets/assetpacks/quran_pages.zip
+    - assets/radio/
     - assets/screenshots/
     - assets/fonts/
     - assets/icon/
