@@ -10,6 +10,7 @@ import 'package:just_audio/just_audio.dart';
 import '../../services/audio_service.dart';
 import '../../services/download_service.dart';
 import '../../data/surah_name.dart';
+import '../widgets/mini_audio_player.dart';
 
 // ── Gradients (même que home screen) ─────────────────────────────────────────
 const _kDarkBgColors = [
@@ -103,10 +104,12 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
   void initState() {
     super.initState();
     _loadDownloaded();
+    _audio.suppressGlobalPlayer.value = true;
   }
 
   @override
   void dispose() {
+    _audio.suppressGlobalPlayer.value = false;
     for (final n in _dlProgress.values) { n.dispose(); }
     super.dispose();
   }
@@ -328,6 +331,21 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
                   ),
                 ),
               ],
+            ),
+
+            // Mini lecteur ancré en bas de l'écran (visible dès qu'une sourate joue)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: MediaQuery.of(context).padding.bottom,
+              child: StreamBuilder<bool>(
+                stream: _audio.isActiveStream,
+                builder: (_, snap) {
+                  final isActive = snap.data ?? false;
+                  if (!isActive) return const SizedBox.shrink();
+                  return const MiniAudioPlayer();
+                },
+              ),
             ),
 
           ],
