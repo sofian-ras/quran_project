@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
+import '../../services/radio_service.dart';
 import '../screens/music_player_fullscreen.dart';
 import '../screens/radio_browser_screen.dart';
 import 'mini_audio_player.dart';
@@ -791,6 +792,20 @@ class _RadioPillContent extends StatefulWidget {
 class _RadioPillContentState extends State<_RadioPillContent> {
   final _audio = AudioService.instance;
   double _dy = 0;
+  double _dx = 0;
+
+  void _skipRadio(int delta) {
+    final current = RadioService.instance.currentStationNotifier.value;
+    if (current == null) return;
+    final stations = RadioService.instance.cachedStations;
+    final idx = stations.indexWhere((s) => s.id == current.id);
+    if (idx < 0) return;
+    final next = stations[(idx + delta) % stations.length];
+    HapticFeedback.lightImpact();
+    _audio.playRadio(next);
+    RadioService.instance.currentStationNotifier.value = next;
+    RadioService.instance.trackPlay(next);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -806,8 +821,17 @@ class _RadioPillContentState extends State<_RadioPillContent> {
         setState(() => _dy = 0);
       },
       onVerticalDragCancel: () => setState(() => _dy = 0),
+      onHorizontalDragUpdate: (d) =>
+          setState(() => _dx = (_dx + d.delta.dx).clamp(-80.0, 80.0)),
+      onHorizontalDragEnd: (d) {
+        final vx = d.velocity.pixelsPerSecond.dx;
+        if (_dx < -40 || vx < -400) { _skipRadio(1); }
+        else if (_dx > 40 || vx > 400) { _skipRadio(-1); }
+        setState(() => _dx = 0);
+      },
+      onHorizontalDragCancel: () => setState(() => _dx = 0),
       child: Transform.translate(
-        offset: Offset(0, _dy),
+        offset: Offset(_dx * 0.3, _dy),
         child: Padding(
           padding: const EdgeInsets.only(left: 56, right: 8),
           child: Row(

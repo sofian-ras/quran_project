@@ -122,6 +122,10 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   late final TabController _tabCtrl;
   int _tabIndex = 0;
 
+  final _homeScroll      = ScrollController();
+  final _parcourirScroll = ScrollController();
+  final _favorisScroll   = ScrollController();
+
   List<RadioStation> _stations  = [];
   List<RadioStation> _recents   = [];
   List<RadioStation> _popular   = [];
@@ -149,6 +153,9 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   void dispose() {
     _tabCtrl.dispose();
     _searchCtrl.dispose();
+    _homeScroll.dispose();
+    _parcourirScroll.dispose();
+    _favorisScroll.dispose();
     super.dispose();
   }
 
@@ -209,9 +216,13 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
 
   void _play(RadioStation station) {
     HapticFeedback.mediumImpact();
-    AudioService.instance.playRadio(station);
-    RadioService.instance.currentStationNotifier.value = station;
-    RadioService.instance.trackPlay(station);
+    final alreadyPlaying =
+        RadioService.instance.currentStationNotifier.value?.id == station.id;
+    if (!alreadyPlaying) {
+      AudioService.instance.playRadio(station);
+      RadioService.instance.currentStationNotifier.value = station;
+      RadioService.instance.trackPlay(station);
+    }
     Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder<void>(
         opaque: true,
@@ -423,83 +434,87 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
       child: LayoutBuilder(builder: (_, constraints) {
         final pillW = constraints.maxWidth / 3;
-        return SizedBox(
-          height: 40,
-          child: Stack(
-            children: [
-              // Track
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: pillBg,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                ),
-              ),
-              // Sliding pill
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeInOut,
-                left: _tabIndex * pillW,
-                top: 0,
-                width: pillW,
-                height: 40,
-                child: Container(
-                  margin: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF38C172), Color(0xFF1DA355)],
-                    ),
-                    borderRadius: BorderRadius.circular(21),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF38C172).withValues(alpha: 0.35),
-                        blurRadius: 10, offset: const Offset(0, 2),
+        return AnimatedBuilder(
+          animation: _tabCtrl.animation!,
+          builder: (_, __) {
+            final pos = _tabCtrl.animation!.value;
+            return SizedBox(
+              height: 40,
+              child: Stack(
+                children: [
+                  // Track
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: pillBg,
+                        borderRadius: BorderRadius.circular(24),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              // Labels
-              Row(
-                children: List.generate(3, (i) {
-                  final sel  = _tabIndex == i;
-                  final icon = i == 2 ? Icons.favorite_rounded : null;
-                  final label = ['Accueil', 'Parcourir', 'Favoris'][i];
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      setState(() => _tabIndex = i);
-                      _tabCtrl.animateTo(i);
-                      if (i != 1) FocusScope.of(context).unfocus();
-                    },
-                    child: SizedBox(
-                      width: pillW,
-                      height: 40,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (icon != null) ...[
-                            Icon(icon, size: 13,
-                                color: sel ? Colors.white : unsel),
-                            const SizedBox(width: 4),
-                          ],
-                          Text(
-                            label,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                              color: sel ? Colors.white : unsel,
-                            ),
+                  // Sliding pill — suit le doigt en temps réel
+                  Positioned(
+                    left: pillW * pos,
+                    top: 0,
+                    width: pillW,
+                    height: 40,
+                    child: Container(
+                      margin: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF38C172), Color(0xFF1DA355)],
+                        ),
+                        borderRadius: BorderRadius.circular(21),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF38C172).withValues(alpha: 0.35),
+                            blurRadius: 10, offset: const Offset(0, 2),
                           ),
                         ],
                       ),
                     ),
-                  );
-                }),
+                  ),
+                  // Labels
+                  Row(
+                    children: List.generate(3, (i) {
+                      final sel  = _tabIndex == i;
+                      final icon = i == 2 ? Icons.favorite_rounded : null;
+                      final label = ['Accueil', 'Parcourir', 'Favoris'][i];
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          setState(() => _tabIndex = i);
+                          _tabCtrl.animateTo(i);
+                          if (i != 1) FocusScope.of(context).unfocus();
+                        },
+                        child: SizedBox(
+                          width: pillW,
+                          height: 40,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (icon != null) ...[
+                                Icon(icon, size: 13,
+                                    color: sel ? Colors.white : unsel),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                                  color: sel ? Colors.white : unsel,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       }),
     );
@@ -609,7 +624,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
       );
     }
 
-    return CustomScrollView(slivers: slivers);
+    return CustomScrollView(controller: _homeScroll, slivers: slivers);
   }
 
   // ── Onglet Parcourir ───────────────────────────────────────────────────────
@@ -680,6 +695,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
               style: TextStyle(color: mutedColor)));
     }
     return ListView.builder(
+      controller: _parcourirScroll,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       itemCount: results.length,
       itemBuilder: (_, i) => _StationTile(
@@ -759,6 +775,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
         ),
         Expanded(
           child: ListView.builder(
+            controller: _parcourirScroll,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             itemCount: list.length,
             itemBuilder: (_, i) => _StationTile(
@@ -812,6 +829,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     }
 
     return ListView.builder(
+      controller: _favorisScroll,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       itemCount: _favorites.length,
       itemBuilder: (_, i) {
@@ -1101,7 +1119,10 @@ class _HomeCard extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   // Full image
-                  StationThumbnail(station: station, size: 128, circular: false),
+                  Hero(
+                    tag: 'radio_thumb_${station.id}',
+                    child: StationThumbnail(station: station, size: 128, circular: false),
+                  ),
                   // Gradient overlay bottom
                   Positioned(
                     left: 0, right: 0, bottom: 0, height: 68,
@@ -1355,10 +1376,13 @@ class _StationTile extends StatelessWidget {
                             ]
                           : [],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: StationThumbnail(
-                          station: station, size: 62, circular: false),
+                    child: Hero(
+                      tag: 'radio_thumb_${station.id}',
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: StationThumbnail(
+                            station: station, size: 62, circular: false),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 13),

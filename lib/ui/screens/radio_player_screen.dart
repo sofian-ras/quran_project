@@ -18,12 +18,17 @@ class RadioPlayerScreen extends StatefulWidget {
 }
 
 class _RadioPlayerScreenState extends State<RadioPlayerScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
 
   late final AnimationController _pulseCtrl;
   late final Animation<double>    _pulseAnim;
   bool _isFavorite = false;
   bool _favLoading = false;
+
+  // Gestures swipe
+  double  _dragX   = 0;
+  double  _dragY   = 0;
+  String? _dragDir;
 
   RadioStation get _station =>
       RadioService.instance.currentStationNotifier.value ?? widget.station;
@@ -79,6 +84,14 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
     });
   }
 
+  RadioStation? get _nextStation {
+    final stations = RadioService.instance.cachedStations;
+    if (stations.isEmpty) return null;
+    final idx = stations.indexWhere((s) => s.id == _station.id);
+    if (idx < 0) return null;
+    return stations[(idx + 1) % stations.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -90,23 +103,56 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
       builder: (_, __, ___) {
         return Scaffold(
           backgroundColor: isDark ? const Color(0xFF080D1A) : const Color(0xFFF5F0E8),
-          body: Stack(
-            children: [
-              // ── Fond image floue ───────────────────────────────────────
-              Positioned.fill(
-                child: _BlurredBackground(station: _station, grad: grad, isDark: isDark),
-              ),
-
-              // ── Contenu ────────────────────────────────────────────────
-              SafeArea(
-                child: Column(
-                  children: [
-                    _buildHeader(isDark, cat),
-                    Expanded(child: _buildBody(isDark, cat, grad)),
-                  ],
+          body: GestureDetector(
+            onPanStart: (_) {
+              _dragDir = null; _dragX = 0; _dragY = 0;
+            },
+            onPanUpdate: (d) {
+              if (_dragDir == null) {
+                if (d.delta.dx.abs() > d.delta.dy.abs() + 4) {
+                  setState(() => _dragDir = 'h');
+                } else if (d.delta.dy > 0 && d.delta.dy.abs() > d.delta.dx.abs() + 4) {
+                  setState(() => _dragDir = 'v');
+                }
+              }
+              if (_dragDir == 'h') { setState(() => _dragX = (_dragX + d.delta.dx).clamp(-160.0, 160.0)); }
+              if (_dragDir == 'v') { setState(() => _dragY = (_dragY + d.delta.dy).clamp(0.0, 200.0)); }
+            },
+            onPanEnd: (d) {
+              final vx = d.velocity.pixelsPerSecond.dx;
+              final vy = d.velocity.pixelsPerSecond.dy;
+              if (_dragDir == 'h') {
+                if (_dragX < -60 || vx < -500) { _skipTo(1); }
+                else if (_dragX > 60 || vx > 500) { _skipTo(-1); }
+              } else if (_dragDir == 'v') {
+                if (_dragY > 120 || vy > 600) { _stop(); return; }
+              }
+              setState(() { _dragX = 0; _dragY = 0; _dragDir = null; });
+            },
+            child: Stack(
+              children: [
+                // ── Fond image floue ─────────────────────────────────────
+                Positioned.fill(
+                  child: _BlurredBackground(station: _station, grad: grad, isDark: isDark),
                 ),
-              ),
-            ],
+
+                // ── Contenu (suit le drag) ────────────────────────────────
+                Transform.translate(
+                  offset: Offset(_dragX * 0.35, _dragY),
+                  child: Opacity(
+                    opacity: (1.0 - (_dragY / 300)).clamp(0.0, 1.0),
+                    child: SafeArea(
+                      child: Column(
+                        children: [
+                          _buildHeader(isDark, cat),
+                          Expanded(child: _buildBody(isDark, cat, grad)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -195,8 +241,11 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                       ),
                     ],
                   ),
-                  child: ClipOval(
-                    child: _PlayerThumbnail(station: _station, grad: grad),
+                  child: Hero(
+                    tag: 'radio_thumb_${widget.station.id}',
+                    child: ClipOval(
+                      child: _PlayerThumbnail(station: _station, grad: grad),
+                    ),
                   ),
                 ),
               );
@@ -275,13 +324,13 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                   const SizedBox(width: 24),
                   // Play / Pause
                   if (loading)
-                    const SizedBox(
+                    SizedBox(
                       width: 80, height: 80,
                       child: Center(
                         child: SizedBox(
                           width: 36, height: 36,
                           child: CircularProgressIndicator(
-                              color: Color(0xFF38C172), strokeWidth: 3),
+                              color: grad[0], strokeWidth: 3),
                         ),
                       ),
                     )
@@ -296,12 +345,12 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                         width: 80, height: 80,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: playing ? const Color(0xFF38C172) : (isDark
+                          color: playing ? grad[0] : (isDark
                               ? const Color(0xFF1E2A3A)
                               : const Color(0xFFE5E0D8)),
                           boxShadow: playing
                               ? [BoxShadow(
-                                  color: const Color(0xFF38C172).withValues(alpha: 0.45),
+                                  color: grad[0].withValues(alpha: 0.45),
                                   blurRadius: 24, spreadRadius: 4)]
                               : [],
                         ),
@@ -333,6 +382,17 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             icon: Icon(Icons.stop_circle_outlined, color: mutedColor, size: 18),
             label: Text('Arrêter', style: TextStyle(color: mutedColor, fontSize: 13)),
           ),
+
+          // ── Preview station suivante ──────────────────────────
+          if (_nextStation != null) ...[
+            const SizedBox(height: 8),
+            _NextStationPreview(
+              station: _nextStation!,
+              isDark: isDark,
+              grad: grad,
+              onTap: () => _skipTo(1),
+            ),
+          ],
 
           const SizedBox(height: 32),
         ],
@@ -468,4 +528,62 @@ String _stationLabel(RadioStation s) {
   }
   final dn = s.displayName;
   return dn.length > 26 ? '…${dn.substring(dn.length - 24)}' : dn;
+}
+
+// ── Preview station suivante ──────────────────────────────────────────────────
+
+class _NextStationPreview extends StatelessWidget {
+  final RadioStation station;
+  final bool         isDark;
+  final List<Color>  grad;
+  final VoidCallback onTap;
+
+  const _NextStationPreview({
+    required this.station,
+    required this.isDark,
+    required this.grad,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg      = isDark ? const Color(0xFF0F1825) : const Color(0xFFEDE8E0);
+    final muted   = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
+    final primary = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.skip_next_rounded, color: muted, size: 16),
+            const SizedBox(width: 8),
+            Text('Suivant', style: TextStyle(color: muted, fontSize: 10)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _stationLabel(station),
+                style: TextStyle(
+                  color: primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 10),
+            ClipOval(
+              child: StationThumbnail(station: station, size: 32, circular: true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
