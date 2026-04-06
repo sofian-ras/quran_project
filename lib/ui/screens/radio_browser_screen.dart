@@ -1418,16 +1418,16 @@ class _StationTile extends StatelessWidget {
 
 // ── Station thumbnail (public — réutilisé par RadioPlayerScreen) ──────────────
 
-// Catégorie → image représentative (une station connue de la catégorie)
+// Catégorie → image (un fichier par catégorie)
 const kCatAssets = <String, String>{
-  '📖 Coran':         'assets/radio/108.webp',
-  '👤 Récitateurs':   'assets/radio/79.webp',
-  '📚 Tafsir':        'assets/radio/116.webp',
-  '🕌 Conférences':   'assets/radio/113.webp',
-  '🤲 Adhkar & Doua': 'assets/radio/10906.webp',
-  '🙏 Du\'a':         'assets/radio/114.webp',
-  '🎓 Apprentissage': 'assets/radio/1.webp',
-  '🌍 Traductions':   'assets/radio/109055.webp',
+  '📖 Coran':         'assets/radio/cat_coran.webp',
+  '👤 Récitateurs':   'assets/radio/cat_recitateurs.webp',
+  '📚 Tafsir':        'assets/radio/cat_tafsir.webp',
+  '🕌 Conférences':   'assets/radio/cat_conferences.webp',
+  '🤲 Adhkar & Doua': 'assets/radio/cat_adhkar.webp',
+  '🙏 Du\'a':         'assets/radio/cat_dua.webp',
+  '🎓 Apprentissage': 'assets/radio/cat_apprentissage.webp',
+  '🌍 Traductions':   'assets/radio/cat_traductions.webp',
 };
 
 class StationThumbnail extends StatelessWidget {
@@ -1467,8 +1467,8 @@ class StationThumbnail extends StatelessWidget {
       ),
     );
 
-    // Category image fallback (if no station-specific image)
-    Widget catImg = catAsset != null
+    // Image de catégorie uniquement
+    Widget img = catAsset != null
         ? Image.asset(
             catAsset,
             width: size, height: size,
@@ -1476,14 +1476,6 @@ class StationThumbnail extends StatelessWidget {
             errorBuilder: (_, __, ___) => fallback,
           )
         : fallback;
-
-    // Station-specific image (highest priority)
-    Widget img = Image.asset(
-      'assets/radio/${station.id}.webp',
-      width: size, height: size,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => catImg,
-    );
 
     return circular
         ? ClipOval(child: img)

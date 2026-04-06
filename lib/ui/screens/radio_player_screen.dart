@@ -337,24 +337,18 @@ class _BlurredBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Image station → catégorie → gradient
-        Image.asset(
-          'assets/radio/${station.id}.webp',
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (_, __, ___) => _catAsset.isNotEmpty
-              ? bgImage(_catAsset)
-              : Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: grad,
-                    ),
+        // Image de catégorie en fond
+        _catAsset.isNotEmpty
+            ? bgImage(_catAsset)
+            : Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: grad,
                   ),
                 ),
-        ),
+              ),
         // Blur overlay
         Positioned.fill(
           child: BackdropFilter(
@@ -411,16 +405,10 @@ class _PlayerThumbnail extends StatelessWidget {
       ),
     );
 
-    Widget catImg = _catAsset.isNotEmpty
+    return _catAsset.isNotEmpty
         ? Image.asset(_catAsset, fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback)
         : fallback;
-
-    return Image.asset(
-      'assets/radio/${station.id}.webp',
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => catImg,
-    );
   }
 }
 
