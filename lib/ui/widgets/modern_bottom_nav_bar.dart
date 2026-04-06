@@ -11,7 +11,7 @@ import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../../services/radio_service.dart';
 import '../screens/music_player_fullscreen.dart';
-import '../screens/radio_browser_screen.dart';
+import '../screens/radio_player_screen.dart';
 import 'mini_audio_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -839,7 +839,25 @@ class _RadioPillContentState extends State<_RadioPillContent> {
               // ── Nom tappable ──────────────────────────────────────────
               Expanded(
                 child: GestureDetector(
-                  onTap: () => RadioBrowserScreen.show(context),
+                  onTap: () {
+                    final station = RadioService.instance.currentStationNotifier.value;
+                    if (station == null) return;
+                    Navigator.of(context, rootNavigator: true).push(
+                      PageRouteBuilder<void>(
+                        opaque: true,
+                        pageBuilder: (_, __, ___) => RadioPlayerScreen(station: station),
+                        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 1),
+                            end: Offset.zero,
+                          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+                          child: child,
+                        ),
+                        transitionDuration: const Duration(milliseconds: 300),
+                        reverseTransitionDuration: const Duration(milliseconds: 250),
+                      ),
+                    );
+                  },
                   child: ValueListenableBuilder<String>(
                     valueListenable: _audio.currentTitleNotifier,
                     builder: (_, name, __) => Text(

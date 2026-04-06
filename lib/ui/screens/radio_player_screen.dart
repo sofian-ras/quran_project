@@ -125,7 +125,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                 if (_dragX < -60 || vx < -500) { _skipTo(1); }
                 else if (_dragX > 60 || vx > 500) { _skipTo(-1); }
               } else if (_dragDir == 'v') {
-                if (_dragY > 120 || vy > 600) { _stop(); return; }
+                if (_dragY > 120 || vy > 600) { if (mounted) Navigator.of(context).pop(); return; }
               }
               setState(() { _dragX = 0; _dragY = 0; _dragDir = null; });
             },
@@ -414,7 +414,10 @@ class _BlurredBackground extends StatelessWidget {
     required this.isDark,
   });
 
-  String get _catAsset => kCatAssets[categorizeStation(station)] ?? '';
+  String get _catAsset =>
+      reciterAssetForStation(station) ??
+      kCatAssets[categorizeStation(station)] ??
+      '';
 
   @override
   Widget build(BuildContext context) {
@@ -479,7 +482,10 @@ class _PlayerThumbnail extends StatelessWidget {
 
   const _PlayerThumbnail({required this.station, required this.grad});
 
-  String get _catAsset => kCatAssets[categorizeStation(station)] ?? '';
+  String get _asset =>
+      reciterAssetForStation(station) ??
+      kCatAssets[categorizeStation(station)] ??
+      '';
 
   @override
   Widget build(BuildContext context) {
@@ -497,8 +503,8 @@ class _PlayerThumbnail extends StatelessWidget {
       ),
     );
 
-    return _catAsset.isNotEmpty
-        ? Image.asset(_catAsset, fit: BoxFit.cover,
+    return _asset.isNotEmpty
+        ? Image.asset(_asset, fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback)
         : fallback;
   }

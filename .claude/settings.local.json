@@ -21,7 +21,9 @@
       "WebFetch(domain:verses.quran.com)",
       "WebFetch(domain:cdn.quran.com)",
       "WebFetch(domain:quran.com)",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Bash(powershell -Command \"Invoke-RestMethod -Uri 'https://mp3quran.net/api/v3/radios' | ConvertTo-Json -Depth 3\")",
+      "Bash(powershell -Command ':*)"
     ],
     "additionalDirectories": [
       "\\tmp"

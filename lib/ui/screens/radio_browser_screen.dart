@@ -1241,15 +1241,12 @@ class _CategoryCard extends StatelessWidget {
     final emoji = spaceIdx > 0 ? cat.substring(0, spaceIdx) : '';
     final label = spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat;
 
+    final catAsset = kCatAssets[cat] ?? '';
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: grad,
-          ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -1258,51 +1255,80 @@ class _CategoryCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Stack(
-          children: [
-            // Subtle light patch top-right
-            Positioned(
-              top: -20, right: -20,
-              child: Container(
-                width: 80, height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.07),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Image de catégorie en fond
+              if (catAsset.isNotEmpty)
+                Image.asset(catAsset, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: grad,
+                        ),
+                      ),
+                    ))
+              else
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: grad,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(emoji, style: const TextStyle(fontSize: 26)),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          color: Colors.white, fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        '$count stations',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.65),
-                          fontSize: 11,
-                        ),
-                      ),
+              // Overlay gradient pour lisibilité
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      grad[0].withValues(alpha: 0.60),
+                      grad[1].withValues(alpha: 0.82),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+              // Contenu
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(emoji, style: const TextStyle(fontSize: 26)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white, fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '$count stations',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1454,6 +1480,27 @@ const kCatAssets = <String, String>{
   '🌍 Traductions':   'assets/radio/cat_traductions.webp',
 };
 
+/// Retourne l'image de profil du récitateur en utilisant le slug de l'URL
+/// (ex. "abdulrasheed_soufi_assosi" → Abdurashid Sufi.webp).
+String? reciterAssetForStation(RadioStation station) {
+  final slug = station.url.split('/').last.toLowerCase();
+  if (slug.contains('alsudaes') || slug.contains('sudais'))        return 'assets/images/reciters/Sudais.webp';
+  if (slug.contains('abdulrasheed_soufi'))                         return 'assets/images/reciters/Abdurashid Sufi.webp';
+  if (slug.contains('abdulbasit') || slug.contains('abdulbaset'))  return 'assets/images/reciters/Abdulbaset.webp';
+  if (slug.contains('alajmy'))                                     return 'assets/images/reciters/Al Ajmy.webp';
+  if (slug.contains('alqatami'))                                   return 'assets/images/reciters/Al Qatami.webp';
+  if (slug.contains('alhussary') || slug.contains('alhusary'))     return 'assets/images/reciters/Alhusary.webp';
+  if (slug.contains('ali_jaber') || slug.contains('ali_jabir'))    return 'assets/images/reciters/Ali Jabir.webp';
+  if (slug.contains('shatri'))                                     return 'assets/images/reciters/As-shatri.webp';
+  if (slug.contains('balilah') || slug.contains('baleela'))        return 'assets/images/reciters/Bandar Baleela.webp';
+  if (slug.contains('hani_arrifai'))                               return 'assets/images/reciters/Hani Arrifai.webp';
+  if (slug == 'maher')                                             return 'assets/images/reciters/Maher Almuaiqly.webp';
+  if (slug.contains('mishary') || slug.contains('alafasi'))        return 'assets/images/reciters/Mishari Alafasy.webp';
+  if (slug.contains('saad_alghamdi'))                              return 'assets/images/reciters/Saad Alghamdi.webp';
+  if (slug.contains('shuraim') || slug.contains('shuraym'))        return 'assets/images/reciters/Shuraym.webp';
+  return null;
+}
+
 class StationThumbnail extends StatelessWidget {
   final RadioStation station;
   final double       size;
@@ -1470,7 +1517,8 @@ class StationThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     final cat  = categorizeStation(station);
     final grad = radioCategoryGradient(cat);
-    final catAsset = kCatAssets[cat];
+    // Image récitateur en priorité, sinon image catégorie
+    final asset = reciterAssetForStation(station) ?? kCatAssets[cat];
 
     // Fallback gradient widget
     Widget fallback = Container(
@@ -1491,10 +1539,9 @@ class StationThumbnail extends StatelessWidget {
       ),
     );
 
-    // Image de catégorie uniquement
-    Widget img = catAsset != null
+    Widget img = asset != null
         ? Image.asset(
-            catAsset,
+            asset,
             width: size, height: size,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback,
