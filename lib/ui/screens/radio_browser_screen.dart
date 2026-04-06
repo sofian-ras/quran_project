@@ -1190,7 +1190,7 @@ class _CategoryGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.65,
+        childAspectRatio: 1.3,
       ),
       itemCount: categories.length,
       itemBuilder: (_, i) => _CategoryCard(
@@ -1367,8 +1367,9 @@ class _StationTile extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _stationLabel(station),
+                        _MarqueeText(
+                          key: ValueKey(station.displayName),
+                          text: station.displayName,
                           style: TextStyle(
                             color: isActive
                                 ? const Color(0xFF38C172)
@@ -1376,7 +1377,6 @@ class _StationTile extends StatelessWidget {
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 3),
                         Text(catLabel,
@@ -1463,6 +1463,97 @@ class StationThumbnail extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             child: img,
           );
+  }
+}
+
+// ── Marquee (auto-scroll) text ────────────────────────────────────────────────
+
+class _MarqueeText extends StatefulWidget {
+  final String    text;
+  final TextStyle style;
+
+  const _MarqueeText({super.key, required this.text, required this.style});
+
+  @override
+  State<_MarqueeText> createState() => _MarqueeTextState();
+}
+
+class _MarqueeTextState extends State<_MarqueeText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 6000));
+    Future.delayed(const Duration(milliseconds: 1800), _startIfMounted);
+  }
+
+  void _startIfMounted() {
+    if (mounted) _ctrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_MarqueeText old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text) {
+      _ctrl.reset();
+      Future.delayed(const Duration(milliseconds: 1800), _startIfMounted);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (_, constraints) {
+      final tp = TextPainter(
+        text: TextSpan(text: widget.text, style: widget.style),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: double.infinity);
+
+      final textW = tp.width;
+      final boxW  = constraints.maxWidth;
+
+      if (textW <= boxW) {
+        return Text(widget.text, style: widget.style);
+      }
+
+      final overflow = textW - boxW;
+
+      return ClipRect(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, __) {
+            final t = _ctrl.value;
+            // 0…0.12  pause at start
+            // 0.12…0.8  scroll left
+            // 0.8…0.92  pause at end
+            // 0.92…1.0  snap back (invisible reset)
+            final double offset;
+            if (t < 0.12) {
+              offset = 0;
+            } else if (t < 0.80) {
+              offset = overflow * (t - 0.12) / 0.68;
+            } else if (t < 0.92) {
+              offset = overflow;
+            } else {
+              offset = 0;
+            }
+            return Transform.translate(
+              offset: Offset(-offset, 0),
+              child: Text(widget.text, style: widget.style, softWrap: false),
+            );
+          },
+        ),
+      );
+    });
   }
 }
 
