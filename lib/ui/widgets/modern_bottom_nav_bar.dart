@@ -10,9 +10,7 @@ import '../../data/surah_name.dart';
 import '../../services/audio_service.dart';
 import '../../services/navigation_service.dart';
 import '../screens/music_player_fullscreen.dart';
-import '../../services/radio_service.dart';
 import '../screens/radio_browser_screen.dart';
-import '../screens/radio_player_screen.dart';
 import 'mini_audio_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -314,30 +312,8 @@ class _ModernBottomNavBarState extends State<ModernBottomNavBar>
                         : Alignment.centerRight,
                     child: _isRadioMode
                         ? _RadioCircle(
-                            onToggle: () {
-                              final station = RadioService.instance
-                                  .currentStationNotifier.value;
-                              if (station == null) return;
-                              Navigator.of(context, rootNavigator: true).push(
-                                PageRouteBuilder<void>(
-                                  opaque: true,
-                                  pageBuilder: (_, __, ___) =>
-                                      RadioPlayerScreen(station: station),
-                                  transitionsBuilder: (_, anim, __, child) =>
-                                      SlideTransition(
-                                        position: Tween<Offset>(
-                                          begin: const Offset(0, 1),
-                                          end: Offset.zero,
-                                        ).animate(CurvedAnimation(
-                                            parent: anim,
-                                            curve: Curves.easeOutCubic)),
-                                        child: child,
-                                      ),
-                                  transitionDuration:
-                                      const Duration(milliseconds: 300),
-                                ),
-                              );
-                            },
+                            onToggle: () => setState(() =>
+                                _isPlayerMode = !_isPlayerMode),
                           )
                         : _ReciterCircle(
                             onToggle: () => setState(() {
