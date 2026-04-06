@@ -5,7 +5,7 @@ import '../../services/audio_service.dart';
 import '../../services/radio_service.dart';
 import 'radio_player_screen.dart';
 
-// ── Public: categories + categorize (imported by radio_bottom_sheet too) ──────
+// ── Public: categories + categorize ──────────────────────────────────────────
 
 const kRadioCategories = <String>[
   'Tous',
@@ -49,56 +49,44 @@ String categorizeStation(RadioStation s) {
       n.contains('histoir') || n.contains('قصص') ||
       n.contains('compagnon') || n.contains('sahaba') || n.contains('صحابة') ||
       n.contains('fatwa') || n.contains('فتوى') || n.contains('فتاوى') ||
-      n.contains('mérite') || n.contains('merite') || n.contains('فضائل') ||
-      n.contains('juridique') || n.contains('fiqh') || n.contains('فقه') ||
-      n.contains('royaut')) { return '📚 Tafsir'; }
-  if (n.contains('adhkar') || n.contains('azkar') || n.contains('ruqya') ||
-      n.contains('dhikr') || n.contains('zikr') ||
-      n.contains('أذكار')) { return '🤲 Adhkar & Doua'; }
-  if (n.contains('الدعاء') || n.contains('أدعية') || n.contains('supplication') ||
-      n.contains('doua') || n.contains('dua')) { return '🙏 Du\'a'; }
-  if (n.contains('khutba') || n.contains('khotba') || n.contains('khoutba') ||
-      n.contains('conférence') || n.contains('conference') ||
-      n.contains('dars') || n.contains('lecture') ||
-      n.contains('محاضر')) { return '🕌 Conférences'; }
-  if (n.contains('hifz') || n.contains('memoriz') || n.contains('tajwid') ||
-      n.contains('tajweed') || n.contains('تجويد') || n.contains('حفظ') ||
-      n.contains('repeat') || n.contains('تكرار') || n.contains('talim') ||
-      n.contains('apprentis')) { return '🎓 Apprentissage'; }
-  if (n.contains('mishary') || n.contains('alafasy') ||
-      n.contains('sudais') || n.contains('shuraim') ||
-      n.contains('minshawi') || n.contains('husary') || n.contains('husari') ||
-      n.contains('abdulbasit') || n.contains('abdul basit') ||
-      n.contains('basit') || n.contains('ghamdi') || n.contains('ajmi') ||
-      n.contains('shatri') || n.contains('baleela') || n.contains('arrifai') ||
-      n.contains('muaiqly') || n.contains('jabir') || n.contains('soufi') ||
-      n.contains('qatami') || n.contains('hudhaify') ||
-      n.contains('tablawi') || n.contains('menshawi') ||
-      n.contains('basfar') || n.contains('maher') ||
-      n.contains('peshawa')) { return '👤 Récitateurs'; }
+      n.contains('muslim') || n.contains('مسلم')) { return '📚 Tafsir'; }
+  if (n.contains('dua') || n.contains('du\'a') || n.contains('دعاء') ||
+      n.contains('أدعية') || n.contains('supplication') ||
+      n.contains('روحاني') || n.contains('روقية') || n.contains('ruqyah') ||
+      n.contains('ruqia')) { return '🙏 Du\'a'; }
+  if (n.contains('adhkar') || n.contains('أذكار') || n.contains('dhikr') ||
+      n.contains('ذكر') || n.contains('wird') || n.contains('ورد')) {
+    return '🤲 Adhkar & Doua';
+  }
+  if (n.contains('conférence') || n.contains('conference') ||
+      n.contains('khutba') || n.contains('خطبة') ||
+      n.contains('dars') || n.contains('درس') ||
+      n.contains('cours') || n.contains('leçon') ||
+      n.contains('lecture') || n.contains('محاضرة')) { return '🕌 Conférences'; }
+  if (n.contains('learn') || n.contains('kids') || n.contains('enfant') ||
+      n.contains('tajwid') || n.contains('tajweed') || n.contains('تجويد') ||
+      n.contains('hifz') || n.contains('حفظ') || n.contains('mémoris')) {
+    return '🎓 Apprentissage';
+  }
+  if (n.contains('récitat') || n.contains('recit') || n.contains('tilawa') ||
+      n.contains('تلاوة') || n.contains('qari') || n.contains('قارئ') ||
+      n.contains('mujawwad') || n.contains('murattal')) { return '👤 Récitateurs'; }
   return '📖 Coran';
 }
 
 String _stationLabel(RadioStation s) {
-  if (categorizeStation(s) != '🌍 Traductions') return s.displayName;
-  final n = s.name.toLowerCase();
-  if (n.contains('français') || n.contains('french')) return 'Traduction française';
-  if (n.contains('anglais')  || n.contains('english')) return 'Traduction anglaise';
-  if (n.contains('urdu'))    return 'Traduction ourdou';
-  if (n.contains('türk')    || n.contains('turc'))    return 'Traduction turque';
-  if (n.contains('indonesia') || n.contains('malay')) return 'Traduction indonésienne';
-  if (n.contains('bangla')  || n.contains('bengali')) return 'Traduction bengalie';
-  if (n.contains('swahili')) return 'Traduction swahili';
-  if (n.contains('farsi')   || n.contains('persan'))  return 'Traduction persane';
-  if (n.contains('bosni'))   return 'Traduction bosniaque';
-  final match = RegExp(r'traduct|translat', caseSensitive: false).firstMatch(s.name);
-  if (match != null) {
-    final from  = s.name.substring(match.start).trim();
-    final label = from[0].toUpperCase() + from.substring(1);
-    return label.length > 26 ? '…${label.substring(label.length - 24)}' : label;
-  }
   final dn = s.displayName;
-  return dn.length > 26 ? '…${dn.substring(dn.length - 24)}' : dn;
+  if (dn.length <= 26) return dn;
+  // right-truncate → keeps the language at the end visible
+  final lower = dn.toLowerCase();
+  final idx = lower.indexOf('traduct');
+  final idx2 = lower.indexOf('translat');
+  final cut = (idx >= 0) ? idx : (idx2 >= 0 ? idx2 : -1);
+  if (cut >= 0) {
+    final tail = dn.substring(cut);
+    return tail.length > 24 ? '…${tail.substring(tail.length - 24)}' : tail;
+  }
+  return '…${dn.substring(dn.length - 24)}';
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -132,6 +120,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     with SingleTickerProviderStateMixin {
 
   late final TabController _tabCtrl;
+  int _tabIndex = 0;
 
   List<RadioStation> _stations  = [];
   List<RadioStation> _recents   = [];
@@ -147,7 +136,9 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
     _tabCtrl.addListener(() {
-      // Fermer le clavier quand on quitte l'onglet Parcourir (index 1)
+      if (!_tabCtrl.indexIsChanging) {
+        if (mounted) setState(() => _tabIndex = _tabCtrl.index);
+      }
       if (_tabCtrl.index != 1) FocusScope.of(context).unfocus();
     });
     _searchCtrl.addListener(() => setState(() {}));
@@ -238,6 +229,11 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     ).then((_) => _reloadFavorites());
   }
 
+  Future<void> _toggleFavFromList(RadioStation s) async {
+    await RadioService.instance.toggleFavorite(s);
+    await _reloadFavorites();
+  }
+
   // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
@@ -247,39 +243,72 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
 
     return Scaffold(
       backgroundColor: bg,
-      body: Column(
+      body: Stack(
         children: [
-          _buildHeader(isDark),
-          _buildTabBar(isDark),
-          Expanded(
-            child: _loading
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(
-                            color: Color(0xFF38C172), strokeWidth: 2),
-                        const SizedBox(height: 14),
-                        Text('Chargement…',
-                            style: TextStyle(
-                              color: isDark
-                                  ? const Color(0xFF8899BB)
-                                  : const Color(0xFF9CA3AF),
-                              fontSize: 13,
-                            )),
-                      ],
-                    ),
-                  )
-                : _error != null
-                    ? _buildError(isDark)
-                    : TabBarView(
-                        controller: _tabCtrl,
-                        children: [
-                          _buildHomeTab(isDark),
-                          _buildParcourirTab(isDark),
-                          _buildFavorisTab(isDark),
-                        ],
-                      ),
+          // Immersive radial glow (dark mode only)
+          if (isDark) ...[
+            Positioned(
+              top: -80, right: -80,
+              child: Container(
+                width: 300, height: 300,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    Color(0x1238C172),
+                    Colors.transparent,
+                  ]),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 40, left: -100,
+              child: Container(
+                width: 240, height: 240,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    Color(0x0A1E4494),
+                    Colors.transparent,
+                  ]),
+                ),
+              ),
+            ),
+          ],
+          Column(
+            children: [
+              _buildHeader(isDark),
+              _buildTabBar(isDark),
+              Expanded(
+                child: _loading
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(
+                                color: Color(0xFF38C172), strokeWidth: 2),
+                            const SizedBox(height: 14),
+                            Text('Chargement…',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? const Color(0xFF8899BB)
+                                      : const Color(0xFF9CA3AF),
+                                  fontSize: 13,
+                                )),
+                          ],
+                        ),
+                      )
+                    : _error != null
+                        ? _buildError(isDark)
+                        : TabBarView(
+                            controller: _tabCtrl,
+                            children: [
+                              _buildHomeTab(isDark),
+                              _buildParcourirTab(isDark),
+                              _buildFavorisTab(isDark),
+                            ],
+                          ),
+              ),
+            ],
           ),
         ],
       ),
@@ -289,7 +318,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   // ── Header ─────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(bool isDark) {
-    final textColor  = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
+    final textColor = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
 
     return SafeArea(
       bottom: false,
@@ -313,7 +342,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
                 ),
               ),
             ),
-            // Now-playing indicator
+            // Now-playing pill
             ValueListenableBuilder<RadioStation?>(
               valueListenable: RadioService.instance.currentStationNotifier,
               builder: (_, station, __) {
@@ -380,31 +409,99 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     );
   }
 
-  // ── Tab bar ────────────────────────────────────────────────────────────────
+  // ── Pill tab bar ───────────────────────────────────────────────────────────
 
   Widget _buildTabBar(bool isDark) {
-    final surfaceBg  = isDark ? const Color(0xFF0E1530) : const Color(0xFFECE7DF);
-    final unselColor = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
+    final bg      = isDark ? const Color(0xFF0E1530) : const Color(0xFFECE7DF);
+    final pillBg  = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.06);
+    final unsel   = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
 
     return Container(
-      color: surfaceBg,
-      child: TabBar(
-        controller: _tabCtrl,
-        indicatorColor: const Color(0xFF38C172),
-        indicatorWeight: 3,
-        indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: const Color(0xFF38C172),
-        unselectedLabelColor: unselColor,
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        unselectedLabelStyle:
-            const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-        dividerColor: Colors.transparent,
-        tabs: const [
-          Tab(text: 'Accueil'),
-          Tab(text: 'Parcourir'),
-          Tab(icon: Icon(Icons.favorite_rounded, size: 16), text: 'Favoris'),
-        ],
-      ),
+      color: bg,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+      child: LayoutBuilder(builder: (_, constraints) {
+        final pillW = constraints.maxWidth / 3;
+        return SizedBox(
+          height: 40,
+          child: Stack(
+            children: [
+              // Track
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: pillBg,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+              ),
+              // Sliding pill
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeInOut,
+                left: _tabIndex * pillW,
+                top: 0,
+                width: pillW,
+                height: 40,
+                child: Container(
+                  margin: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF38C172), Color(0xFF1DA355)],
+                    ),
+                    borderRadius: BorderRadius.circular(21),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF38C172).withValues(alpha: 0.35),
+                        blurRadius: 10, offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Labels
+              Row(
+                children: List.generate(3, (i) {
+                  final sel  = _tabIndex == i;
+                  final icon = i == 2 ? Icons.favorite_rounded : null;
+                  final label = ['Accueil', 'Parcourir', 'Favoris'][i];
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      setState(() => _tabIndex = i);
+                      _tabCtrl.animateTo(i);
+                      if (i != 1) FocusScope.of(context).unfocus();
+                    },
+                    child: SizedBox(
+                      width: pillW,
+                      height: 40,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (icon != null) ...[
+                            Icon(icon, size: 13,
+                                color: sel ? Colors.white : unsel),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                              color: sel ? Colors.white : unsel,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        );
+      }),
     );
   }
 
@@ -443,46 +540,44 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   // ── Onglet Accueil ─────────────────────────────────────────────────────────
 
   Widget _buildHomeTab(bool isDark) {
-    final grouped = _grouped;
-    // Stations "Découvrir" : premières stations de catégories pas dans les récents
+    final grouped   = _grouped;
     final recentIds = _recents.map((s) => s.id).toSet();
     final discover  = _stations
         .where((s) => !recentIds.contains(s.id))
-        .take(12)
-        .toList();
+        .take(12).toList();
 
     final slivers = <Widget>[];
+
+    // Hero "En cours de lecture"
+    slivers.add(SliverToBoxAdapter(
+      child: _NowPlayingHero(isDark: isDark, onTap: _play),
+    ));
 
     if (_recents.isNotEmpty) {
       slivers
         ..add(SliverToBoxAdapter(
             child: _SectionTitle(emoji: '🕐', title: 'Récents', isDark: isDark)))
         ..add(SliverToBoxAdapter(
-            child: _HomeCardRow(
-                stations: _recents, onTap: _play, isDark: isDark)));
+            child: _HomeCardRow(stations: _recents, onTap: _play)));
     }
 
     if (_popular.isNotEmpty) {
       slivers
         ..add(SliverToBoxAdapter(
-            child: _SectionTitle(
-                emoji: '🔥', title: 'Populaires', isDark: isDark)))
+            child: _SectionTitle(emoji: '🔥', title: 'Populaires', isDark: isDark)))
         ..add(SliverToBoxAdapter(
-            child: _HomeCardRow(
-                stations: _popular, onTap: _play, isDark: isDark)));
+            child: _HomeCardRow(stations: _popular, onTap: _play)));
     }
 
     if (discover.isNotEmpty) {
       slivers
         ..add(SliverToBoxAdapter(
-            child: _SectionTitle(
-                emoji: '✨', title: 'Découvrir', isDark: isDark)))
+            child: _SectionTitle(emoji: '✨', title: 'Découvrir', isDark: isDark)))
         ..add(SliverToBoxAdapter(
-            child: _HomeCardRow(
-                stations: discover, onTap: _play, isDark: isDark)));
+            child: _HomeCardRow(stations: discover, onTap: _play)));
     }
 
-    // Catégories en tuiles compactes si rien à afficher
+    // Catégories si rien de personnalisé
     if (_recents.isEmpty && _popular.isEmpty) {
       for (final cat in kRadioCategories.skip(1)) {
         final list = grouped[cat] ?? [];
@@ -492,21 +587,19 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
           ..add(SliverToBoxAdapter(
               child: _SectionTitle(
                   emoji: spaceIdx > 0 ? cat.substring(0, spaceIdx) : '',
-                  title:
-                      spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat,
+                  title: spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat,
                   isDark: isDark,
                   accentColor: radioCategoryGradient(cat).first)))
           ..add(SliverToBoxAdapter(
               child: _HomeCardRow(
-                  stations: list.take(6).toList(),
-                  onTap: _play,
-                  isDark: isDark)));
+                  stations: list.take(6).toList(), onTap: _play)));
       }
     }
 
     slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 32)));
 
-    if (slivers.isEmpty) {
+    if (slivers.length == 2) {
+      // Only hero + padding → no stations
       return Center(
         child: Text('Aucune station disponible',
             style: TextStyle(
@@ -522,11 +615,9 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   // ── Onglet Parcourir ───────────────────────────────────────────────────────
 
   Widget _buildParcourirTab(bool isDark) {
-    final fillColor  = isDark ? const Color(0xFF141C30) : const Color(0xFFEEEAE2);
-    final hintColor  = isDark ? const Color(0xFF8899BB) : const Color(0xFF9CA3AF);
-    final textColor  = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
-    final unselBg    = isDark ? const Color(0xFF141C30) : const Color(0xFFEEEAE2);
-    final unselText  = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
+    final fillColor = isDark ? const Color(0xFF141C30) : const Color(0xFFEEEAE2);
+    final hintColor = isDark ? const Color(0xFF8899BB) : const Color(0xFF9CA3AF);
+    final textColor = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
 
     return Column(
       children: [
@@ -539,8 +630,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
             decoration: InputDecoration(
               hintText: 'Rechercher une station…',
               hintStyle: TextStyle(color: hintColor, fontSize: 14),
-              prefixIcon:
-                  Icon(Icons.search_rounded, color: hintColor, size: 20),
+              prefixIcon: Icon(Icons.search_rounded, color: hintColor, size: 20),
               suffixIcon: _isSearching
                   ? IconButton(
                       icon: Icon(Icons.clear_rounded,
@@ -559,153 +649,130 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
             ),
           ),
         ),
-        // Category chips
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          child: (!_isSearching)
-              ? SizedBox(
-                  height: 44,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 4),
-                    itemCount: _activeCategories.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) {
-                      final cat      = _activeCategories[i];
-                      final selected = cat == _selectedCategory;
-                      final gradColors = cat == 'Tous'
-                          ? [
-                              const Color(0xFF38C172),
-                              const Color(0xFF1DA355)
-                            ]
-                          : radioCategoryGradient(cat);
-                      return GestureDetector(
-                        onTap: () =>
-                            setState(() => _selectedCategory = cat),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: selected
-                                ? LinearGradient(colors: gradColors)
-                                : null,
-                            color: selected ? null : unselBg,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            cat,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: selected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: selected ? Colors.white : unselText,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                )
-              : const SizedBox.shrink(),
+        const SizedBox(height: 8),
+        // Content
+        Expanded(
+          child: _isSearching
+              ? _buildSearchResults(isDark)
+              : _selectedCategory == 'Tous'
+                  ? _CategoryGrid(
+                      isDark: isDark,
+                      categories: _activeCategories
+                          .where((c) => c != 'Tous')
+                          .toList(),
+                      grouped: _grouped,
+                      onSelect: (cat) =>
+                          setState(() => _selectedCategory = cat),
+                    )
+                  : _buildCategoryList(isDark),
         ),
-        // Station list
-        Expanded(child: _buildBrowseContent(isDark)),
       ],
     );
   }
 
-  Widget _buildBrowseContent(bool isDark) {
+  Widget _buildSearchResults(bool isDark) {
     final mutedColor =
         isDark ? const Color(0xFF8899BB) : const Color(0xFF9CA3AF);
-
-    if (_isSearching) {
-      final results = _searchFiltered;
-      if (results.isEmpty) {
-        return Center(
-            child: Text('Aucune station trouvée',
-                style: TextStyle(color: mutedColor)));
-      }
-      return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        itemCount: results.length,
-        itemBuilder: (_, i) => _StationTile(
-          station: results[i],
-          isDark: isDark,
-          onTap: () => _play(results[i]),
-          onFavTap: () => _toggleFavFromList(results[i]),
-          isFav: _favorites.any((f) => f.id == results[i].id),
-        ),
-      );
+    final results = _searchFiltered;
+    if (results.isEmpty) {
+      return Center(
+          child: Text('Aucune station trouvée',
+              style: TextStyle(color: mutedColor)));
     }
-
-    final grouped = _grouped;
-
-    if (_selectedCategory != 'Tous') {
-      final list = grouped[_selectedCategory] ?? [];
-      if (list.isEmpty) {
-        return Center(
-            child: Text('Aucune station dans cette catégorie',
-                style: TextStyle(color: mutedColor)));
-      }
-      return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        itemCount: list.length,
-        itemBuilder: (_, i) => _StationTile(
-          station: list[i],
-          isDark: isDark,
-          onTap: () => _play(list[i]),
-          onFavTap: () => _toggleFavFromList(list[i]),
-          isFav: _favorites.any((f) => f.id == list[i].id),
-        ),
-      );
-    }
-
-    // Tous : liste avec en-têtes de section
-    final items = <dynamic>[];
-    for (final cat in kRadioCategories.skip(1)) {
-      final list = grouped[cat] ?? [];
-      if (list.isEmpty) continue;
-      items.add(cat);
-      items.addAll(list);
-    }
-
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 24),
-      itemCount: items.length,
-      itemBuilder: (_, i) {
-        final item = items[i];
-        if (item is String) {
-          final spaceIdx = item.indexOf(' ');
-          return _SectionTitle(
-            emoji: spaceIdx > 0 ? item.substring(0, spaceIdx) : '',
-            title: spaceIdx > 0 ? item.substring(spaceIdx + 1) : item,
-            isDark: isDark,
-            accentColor: radioCategoryGradient(item).first,
-            compact: true,
-          );
-        }
-        final s = item as RadioStation;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: _StationTile(
-            station: s,
-            isDark: isDark,
-            onTap: () => _play(s),
-            onFavTap: () => _toggleFavFromList(s),
-            isFav: _favorites.any((f) => f.id == s.id),
-          ),
-        );
-      },
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      itemCount: results.length,
+      itemBuilder: (_, i) => _StationTile(
+        station: results[i],
+        isDark: isDark,
+        onTap: () => _play(results[i]),
+        onFavTap: () => _toggleFavFromList(results[i]),
+        isFav: _favorites.any((f) => f.id == results[i].id),
+        index: i,
+      ),
     );
   }
 
-  Future<void> _toggleFavFromList(RadioStation s) async {
-    await RadioService.instance.toggleFavorite(s);
-    await _reloadFavorites();
+  Widget _buildCategoryList(bool isDark) {
+    final mutedColor =
+        isDark ? const Color(0xFF8899BB) : const Color(0xFF9CA3AF);
+    final textColor =
+        isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
+    final cat  = _selectedCategory;
+    final list = _grouped[cat] ?? [];
+    final grad = radioCategoryGradient(cat);
+    final spaceIdx = cat.indexOf(' ');
+    final catLabel = spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat;
+    final catEmoji = spaceIdx > 0 ? cat.substring(0, spaceIdx) : '';
+
+    if (list.isEmpty) {
+      return Center(
+          child: Text('Aucune station dans cette catégorie',
+              style: TextStyle(color: mutedColor)));
+    }
+
+    return Column(
+      children: [
+        // Back + category header
+        GestureDetector(
+          onTap: () => setState(() => _selectedCategory = 'Tous'),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  grad[0].withValues(alpha: 0.18),
+                  grad[1].withValues(alpha: 0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: grad[0].withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 14, color: grad[0]),
+                const SizedBox(width: 8),
+                if (catEmoji.isNotEmpty) ...[
+                  Text(catEmoji, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  catLabel,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${list.length} stations',
+                  style: TextStyle(color: mutedColor, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            itemCount: list.length,
+            itemBuilder: (_, i) => _StationTile(
+              station: list[i],
+              isDark: isDark,
+              onTap: () => _play(list[i]),
+              onFavTap: () => _toggleFavFromList(list[i]),
+              isFav: _favorites.any((f) => f.id == list[i].id),
+              index: i,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // ── Onglet Favoris ─────────────────────────────────────────────────────────
@@ -755,8 +822,157 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
           onTap: () => _play(s),
           onFavTap: () => _toggleFavFromList(s),
           isFav: true,
+          index: i,
         );
       },
+    );
+  }
+}
+
+// ── Hero "En cours de lecture" ────────────────────────────────────────────────
+
+class _NowPlayingHero extends StatelessWidget {
+  final bool isDark;
+  final void Function(RadioStation) onTap;
+
+  const _NowPlayingHero({required this.isDark, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<RadioStation?>(
+      valueListenable: RadioService.instance.currentStationNotifier,
+      builder: (_, station, __) {
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 350),
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: SizeTransition(sizeFactor: anim, child: child),
+          ),
+          child: station == null
+              ? const SizedBox.shrink()
+              : _HeroCard(
+                  key: ValueKey(station.id),
+                  station: station,
+                  isDark: isDark,
+                  onTap: () => onTap(station),
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  final RadioStation station;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _HeroCard({
+    super.key,
+    required this.station,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cat  = categorizeStation(station);
+    final grad = radioCategoryGradient(cat);
+    final spaceIdx = cat.indexOf(' ');
+    final catLabel = spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+        height: 90,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              grad[0].withValues(alpha: 0.9),
+              grad[1].withValues(alpha: 0.95),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: grad[0].withValues(alpha: 0.4),
+              blurRadius: 20, offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 14),
+            // Thumbnail
+            Container(
+              width: 62, height: 62,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 10, offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: StationThumbnail(station: station, size: 62, circular: true),
+            ),
+            const SizedBox(width: 14),
+            // Info
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // LIVE badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'EN DIRECT',
+                      style: TextStyle(
+                        color: Colors.white, fontSize: 8,
+                        fontWeight: FontWeight.w800, letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    _stationLabel(station),
+                    style: const TextStyle(
+                      color: Colors.white, fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    catLabel,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Play/pause + arrow
+            const _EqualizerBars(color: Colors.white),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded,
+                color: Colors.white.withValues(alpha: 0.6), size: 22),
+            const SizedBox(width: 10),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -768,14 +984,12 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final bool   isDark;
   final Color? accentColor;
-  final bool   compact;
 
   const _SectionTitle({
     required this.emoji,
     required this.title,
     required this.isDark,
     this.accentColor,
-    this.compact = false,
   });
 
   @override
@@ -785,7 +999,7 @@ class _SectionTitle extends StatelessWidget {
         (isDark ? const Color(0xFF38C172) : const Color(0xFF6EE7B7));
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, compact ? 14 : 20, 16, compact ? 6 : 10),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
       child: Row(
         children: [
           if (emoji.isNotEmpty) ...[
@@ -796,7 +1010,7 @@ class _SectionTitle extends StatelessWidget {
             title,
             style: TextStyle(
               color: textColor,
-              fontSize: compact ? 13 : 16,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.2,
             ),
@@ -821,23 +1035,18 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// ── Horizontal home cards ─────────────────────────────────────────────────────
+// ── Horizontal home cards (16:9) ──────────────────────────────────────────────
 
 class _HomeCardRow extends StatelessWidget {
   final List<RadioStation>          stations;
   final void Function(RadioStation) onTap;
-  final bool                        isDark;
 
-  const _HomeCardRow({
-    required this.stations,
-    required this.onTap,
-    required this.isDark,
-  });
+  const _HomeCardRow({required this.stations, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 140,
+      height: 128,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -864,66 +1073,92 @@ class _HomeCard extends StatelessWidget {
       valueListenable: RadioService.instance.currentStationNotifier,
       builder: (_, current, __) {
         final isActive = current?.id == station.id;
+        final cat  = categorizeStation(station);
+        final grad = radioCategoryGradient(cat);
+
         return GestureDetector(
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
-            width: 110,
+            width: 160,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              color: const Color(0xFF141C30),
-              border: isActive
-                  ? Border.all(color: const Color(0xFF38C172), width: 2)
-                  : Border.all(
-                      color: Colors.white.withValues(alpha: 0.06)),
               boxShadow: [
                 if (isActive)
                   BoxShadow(
-                    color: const Color(0xFF38C172).withValues(alpha: 0.3),
-                    blurRadius: 12, spreadRadius: 1,
+                    color: grad[0].withValues(alpha: 0.5),
+                    blurRadius: 16, spreadRadius: 2,
                   ),
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.22),
-                  blurRadius: 6, offset: const Offset(0, 2),
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 8, offset: const Offset(0, 3),
                 ),
               ],
             ),
-            child: Column(
-              children: [
-                // Thumbnail top half
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(13)),
-                  child: SizedBox(
-                    height: 78, width: double.infinity,
-                    child: StationThumbnail(
-                      station: station,
-                      size: 78,
-                      circular: false,
-                    ),
-                  ),
-                ),
-                // Name bottom half
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 7, vertical: 5),
-                    child: Text(
-                      _stationLabel(station),
-                      style: TextStyle(
-                        color: isActive
-                            ? const Color(0xFF38C172)
-                            : Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Full image
+                  StationThumbnail(station: station, size: 128, circular: false),
+                  // Gradient overlay bottom
+                  Positioned(
+                    left: 0, right: 0, bottom: 0, height: 68,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.82),
+                          ],
+                        ),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ),
-              ],
+                  // Active border glow
+                  if (isActive)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: const Color(0xFF38C172), width: 2.5),
+                        ),
+                      ),
+                    ),
+                  // Name + equalizer
+                  Positioned(
+                    left: 9, right: 9, bottom: 8,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _stationLabel(station),
+                            style: TextStyle(
+                              color: isActive
+                                  ? const Color(0xFF38C172)
+                                  : Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isActive) ...[
+                          const SizedBox(width: 4),
+                          const _EqualizerBars(color: Color(0xFF38C172)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -932,7 +1167,128 @@ class _HomeCard extends StatelessWidget {
   }
 }
 
-// ── Station tile (list row with thumbnail + heart) ────────────────────────────
+// ── Category grid ─────────────────────────────────────────────────────────────
+
+class _CategoryGrid extends StatelessWidget {
+  final bool                              isDark;
+  final List<String>                      categories;
+  final Map<String, List<RadioStation>>   grouped;
+  final void Function(String)             onSelect;
+
+  const _CategoryGrid({
+    required this.isDark,
+    required this.categories,
+    required this.grouped,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.65,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (_, i) => _CategoryCard(
+        cat: categories[i],
+        count: grouped[categories[i]]?.length ?? 0,
+        onTap: () => onSelect(categories[i]),
+      ),
+    );
+  }
+}
+
+class _CategoryCard extends StatelessWidget {
+  final String cat;
+  final int count;
+  final VoidCallback onTap;
+
+  const _CategoryCard({
+    required this.cat,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final grad = radioCategoryGradient(cat);
+    final spaceIdx = cat.indexOf(' ');
+    final emoji = spaceIdx > 0 ? cat.substring(0, spaceIdx) : '';
+    final label = spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: grad,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: grad[0].withValues(alpha: 0.35),
+              blurRadius: 12, offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // Subtle light patch top-right
+            Positioned(
+              top: -20, right: -20,
+              child: Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.07),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 26)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white, fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '$count stations',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Station tile (list row) ───────────────────────────────────────────────────
 
 class _StationTile extends StatelessWidget {
   final RadioStation station;
@@ -940,6 +1296,7 @@ class _StationTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onFavTap;
   final bool         isFav;
+  final int          index;
 
   const _StationTile({
     required this.station,
@@ -947,6 +1304,7 @@ class _StationTile extends StatelessWidget {
     required this.onTap,
     required this.onFavTap,
     required this.isFav,
+    this.index = 0,
   });
 
   @override
@@ -958,74 +1316,98 @@ class _StationTile extends StatelessWidget {
     final cat = categorizeStation(station);
     final spaceIdx = cat.indexOf(' ');
     final catLabel = spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat;
+    final grad = radioCategoryGradient(cat);
 
     return ValueListenableBuilder<RadioStation?>(
       valueListenable: RadioService.instance.currentStationNotifier,
       builder: (_, current, __) {
         final isActive = current?.id == station.id;
-        return InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                // Thumbnail
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 54, height: 54,
-                    child: StationThumbnail(
-                      station: station, size: 54, circular: false),
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: Duration(milliseconds: 280 + index * 40),
+          curve: Curves.easeOut,
+          builder: (_, v, child) => Opacity(
+            opacity: v,
+            child: Transform.translate(
+              offset: Offset(0, 16 * (1 - v)),
+              child: child,
+            ),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  // Thumbnail with category glow when active
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 62, height: 62,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: isActive
+                          ? [
+                              BoxShadow(
+                                color: grad[0].withValues(alpha: 0.55),
+                                blurRadius: 14, spreadRadius: 2,
+                              ),
+                            ]
+                          : [],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: StationThumbnail(
+                          station: station, size: 62, circular: false),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Name + category
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _stationLabel(station),
-                        style: TextStyle(
-                          color: isActive
-                              ? const Color(0xFF38C172)
-                              : textPrimary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                  const SizedBox(width: 13),
+                  // Name + category
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _stationLabel(station),
+                          style: TextStyle(
+                            color: isActive
+                                ? const Color(0xFF38C172)
+                                : textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(catLabel,
-                          style:
-                              TextStyle(color: textMuted, fontSize: 11)),
-                    ],
+                        const SizedBox(height: 3),
+                        Text(catLabel,
+                            style: TextStyle(color: textMuted, fontSize: 11)),
+                      ],
+                    ),
                   ),
-                ),
-                // Playing indicator
-                if (isActive)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 4),
-                    child: _EqualizerBars(color: Color(0xFF38C172)),
+                  // Playing indicator
+                  if (isActive)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: _EqualizerBars(color: Color(0xFF38C172)),
+                    ),
+                  // Heart button
+                  IconButton(
+                    onPressed: onFavTap,
+                    icon: Icon(
+                      isFav
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: isFav
+                          ? const Color(0xFFDC2626)
+                          : textMuted,
+                      size: 20,
+                    ),
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(
+                        minWidth: 36, minHeight: 36),
                   ),
-                // Heart button
-                IconButton(
-                  onPressed: onFavTap,
-                  icon: Icon(
-                    isFav
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    color: isFav
-                        ? const Color(0xFFDC2626)
-                        : textMuted,
-                    size: 20,
-                  ),
-                  padding: const EdgeInsets.all(6),
-                  constraints: const BoxConstraints(
-                      minWidth: 36, minHeight: 36),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -1052,7 +1434,7 @@ class StationThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     final grad = radioCategoryGradient(categorizeStation(station));
 
-    Widget img = Image.asset(
+    final Widget img = Image.asset(
       'assets/radio/${station.id}.jpg',
       width: size, height: size,
       fit: BoxFit.cover,
