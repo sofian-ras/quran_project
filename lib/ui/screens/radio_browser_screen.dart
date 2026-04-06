@@ -1418,6 +1418,18 @@ class _StationTile extends StatelessWidget {
 
 // ── Station thumbnail (public — réutilisé par RadioPlayerScreen) ──────────────
 
+// Catégorie → image représentative (une station connue de la catégorie)
+const kCatAssets = <String, String>{
+  '📖 Coran':         'assets/radio/108.webp',
+  '👤 Récitateurs':   'assets/radio/79.webp',
+  '📚 Tafsir':        'assets/radio/116.webp',
+  '🕌 Conférences':   'assets/radio/113.webp',
+  '🤲 Adhkar & Doua': 'assets/radio/10906.webp',
+  '🙏 Du\'a':         'assets/radio/114.webp',
+  '🎓 Apprentissage': 'assets/radio/1.webp',
+  '🌍 Traductions':   'assets/radio/109055.webp',
+};
+
 class StationThumbnail extends StatelessWidget {
   final RadioStation station;
   final double       size;
@@ -1432,29 +1444,45 @@ class StationThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final grad = radioCategoryGradient(categorizeStation(station));
+    final cat  = categorizeStation(station);
+    final grad = radioCategoryGradient(cat);
+    final catAsset = kCatAssets[cat];
 
-    final Widget img = Image.asset(
-      'assets/radio/${station.id}.jpg',
+    // Fallback gradient widget
+    Widget fallback = Container(
       width: size, height: size,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        width: size, height: size,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: grad,
-          ),
-        ),
-        child: Center(
-          child: Icon(
-            Icons.radio_rounded,
-            color: Colors.white.withValues(alpha: 0.6),
-            size: size * 0.42,
-          ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: grad,
         ),
       ),
+      child: Center(
+        child: Icon(
+          Icons.radio_rounded,
+          color: Colors.white.withValues(alpha: 0.6),
+          size: size * 0.42,
+        ),
+      ),
+    );
+
+    // Category image fallback (if no station-specific image)
+    Widget catImg = catAsset != null
+        ? Image.asset(
+            catAsset,
+            width: size, height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallback,
+          )
+        : fallback;
+
+    // Station-specific image (highest priority)
+    Widget img = Image.asset(
+      'assets/radio/${station.id}.webp',
+      width: size, height: size,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => catImg,
     );
 
     return circular
@@ -1546,9 +1574,21 @@ class _MarqueeTextState extends State<_MarqueeText>
             } else {
               offset = 0;
             }
-            return Transform.translate(
-              offset: Offset(-offset, 0),
-              child: Text(widget.text, style: widget.style, softWrap: false),
+            return SizedBox(
+              width: boxW,
+              child: Transform.translate(
+                offset: Offset(-offset, 0),
+                child: SizedBox(
+                  width: textW,
+                  child: Text(
+                    widget.text,
+                    style: widget.style,
+                    softWrap: false,
+                    maxLines: 1,
+                    overflow: TextOverflow.visible,
+                  ),
+                ),
+              ),
             );
           },
         ),

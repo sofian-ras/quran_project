@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
@@ -73,22 +75,9 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
           backgroundColor: isDark ? const Color(0xFF080D1A) : const Color(0xFFF5F0E8),
           body: Stack(
             children: [
-              // ── Fond couleur catégorie flouté ──────────────────────────
+              // ── Fond image floue ───────────────────────────────────────
               Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        grad[0].withValues(alpha: isDark ? 0.55 : 0.35),
-                        (isDark ? const Color(0xFF080D1A) : const Color(0xFFF5F0E8))
-                            .withValues(alpha: 1.0),
-                      ],
-                      stops: const [0.0, 0.65],
-                    ),
-                  ),
-                ),
+                child: _BlurredBackground(station: _station, grad: grad, isDark: isDark),
               ),
 
               // ── Contenu ────────────────────────────────────────────────
@@ -314,7 +303,89 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   }
 }
 
-// ── Miniature locale (tente assets/radio/{id}.jpg, fallback gradient) ─────────
+// ── Fond flouté avec image de la station ─────────────────────────────────────
+
+class _BlurredBackground extends StatelessWidget {
+  final RadioStation station;
+  final List<Color>  grad;
+  final bool         isDark;
+
+  const _BlurredBackground({
+    required this.station,
+    required this.grad,
+    required this.isDark,
+  });
+
+  String get _catAsset => kCatAssets[categorizeStation(station)] ?? '';
+
+  @override
+  Widget build(BuildContext context) {
+    final overlay = isDark
+        ? Colors.black.withValues(alpha: 0.60)
+        : Colors.white.withValues(alpha: 0.45);
+
+    Widget bgImage(String path) => ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+      child: Image.asset(
+        path,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      ),
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Image station → catégorie → gradient
+        Image.asset(
+          'assets/radio/${station.id}.webp',
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (_, __, ___) => _catAsset.isNotEmpty
+              ? bgImage(_catAsset)
+              : Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: grad,
+                    ),
+                  ),
+                ),
+        ),
+        // Blur overlay
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
+        // Dark/light tint + bottom fade
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  overlay,
+                  isDark
+                      ? const Color(0xFF080D1A).withValues(alpha: 0.92)
+                      : const Color(0xFFF5F0E8).withValues(alpha: 0.88),
+                ],
+                stops: const [0.0, 0.7],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Miniature centrale (cercle) ───────────────────────────────────────────────
 
 class _PlayerThumbnail extends StatelessWidget {
   final RadioStation station;
@@ -322,23 +393,33 @@ class _PlayerThumbnail extends StatelessWidget {
 
   const _PlayerThumbnail({required this.station, required this.grad});
 
+  String get _catAsset => kCatAssets[categorizeStation(station)] ?? '';
+
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/radio/${station.id}.jpg',
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: grad,
-          ),
-        ),
-        child: Center(
-          child: Icon(Icons.radio_rounded, color: Colors.white.withValues(alpha: 0.6), size: 80),
+    Widget fallback = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: grad,
         ),
       ),
+      child: Center(
+        child: Icon(Icons.radio_rounded,
+            color: Colors.white.withValues(alpha: 0.6), size: 80),
+      ),
+    );
+
+    Widget catImg = _catAsset.isNotEmpty
+        ? Image.asset(_catAsset, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallback)
+        : fallback;
+
+    return Image.asset(
+      'assets/radio/${station.id}.webp',
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => catImg,
     );
   }
 }
