@@ -27,6 +27,9 @@ class RadioService {
 
   List<RadioStation>? _memCache;
 
+  /// Accès synchrone au cache (vide si pas encore chargé).
+  List<RadioStation> get cachedStations => _memCache ?? [];
+
   /// Retourne la liste des stations.
   /// - Si le cache mémoire est présent : retour immédiat + refresh silencieux
   /// - Si cache SharedPreferences < 24 h : retour immédiat + refresh silencieux

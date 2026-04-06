@@ -62,6 +62,23 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
     if (mounted) Navigator.of(context).pop();
   }
 
+  void _skipTo(int delta) {
+    final stations = RadioService.instance.cachedStations;
+    if (stations.isEmpty) return;
+    final idx = stations.indexWhere((s) => s.id == _station.id);
+    if (idx < 0) return;
+    final next = stations[(idx + delta) % stations.length];
+    HapticFeedback.lightImpact();
+    AudioService.instance.playRadio(next);
+    RadioService.instance.currentStationNotifier.value = next;
+    RadioService.instance.trackPlay(next);
+    setState(() {
+      RadioService.instance
+          .isFavorite(next.id)
+          .then((v) { if (mounted) setState(() => _isFavorite = v); });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -236,7 +253,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
 
           const SizedBox(height: 56),
 
-          // ── Play / Pause ──────────────────────────────────────────
+          // ── Précédent / Play / Suivant ────────────────────────
           StreamBuilder<PlayerState>(
             stream: AudioService.instance.playerStateStream,
             builder: (_, snap) {
@@ -245,44 +262,65 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
               final loading = state?.processingState == ProcessingState.loading ||
                   state?.processingState == ProcessingState.buffering;
 
-              if (loading) {
-                return const SizedBox(
-                  width: 80, height: 80,
-                  child: Center(
-                    child: SizedBox(
-                      width: 36, height: 36,
-                      child: CircularProgressIndicator(
-                          color: Color(0xFF38C172), strokeWidth: 3),
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Précédent
+                  IconButton(
+                    onPressed: () => _skipTo(-1),
+                    icon: Icon(Icons.skip_previous_rounded,
+                        color: mutedColor, size: 36),
+                    iconSize: 36,
+                  ),
+                  const SizedBox(width: 24),
+                  // Play / Pause
+                  if (loading)
+                    const SizedBox(
+                      width: 80, height: 80,
+                      child: Center(
+                        child: SizedBox(
+                          width: 36, height: 36,
+                          child: CircularProgressIndicator(
+                              color: Color(0xFF38C172), strokeWidth: 3),
+                        ),
+                      ),
+                    )
+                  else
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        AudioService.instance.togglePlayPause();
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 80, height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: playing ? const Color(0xFF38C172) : (isDark
+                              ? const Color(0xFF1E2A3A)
+                              : const Color(0xFFE5E0D8)),
+                          boxShadow: playing
+                              ? [BoxShadow(
+                                  color: const Color(0xFF38C172).withValues(alpha: 0.45),
+                                  blurRadius: 24, spreadRadius: 4)]
+                              : [],
+                        ),
+                        child: Icon(
+                          playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          color: playing ? Colors.white : mutedColor,
+                          size: 40,
+                        ),
+                      ),
                     ),
+                  const SizedBox(width: 24),
+                  // Suivant
+                  IconButton(
+                    onPressed: () => _skipTo(1),
+                    icon: Icon(Icons.skip_next_rounded,
+                        color: mutedColor, size: 36),
+                    iconSize: 36,
                   ),
-                );
-              }
-
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.mediumImpact();
-                  AudioService.instance.togglePlayPause();
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 80, height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: playing ? const Color(0xFF38C172) : (isDark
-                        ? const Color(0xFF1E2A3A)
-                        : const Color(0xFFE5E0D8)),
-                    boxShadow: playing
-                        ? [BoxShadow(
-                            color: const Color(0xFF38C172).withValues(alpha: 0.45),
-                            blurRadius: 24, spreadRadius: 4)]
-                        : [],
-                  ),
-                  child: Icon(
-                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: playing ? Colors.white : mutedColor,
-                    size: 40,
-                  ),
-                ),
+                ],
               );
             },
           ),
@@ -320,43 +358,35 @@ class _BlurredBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overlay = isDark
-        ? Colors.black.withValues(alpha: 0.60)
-        : Colors.white.withValues(alpha: 0.45);
-
-    Widget bgImage(String path) => ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-      child: Image.asset(
-        path,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      ),
-    );
-
     return Stack(
       fit: StackFit.expand,
       children: [
         // Image de catégorie en fond
-        _catAsset.isNotEmpty
-            ? bgImage(_catAsset)
-            : Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: grad,
-                  ),
-                ),
+        if (_catAsset.isNotEmpty)
+          Image.asset(
+            _catAsset,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: grad,
               ),
-        // Blur overlay
+            ),
+          ),
+        // Flou
         Positioned.fill(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-            child: Container(color: Colors.transparent),
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: const SizedBox.expand(),
           ),
         ),
-        // Dark/light tint + bottom fade
+        // Tint léger + fondu bas
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -364,12 +394,14 @@ class _BlurredBackground extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  overlay,
                   isDark
-                      ? const Color(0xFF080D1A).withValues(alpha: 0.92)
-                      : const Color(0xFFF5F0E8).withValues(alpha: 0.88),
+                      ? Colors.black.withValues(alpha: 0.10)
+                      : Colors.white.withValues(alpha: 0.08),
+                  isDark
+                      ? const Color(0xFF080D1A).withValues(alpha: 0.72)
+                      : const Color(0xFFF5F0E8).withValues(alpha: 0.70),
                 ],
-                stops: const [0.0, 0.7],
+                stops: const [0.0, 0.80],
               ),
             ),
           ),
