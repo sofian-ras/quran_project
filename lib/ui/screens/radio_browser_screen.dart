@@ -133,7 +133,8 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   bool    _loading = true;
   String? _error;
   String  _selectedCategory = 'Tous';
-  final   _searchCtrl = TextEditingController();
+  final   _searchCtrl  = TextEditingController();
+  final   _searchFocus = FocusNode();
 
   @override
   void initState() {
@@ -153,6 +154,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   void dispose() {
     _tabCtrl.dispose();
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     _homeScroll.dispose();
     _parcourirScroll.dispose();
     _favorisScroll.dispose();
@@ -223,6 +225,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
       RadioService.instance.currentStationNotifier.value = station;
       RadioService.instance.trackPlay(station);
     }
+    _searchFocus.unfocus();
     Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder<void>(
         opaque: true,
@@ -359,7 +362,9 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
               builder: (_, station, __) {
                 if (station == null) return const SizedBox.shrink();
                 return GestureDetector(
-                  onTap: () => Navigator.of(context, rootNavigator: true).push(
+                  onTap: () {
+                    _searchFocus.unfocus();
+                    Navigator.of(context, rootNavigator: true).push(
                     PageRouteBuilder<void>(
                       opaque: true,
                       pageBuilder: (_, __, ___) =>
@@ -375,7 +380,8 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
                           ),
                       transitionDuration: const Duration(milliseconds: 300),
                     ),
-                  ).then((_) => _reloadFavorites()),
+                  ).then((_) => _reloadFavorites());
+                  },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 5),
@@ -641,6 +647,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: TextField(
             controller: _searchCtrl,
+            focusNode: _searchFocus,
             style: TextStyle(color: textColor, fontSize: 14),
             decoration: InputDecoration(
               hintText: 'Rechercher une station…',
