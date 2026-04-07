@@ -572,8 +572,8 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
               const SizedBox(width: 4),
               TextButton.icon(
                 onPressed: _toggleSimpleMode,
-                icon: Icon(Icons.dark_mode_outlined, color: mutedColor, size: 18),
-                label: Text('Mode simple',
+                icon: Icon(Icons.battery_saver_outlined, color: mutedColor, size: 18),
+                label: Text('Mode économie',
                     style: TextStyle(color: mutedColor, fontSize: 13)),
               ),
             ],
@@ -651,7 +651,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
               Positioned(
                 top: 16, left: 0, right: 0,
                 child: Text(
-                  'Toucher pour revenir',
+                  'Toucher pour quitter le mode économie',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.15),
