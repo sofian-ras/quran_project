@@ -140,6 +140,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
 
   Map<String, List<RadioStation>> _grouped          = {};
   List<String>                    _activeCategories = [];
+  List<RadioStation>              _topNow           = [];
 
   @override
   void initState() {
@@ -220,6 +221,12 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     _activeCategories = kRadioCategories
         .where((c) => c == 'Tous' || present.contains(c))
         .toList();
+    // Top en ce moment : 5 stations pseudo-aléatoires stables (par hash)
+    if (_stations.isNotEmpty) {
+      final pool = List<RadioStation>.from(_stations);
+      pool.sort((a, b) => (a.id * 2654435761) % 100 - (b.id * 2654435761) % 100);
+      _topNow = pool.take(5).toList();
+    }
   }
 
   void _play(RadioStation station) {
@@ -261,10 +268,25 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
 
   // ── Build ──────────────────────────────────────────────────────────────────
 
+  // Calcule les couleurs du dégradé selon l'onglet et la catégorie active
+  List<Color> get _activeCatGrad {
+    if (_tabIndex == 1 && _selectedCategory != 'Tous') {
+      return radioCategoryGradient(_selectedCategory);
+    }
+    // Onglet Accueil → gradient de la station en cours si dispo
+    final playing = RadioService.instance.currentStationNotifier.value;
+    if (_tabIndex == 0 && playing != null) {
+      return radioCategoryGradient(categorizeStation(playing));
+    }
+    // Défaut : vert accent
+    return [const Color(0xFF38C172), const Color(0xFF1DA355)];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg     = isDark ? const Color(0xFF080D1A) : const Color(0xFFF5F0E8);
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final baseBg  = isDark ? const Color(0xFF080D1A) : const Color(0xFFF5F0E8);
+    final grad    = _activeCatGrad;
 
     return PopScope(
       canPop: _selectedCategory == 'Tous' || _tabIndex != 1,
@@ -272,38 +294,28 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
         if (!didPop) setState(() => _selectedCategory = 'Tous');
       },
       child: Scaffold(
-        backgroundColor: bg,
+        backgroundColor: baseBg,
         body: Stack(
           children: [
-            // Immersive radial glow (dark mode only)
-            if (isDark) ...[
-              Positioned(
-                top: -80, right: -80,
-                child: Container(
-                  width: 300, height: 300,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: [
-                      Color(0x1238C172),
+            // ── Fond dégradé dynamique par catégorie ────────────────
+            Positioned.fill(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 700),
+                curve: Curves.easeInOut,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                    colors: [
+                      grad[0].withValues(alpha: isDark ? 0.35 : 0.20),
+                      grad[1].withValues(alpha: isDark ? 0.18 : 0.10),
                       Colors.transparent,
-                    ]),
+                    ],
+                    stops: const [0.0, 0.45, 1.0],
                   ),
                 ),
               ),
-              Positioned(
-                bottom: 40, left: -100,
-                child: Container(
-                  width: 240, height: 240,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: [
-                      Color(0x0A1E4494),
-                      Colors.transparent,
-                    ]),
-                  ),
-                ),
-              ),
-            ],
+            ),
             Column(
               children: [
                 _buildHeader(isDark),
@@ -451,14 +463,12 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   // ── Pill tab bar ───────────────────────────────────────────────────────────
 
   Widget _buildTabBar(bool isDark) {
-    final bg      = isDark ? const Color(0xFF0E1530) : const Color(0xFFECE7DF);
     final pillBg  = isDark
         ? Colors.white.withValues(alpha: 0.07)
         : Colors.black.withValues(alpha: 0.06);
     final unsel   = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
 
-    return Container(
-      color: bg,
+    return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
       child: LayoutBuilder(builder: (_, constraints) {
         final pillW = constraints.maxWidth / 3;
@@ -596,10 +606,19 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
       child: _NowPlayingHero(isDark: isDark, onTap: _play),
     ));
 
+    // Top en ce moment (bannière auto-scroll)
+    if (_topNow.isNotEmpty) {
+      slivers
+        ..add(SliverToBoxAdapter(
+            child: _SectionTitle(title: 'Top en ce moment', isDark: isDark)))
+        ..add(SliverToBoxAdapter(
+            child: _AutoScrollBanner(stations: _topNow, onTap: _play, isDark: isDark)));
+    }
+
     if (_recents.isNotEmpty) {
       slivers
         ..add(SliverToBoxAdapter(
-            child: _SectionTitle(emoji: '🕐', title: 'Récents', isDark: isDark)))
+            child: _SectionTitle(title: 'Récents', isDark: isDark)))
         ..add(SliverToBoxAdapter(
             child: _HomeCardRow(stations: _recents, onTap: _play)));
     }
@@ -607,7 +626,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     if (_popular.isNotEmpty) {
       slivers
         ..add(SliverToBoxAdapter(
-            child: _SectionTitle(emoji: '🔥', title: 'Populaires', isDark: isDark)))
+            child: _SectionTitle(title: 'Populaires', isDark: isDark)))
         ..add(SliverToBoxAdapter(
             child: _HomeCardRow(stations: _popular, onTap: _play)));
     }
@@ -615,7 +634,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     if (discover.isNotEmpty) {
       slivers
         ..add(SliverToBoxAdapter(
-            child: _SectionTitle(emoji: '✨', title: 'Découvrir', isDark: isDark)))
+            child: _SectionTitle(title: 'Découvrir', isDark: isDark)))
         ..add(SliverToBoxAdapter(
             child: _HomeCardRow(stations: discover, onTap: _play)));
     }
@@ -629,7 +648,6 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
         slivers
           ..add(SliverToBoxAdapter(
               child: _SectionTitle(
-                  emoji: spaceIdx > 0 ? cat.substring(0, spaceIdx) : '',
                   title: spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat,
                   isDark: isDark,
                   accentColor: radioCategoryGradient(cat).first)))
@@ -1027,13 +1045,11 @@ class _HeroCard extends StatelessWidget {
 // ── Section title ─────────────────────────────────────────────────────────────
 
 class _SectionTitle extends StatelessWidget {
-  final String emoji;
-  final String title;
-  final bool   isDark;
-  final Color? accentColor;
+  final String  title;
+  final bool    isDark;
+  final Color?  accentColor;
 
   const _SectionTitle({
-    required this.emoji,
     required this.title,
     required this.isDark,
     this.accentColor,
@@ -1049,10 +1065,6 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
       child: Row(
         children: [
-          if (emoji.isNotEmpty) ...[
-            Text(emoji, style: const TextStyle(fontSize: 15)),
-            const SizedBox(width: 7),
-          ],
           Text(
             title,
             style: TextStyle(
@@ -1077,6 +1089,168 @@ class _SectionTitle extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Bannière auto-scroll "Top en ce moment" ───────────────────────────────────
+
+class _AutoScrollBanner extends StatefulWidget {
+  final List<RadioStation>          stations;
+  final void Function(RadioStation) onTap;
+  final bool                        isDark;
+
+  const _AutoScrollBanner({
+    required this.stations,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  State<_AutoScrollBanner> createState() => _AutoScrollBannerState();
+}
+
+class _AutoScrollBannerState extends State<_AutoScrollBanner> {
+  late final ScrollController _ctrl;
+  Timer?  _timer;
+  bool    _forward = true;
+  static const double _itemW  = 130.0;
+  static const double _itemH  = 100.0;
+  static const double _spacing = 10.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = ScrollController();
+    // Lance le scroll après le premier frame
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startScroll());
+  }
+
+  bool _paused = false;
+
+  void _startScroll() {
+    _timer = Timer.periodic(const Duration(milliseconds: 30), (_) {
+      if (!_ctrl.hasClients || _paused) return;
+      final max = _ctrl.position.maxScrollExtent;
+      if (max <= 0) return;
+      double next = _ctrl.offset + (_forward ? 0.3 : -0.3);
+      if (next >= max) {
+        next = max;
+        _paused = true;
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) setState(() { _paused = false; _forward = false; });
+        });
+      } else if (next <= 0) {
+        next = 0;
+        _paused = true;
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) setState(() { _paused = false; _forward = true; });
+        });
+      }
+      _ctrl.jumpTo(next);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _itemH,
+      child: ListView.separated(
+        controller: _ctrl,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: widget.stations.length,
+        separatorBuilder: (_, __) => const SizedBox(width: _spacing),
+        itemBuilder: (_, i) {
+          final s = widget.stations[i];
+          final grad = radioCategoryGradient(categorizeStation(s));
+          return GestureDetector(
+            onTap: () => widget.onTap(s),
+            child: ValueListenableBuilder<RadioStation?>(
+              valueListenable: RadioService.instance.currentStationNotifier,
+              builder: (_, current, __) {
+                final isActive = current?.id == s.id;
+                return Container(
+                  width: _itemW,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      if (isActive)
+                        BoxShadow(
+                          color: grad[0].withValues(alpha: 0.5),
+                          blurRadius: 12, spreadRadius: 1,
+                        ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.22),
+                        blurRadius: 6, offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        StationThumbnail(station: s, size: _itemH, circular: false),
+                        // Dégradé lisibilité
+                        Positioned(
+                          left: 0, right: 0, bottom: 0, height: 52,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.80),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (isActive)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: const Color(0xFF38C172), width: 2),
+                              ),
+                            ),
+                          ),
+                        Positioned(
+                          left: 8, right: 8, bottom: 7,
+                          child: Text(
+                            s.displayName,
+                            style: TextStyle(
+                              color: isActive
+                                  ? const Color(0xFF38C172)
+                                  : Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }
