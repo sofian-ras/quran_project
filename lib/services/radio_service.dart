@@ -26,6 +26,7 @@ class RadioService {
       ValueNotifier<RadioStation?>(null);
 
   List<RadioStation>? _memCache;
+  DateTime?           _lastRefresh;
 
   /// Accès synchrone au cache (vide si pas encore chargé).
   List<RadioStation> get cachedStations => _memCache ?? [];
@@ -54,6 +55,9 @@ class RadioService {
   }
 
   void _refreshInBackground() {
+    final now = DateTime.now();
+    if (_lastRefresh != null && now.difference(_lastRefresh!).inMinutes < 5) return;
+    _lastRefresh = now;
     _fetchFromApi().then((stations) async {
       _memCache = stations;
       await _saveToCache(stations);
@@ -99,7 +103,6 @@ class RadioService {
       ids.remove(station.id.toString());
       ids.insert(0, station.id.toString());
       if (ids.length > 10) ids.removeRange(10, ids.length);
-      await prefs.setStringList(_kRecentIdsKey, ids);
       // Compteur
       final raw    = prefs.getString(_kPlayCountsKey);
       final counts = raw != null
@@ -107,7 +110,10 @@ class RadioService {
           : <String, dynamic>{};
       final k = station.id.toString();
       counts[k] = ((counts[k] as int?) ?? 0) + 1;
-      await prefs.setString(_kPlayCountsKey, jsonEncode(counts));
+      await Future.wait([
+        prefs.setStringList(_kRecentIdsKey, ids),
+        prefs.setString(_kPlayCountsKey, jsonEncode(counts)),
+      ]);
     } catch (e) {
       debugPrint('RadioService: trackPlay error: $e');
     }
@@ -207,8 +213,9 @@ class RadioService {
       _kApiUrl,
       queryParameters: {'language': 'fr'},
     );
-    final data    = response.data!;
-    final list    = data['radios'] as List<dynamic>;
+    final data = response.data;
+    if (data == null) throw Exception('RadioService: réponse API vide');
+    final list = data['radios'] as List<dynamic>;
     return list
         .map((e) => RadioStation.fromJson(e as Map<String, dynamic>))
         .toList();

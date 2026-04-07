@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/radio_station.dart';
@@ -135,6 +137,11 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   String  _selectedCategory = 'Tous';
   final   _searchCtrl  = TextEditingController();
   final   _searchFocus = FocusNode();
+  Timer?  _searchDebounce;
+  bool    _navigating = false;
+
+  Map<String, List<RadioStation>> _grouped          = {};
+  List<String>                    _activeCategories = [];
 
   @override
   void initState() {
@@ -146,12 +153,18 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
       }
       if (_tabCtrl.index != 1) FocusScope.of(context).unfocus();
     });
-    _searchCtrl.addListener(() => setState(() {}));
+    _searchCtrl.addListener(() {
+      _searchDebounce?.cancel();
+      _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() {});
+      });
+    });
     _load();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _tabCtrl.dispose();
     _searchCtrl.dispose();
     _searchFocus.dispose();
@@ -176,6 +189,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
         _popular   = results[2];
         _favorites = results[3];
         _loading   = false;
+        _rebuildGrouped();
       });
     } catch (e) {
       if (!mounted) return;
@@ -201,22 +215,17 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
         .toList();
   }
 
-  Map<String, List<RadioStation>> get _grouped {
-    final map = <String, List<RadioStation>>{
-      for (final c in kRadioCategories.skip(1)) c: [],
-    };
-    for (final s in _stations) { map[categorizeStation(s)]!.add(s); }
-    return map;
-  }
-
-  List<String> get _activeCategories {
+  void _rebuildGrouped() {
+    _grouped = { for (final c in kRadioCategories.skip(1)) c: [] };
+    for (final s in _stations) { _grouped[categorizeStation(s)]!.add(s); }
     final present = _stations.map(categorizeStation).toSet();
-    return kRadioCategories
+    _activeCategories = kRadioCategories
         .where((c) => c == 'Tous' || present.contains(c))
         .toList();
   }
 
   void _play(RadioStation station) {
+    if (_navigating) return;
     HapticFeedback.mediumImpact();
     final alreadyPlaying =
         RadioService.instance.currentStationNotifier.value?.id == station.id;
@@ -226,6 +235,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
       RadioService.instance.trackPlay(station);
     }
     _searchFocus.unfocus();
+    _navigating = true;
     Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder<void>(
         opaque: true,
@@ -240,7 +250,10 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
         transitionDuration: const Duration(milliseconds: 300),
         reverseTransitionDuration: const Duration(milliseconds: 250),
       ),
-    ).then((_) => _reloadFavorites());
+    ).then((_) {
+      _navigating = false;
+      _reloadFavorites();
+    });
   }
 
   Future<void> _toggleFavFromList(RadioStation s) async {
@@ -363,6 +376,8 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
                 if (station == null) return const SizedBox.shrink();
                 return GestureDetector(
                   onTap: () {
+                    if (_navigating) return;
+                    _navigating = true;
                     _searchFocus.unfocus();
                     Navigator.of(context, rootNavigator: true).push(
                     PageRouteBuilder<void>(
@@ -380,7 +395,10 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
                           ),
                       transitionDuration: const Duration(milliseconds: 300),
                     ),
-                  ).then((_) => _reloadFavorites());
+                  ).then((_) {
+                    _navigating = false;
+                    _reloadFavorites();
+                  });
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -1579,13 +1597,14 @@ class _MarqueeText extends StatefulWidget {
 class _MarqueeTextState extends State<_MarqueeText>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
+  Timer? _startTimer;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 6000));
-    Future.delayed(const Duration(milliseconds: 1800), _startIfMounted);
+    _startTimer = Timer(const Duration(milliseconds: 1800), _startIfMounted);
   }
 
   void _startIfMounted() {
@@ -1597,12 +1616,14 @@ class _MarqueeTextState extends State<_MarqueeText>
     super.didUpdateWidget(old);
     if (old.text != widget.text) {
       _ctrl.reset();
-      Future.delayed(const Duration(milliseconds: 1800), _startIfMounted);
+      _startTimer?.cancel();
+      _startTimer = Timer(const Duration(milliseconds: 1800), _startIfMounted);
     }
   }
 
   @override
   void dispose() {
+    _startTimer?.cancel();
     _ctrl.dispose();
     super.dispose();
   }

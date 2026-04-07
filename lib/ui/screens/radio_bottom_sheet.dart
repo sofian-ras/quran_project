@@ -30,16 +30,23 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
   String? _error;
   String _selectedCategory = 'Tous';
   final TextEditingController _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
-    _searchCtrl.addListener(() => setState(() {}));
+    _searchCtrl.addListener(() {
+      _searchDebounce?.cancel();
+      _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() {});
+      });
+    });
     _load();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }

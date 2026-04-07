@@ -72,16 +72,15 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
     if (stations.isEmpty) return;
     final idx = stations.indexWhere((s) => s.id == _station.id);
     if (idx < 0) return;
-    final next = stations[(idx + delta) % stations.length];
+    final n    = stations.length;
+    final next = stations[((idx + delta) % n + n) % n];
     HapticFeedback.lightImpact();
     AudioService.instance.playRadio(next);
     RadioService.instance.currentStationNotifier.value = next;
     RadioService.instance.trackPlay(next);
-    setState(() {
-      RadioService.instance
-          .isFavorite(next.id)
-          .then((v) { if (mounted) setState(() => _isFavorite = v); });
-    });
+    RadioService.instance
+        .isFavorite(next.id)
+        .then((v) { if (mounted) setState(() => _isFavorite = v); });
   }
 
   RadioStation? get _nextStation {
@@ -108,15 +107,17 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
               _dragDir = null; _dragX = 0; _dragY = 0;
             },
             onPanUpdate: (d) {
-              if (_dragDir == null) {
-                if (d.delta.dx.abs() > d.delta.dy.abs() + 4) {
-                  setState(() => _dragDir = 'h');
-                } else if (d.delta.dy > 0 && d.delta.dy.abs() > d.delta.dx.abs() + 4) {
-                  setState(() => _dragDir = 'v');
+              setState(() {
+                if (_dragDir == null) {
+                  if (d.delta.dx.abs() > d.delta.dy.abs() + 4) {
+                    _dragDir = 'h';
+                  } else if (d.delta.dy > 0 && d.delta.dy.abs() > d.delta.dx.abs() + 4) {
+                    _dragDir = 'v';
+                  }
                 }
-              }
-              if (_dragDir == 'h') { setState(() => _dragX = (_dragX + d.delta.dx).clamp(-160.0, 160.0)); }
-              if (_dragDir == 'v') { setState(() => _dragY = (_dragY + d.delta.dy).clamp(0.0, 200.0)); }
+                if (_dragDir == 'h') _dragX = (_dragX + d.delta.dx).clamp(-160.0, 160.0);
+                if (_dragDir == 'v') _dragY = (_dragY + d.delta.dy).clamp(0.0, 200.0);
+              });
             },
             onPanEnd: (d) {
               final vx = d.velocity.pixelsPerSecond.dx;

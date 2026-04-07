@@ -14,14 +14,14 @@ class RadioStation {
     try {
       return Uri.parse(url).host;
     } catch (_) {
-      return url;
+      return '';
     }
   }
 
   factory RadioStation.fromJson(Map<String, dynamic> j) => RadioStation(
-        id: j['id'] as int,
-        name: j['name'] as String,
-        url: j['url'] as String,
+        id:   (j['id']   as int?)    ?? 0,
+        name: (j['name'] as String?) ?? '',
+        url:  (j['url']  as String?) ?? '',
       );
 
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'url': url};
