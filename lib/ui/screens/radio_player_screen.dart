@@ -126,10 +126,10 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   // ── Sleep timer ───────────────────────────────────────────────────────────
 
   void _showTimerSheet() {
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _SleepTimerSheet(
+      barrierColor: Colors.transparent,
+      builder: (_) => _SleepTimerDialog(
         remaining: _sleepRemaining,
         countdownStr: _sleepCountdownStr,
         onSelect: (d) { Navigator.pop(context); _startSleepTimer(d); },
@@ -274,7 +274,12 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
               child: Text(
                 'En direct',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: mutedColor, fontSize: 13, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  shadows: const [Shadow(color: Colors.black54, blurRadius: 6)],
+                ),
               ),
             ),
           ),
@@ -303,14 +308,23 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                       ),
                     ),
               // Minuteur
-              IconButton(
-                onPressed: _showTimerSheet,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 32),
-                icon: Icon(
-                  timerActive ? Icons.timer_rounded : Icons.timer_outlined,
-                  color: timerActive ? const Color(0xFF38C172) : mutedColor,
-                  size: 22,
+              GestureDetector(
+                onTap: _showTimerSheet,
+                child: Container(
+                  width: 36, height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      timerActive ? Icons.timer_rounded : Icons.timer_outlined,
+                      color: timerActive
+                          ? const Color(0xFF38C172)
+                          : Colors.white.withValues(alpha: 0.70),
+                      size: 20,
+                    ),
+                  ),
                 ),
               ),
               // Compte à rebours
@@ -338,24 +352,24 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   Widget _buildVolumeSlider(List<Color> grad) {
     return Positioned(
       left: 0,
-      top: 110,
-      width: 48,
-      height: 180,
+      top: 100,
+      width: 64,
+      height: 240,
       child: Column(
         children: [
-          Icon(Icons.volume_up_rounded, size: 13,
-              color: Colors.white.withValues(alpha: 0.35)),
-          const SizedBox(height: 4),
+          Icon(Icons.volume_up_rounded, size: 15,
+              color: Colors.white.withValues(alpha: 0.55)),
+          const SizedBox(height: 6),
           Expanded(
             child: RotatedBox(
               quarterTurns: 3,
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: grad[0].withValues(alpha: 0.75),
-                  inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
+                  activeTrackColor: grad[0].withValues(alpha: 0.9),
+                  inactiveTrackColor: Colors.white.withValues(alpha: 0.25),
                   thumbColor: Colors.white,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                  trackHeight: 2.5,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                  trackHeight: 3.5,
                   overlayShape: SliderComponentShape.noOverlay,
                 ),
                 child: Slider(
@@ -368,9 +382,9 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          Icon(Icons.volume_down_rounded, size: 13,
-              color: Colors.white.withValues(alpha: 0.35)),
+          const SizedBox(height: 6),
+          Icon(Icons.volume_down_rounded, size: 15,
+              color: Colors.white.withValues(alpha: 0.55)),
         ],
       ),
     );
@@ -384,11 +398,11 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
     final spaceIdx   = cat.indexOf(' ');
     final catLabel   = spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat;
 
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         children: [
-          const SizedBox(height: 40),
+          const Spacer(flex: 2),
 
           // ── Miniature avec halo pulsant ────────────────────────────
           StreamBuilder<PlayerState>(
@@ -402,7 +416,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                   child: child,
                 ),
                 child: Container(
-                  width: 210, height: 210,
+                  width: 180, height: 180,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     boxShadow: [
@@ -424,14 +438,14 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             },
           ),
 
-          const SizedBox(height: 36),
+          const Spacer(flex: 2),
 
           // ── Nom de la station ──────────────────────────────────────
           Text(
             _stationLabel(_station),
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: textColor, fontSize: 26,
+              color: textColor, fontSize: 22,
               fontWeight: FontWeight.w800, letterSpacing: -0.5,
             ),
             maxLines: 2,
@@ -472,7 +486,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             ],
           ),
 
-          const SizedBox(height: 56),
+          const Spacer(flex: 3),
 
           // ── Précédent / Play / Suivant ─────────────────────────────
           StreamBuilder<PlayerState>(
@@ -495,10 +509,10 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                   const SizedBox(width: 24),
                   if (loading)
                     SizedBox(
-                      width: 80, height: 80,
+                      width: 76, height: 76,
                       child: Center(
                         child: SizedBox(
-                          width: 36, height: 36,
+                          width: 34, height: 34,
                           child: CircularProgressIndicator(
                               color: grad[0], strokeWidth: 3),
                         ),
@@ -512,7 +526,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        width: 80, height: 80,
+                        width: 76, height: 76,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: playing ? grad[0] : (isDark
@@ -527,7 +541,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                         child: Icon(
                           playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                           color: playing ? Colors.white : mutedColor,
-                          size: 40,
+                          size: 38,
                         ),
                       ),
                     ),
@@ -543,7 +557,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             },
           ),
 
-          const SizedBox(height: 20),
+          const Spacer(flex: 2),
 
           // ── Arrêter + Mode simple ──────────────────────────────────
           Row(
@@ -566,17 +580,15 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
           ),
 
           // ── Preview station suivante ───────────────────────────────
-          if (_nextStation != null) ...[
-            const SizedBox(height: 4),
+          if (_nextStation != null)
             _NextStationPreview(
               station: _nextStation!,
               isDark: isDark,
               grad: grad,
               onTap: () => _skipTo(1),
             ),
-          ],
 
-          const SizedBox(height: 32),
+          const Spacer(flex: 1),
         ],
       ),
     );
@@ -655,103 +667,298 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   }
 }
 
-// ── Sheet minuteur de sommeil ─────────────────────────────────────────────────
+// ── Dialog minuteur de sommeil (overlay centré) ───────────────────────────────
 
-class _SleepTimerSheet extends StatelessWidget {
+class _SleepTimerDialog extends StatefulWidget {
   final Duration?    remaining;
   final String       countdownStr;
   final void Function(Duration) onSelect;
   final VoidCallback onCancel;
 
-  const _SleepTimerSheet({
+  const _SleepTimerDialog({
     required this.remaining,
     required this.countdownStr,
     required this.onSelect,
     required this.onCancel,
   });
 
-  static const _presets = <(String, Duration)>[
-    ('15 min',  Duration(minutes: 15)),
-    ('30 min',  Duration(minutes: 30)),
-    ('45 min',  Duration(minutes: 45)),
-    ('1 h',     Duration(hours: 1)),
-    ('1 h 30',  Duration(hours: 1, minutes: 30)),
-    ('2 h',     Duration(hours: 2)),
+  @override
+  State<_SleepTimerDialog> createState() => _SleepTimerDialogState();
+}
+
+class _SleepTimerDialogState extends State<_SleepTimerDialog> {
+  // Heures 0–5, minutes par pas de 5
+  static const _hours   = [0, 1, 2, 3, 4, 5];
+  static const _minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+
+  // Presets → (index heure, index minute)
+  static const _presets = <(String, int, int)>[
+    ('15 min', 0, 3),
+    ('30 min', 0, 6),
+    ('45 min', 0, 9),
+    ('1 h',    1, 0),
+    ('1h 30',  1, 6),
+    ('2 h',    2, 0),
   ];
+
+  late final FixedExtentScrollController _hourCtrl;
+  late final FixedExtentScrollController _minCtrl;
+  int _hIdx = 0;
+  int _mIdx = 6; // défaut : 30 min
+
+  Duration get _picked =>
+      Duration(hours: _hours[_hIdx], minutes: _minutes[_mIdx]);
+
+  String get _pickedLabel {
+    final h = _hours[_hIdx];
+    final m = _minutes[_mIdx];
+    if (h == 0) return '$m min';
+    if (m == 0) return '${h}h';
+    return '${h}h ${m}min';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _hourCtrl = FixedExtentScrollController(initialItem: _hIdx);
+    _minCtrl  = FixedExtentScrollController(initialItem: _mIdx);
+  }
+
+  @override
+  void dispose() {
+    _hourCtrl.dispose();
+    _minCtrl.dispose();
+    super.dispose();
+  }
+
+  void _applyPreset(int hIdx, int mIdx) {
+    _hourCtrl.animateToItem(hIdx,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    _minCtrl.animateToItem(mIdx,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    setState(() { _hIdx = hIdx; _mIdx = mIdx; });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark     = Theme.of(context).brightness == Brightness.dark;
-    final bg         = isDark ? const Color(0xFF1A1A2E) : Colors.white;
-    final textColor  = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
-    final mutedColor = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
+    const accent = Color(0xFF38C172);
+    const bg     = Color(0xFF0D111E);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 14, 24, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag handle
-          Container(
-            width: 40, height: 4,
-            decoration: BoxDecoration(
-              color: mutedColor.withValues(alpha: 0.35),
-              borderRadius: BorderRadius.circular(2),
+    return GestureDetector(
+      // Tap en dehors → ferme
+      onTap: () => Navigator.of(context).pop(),
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // ── Fond flouté + assombri ─────────────────────────────
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(color: Colors.black.withValues(alpha: 0.60)),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Minuteur de sommeil',
-            style: TextStyle(
-              color: textColor, fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 10, runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: _presets.map(((String, Duration) p) {
-              return GestureDetector(
-                onTap: () => onSelect(p.$2),
+
+            // ── Dialog centré ──────────────────────────────────────
+            Center(
+              child: GestureDetector(
+                onTap: () {}, // ne pas fermer au tap sur le dialog
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  margin: const EdgeInsets.symmetric(horizontal: 28),
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF252542)
-                        : const Color(0xFFF0EEF8),
+                    color: bg,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: const Color(0xFF38C172).withValues(alpha: 0.3),
-                    ),
+                        color: Colors.white.withValues(alpha: 0.07)),
                   ),
-                  child: Text(
-                    p.$1,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Titre
+                      const Text(
+                        'Minuteur de sommeil',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ── Roulettes heures + minutes ─────────────
+                      SizedBox(
+                        height: 180,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Surbrillance ligne centrale
+                            Positioned(
+                              left: 0, right: 0,
+                              child: Container(
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: accent.withValues(alpha: 0.30)),
+                                ),
+                              ),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Heures
+                                SizedBox(
+                                  width: 72,
+                                  child: ListWheelScrollView(
+                                    controller: _hourCtrl,
+                                    itemExtent: 48,
+                                    perspective: 0.004,
+                                    physics: const FixedExtentScrollPhysics(),
+                                    onSelectedItemChanged: (i) =>
+                                        setState(() => _hIdx = i),
+                                    children: _hours.map((h) {
+                                      final sel = h == _hours[_hIdx];
+                                      return Center(
+                                        child: Text(
+                                          '$h',
+                                          style: TextStyle(
+                                            color: sel ? Colors.white : Colors.white38,
+                                            fontSize: sel ? 28 : 20,
+                                            fontWeight: sel
+                                                ? FontWeight.w700
+                                                : FontWeight.w400,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                                const Text('h',
+                                    style: TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600)),
+                                const SizedBox(width: 16),
+                                // Minutes
+                                SizedBox(
+                                  width: 72,
+                                  child: ListWheelScrollView(
+                                    controller: _minCtrl,
+                                    itemExtent: 48,
+                                    perspective: 0.004,
+                                    physics: const FixedExtentScrollPhysics(),
+                                    onSelectedItemChanged: (i) =>
+                                        setState(() => _mIdx = i),
+                                    children: _minutes.map((m) {
+                                      final sel = m == _minutes[_mIdx];
+                                      return Center(
+                                        child: Text(
+                                          m.toString().padLeft(2, '0'),
+                                          style: TextStyle(
+                                            color: sel ? Colors.white : Colors.white38,
+                                            fontSize: sel ? 28 : 20,
+                                            fontWeight: sel
+                                                ? FontWeight.w700
+                                                : FontWeight.w400,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                                const Text('min',
+                                    style: TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ── Presets ────────────────────────────────
+                      Wrap(
+                        spacing: 8, runSpacing: 8,
+                        alignment: WrapAlignment.center,
+                        children: _presets.map(((String, int, int) p) {
+                          return GestureDetector(
+                            onTap: () => _applyPreset(p.$2, p.$3),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.14)),
+                              ),
+                              child: Text(
+                                p.$1,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // ── Confirmer ──────────────────────────────
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _picked.inSeconds > 0
+                              ? () => widget.onSelect(_picked)
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accent,
+                            disabledBackgroundColor:
+                                Colors.white.withValues(alpha: 0.10),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            _picked.inSeconds > 0
+                                ? 'Démarrer · $_pickedLabel'
+                                : 'Sélectionner une durée',
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+
+                      // ── Annuler si timer actif ─────────────────
+                      if (widget.remaining != null) ...[
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: widget.onCancel,
+                          icon: const Icon(Icons.timer_off_outlined,
+                              color: Color(0xFFDC2626), size: 16),
+                          label: Text(
+                            'Annuler · ${widget.countdownStr}',
+                            style: const TextStyle(
+                                color: Color(0xFFDC2626), fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              );
-            }).toList(),
-          ),
-          if (remaining != null) ...[
-            const SizedBox(height: 20),
-            TextButton.icon(
-              onPressed: onCancel,
-              icon: const Icon(Icons.timer_off_outlined,
-                  color: Color(0xFFDC2626), size: 18),
-              label: Text(
-                'Annuler ($countdownStr)',
-                style: const TextStyle(color: Color(0xFFDC2626), fontSize: 14),
               ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
