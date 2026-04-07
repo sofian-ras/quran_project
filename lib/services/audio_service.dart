@@ -234,6 +234,9 @@ class AudioService {
     )));
   }
 
+  double get volume => _player.volume;
+  Future<void> setVolume(double v) => _player.setVolume(v.clamp(0.0, 1.0));
+
   Future<void> play() => _player.play();
   Future<void> pause() => _player.pause();
   Future<void> stop() => _player.stop();

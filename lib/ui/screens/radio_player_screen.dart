@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -30,8 +31,28 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   double  _dragY   = 0;
   String? _dragDir;
 
+  // Volume
+  double _volume = 1.0;
+
+  // Sleep timer
+  Duration? _sleepRemaining;
+  Timer?    _sleepCountdown;
+
+  // Mode simple
+  bool      _simpleMode = false;
+  Timer?    _clockTimer;
+  DateTime  _now = DateTime.now();
+
   RadioStation get _station =>
       RadioService.instance.currentStationNotifier.value ?? widget.station;
+
+  String get _sleepCountdownStr {
+    final r = _sleepRemaining;
+    if (r == null) return '';
+    final m = r.inMinutes;
+    final s = r.inSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
 
   @override
   void initState() {
@@ -43,6 +64,8 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
     _pulseAnim = Tween<double>(begin: 1.0, end: 1.06)
         .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
+    _volume = AudioService.instance.volume;
+
     RadioService.instance
         .isFavorite(widget.station.id)
         .then((v) { if (mounted) setState(() => _isFavorite = v); });
@@ -51,8 +74,12 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   @override
   void dispose() {
     _pulseCtrl.dispose();
+    _sleepCountdown?.cancel();
+    _clockTimer?.cancel();
     super.dispose();
   }
+
+  // ── Favori ───────────────────────────────────────────────────────────────
 
   Future<void> _toggleFavorite() async {
     if (_favLoading) return;
@@ -62,10 +89,15 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
     if (mounted) setState(() { _isFavorite = result; _favLoading = false; });
   }
 
+  // ── Stop ─────────────────────────────────────────────────────────────────
+
   Future<void> _stop() async {
+    _cancelSleepTimer();
     await AudioService.instance.stopRadio();
     if (mounted) Navigator.of(context).pop();
   }
+
+  // ── Skip ─────────────────────────────────────────────────────────────────
 
   void _skipTo(int delta) {
     final stations = RadioService.instance.cachedStations;
@@ -91,8 +123,62 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
     return stations[(idx + 1) % stations.length];
   }
 
+  // ── Sleep timer ───────────────────────────────────────────────────────────
+
+  void _showTimerSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SleepTimerSheet(
+        remaining: _sleepRemaining,
+        countdownStr: _sleepCountdownStr,
+        onSelect: (d) { Navigator.pop(context); _startSleepTimer(d); },
+        onCancel: () { Navigator.pop(context); _cancelSleepTimer(); },
+      ),
+    );
+  }
+
+  void _startSleepTimer(Duration d) {
+    _cancelSleepTimer();
+    setState(() => _sleepRemaining = d);
+    _sleepCountdown = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final remaining = _sleepRemaining;
+      if (remaining == null || remaining.inSeconds <= 1) {
+        _stop();
+        return;
+      }
+      setState(() => _sleepRemaining = remaining - const Duration(seconds: 1));
+    });
+  }
+
+  void _cancelSleepTimer() {
+    _sleepCountdown?.cancel();
+    _sleepCountdown = null;
+    if (mounted) setState(() => _sleepRemaining = null);
+  }
+
+  // ── Mode simple ───────────────────────────────────────────────────────────
+
+  void _toggleSimpleMode() {
+    if (!_simpleMode) {
+      _now = DateTime.now();
+      _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _now = DateTime.now());
+      });
+    } else {
+      _clockTimer?.cancel();
+      _clockTimer = null;
+    }
+    setState(() => _simpleMode = !_simpleMode);
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    if (_simpleMode) return _buildSimpleMode();
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cat    = categorizeStation(_station);
     final grad   = radioCategoryGradient(cat);
@@ -132,21 +218,27 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             },
             child: Stack(
               children: [
-                // ── Fond image floue ─────────────────────────────────────
+                // ── Fond image floue ───────────────────────────────────
                 Positioned.fill(
                   child: _BlurredBackground(station: _station, grad: grad, isDark: isDark),
                 ),
 
-                // ── Contenu (suit le drag) ────────────────────────────────
+                // ── Contenu principal (suit le drag) ───────────────────
                 Transform.translate(
                   offset: Offset(_dragX * 0.35, _dragY),
                   child: Opacity(
                     opacity: (1.0 - (_dragY / 300)).clamp(0.0, 1.0),
                     child: SafeArea(
-                      child: Column(
+                      child: Stack(
                         children: [
-                          _buildHeader(isDark, cat),
-                          Expanded(child: _buildBody(isDark, cat, grad)),
+                          Column(
+                            children: [
+                              _buildHeader(isDark, cat),
+                              Expanded(child: _buildBody(isDark, cat, grad)),
+                            ],
+                          ),
+                          // ── Slider volume vertical gauche ──────────
+                          _buildVolumeSlider(grad),
                         ],
                       ),
                     ),
@@ -163,43 +255,122 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   // ── Header ───────────────────────────────────────────────────────────────
 
   Widget _buildHeader(bool isDark, String cat) {
-    final textColor = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
+    final textColor  = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
     final mutedColor = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
+    final timerActive = _sleepRemaining != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 20),
           ),
           Expanded(
-            child: Text(
-              'En direct',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: mutedColor, fontSize: 13, fontWeight: FontWeight.w500),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                'En direct',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: mutedColor, fontSize: 13, fontWeight: FontWeight.w500),
+              ),
             ),
           ),
-          _favLoading
-              ? const SizedBox(
-                  width: 44, height: 44,
-                  child: Center(
-                    child: SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(
-                          color: Color(0xFFDC2626), strokeWidth: 2),
+          // Colonne droite : favori + minuteur + compte à rebours
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Favori
+              _favLoading
+                  ? const SizedBox(
+                      width: 44, height: 44,
+                      child: Center(
+                        child: SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(
+                              color: Color(0xFFDC2626), strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  : IconButton(
+                      onPressed: _toggleFavorite,
+                      icon: Icon(
+                        _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        color: _isFavorite ? const Color(0xFFDC2626) : mutedColor,
+                        size: 26,
+                      ),
+                    ),
+              // Minuteur
+              IconButton(
+                onPressed: _showTimerSheet,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 32),
+                icon: Icon(
+                  timerActive ? Icons.timer_rounded : Icons.timer_outlined,
+                  color: timerActive ? const Color(0xFF38C172) : mutedColor,
+                  size: 22,
+                ),
+              ),
+              // Compte à rebours
+              if (timerActive)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    _sleepCountdownStr,
+                    style: const TextStyle(
+                      color: Color(0xFF38C172),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                )
-              : IconButton(
-                  onPressed: _toggleFavorite,
-                  icon: Icon(
-                    _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                    color: _isFavorite ? const Color(0xFFDC2626) : mutedColor,
-                    size: 26,
-                  ),
                 ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Slider volume vertical ────────────────────────────────────────────────
+
+  Widget _buildVolumeSlider(List<Color> grad) {
+    return Positioned(
+      left: 0,
+      top: 110,
+      width: 48,
+      height: 180,
+      child: Column(
+        children: [
+          Icon(Icons.volume_up_rounded, size: 13,
+              color: Colors.white.withValues(alpha: 0.35)),
+          const SizedBox(height: 4),
+          Expanded(
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: grad[0].withValues(alpha: 0.75),
+                  inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
+                  thumbColor: Colors.white,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                  trackHeight: 2.5,
+                  overlayShape: SliderComponentShape.noOverlay,
+                ),
+                child: Slider(
+                  value: _volume,
+                  onChanged: (v) {
+                    setState(() => _volume = v);
+                    AudioService.instance.setVolume(v);
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Icon(Icons.volume_down_rounded, size: 13,
+              color: Colors.white.withValues(alpha: 0.35)),
         ],
       ),
     );
@@ -303,7 +474,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
 
           const SizedBox(height: 56),
 
-          // ── Précédent / Play / Suivant ────────────────────────
+          // ── Précédent / Play / Suivant ─────────────────────────────
           StreamBuilder<PlayerState>(
             stream: AudioService.instance.playerStateStream,
             builder: (_, snap) {
@@ -315,7 +486,6 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Précédent
                   IconButton(
                     onPressed: () => _skipTo(-1),
                     icon: Icon(Icons.skip_previous_rounded,
@@ -323,7 +493,6 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                     iconSize: 36,
                   ),
                   const SizedBox(width: 24),
-                  // Play / Pause
                   if (loading)
                     SizedBox(
                       width: 80, height: 80,
@@ -363,7 +532,6 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                       ),
                     ),
                   const SizedBox(width: 24),
-                  // Suivant
                   IconButton(
                     onPressed: () => _skipTo(1),
                     icon: Icon(Icons.skip_next_rounded,
@@ -375,18 +543,31 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             },
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // ── Stop ─────────────────────────────────────────────────
-          TextButton.icon(
-            onPressed: _stop,
-            icon: Icon(Icons.stop_circle_outlined, color: mutedColor, size: 18),
-            label: Text('Arrêter', style: TextStyle(color: mutedColor, fontSize: 13)),
+          // ── Arrêter + Mode simple ──────────────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: _stop,
+                icon: Icon(Icons.stop_circle_outlined, color: mutedColor, size: 18),
+                label: Text('Arrêter',
+                    style: TextStyle(color: mutedColor, fontSize: 13)),
+              ),
+              const SizedBox(width: 4),
+              TextButton.icon(
+                onPressed: _toggleSimpleMode,
+                icon: Icon(Icons.dark_mode_outlined, color: mutedColor, size: 18),
+                label: Text('Mode simple',
+                    style: TextStyle(color: mutedColor, fontSize: 13)),
+              ),
+            ],
           ),
 
-          // ── Preview station suivante ──────────────────────────
+          // ── Preview station suivante ───────────────────────────────
           if (_nextStation != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             _NextStationPreview(
               station: _nextStation!,
               isDark: isDark,
@@ -396,6 +577,180 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
           ],
 
           const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  // ── Mode simple ───────────────────────────────────────────────────────────
+
+  Widget _buildSimpleMode() {
+    final timeStr =
+        '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}';
+
+    return GestureDetector(
+      onTap: _toggleSimpleMode,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _stationLabel(_station),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      timeStr,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 56,
+                        fontWeight: FontWeight.w200,
+                        letterSpacing: 4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Compte à rebours si actif
+              if (_sleepRemaining != null)
+                Positioned(
+                  bottom: 24,
+                  left: 0, right: 0,
+                  child: Text(
+                    'Arrêt dans $_sleepCountdownStr',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              // Hint tap
+              Positioned(
+                top: 16, left: 0, right: 0,
+                child: Text(
+                  'Toucher pour revenir',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Sheet minuteur de sommeil ─────────────────────────────────────────────────
+
+class _SleepTimerSheet extends StatelessWidget {
+  final Duration?    remaining;
+  final String       countdownStr;
+  final void Function(Duration) onSelect;
+  final VoidCallback onCancel;
+
+  const _SleepTimerSheet({
+    required this.remaining,
+    required this.countdownStr,
+    required this.onSelect,
+    required this.onCancel,
+  });
+
+  static const _presets = <(String, Duration)>[
+    ('15 min',  Duration(minutes: 15)),
+    ('30 min',  Duration(minutes: 30)),
+    ('45 min',  Duration(minutes: 45)),
+    ('1 h',     Duration(hours: 1)),
+    ('1 h 30',  Duration(hours: 1, minutes: 30)),
+    ('2 h',     Duration(hours: 2)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
+    final bg         = isDark ? const Color(0xFF1A1A2E) : Colors.white;
+    final textColor  = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
+    final mutedColor = isDark ? const Color(0xFF8899BB) : const Color(0xFF6B7280);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: mutedColor.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Minuteur de sommeil',
+            style: TextStyle(
+              color: textColor, fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 10, runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: _presets.map(((String, Duration) p) {
+              return GestureDetector(
+                onTap: () => onSelect(p.$2),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF252542)
+                        : const Color(0xFFF0EEF8),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: const Color(0xFF38C172).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    p.$1,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          if (remaining != null) ...[
+            const SizedBox(height: 20),
+            TextButton.icon(
+              onPressed: onCancel,
+              icon: const Icon(Icons.timer_off_outlined,
+                  color: Color(0xFFDC2626), size: 18),
+              label: Text(
+                'Annuler ($countdownStr)',
+                style: const TextStyle(color: Color(0xFFDC2626), fontSize: 14),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -425,7 +780,6 @@ class _BlurredBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Image de catégorie en fond
         if (_catAsset.isNotEmpty)
           Image.asset(
             _catAsset,
@@ -443,14 +797,12 @@ class _BlurredBackground extends StatelessWidget {
               ),
             ),
           ),
-        // Flou
         Positioned.fill(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: const SizedBox.expand(),
           ),
         ),
-        // Tint léger + fondu bas
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -511,28 +863,29 @@ class _PlayerThumbnail extends StatelessWidget {
   }
 }
 
-// ── Helpers réexportés depuis radio_browser_screen (évite import circulaire) ──
-// categorizeStation et radioCategoryGradient sont publics dans radio_browser_screen.dart
-// On les réexporte ici via l'import en tête de fichier.
+// ── Label station ─────────────────────────────────────────────────────────────
 
 String _stationLabel(RadioStation s) {
   if (categorizeStation(s) != '🌍 Traductions') return s.displayName;
-  final n = s.name.toLowerCase();
-  if (n.contains('français') || n.contains('french')) return 'Traduction française';
-  if (n.contains('anglais')  || n.contains('english')) return 'Traduction anglaise';
-  if (n.contains('urdu'))    return 'Traduction ourdou';
-  if (n.contains('türk')    || n.contains('turc'))    return 'Traduction turque';
-  if (n.contains('indonesia') || n.contains('malay')) return 'Traduction indonésienne';
-  if (n.contains('bangla')  || n.contains('bengali')) return 'Traduction bengalie';
-  if (n.contains('swahili')) return 'Traduction swahili';
-  if (n.contains('farsi')   || n.contains('persan'))  return 'Traduction persane';
-  if (n.contains('bosni'))   return 'Traduction bosniaque';
-  final match = RegExp(r'traduct|translat', caseSensitive: false).firstMatch(s.name);
-  if (match != null) {
-    final from = s.name.substring(match.start).trim();
-    final label = from[0].toUpperCase() + from.substring(1);
-    return label.length > 26 ? '…${label.substring(label.length - 24)}' : label;
-  }
+  final slug = s.url.split('/').last.toLowerCase();
+  if (slug.contains('french'))    return 'Traduction française';
+  if (slug.contains('english'))   return 'Traduction anglaise';
+  if (slug.contains('urdu'))      return 'Traduction ourdou';
+  if (slug.contains('turkish'))   return 'Traduction turque';
+  if (slug.contains('farsi'))     return 'Traduction persane';
+  if (slug.contains('russia'))    return 'Traduction russe';
+  if (slug.contains('chinese'))   return 'Traduction chinoise';
+  if (slug.contains('german'))    return 'Traduction allemande';
+  if (slug.contains('spanish'))   return 'Traduction espagnole';
+  if (slug.contains('albanian'))  return 'Traduction albanaise';
+  if (slug.contains('bosnia'))    return 'Traduction bosniaque';
+  if (slug.contains('portuguese')) return 'Traduction portugaise';
+  if (slug.contains('kurdish'))   return 'Traduction kurde';
+  if (slug.contains('korean'))    return 'Traduction coréenne';
+  if (slug.contains('hungarian')) return 'Traduction hongroise';
+  if (slug.contains('greek'))     return 'Traduction grecque';
+  if (slug.contains('tamazight')) return 'Traduction amazighe';
+  if (slug.contains('hausa'))     return 'Traduction haoussa';
   final dn = s.displayName;
   return dn.length > 26 ? '…${dn.substring(dn.length - 24)}' : dn;
 }
