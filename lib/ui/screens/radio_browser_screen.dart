@@ -36,44 +36,42 @@ List<Color> radioCategoryGradient(String cat) =>
     _kCatGradients[cat] ?? [const Color(0xFF0E7B70), const Color(0xFF054940)];
 
 String categorizeStation(RadioStation s) {
-  final n = s.name.toLowerCase();
-  if (n.contains('translat') || n.contains('traduct') ||
-      n.contains('english') || n.contains('french') ||
-      n.contains('français') || n.contains('urdu') ||
-      n.contains('türk') || n.contains('indonesia') ||
-      n.contains('swahili') || n.contains('bangla')) { return '🌍 Traductions'; }
-  if (n.contains('tafsir') || n.contains('تفسير') ||
-      n.contains('interpré') || n.contains('interpret') ||
-      n.contains('résumé') || n.contains('resume') || n.contains('mukhtasar') ||
-      n.contains('biographie') || n.contains('sira') || n.contains('sirat') ||
-      n.contains('nabawi') || n.contains('سيرة') || n.contains('نبوي') ||
-      n.contains('sahih') || n.contains('bukhari') || n.contains('bukhary') ||
-      n.contains('histoir') || n.contains('قصص') ||
-      n.contains('compagnon') || n.contains('sahaba') || n.contains('صحابة') ||
-      n.contains('fatwa') || n.contains('فتوى') || n.contains('فتاوى') ||
-      n.contains('muslim') || n.contains('مسلم')) { return '📚 Tafsir'; }
-  if (n.contains('dua') || n.contains('du\'a') || n.contains('دعاء') ||
-      n.contains('أدعية') || n.contains('supplication') ||
-      n.contains('روحاني') || n.contains('روقية') || n.contains('ruqyah') ||
-      n.contains('ruqia')) { return '🙏 Du\'a'; }
-  if (n.contains('adhkar') || n.contains('أذكار') || n.contains('dhikr') ||
-      n.contains('ذكر') || n.contains('wird') || n.contains('ورد')) {
-    return '🤲 Adhkar & Doua';
-  }
-  if (n.contains('conférence') || n.contains('conference') ||
-      n.contains('khutba') || n.contains('خطبة') ||
-      n.contains('dars') || n.contains('درس') ||
-      n.contains('cours') || n.contains('leçon') ||
-      n.contains('lecture') || n.contains('محاضرة')) { return '🕌 Conférences'; }
-  if (n.contains('learn') || n.contains('kids') || n.contains('enfant') ||
-      n.contains('tajwid') || n.contains('tajweed') || n.contains('تجويد') ||
-      n.contains('hifz') || n.contains('حفظ') || n.contains('mémoris')) {
-    return '🎓 Apprentissage';
-  }
-  if (n.contains('récitat') || n.contains('recit') || n.contains('tilawa') ||
-      n.contains('تلاوة') || n.contains('qari') || n.contains('قارئ') ||
-      n.contains('mujawwad') || n.contains('murattal')) { return '👤 Récitateurs'; }
-  return '📖 Coran';
+  // Classification par slug d'URL — stable et indépendant de la langue d'affichage
+  final slug = s.url.split('/').last.toLowerCase();
+
+  // Flux non-qurango (ex: radiojar) → diffusion générale
+  if (!s.url.contains('qurango.net')) return '📖 Coran';
+
+  // Traductions (slug commence toujours par translation_quran)
+  if (slug.startsWith('translation_quran')) return '🌍 Traductions';
+
+  // Adhkar (invocations matin/soir)
+  if (slug.startsWith('athkar')) return '🤲 Adhkar & Doua';
+
+  // Ruqyah / Du'a
+  if (slug == 'roqiah') return '🙏 Du\'a';
+
+  // Tafsir + Hadith
+  if (slug.contains('tafseer') || slug.contains('tafsir') || slug == 'tabri' ||
+      slug.contains('mukhtasar') || slug.contains('gareeb') ||
+      slug.startsWith('saheh'))
+    { return '📚 Tafsir'; }
+
+  // Conférences : sira, sahabah, fatwas, histoires des prophètes, jurisprudence
+  if (slug.contains('fatwa') || slug.contains('sahabah') ||
+      slug.contains('siyra') || slug.contains('zilal') ||
+      slug == 'alanbiya' || slug.contains('fiqh') ||
+      slug.contains('bin_baz'))
+    { return '🕌 Conférences'; }
+
+  // Coran général (mix / thématiques non-récitateur)
+  if (slug == 'mix' || slug == 'salma' || slug == 'albaqarah' ||
+      slug == 'tarateel' || slug == 'sakeenah' || slug == 'ramadan' ||
+      slug == 'eid' || slug.contains('mulk'))
+    { return '📖 Coran'; }
+
+  // Par défaut : récitateur individuel
+  return '👤 Récitateurs';
 }
 
 String _stationLabel(RadioStation s) {
@@ -268,76 +266,82 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg     = isDark ? const Color(0xFF080D1A) : const Color(0xFFF5F0E8);
 
-    return Scaffold(
-      backgroundColor: bg,
-      body: Stack(
-        children: [
-          // Immersive radial glow (dark mode only)
-          if (isDark) ...[
-            Positioned(
-              top: -80, right: -80,
-              child: Container(
-                width: 300, height: 300,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    Color(0x1238C172),
-                    Colors.transparent,
-                  ]),
+    return PopScope(
+      canPop: _selectedCategory == 'Tous' || _tabIndex != 1,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(() => _selectedCategory = 'Tous');
+      },
+      child: Scaffold(
+        backgroundColor: bg,
+        body: Stack(
+          children: [
+            // Immersive radial glow (dark mode only)
+            if (isDark) ...[
+              Positioned(
+                top: -80, right: -80,
+                child: Container(
+                  width: 300, height: 300,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(colors: [
+                      Color(0x1238C172),
+                      Colors.transparent,
+                    ]),
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              bottom: 40, left: -100,
-              child: Container(
-                width: 240, height: 240,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    Color(0x0A1E4494),
-                    Colors.transparent,
-                  ]),
+              Positioned(
+                bottom: 40, left: -100,
+                child: Container(
+                  width: 240, height: 240,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(colors: [
+                      Color(0x0A1E4494),
+                      Colors.transparent,
+                    ]),
+                  ),
                 ),
-              ),
-            ),
-          ],
-          Column(
-            children: [
-              _buildHeader(isDark),
-              _buildTabBar(isDark),
-              Expanded(
-                child: _loading
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(
-                                color: Color(0xFF38C172), strokeWidth: 2),
-                            const SizedBox(height: 14),
-                            Text('Chargement…',
-                                style: TextStyle(
-                                  color: isDark
-                                      ? const Color(0xFF8899BB)
-                                      : const Color(0xFF9CA3AF),
-                                  fontSize: 13,
-                                )),
-                          ],
-                        ),
-                      )
-                    : _error != null
-                        ? _buildError(isDark)
-                        : TabBarView(
-                            controller: _tabCtrl,
-                            children: [
-                              _buildHomeTab(isDark),
-                              _buildParcourirTab(isDark),
-                              _buildFavorisTab(isDark),
-                            ],
-                          ),
               ),
             ],
-          ),
-        ],
+            Column(
+              children: [
+                _buildHeader(isDark),
+                _buildTabBar(isDark),
+                Expanded(
+                  child: _loading
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(
+                                  color: Color(0xFF38C172), strokeWidth: 2),
+                              const SizedBox(height: 14),
+                              Text('Chargement…',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFF8899BB)
+                                        : const Color(0xFF9CA3AF),
+                                    fontSize: 13,
+                                  )),
+                            ],
+                          ),
+                        )
+                      : _error != null
+                          ? _buildError(isDark)
+                          : TabBarView(
+                              controller: _tabCtrl,
+                              children: [
+                                _buildHomeTab(isDark),
+                                _buildParcourirTab(isDark),
+                                _buildFavorisTab(isDark),
+                              ],
+                            ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1263,7 +1267,6 @@ class _CategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final grad = radioCategoryGradient(cat);
     final spaceIdx = cat.indexOf(' ');
-    final emoji = spaceIdx > 0 ? cat.substring(0, spaceIdx) : '';
     final label = spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat;
 
     final catAsset = kCatAssets[cat] ?? '';
@@ -1325,29 +1328,23 @@ class _CategoryCard extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(emoji, style: const TextStyle(fontSize: 26)),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          label,
-                          style: const TextStyle(
-                            color: Colors.white, fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          '$count stations',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.75),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white, fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '$count stations',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ),
