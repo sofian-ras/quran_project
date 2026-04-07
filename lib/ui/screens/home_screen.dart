@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dua_screen.dart';
 import 'package:flutter/gestures.dart';

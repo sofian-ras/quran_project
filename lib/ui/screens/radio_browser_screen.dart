@@ -362,97 +362,129 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
 
   Widget _buildHeader(bool isDark) {
     final textColor = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
+    final headerTitle = _tabIndex == 1 && _selectedCategory != 'Tous'
+        ? _selectedCategory.contains(' ')
+            ? _selectedCategory.substring(_selectedCategory.indexOf(' ') + 1)
+            : _selectedCategory
+        : 'Radio Quran';
 
     return SafeArea(
       bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 4, 16, 0),
-        child: Row(
+      child: SizedBox(
+        height: 52,
+        width: double.infinity,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: Icon(Icons.arrow_back_ios_new_rounded,
-                  color: textColor, size: 20),
-              padding: const EdgeInsets.all(8),
-            ),
-            const SizedBox(width: 2),
-            Expanded(
+            // ── Titre centré ────────────────────────────────────────
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.3),
+                    end: Offset.zero,
+                  ).animate(anim),
+                  child: child,
+                ),
+              ),
               child: Text(
-                'Radio Quran',
+                headerTitle,
+                key: ValueKey(headerTitle),
                 style: TextStyle(
                   color: textColor, fontSize: 20,
                   fontWeight: FontWeight.w800, letterSpacing: -0.3,
                 ),
               ),
             ),
-            // Now-playing pill
-            ValueListenableBuilder<RadioStation?>(
-              valueListenable: RadioService.instance.currentStationNotifier,
-              builder: (_, station, __) {
-                if (station == null) return const SizedBox.shrink();
-                return GestureDetector(
-                  onTap: () {
-                    if (_navigating) return;
-                    _navigating = true;
-                    _searchFocus.unfocus();
-                    Navigator.of(context, rootNavigator: true).push(
-                    PageRouteBuilder<void>(
-                      opaque: true,
-                      pageBuilder: (_, __, ___) =>
-                          RadioPlayerScreen(station: station),
-                      transitionsBuilder: (_, anim, __, child) =>
-                          SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 1),
-                              end: Offset.zero,
-                            ).animate(CurvedAnimation(
-                                parent: anim, curve: Curves.easeOutCubic)),
-                            child: child,
+            // ── Bouton retour à gauche ───────────────────────────────
+            Positioned(
+              left: 0,
+              child: IconButton(
+                onPressed: () {
+                  if (_tabIndex == 1 && _selectedCategory != 'Tous') {
+                    setState(() => _selectedCategory = 'Tous');
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+                icon: Icon(Icons.arrow_back_ios_new_rounded,
+                    color: textColor, size: 20),
+                padding: const EdgeInsets.all(8),
+              ),
+            ),
+            // ── Now-playing pill à droite ────────────────────────────
+            Positioned(
+              right: 16,
+              child: ValueListenableBuilder<RadioStation?>(
+                valueListenable: RadioService.instance.currentStationNotifier,
+                builder: (_, station, __) {
+                  if (station == null) return const SizedBox.shrink();
+                  return GestureDetector(
+                    onTap: () {
+                      if (_navigating) return;
+                      _navigating = true;
+                      _searchFocus.unfocus();
+                      Navigator.of(context, rootNavigator: true).push(
+                        PageRouteBuilder<void>(
+                          opaque: true,
+                          pageBuilder: (_, __, ___) =>
+                              RadioPlayerScreen(station: station),
+                          transitionsBuilder: (_, anim, __, child) =>
+                              SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0, 1),
+                                  end: Offset.zero,
+                                ).animate(CurvedAnimation(
+                                    parent: anim, curve: Curves.easeOutCubic)),
+                                child: child,
+                              ),
+                          transitionDuration: const Duration(milliseconds: 300),
+                        ),
+                      ).then((_) {
+                        _navigating = false;
+                        _reloadFavorites();
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF38C172).withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFF38C172).withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6, height: 6,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFF38C172),
+                            ),
                           ),
-                      transitionDuration: const Duration(milliseconds: 300),
-                    ),
-                  ).then((_) {
-                    _navigating = false;
-                    _reloadFavorites();
-                  });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF38C172).withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF38C172).withValues(alpha: 0.4),
+                          const SizedBox(width: 6),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 90),
+                            child: Text(
+                              station.displayName,
+                              style: const TextStyle(
+                                color: Color(0xFF38C172), fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6, height: 6,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF38C172),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 90),
-                          child: Text(
-                            station.displayName,
-                            style: const TextStyle(
-                              color: Color(0xFF38C172), fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -610,7 +642,7 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
     if (_topNow.isNotEmpty) {
       slivers
         ..add(SliverToBoxAdapter(
-            child: _SectionTitle(title: 'Top en ce moment', isDark: isDark)))
+            child: _SectionTitle(title: 'Qui pourrait vous plaire', isDark: isDark)))
         ..add(SliverToBoxAdapter(
             child: _AutoScrollBanner(stations: _topNow, onTap: _play, isDark: isDark)));
     }
@@ -676,7 +708,6 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
   // ── Onglet Parcourir ───────────────────────────────────────────────────────
 
   Widget _buildParcourirTab(bool isDark) {
-    final fillColor = isDark ? const Color(0xFF141C30) : const Color(0xFFEEEAE2);
     final hintColor = isDark ? const Color(0xFF8899BB) : const Color(0xFF9CA3AF);
     final textColor = isDark ? const Color(0xFFEAF2FF) : const Color(0xFF111827);
 
@@ -685,28 +716,37 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
         // Search bar
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: TextField(
-            controller: _searchCtrl,
-            focusNode: _searchFocus,
-            style: TextStyle(color: textColor, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: 'Rechercher une station…',
-              hintStyle: TextStyle(color: hintColor, fontSize: 14),
-              prefixIcon: Icon(Icons.search_rounded, color: hintColor, size: 20),
-              suffixIcon: _isSearching
-                  ? IconButton(
-                      icon: Icon(Icons.clear_rounded,
-                          color: hintColor, size: 18),
-                      onPressed: () => _searchCtrl.clear(),
-                      padding: EdgeInsets.zero,
-                    )
-                  : null,
-              filled: true,
-              fillColor: fillColor,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
+          child: Container(
+            height: 42,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: _searchFocus.hasFocus
+                    ? const Color(0xFF38C172).withValues(alpha: 0.6)
+                    : Colors.white.withValues(alpha: 0.10),
+              ),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.05),
+            ),
+            child: TextField(
+              controller: _searchCtrl,
+              focusNode: _searchFocus,
+              style: TextStyle(color: textColor, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Rechercher…',
+                hintStyle: TextStyle(color: hintColor, fontSize: 14),
+                prefixIcon: Icon(Icons.search_rounded, color: hintColor, size: 18),
+                suffixIcon: _isSearching
+                    ? IconButton(
+                        icon: Icon(Icons.close_rounded, color: hintColor, size: 16),
+                        onPressed: () => _searchCtrl.clear(),
+                        padding: EdgeInsets.zero,
+                      )
+                    : null,
+                filled: false,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                border: InputBorder.none,
               ),
             ),
           ),

@@ -347,9 +347,58 @@ class _NotificationBellButton extends StatelessWidget {
   }
 }
 
-class _RadioIconButton extends StatelessWidget {
+class _RadioIconButton extends StatefulWidget {
   final VoidCallback onTap;
   const _RadioIconButton({required this.onTap});
+
+  @override
+  State<_RadioIconButton> createState() => _RadioIconButtonState();
+}
+
+class _RadioIconButtonState extends State<_RadioIconButton>
+    with SingleTickerProviderStateMixin {
+
+  late final AnimationController _ctrl;
+  late final Animation<double>    _shake;
+  Timer? _idleTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    // Séquence de rotation : -15° → +15° × 3 → revient à 0
+    _shake = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -0.26), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -0.26, end: 0.26), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 0.26, end: -0.26), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -0.26, end: 0.26), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 0.26, end: 0.0), weight: 1),
+    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+
+    _scheduleNext();
+  }
+
+  void _scheduleNext() {
+    // Danse toutes les 8–14 secondes (intervalle variable)
+    final delay = 8 + (DateTime.now().millisecond % 7); // 8 à 14 s
+    _idleTimer = Timer(Duration(seconds: delay), () {
+      if (mounted) {
+        _ctrl.forward(from: 0).then((_) {
+          if (mounted) _scheduleNext();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _idleTimer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -357,12 +406,19 @@ class _RadioIconButton extends StatelessWidget {
     final iconColor = isDark ? Colors.white : Colors.black.withValues(alpha: 0.78);
     return ValueListenableBuilder<bool>(
       valueListenable: AudioService.instance.isRadioModeNotifier,
-      builder: (_, isRadio, __) => IconButton(
-        onPressed: onTap,
-        tooltip: 'Radio',
-        icon: Icon(
-          isRadio ? Icons.radio : Icons.radio_outlined,
-          color: isRadio ? const Color(0xFF38C172) : iconColor,
+      builder: (_, isRadio, __) => AnimatedBuilder(
+        animation: _shake,
+        builder: (_, child) => Transform.rotate(
+          angle: _shake.value,
+          child: child,
+        ),
+        child: IconButton(
+          onPressed: widget.onTap,
+          tooltip: 'Radio',
+          icon: Icon(
+            isRadio ? Icons.radio : Icons.radio_outlined,
+            color: isRadio ? const Color(0xFF38C172) : iconColor,
+          ),
         ),
       ),
     );
