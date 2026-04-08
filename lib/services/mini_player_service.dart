@@ -135,9 +135,10 @@ class MiniPlayerService {
   // Permet d'annuler tout appel obsolète après un await.
   int _playToken = 0;
 
-  StreamSubscription<ProcessingState>? _processingStateSub;
-  StreamSubscription<bool>?            _playingSub;
-  StreamSubscription<int?>?            _indexSub;
+  StreamSubscription<ProcessingState>?  _processingStateSub;
+  StreamSubscription<bool>?             _playingSub;
+  StreamSubscription<int?>?             _indexSub;
+  StreamSubscription<PlaybackEvent>?    _playbackEventSub;
 
   // Non-null en mode playlist (surah/selection) : index playlist → numéro d'ayah.
   // Null en mode source unique (verseByVerse).
@@ -170,7 +171,7 @@ class MiniPlayerService {
     });
 
     // Capture les erreurs just_audio (ex: 403, cleartext http, timeout…)
-    _player.playbackEventStream.listen(
+    _playbackEventSub = _player.playbackEventStream.listen(
       (_) {},
       onError: (Object e, StackTrace _) {
         debugPrint('MiniPlayerService: playbackEventStream error: $e');
@@ -311,8 +312,8 @@ class MiniPlayerService {
     // ─────────────────────────────────────────────────────────────────────
 
     // verseByVerse : un seul verset → streaming direct, pas de pré-téléchargement
+    // Note : resolveAyahUrl() appelle _fetchChapter() en interne si besoin — pas de prefetch ici.
     if (playMode.value == MiniPlayMode.verseByVerse) {
-      QulAudioResolver.instance.prefetch(reciter, _curSurah);
       await _playCurrent();
       return;
     }
@@ -920,6 +921,7 @@ class MiniPlayerService {
     _processingStateSub?.cancel();
     _playingSub?.cancel();
     _indexSub?.cancel();
+    _playbackEventSub?.cancel();
     _player.dispose();
   }
 }

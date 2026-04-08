@@ -228,7 +228,7 @@ class AudioDownloadManager {
         onReceiveProgress: (received, total) {
           if (total > 0) {
             entry.progress = received / total;
-            _notifyOnly();
+            _notifyProgress();
           }
         },
       );
@@ -273,8 +273,20 @@ class AudioDownloadManager {
 
   Timer? _persistDebounce;
 
+  /// Throttle pour les notifications de progression : au plus 1 rebuild/100ms.
+  /// Évite de recréer Map.unmodifiable à chaque packet réseau (100+/s).
+  Timer? _progressThrottle;
+
   void _notifyOnly() {
     entriesNotifier.value = Map.unmodifiable(_entries);
+  }
+
+  void _notifyProgress() {
+    if (_progressThrottle != null) return;
+    _progressThrottle = Timer(const Duration(milliseconds: 100), () {
+      _progressThrottle = null;
+      entriesNotifier.value = Map.unmodifiable(_entries);
+    });
   }
 
   void _notifyAndPersist() {

@@ -71,7 +71,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   final Map<int, File?> _imageCache = {};
   final Map<int, Future<File?>> _pageFutures = {};
-  final int _preloadRange = 3;
+  final int _preloadRange = 2;
 
   Future<File?> _safeGetPageFile(String reading, int pageNum) async {
     try {
@@ -274,7 +274,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _cleanDistantPages(int centerPage) {
     final pagesToRemove = <int>[];
     _imageCache.forEach((pageNum, _) {
-      if ((pageNum - centerPage).abs() > _preloadRange * 2) {
+      if ((pageNum - centerPage).abs() > _preloadRange + 1) {
         pagesToRemove.add(pageNum);
       }
     });
