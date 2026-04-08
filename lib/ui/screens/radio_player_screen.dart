@@ -26,9 +26,8 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   bool _isFavorite = false;
   bool _favLoading = false;
 
-  // Gestures swipe
-  double  _dragX   = 0;
-  double  _dragY   = 0;
+  // Gestures swipe — ValueNotifier évite setState à 60fps
+  final ValueNotifier<Offset> _dragNotifier = ValueNotifier(Offset.zero);
   String? _dragDir;
 
   // Volume
@@ -37,6 +36,9 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   // Sleep timer
   Duration? _sleepRemaining;
   Timer?    _sleepCountdown;
+
+  // Volume debounce
+  Timer?    _volDebounce;
 
   // Mode simple
   bool      _simpleMode = false;
@@ -60,7 +62,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+    );
     _pulseAnim = Tween<double>(begin: 1.0, end: 1.06)
         .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
@@ -74,7 +76,9 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
   @override
   void dispose() {
     _pulseCtrl.dispose();
+    _dragNotifier.dispose();
     _sleepCountdown?.cancel();
+    _volDebounce?.cancel();
     _clockTimer?.cancel();
     super.dispose();
   }
@@ -190,57 +194,66 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
           backgroundColor: isDark ? const Color(0xFF080D1A) : const Color(0xFFF5F0E8),
           body: GestureDetector(
             onPanStart: (_) {
-              _dragDir = null; _dragX = 0; _dragY = 0;
+              _dragDir = null;
+              _dragNotifier.value = Offset.zero;
             },
             onPanUpdate: (d) {
-              setState(() {
-                if (_dragDir == null) {
-                  if (d.delta.dx.abs() > d.delta.dy.abs() + 4) {
-                    _dragDir = 'h';
-                  } else if (d.delta.dy > 0 && d.delta.dy.abs() > d.delta.dx.abs() + 4) {
-                    _dragDir = 'v';
-                  }
+              final pos = _dragNotifier.value;
+              double dx = pos.dx;
+              double dy = pos.dy;
+              if (_dragDir == null) {
+                if (d.delta.dx.abs() > d.delta.dy.abs() + 4) {
+                  _dragDir = 'h';
+                } else if (d.delta.dy > 0 && d.delta.dy.abs() > d.delta.dx.abs() + 4) {
+                  _dragDir = 'v';
                 }
-                if (_dragDir == 'h') _dragX = (_dragX + d.delta.dx).clamp(-160.0, 160.0);
-                if (_dragDir == 'v') _dragY = (_dragY + d.delta.dy).clamp(0.0, 200.0);
-              });
+              }
+              if (_dragDir == 'h') dx = (dx + d.delta.dx).clamp(-160.0, 160.0);
+              if (_dragDir == 'v') dy = (dy + d.delta.dy).clamp(0.0, 200.0);
+              _dragNotifier.value = Offset(dx, dy);
             },
             onPanEnd: (d) {
+              final pos = _dragNotifier.value;
               final vx = d.velocity.pixelsPerSecond.dx;
               final vy = d.velocity.pixelsPerSecond.dy;
               if (_dragDir == 'h') {
-                if (_dragX < -60 || vx < -500) { _skipTo(1); }
-                else if (_dragX > 60 || vx > 500) { _skipTo(-1); }
+                if (pos.dx < -60 || vx < -500) { _skipTo(1); }
+                else if (pos.dx > 60 || vx > 500) { _skipTo(-1); }
               } else if (_dragDir == 'v') {
-                if (_dragY > 120 || vy > 600) { if (mounted) Navigator.of(context).pop(); return; }
+                if (pos.dy > 120 || vy > 600) { if (mounted) Navigator.of(context).pop(); return; }
               }
-              setState(() { _dragX = 0; _dragY = 0; _dragDir = null; });
+              _dragDir = null;
+              _dragNotifier.value = Offset.zero;
             },
             child: Stack(
               children: [
-                // ── Fond image floue ───────────────────────────────────
+                // ── Fond image floue — ne se rebuild PAS pendant le drag ──
                 Positioned.fill(
                   child: _BlurredBackground(station: _station, grad: grad, isDark: isDark),
                 ),
 
                 // ── Contenu principal (suit le drag) ───────────────────
-                Transform.translate(
-                  offset: Offset(_dragX * 0.35, _dragY),
-                  child: Opacity(
-                    opacity: (1.0 - (_dragY / 300)).clamp(0.0, 1.0),
-                    child: SafeArea(
-                      child: Stack(
-                        children: [
-                          Column(
-                            children: [
-                              _buildHeader(isDark, cat),
-                              Expanded(child: _buildBody(isDark, cat, grad)),
-                            ],
-                          ),
-                          // ── Slider volume vertical gauche ──────────
-                          _buildVolumeSlider(grad),
-                        ],
-                      ),
+                ValueListenableBuilder<Offset>(
+                  valueListenable: _dragNotifier,
+                  builder: (_, drag, child) => Transform.translate(
+                    offset: Offset(drag.dx * 0.35, drag.dy),
+                    child: Opacity(
+                      opacity: (1.0 - (drag.dy / 300)).clamp(0.0, 1.0),
+                      child: child,
+                    ),
+                  ),
+                  child: SafeArea(
+                    child: Stack(
+                      children: [
+                        Column(
+                          children: [
+                            _buildHeader(isDark, cat),
+                            Expanded(child: _buildBody(isDark, cat, grad)),
+                          ],
+                        ),
+                        // ── Slider volume vertical gauche ──────────
+                        _buildVolumeSlider(grad),
+                      ],
                     ),
                   ),
                 ),
@@ -376,7 +389,11 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
                   value: _volume,
                   onChanged: (v) {
                     setState(() => _volume = v);
-                    AudioService.instance.setVolume(v);
+                    _volDebounce?.cancel();
+                    _volDebounce = Timer(
+                      const Duration(milliseconds: 50),
+                      () => AudioService.instance.setVolume(v),
+                    );
                   },
                 ),
               ),
@@ -409,6 +426,12 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             stream: AudioService.instance.playerStateStream,
             builder: (_, snap) {
               final playing = snap.data?.playing ?? false;
+              if (playing && !_pulseCtrl.isAnimating) {
+                _pulseCtrl.repeat(reverse: true);
+              } else if (!playing && _pulseCtrl.isAnimating) {
+                _pulseCtrl.stop();
+                _pulseCtrl.value = 0;
+              }
               return AnimatedBuilder(
                 animation: _pulseAnim,
                 builder: (_, child) => Transform.scale(

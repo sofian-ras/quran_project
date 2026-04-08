@@ -877,6 +877,9 @@ class AudioService {
             album:  'Radio Quran',
           ),
         ),
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException('Stream radio indisponible'),
       );
       await _player.play();
     } catch (e) {

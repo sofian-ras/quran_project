@@ -119,11 +119,17 @@ class MiniPlayerService {
 
   final AudioPlayer _player = AudioPlayer();
 
-  int  _curSurah    = 0;
-  int  _curAyah     = 0;
-  int  _endAyah     = 0;
-  int  _repeatCount = 0;
-  bool _stopping    = false;
+  /// Clés des versets dont le téléchargement est en cours pendant _prepareAndPlay.
+  /// Permet d'annuler les requêtes Dio en vol quand stop() ou cancelPrep() est appelé.
+  final Set<String> _prepDownloadKeys = {};
+
+  int  _curSurah          = 0;
+  int  _curAyah           = 0;
+  int  _endAyah           = 0;
+  int  _repeatCount       = 0;
+  int  _rangeRepeatCount  = 0; // nb de fois que la plage entière a joué
+  int  _playlistStartAyah = 0; // premier ayah de la playlist courante
+  bool _stopping          = false;
 
   // Génération courante — s'incrémente à chaque _playCurrent.
   // Permet d'annuler tout appel obsolète après un await.
@@ -268,8 +274,10 @@ class MiniPlayerService {
   // ── Lecture ───────────────────────────────────────────────────────────────
 
   Future<void> playFrom({required int surah, required int ayah}) async {
-    _stopping    = false;
-    _repeatCount = 0;
+    _stopping           = false;
+    _repeatCount        = 0;
+    _rangeRepeatCount   = 0;
+    _playlistStartAyah  = 0;
     isRangeAutoAdvancing.value = false;
     unavailableMessage.value = null;
 
@@ -380,9 +388,12 @@ class MiniPlayerService {
 
       final batch = pending.skip(i).take(batchSize).toList();
       await Future.wait(batch.map((ayah) async {
+        final key = AudioDownloadManager.ayahKey(qid, surah, ayah);
         final url = await QulAudioResolver.instance.resolveAyah(reciter, surah, ayah);
         if (url != null && myToken == _prepToken) {
+          _prepDownloadKeys.add(key);
           await mgr.downloadAyah(quranComId: qid, surah: surah, ayah: ayah, url: url);
+          _prepDownloadKeys.remove(key);
         }
       }));
 
@@ -397,9 +408,19 @@ class MiniPlayerService {
     if (!_stopping) await _startPlaylistMode(reciter, surah, startAyah);
   }
 
+  /// Annule toutes les requêtes Dio en vol lancées par _prepareAndPlay.
+  void _cancelPrepDownloads() {
+    final mgr = AudioDownloadManager.instance;
+    for (final key in _prepDownloadKeys) {
+      mgr.cancel(key);
+    }
+    _prepDownloadKeys.clear();
+  }
+
   /// Annule le pré-téléchargement en cours et replie le mini lecteur.
   void cancelPrep() {
     ++_prepToken;
+    _cancelPrepDownloads();
     prepProgress.value = null;
     isExpanded.value   = false;
   }
@@ -418,14 +439,8 @@ class MiniPlayerService {
     final docs       = await getApplicationDocumentsDirectory();
     final reciterDir = p.join(docs.path, 'qul_audio', qid.toString());
 
-    // Facteur de répétition par verset
-    final isInfinite = repeatMode.value == MiniRepeatMode.infinite;
-    final factor     = switch (repeatMode.value) {
-      MiniRepeatMode.x1       => 1,
-      MiniRepeatMode.x2       => 2,
-      MiniRepeatMode.x3       => 3,
-      MiniRepeatMode.infinite => 1, // géré par LoopMode.one
-    };
+    // Répétition gérée au niveau de la plage entière (dans _onAyahCompleted)
+    const factor = 1;
 
     // Construire la playlist de startAyah → _endAyah
     final sources = <AudioSource>[];
@@ -473,11 +488,13 @@ class MiniPlayerService {
     });
 
     // Mode de boucle : ∞ répète la piste courante, sinon lecture unique
-    await _player.setLoopMode(isInfinite ? LoopMode.one : LoopMode.off);
+    await _player.setLoopMode(LoopMode.off);
 
     unavailableMessage.value = null;
     currentAyahKey.value     = '$surah:$startAyah';
     _curAyah                 = startAyah;
+    _playlistStartAyah       = startAyah;
+    _rangeRepeatCount        = 0;
 
     await _player.setAudioSource(
       ConcatenatingAudioSource(useLazyPreparation: true, children: sources),
@@ -594,6 +611,23 @@ class MiniPlayerService {
 
     // Mode playlist (surah/selection) : la playlist entière est terminée.
     if (_playlistAyahs != null) {
+      final limit = _repeatLimit; // -1 = infinite, 1/2/3 = fini
+      _rangeRepeatCount++;
+
+      if (limit < 0 || _rangeRepeatCount < limit) {
+        // Rejouer la plage depuis le début
+        isRangeAutoAdvancing.value = true;
+        _player.seek(Duration.zero, index: 0).then((_) {
+          if (!_stopping && _playlistAyahs != null) {
+            _curAyah             = _playlistStartAyah;
+            currentAyahKey.value = '$_curSurah:$_playlistStartAyah';
+            _player.play();
+          }
+        });
+        return;
+      }
+
+      // Limite atteinte → stop
       _clearPlaylist();
       isPlaying.value            = false;
       isRangeAutoAdvancing.value = false;
@@ -655,6 +689,7 @@ class MiniPlayerService {
 
   Future<void> stop() async {
     ++_prepToken;             // Annule tout pré-téléchargement en cours.
+    _cancelPrepDownloads();
     prepProgress.value = null;
     _clearPlaylist();         // Arrête le suivi de l'index playlist.
     _stopping = true;
@@ -673,10 +708,12 @@ class MiniPlayerService {
     isExpanded.value         = false;
     isPlaying.value          = false;
     unavailableMessage.value = null;
-    _curSurah    = 0;
-    _curAyah     = 0;
-    _endAyah     = 0;
-    _repeatCount = 0;
+    _curSurah          = 0;
+    _curAyah           = 0;
+    _endAyah           = 0;
+    _repeatCount       = 0;
+    _rangeRepeatCount  = 0;
+    _playlistStartAyah = 0;
   }
 
   Future<void> nextVerse() async {
@@ -695,7 +732,8 @@ class MiniPlayerService {
       // Mode playlist : seek vers la première occurrence du verset suivant
       final idx = _playlistAyahs!.indexOf(_curAyah + 1);
       if (idx >= 0) {
-        _repeatCount = 0;
+        _repeatCount      = 0;
+        _rangeRepeatCount = 0;
         await _player.seek(Duration.zero, index: idx);
         if (!_player.playing) await _player.play();
       }
@@ -722,7 +760,8 @@ class MiniPlayerService {
     if (_playlistAyahs != null) {
       final idx = _playlistAyahs!.indexOf(_curAyah - 1);
       if (idx >= 0) {
-        _repeatCount = 0;
+        _repeatCount      = 0;
+        _rangeRepeatCount = 0;
         await _player.seek(Duration.zero, index: idx);
         if (!_player.playing) await _player.play();
       }

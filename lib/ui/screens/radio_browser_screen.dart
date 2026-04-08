@@ -781,17 +781,21 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
           child: Text('Aucune station trouvée',
               style: TextStyle(color: mutedColor)));
     }
-    return ListView.builder(
-      controller: _parcourirScroll,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      itemCount: results.length,
-      itemBuilder: (_, i) => _StationTile(
-        station: results[i],
-        isDark: isDark,
-        onTap: () => _play(results[i]),
-        onFavTap: () => _toggleFavFromList(results[i]),
-        isFav: _favorites.any((f) => f.id == results[i].id),
-        index: i,
+    return ValueListenableBuilder<RadioStation?>(
+      valueListenable: RadioService.instance.currentStationNotifier,
+      builder: (_, current, __) => ListView.builder(
+        controller: _parcourirScroll,
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        itemCount: results.length,
+        itemBuilder: (_, i) => _StationTile(
+          station: results[i],
+          isDark: isDark,
+          isActive: current?.id == results[i].id,
+          onTap: () => _play(results[i]),
+          onFavTap: () => _toggleFavFromList(results[i]),
+          isFav: _favorites.any((f) => f.id == results[i].id),
+          index: i,
+        ),
       ),
     );
   }
@@ -861,17 +865,21 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            controller: _parcourirScroll,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            itemCount: list.length,
-            itemBuilder: (_, i) => _StationTile(
-              station: list[i],
-              isDark: isDark,
-              onTap: () => _play(list[i]),
-              onFavTap: () => _toggleFavFromList(list[i]),
-              isFav: _favorites.any((f) => f.id == list[i].id),
-              index: i,
+          child: ValueListenableBuilder<RadioStation?>(
+            valueListenable: RadioService.instance.currentStationNotifier,
+            builder: (_, current, __) => ListView.builder(
+              controller: _parcourirScroll,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              itemCount: list.length,
+              itemBuilder: (_, i) => _StationTile(
+                station: list[i],
+                isDark: isDark,
+                isActive: current?.id == list[i].id,
+                onTap: () => _play(list[i]),
+                onFavTap: () => _toggleFavFromList(list[i]),
+                isFav: _favorites.any((f) => f.id == list[i].id),
+                index: i,
+              ),
             ),
           ),
         ),
@@ -915,21 +923,25 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
       );
     }
 
-    return ListView.builder(
-      controller: _favorisScroll,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      itemCount: _favorites.length,
-      itemBuilder: (_, i) {
-        final s = _favorites[i];
-        return _StationTile(
-          station: s,
-          isDark: isDark,
-          onTap: () => _play(s),
-          onFavTap: () => _toggleFavFromList(s),
-          isFav: true,
-          index: i,
-        );
-      },
+    return ValueListenableBuilder<RadioStation?>(
+      valueListenable: RadioService.instance.currentStationNotifier,
+      builder: (_, current, __) => ListView.builder(
+        controller: _favorisScroll,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        itemCount: _favorites.length,
+        itemBuilder: (_, i) {
+          final s = _favorites[i];
+          return _StationTile(
+            station: s,
+            isDark: isDark,
+            isActive: current?.id == s.id,
+            onTap: () => _play(s),
+            onFavTap: () => _toggleFavFromList(s),
+            isFav: true,
+            index: i,
+          );
+        },
+      ),
     );
   }
 }
@@ -1151,10 +1163,12 @@ class _AutoScrollBanner extends StatefulWidget {
   State<_AutoScrollBanner> createState() => _AutoScrollBannerState();
 }
 
-class _AutoScrollBannerState extends State<_AutoScrollBanner> {
+class _AutoScrollBannerState extends State<_AutoScrollBanner>
+    with WidgetsBindingObserver {
   late final ScrollController _ctrl;
   Timer?  _timer;
   bool    _forward = true;
+  bool    _paused  = false;
   static const double _itemW  = 130.0;
   static const double _itemH  = 100.0;
   static const double _spacing = 10.0;
@@ -1163,11 +1177,20 @@ class _AutoScrollBannerState extends State<_AutoScrollBanner> {
   void initState() {
     super.initState();
     _ctrl = ScrollController();
-    // Lance le scroll après le premier frame
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _startScroll());
   }
 
-  bool _paused = false;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _timer?.cancel();
+      _timer = null;
+    } else if (state == AppLifecycleState.resumed && _timer == null) {
+      _startScroll();
+    }
+  }
 
   void _startScroll() {
     _timer = Timer.periodic(const Duration(milliseconds: 30), (_) {
@@ -1194,6 +1217,7 @@ class _AutoScrollBannerState extends State<_AutoScrollBanner> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _ctrl.dispose();
     super.dispose();
@@ -1580,6 +1604,7 @@ class _StationTile extends StatelessWidget {
   final VoidCallback onFavTap;
   final bool         isFav;
   final int          index;
+  final bool         isActive;
 
   const _StationTile({
     required this.station,
@@ -1588,6 +1613,7 @@ class _StationTile extends StatelessWidget {
     required this.onFavTap,
     required this.isFav,
     this.index = 0,
+    this.isActive = false,
   });
 
   @override
@@ -1601,11 +1627,7 @@ class _StationTile extends StatelessWidget {
     final catLabel = spaceIdx > 0 ? cat.substring(spaceIdx + 1) : cat;
     final grad = radioCategoryGradient(cat);
 
-    return ValueListenableBuilder<RadioStation?>(
-      valueListenable: RadioService.instance.currentStationNotifier,
-      builder: (_, current, __) {
-        final isActive = current?.id == station.id;
-        return TweenAnimationBuilder<double>(
+    return TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
           duration: Duration(milliseconds: 280 + index * 40),
           curve: Curves.easeOut,
@@ -1697,8 +1719,6 @@ class _StationTile extends StatelessWidget {
             ),
           ),
         );
-      },
-    );
   }
 }
 

@@ -253,13 +253,28 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
         ),
       ),
       child: prep != null
-          ? Padding(
-              padding: const EdgeInsets.all(7),
-              child: CircularProgressIndicator(
-                value: prep > 0 ? prep : null,
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
+          ? Stack(
+              alignment: Alignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: CircularProgressIndicator(
+                    value: prep > 0 ? prep : null,
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                if (prep > 0)
+                  Text(
+                    '${(prep * 100).round()}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 7,
+                      fontWeight: FontWeight.bold,
+                      height: 1,
+                    ),
+                  ),
+              ],
             )
           : loading && !autoAdv
               ? const Padding(
@@ -362,10 +377,25 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     if (prep != null) {
       return SizedBox(
         width: size, height: size,
-        child: CircularProgressIndicator(
-          value: prep > 0 ? prep : null,
-          strokeWidth: 2,
-          color: Colors.white,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircularProgressIndicator(
+              value: prep > 0 ? prep : null,
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+            if (prep > 0)
+              Text(
+                '${(prep * 100).round()}%',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: size * 0.28,
+                  fontWeight: FontWeight.bold,
+                  height: 1,
+                ),
+              ),
+          ],
         ),
       );
     }

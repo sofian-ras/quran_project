@@ -25,8 +25,17 @@ class RadioService {
   final ValueNotifier<RadioStation?> currentStationNotifier =
       ValueNotifier<RadioStation?>(null);
 
+  /// Cache en mémoire des IDs favoris — évite les lectures disque répétées.
+  final ValueNotifier<Set<int>> favoriteIdsNotifier = ValueNotifier({});
+
+  // SharedPreferences singleton — une seule initialisation
+  final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
+
   List<RadioStation>? _memCache;
   DateTime?           _lastRefresh;
+
+  // Protège contre les doubles refresh simultanés
+  Future<List<RadioStation>>? _ongoingFetch;
 
   /// Accès synchrone au cache (vide si pas encore chargé).
   List<RadioStation> get cachedStations => _memCache ?? [];
@@ -58,17 +67,19 @@ class RadioService {
     final now = DateTime.now();
     if (_lastRefresh != null && now.difference(_lastRefresh!).inMinutes < 5) return;
     _lastRefresh = now;
-    _fetchFromApi().then((stations) async {
-      _memCache = stations;
-      await _saveToCache(stations);
-    }).catchError((Object e) {
-      debugPrint('RadioService: background refresh error: $e');
-    });
+    if (_ongoingFetch != null) return; // déjà en cours
+    _ongoingFetch = _fetchFromApi()
+      ..then((stations) async {
+        _memCache = stations;
+        await _saveToCache(stations);
+      }).catchError((Object e) {
+        debugPrint('RadioService: background refresh error: $e');
+      }).whenComplete(() => _ongoingFetch = null);
   }
 
   Future<List<RadioStation>?> _loadFromCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _prefs;
       final ts    = prefs.getInt(_kTimestampKey);
       if (ts == null) return null;
       final age = DateTime.now().millisecondsSinceEpoch - ts;
@@ -84,7 +95,7 @@ class RadioService {
 
   Future<void> _saveToCache(List<RadioStation> stations) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _prefs;
       await prefs.setString(_kCacheKey, RadioStation.listToJson(stations));
       await prefs.setInt(_kTimestampKey, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
@@ -97,7 +108,7 @@ class RadioService {
   /// Enregistre une lecture : met la station en tête des récents + incrémente son compteur.
   Future<void> trackPlay(RadioStation station) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _prefs;
       // Récents (max 10)
       final ids = prefs.getStringList(_kRecentIdsKey) ?? [];
       ids.remove(station.id.toString());
@@ -122,10 +133,10 @@ class RadioService {
   /// Retourne les stations récemment écoutées (dans l'ordre chronologique).
   Future<List<RadioStation>> getRecents() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _prefs;
       final ids   = prefs.getStringList(_kRecentIdsKey) ?? [];
       if (ids.isEmpty) return [];
-      final all  = await getStations();
+      final all  = cachedStations.isNotEmpty ? cachedStations : await getStations();
       final byId = {for (final s in all) s.id: s};
       return ids
           .map((id) => byId[int.tryParse(id) ?? -1])
@@ -139,7 +150,7 @@ class RadioService {
   /// Retourne les stations les plus écoutées (triées par nombre de lectures).
   Future<List<RadioStation>> getPopular({int limit = 8}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _prefs;
       final raw   = prefs.getString(_kPlayCountsKey);
       if (raw == null) return [];
       final counts = Map<String, dynamic>.from(jsonDecode(raw) as Map);
@@ -150,7 +161,7 @@ class RadioService {
           .map((e) => int.tryParse(e.key) ?? -1)
           .where((id) => id != -1)
           .toList();
-      final all  = await getStations();
+      final all  = cachedStations.isNotEmpty ? cachedStations : await getStations();
       final byId = {for (final s in all) s.id: s};
       return topIds.map((id) => byId[id]).whereType<RadioStation>().toList();
     } catch (e) {
@@ -162,9 +173,11 @@ class RadioService {
 
   Future<Set<int>> getFavoriteIds() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _prefs;
       final ids = prefs.getStringList(_kFavoritesKey) ?? [];
-      return ids.map((s) => int.tryParse(s) ?? -1).where((id) => id != -1).toSet();
+      final set = ids.map((s) => int.tryParse(s) ?? -1).where((id) => id != -1).toSet();
+      favoriteIdsNotifier.value = set;
+      return set;
     } catch (_) {
       return {};
     }
@@ -186,18 +199,19 @@ class RadioService {
   /// Ajoute ou retire la station des favoris. Retourne true si désormais en favori.
   Future<bool> toggleFavorite(RadioStation station) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _prefs;
       final ids   = prefs.getStringList(_kFavoritesKey) ?? [];
       final key   = station.id.toString();
-      if (ids.contains(key)) {
+      final isFav = ids.contains(key);
+      if (isFav) {
         ids.remove(key);
-        await prefs.setStringList(_kFavoritesKey, ids);
-        return false;
       } else {
         ids.add(key);
-        await prefs.setStringList(_kFavoritesKey, ids);
-        return true;
       }
+      await prefs.setStringList(_kFavoritesKey, ids);
+      favoriteIdsNotifier.value =
+          ids.map((s) => int.tryParse(s) ?? -1).where((id) => id != -1).toSet();
+      return !isFav;
     } catch (_) {
       return false;
     }

@@ -233,15 +233,19 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
         return Center(child: Text('Aucune station trouvée',
             style: TextStyle(color: textMuted)));
       }
-      return ListView.builder(
-        controller: scrollCtrl,
-        itemCount: results.length,
-        itemBuilder: (_, i) => _StationTile(
-          station: results[i],
-          textPrimary: textPrimary,
-          textMuted: textMuted,
-          accent: accent,
-          onTap: () => _play(results[i]),
+      return ValueListenableBuilder<RadioStation?>(
+        valueListenable: RadioService.instance.currentStationNotifier,
+        builder: (_, current, __) => ListView.builder(
+          controller: scrollCtrl,
+          itemCount: results.length,
+          itemBuilder: (_, i) => _StationTile(
+            station: results[i],
+            textPrimary: textPrimary,
+            textMuted: textMuted,
+            accent: accent,
+            isActive: current?.id == results[i].id,
+            onTap: () => _play(results[i]),
+          ),
         ),
       );
     }
@@ -255,15 +259,19 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
         return Center(child: Text('Aucune station dans cette catégorie',
             style: TextStyle(color: textMuted)));
       }
-      return ListView.builder(
-        controller: scrollCtrl,
-        itemCount: filtered.length,
-        itemBuilder: (_, i) => _StationTile(
-          station: filtered[i],
-          textPrimary: textPrimary,
-          textMuted: textMuted,
-          accent: accent,
-          onTap: () => _play(filtered[i]),
+      return ValueListenableBuilder<RadioStation?>(
+        valueListenable: RadioService.instance.currentStationNotifier,
+        builder: (_, current, __) => ListView.builder(
+          controller: scrollCtrl,
+          itemCount: filtered.length,
+          itemBuilder: (_, i) => _StationTile(
+            station: filtered[i],
+            textPrimary: textPrimary,
+            textMuted: textMuted,
+            accent: accent,
+            isActive: current?.id == filtered[i].id,
+            onTap: () => _play(filtered[i]),
+          ),
         ),
       );
     }
@@ -274,23 +282,27 @@ class _RadioBottomSheetState extends State<RadioBottomSheet> {
       return Center(child: Text('Aucune station disponible',
           style: TextStyle(color: textMuted)));
     }
-    return ListView.builder(
-      controller: scrollCtrl,
-      itemCount: items.length,
-      itemBuilder: (_, i) {
-        final item = items[i];
-        if (item is String) {
-          return _SectionHeader(label: item, textMuted: textMuted);
-        }
-        final station = item as RadioStation;
-        return _StationTile(
-          station: station,
-          textPrimary: textPrimary,
-          textMuted: textMuted,
-          accent: accent,
-          onTap: () => _play(station),
-        );
-      },
+    return ValueListenableBuilder<RadioStation?>(
+      valueListenable: RadioService.instance.currentStationNotifier,
+      builder: (_, current, __) => ListView.builder(
+        controller: scrollCtrl,
+        itemCount: items.length,
+        itemBuilder: (_, i) {
+          final item = items[i];
+          if (item is String) {
+            return _SectionHeader(label: item, textMuted: textMuted);
+          }
+          final station = item as RadioStation;
+          return _StationTile(
+            station: station,
+            textPrimary: textPrimary,
+            textMuted: textMuted,
+            accent: accent,
+            isActive: current?.id == station.id,
+            onTap: () => _play(station),
+          );
+        },
+      ),
     );
   }
 
@@ -351,6 +363,7 @@ class _StationTile extends StatelessWidget {
   final Color textMuted;
   final Color accent;
   final VoidCallback onTap;
+  final bool isActive;
 
   const _StationTile({
     required this.station,
@@ -358,32 +371,27 @@ class _StationTile extends StatelessWidget {
     required this.textMuted,
     required this.accent,
     required this.onTap,
+    this.isActive = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<RadioStation?>(
-      valueListenable: RadioService.instance.currentStationNotifier,
-      builder: (_, current, __) {
-        final isActive = current?.id == station.id;
-        return ListTile(
-          leading: _LeadingIcon(isActive: isActive, accent: accent, textMuted: textMuted),
-          title: Text(
-            station.displayName,
-            style: TextStyle(
-              color: isActive ? accent : textPrimary,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-              fontSize: 14,
-            ),
-          ),
-          subtitle: Text(station.domain,
-              style: TextStyle(color: textMuted, fontSize: 12)),
-          trailing: isActive
-              ? Icon(Icons.graphic_eq_rounded, color: accent, size: 20)
-              : null,
-          onTap: onTap,
-        );
-      },
+    return ListTile(
+      leading: _LeadingIcon(isActive: isActive, accent: accent, textMuted: textMuted),
+      title: Text(
+        station.displayName,
+        style: TextStyle(
+          color: isActive ? accent : textPrimary,
+          fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Text(station.domain,
+          style: TextStyle(color: textMuted, fontSize: 12)),
+      trailing: isActive
+          ? Icon(Icons.graphic_eq_rounded, color: accent, size: 20)
+          : null,
+      onTap: onTap,
     );
   }
 }
@@ -414,10 +422,21 @@ class _LeadingIconState extends State<_LeadingIcon>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900))
-      ..repeat(reverse: true);
+        vsync: this, duration: const Duration(milliseconds: 900));
     _anim = Tween<double>(begin: 0.3, end: 1.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    if (widget.isActive) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_LeadingIcon old) {
+    super.didUpdateWidget(old);
+    if (widget.isActive && !_ctrl.isAnimating) {
+      _ctrl.repeat(reverse: true);
+    } else if (!widget.isActive && _ctrl.isAnimating) {
+      _ctrl.stop();
+      _ctrl.value = 0;
+    }
   }
 
   @override
