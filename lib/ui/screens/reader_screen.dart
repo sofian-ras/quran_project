@@ -1876,10 +1876,14 @@ class _SurahSheetTileState extends State<_SurahSheetTile> {
   Future<void> _handleTap() async {
     if (_loading) return;
     if (!mounted) return;
+    // Guard immédiat — bloque tout double-tap avant le premier await
+    setState(() => _loading = true);
 
     final bool isCached =
         QuranImageService.instance.getSyncCached(widget.firstPage) != null ||
         await QuranImageService.instance.isPageCached(widget.firstPage);
+
+    if (!mounted) return;
 
     if (isCached) {
       setState(() => _fillProgress = 1.0);
@@ -1893,14 +1897,11 @@ class _SurahSheetTileState extends State<_SurahSheetTile> {
       if (!mounted) return;
       await Future.delayed(const Duration(milliseconds: 80));
       await widget.onTap();
-      if (mounted) setState(() => _fillProgress = 0.0);
+      if (mounted) setState(() { _fillProgress = 0.0; _loading = false; });
       return;
     }
 
-    setState(() {
-      _loading = true;
-      _fillProgress = 0.0;
-    });
+    setState(() => _fillProgress = 0.0);
 
     try {
       await QuranImageService.instance.getPageFile(
@@ -1925,7 +1926,7 @@ class _SurahSheetTileState extends State<_SurahSheetTile> {
     if (!mounted) return;
     await Future.delayed(const Duration(milliseconds: 80));
     await widget.onTap();
-    if (mounted) setState(() => _fillProgress = 0.0);
+    if (mounted) setState(() { _fillProgress = 0.0; _loading = false; });
   }
 
   @override
@@ -1988,6 +1989,23 @@ class _SurahSheetTileState extends State<_SurahSheetTile> {
                   painter: _SheetFillPainter(
                     progress: _fillProgress,
                     color: gold.withValues(alpha: 0.42),
+                  ),
+                ),
+              ),
+            ),
+
+          // Pourcentage affiché pendant le téléchargement de la page
+          if (_loading && _fillProgress > 0 && _fillProgress < 1.0)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: Text(
+                    '${(_fillProgress * 100).round()}%',
+                    style: const TextStyle(
+                      color: Color(0xFFD4AF37),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
