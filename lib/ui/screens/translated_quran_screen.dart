@@ -1,4 +1,5 @@
 // lib/ui/translated_quran_screen.dart
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
@@ -47,6 +48,9 @@ class TranslatedQuranScreen extends StatefulWidget {
 }
 
 class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
+  bool _showFrLabel = false;
+  Timer? _frLabelTimer;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +67,7 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
 
   @override
   void dispose() {
+    _frLabelTimer?.cancel();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }
@@ -247,7 +252,12 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
         children: [
           option(
             selected: useImage,
-            onTap: () => _imageReaderModeNotifier.value = true,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _frLabelTimer?.cancel();
+              _imageReaderModeNotifier.value = true;
+              setState(() => _showFrLabel = false);
+            },
             child: SvgPicture.asset(
               'assets/images/navbar/Quran_Kareem.svg',
               height: 18,
@@ -256,14 +266,44 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
           ),
           option(
             selected: !useImage,
-            onTap: () => _imageReaderModeNotifier.value = false,
-            child: Text(
-              'Coran FR',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: !useImage ? Colors.white : unsel,
-              ),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _imageReaderModeNotifier.value = false;
+              setState(() => _showFrLabel = true);
+              _frLabelTimer?.cancel();
+              _frLabelTimer = Timer(const Duration(milliseconds: 1600), () {
+                if (mounted) setState(() => _showFrLabel = false);
+              });
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.translate_rounded, size: 16,
+                    color: !useImage ? Colors.white : unsel),
+                ClipRect(
+                  child: AnimatedAlign(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: _showFrLabel ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOut,
+                    child: AnimatedOpacity(
+                      opacity: _showFrLabel ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Text(
+                          'Coran FR',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: !useImage ? Colors.white : unsel,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -616,13 +656,28 @@ class _SurahTabState extends State<_SurahTab> {
   bool _loading = true;
   final _scrollCtrl = ScrollController();
   double _lastScrollOffset = 0;
+  int? _lastPage;
+
+  static const _kLastPage = 'tqs_last_page';
 
   @override
   void initState() {
     super.initState();
     _loadSurahs();
     _loadTheme();
+    _loadLastPage();
     _scrollCtrl.addListener(_onScroll);
+    _imageReaderModeNotifier.addListener(_onReaderModeChanged);
+  }
+
+  void _onReaderModeChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadLastPage() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _lastPage = p.getInt(_kLastPage));
   }
 
   void _onScroll() {
@@ -641,6 +696,7 @@ class _SurahTabState extends State<_SurahTab> {
   void dispose() {
     _scrollCtrl.removeListener(_onScroll);
     _scrollCtrl.dispose();
+    _imageReaderModeNotifier.removeListener(_onReaderModeChanged);
     super.dispose();
   }
 
@@ -654,6 +710,8 @@ class _SurahTabState extends State<_SurahTab> {
   Future<void> _openSurah(BuildContext context, int surahId, {int initialAyah = 1, int? overridePage}) async {
     if (_imageReaderModeNotifier.value) {
       final int page = overridePage ?? _surahStartPages[surahId - 1];
+      setState(() => _lastPage = page);
+      SharedPreferences.getInstance().then((p) => p.setInt(_kLastPage, page));
       try {
         await QuranImageService.instance.getPageFile('hafs', page);
         if (!context.mounted) return;
@@ -823,7 +881,10 @@ class _SurahTabState extends State<_SurahTab> {
             : Colors.black.withValues(alpha: 0.45);
 
         final hasRecents = _recentHistory.isNotEmpty;
+        final hasBanner = _lastPage != null && _imageReaderModeNotifier.value;
         final headerOffset = hasRecents ? 2 : 1;
+
+        const gold = Color(0xFFD4AF37);
 
         return Stack(
           children: [
@@ -835,7 +896,7 @@ class _SurahTabState extends State<_SurahTab> {
             // ── Liste principale ────────────────────────────────────
             ListView.builder(
               controller: _scrollCtrl,
-              padding: const EdgeInsets.only(bottom: 32),
+              padding: EdgeInsets.only(top: hasBanner ? 46.0 : 0, bottom: 32),
               itemCount: headerOffset + _items.length,
               itemBuilder: (context, index) {
 
@@ -1018,6 +1079,50 @@ class _SurahTabState extends State<_SurahTab> {
                 );
               },
             ),
+            // ── Bannière "Ma position" ──────────────────────────────
+            if (hasBanner)
+              Positioned(
+                top: 0, left: 0, right: 0,
+                child: GestureDetector(
+                  onTap: () => _openSurah(context, 1, overridePage: _lastPage),
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: gold.withValues(alpha: isDark ? 0.10 : 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: gold.withValues(alpha: 0.30), width: 0.8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.bookmark_rounded, size: 12, color: gold),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Ma position',
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          'Page $_lastPage',
+                          style: const TextStyle(
+                            color: gold,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(Icons.arrow_forward_ios_rounded,
+                            size: 10, color: gold.withValues(alpha: 0.7)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         );
       },
