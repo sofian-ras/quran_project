@@ -17,6 +17,7 @@ import '../../services/verse_favorites_service.dart';
 import '../../services/verse_notes_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/reading_history_service.dart';
+import '../../services/last_reading_service.dart';
 import '../../services/qul_audio/qul_audio_resolver.dart';
 import '../../data/surah_name.dart';
 import '../../services/tafsir_service.dart' show TafsirService;
@@ -256,7 +257,6 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
               HapticFeedback.lightImpact();
               _frLabelTimer?.cancel();
               _imageReaderModeNotifier.value = true;
-              setState(() => _showFrLabel = false);
             },
             child: SvgPicture.asset(
               'assets/images/navbar/Quran_Kareem.svg',
@@ -278,30 +278,28 @@ class _TranslatedQuranScreenState extends State<TranslatedQuranScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.translate_rounded, size: 16,
+                Icon(Icons.article_outlined, size: 18,
                     color: !useImage ? Colors.white : unsel),
-                ClipRect(
-                  child: AnimatedAlign(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: _showFrLabel ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeInOut,
-                    child: AnimatedOpacity(
-                      opacity: _showFrLabel ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 180),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: Text(
-                          'Coran FR',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: !useImage ? Colors.white : unsel,
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeInOut,
+                  child: _showFrLabel
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: AnimatedOpacity(
+                            opacity: 1.0,
+                            duration: const Duration(milliseconds: 180),
+                            child: Text(
+                              'Coran FR',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: !useImage ? Colors.white : unsel,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
-                  ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
@@ -658,8 +656,6 @@ class _SurahTabState extends State<_SurahTab> {
   double _lastScrollOffset = 0;
   int? _lastPage;
 
-  static const _kLastPage = 'tqs_last_page';
-
   @override
   void initState() {
     super.initState();
@@ -675,9 +671,9 @@ class _SurahTabState extends State<_SurahTab> {
   }
 
   Future<void> _loadLastPage() async {
-    final p = await SharedPreferences.getInstance();
+    final pos = await LastReadingService.getLastReading();
     if (!mounted) return;
-    setState(() => _lastPage = p.getInt(_kLastPage));
+    setState(() => _lastPage = pos?.pageNumber);
   }
 
   void _onScroll() {
@@ -710,8 +706,6 @@ class _SurahTabState extends State<_SurahTab> {
   Future<void> _openSurah(BuildContext context, int surahId, {int initialAyah = 1, int? overridePage}) async {
     if (_imageReaderModeNotifier.value) {
       final int page = overridePage ?? _surahStartPages[surahId - 1];
-      setState(() => _lastPage = page);
-      SharedPreferences.getInstance().then((p) => p.setInt(_kLastPage, page));
       try {
         await QuranImageService.instance.getPageFile('hafs', page);
         if (!context.mounted) return;
@@ -719,12 +713,13 @@ class _SurahTabState extends State<_SurahTab> {
         if (file != null) await precacheImage(FileImage(file), context);
         if (!context.mounted) return;
       } catch (_) {}
-      Navigator.push(context, MaterialPageRoute(
+      await Navigator.push(context, MaterialPageRoute(
         builder: (_) => ReaderScreen(
           initialPage: page,
           reading: 'hafs',
         ),
       ));
+      _loadLastPage();
     } else {
       final nameFr = surahFr[surahId] ?? 'Sourate $surahId';
       final nameAr = TafsirService.surahNames[surahId - 1];
@@ -896,7 +891,7 @@ class _SurahTabState extends State<_SurahTab> {
             // ── Liste principale ────────────────────────────────────
             ListView.builder(
               controller: _scrollCtrl,
-              padding: EdgeInsets.only(top: hasBanner ? 46.0 : 0, bottom: 32),
+              padding: EdgeInsets.only(top: hasBanner ? 38.0 : 0, bottom: 32),
               itemCount: headerOffset + _items.length,
               itemBuilder: (context, index) {
 
@@ -1079,30 +1074,29 @@ class _SurahTabState extends State<_SurahTab> {
                 );
               },
             ),
-            // ── Bannière "Ma position" ──────────────────────────────
+            // ── Bannière "Continuer lecture" ────────────────────────
             if (hasBanner)
               Positioned(
                 top: 0, left: 0, right: 0,
                 child: GestureDetector(
                   onTap: () => _openSurah(context, 1, overridePage: _lastPage),
                   child: Container(
-                    margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-                    height: 34,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    margin: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+                    height: 28,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: gold.withValues(alpha: isDark ? 0.10 : 0.08),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: gold.withValues(alpha: 0.30), width: 0.8),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.bookmark_rounded, size: 12, color: gold),
-                        const SizedBox(width: 8),
+                        const Icon(Icons.bookmark_rounded, size: 11, color: gold),
+                        const SizedBox(width: 6),
                         Text(
-                          'Ma position',
+                          'Continuer lecture',
                           style: TextStyle(
                             color: isDark ? Colors.white70 : Colors.black54,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -1111,7 +1105,7 @@ class _SurahTabState extends State<_SurahTab> {
                           'Page $_lastPage',
                           style: const TextStyle(
                             color: gold,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
