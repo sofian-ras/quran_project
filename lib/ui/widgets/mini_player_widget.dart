@@ -138,36 +138,59 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
   }
 
   Widget _prepOnly({required Key key, required double prep, required MiniPlayerService svc}) {
+    const gold = Color(0xFFD4A855);
     return Column(
       key: key,
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: prep,
-                  minHeight: 4,
-                  backgroundColor: Colors.white.withValues(alpha: 0.15),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white70),
+            const Icon(Icons.downloading_rounded, color: Colors.white70, size: 14),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Text(
+                'Téléchargement…',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              '${(prep * 100).round()}%',
+              style: const TextStyle(
+                color: gold,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(width: 8),
-            Text('${(prep * 100).round()}%',
-                style: const TextStyle(color: Colors.white60, fontSize: 11)),
-            const SizedBox(width: 6),
             GestureDetector(
               onTap: svc.cancelPrep,
-              child: const Icon(Icons.close_rounded, color: Colors.white38, size: 16),
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        const Text('Préparation de la lecture…',
-            style: TextStyle(color: Colors.white38, fontSize: 10)),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: prep > 0 ? prep : null,
+            minHeight: 8,
+            backgroundColor: Colors.white.withValues(alpha: 0.15),
+            valueColor: const AlwaysStoppedAnimation<Color>(gold),
+          ),
+        ),
       ],
     );
   }
@@ -363,7 +386,6 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
             _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
           ],
         ),
-        _prepBar(prep, svc),
         _unavailableMsg(svc),
       ],
     );
@@ -420,49 +442,6 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
           color: Colors.white,
           size: size * 0.62,
         ),
-      ),
-    );
-  }
-
-  // ── Barre de pré-téléchargement ───────────────────────────────────────────
-
-  Widget _prepBar(double? prep, MiniPlayerService svc) {
-    if (prep == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: LinearProgressIndicator(
-                    value: prep,
-                    minHeight: 3,
-                    backgroundColor: Colors.white.withValues(alpha: 0.15),
-                    valueColor:
-                        const AlwaysStoppedAnimation<Color>(Colors.white70),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('${(prep * 100).round()}%',
-                  style:
-                      const TextStyle(color: Colors.white60, fontSize: 11)),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: svc.cancelPrep,
-                child: const Icon(Icons.close_rounded,
-                    color: Colors.white38, size: 16),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          const Text('Préparation de la lecture…',
-              style: TextStyle(color: Colors.white38, fontSize: 10)),
-        ],
       ),
     );
   }

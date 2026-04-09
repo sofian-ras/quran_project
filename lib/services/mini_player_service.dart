@@ -31,6 +31,7 @@ import 'qul_audio/audio_download_manager.dart';
 import 'qul_audio/audio_playback_source.dart';
 import 'mp3quran/timed_surah_player.dart';
 import 'mp3quran/timed_surah_downloader.dart';
+import '../models/reciter_audio_source.dart';
 
 // ── Modèle récitateur (compatibilité UI) ─────────────────────────────────────
 
@@ -148,6 +149,8 @@ class MiniPlayerService {
   bool _isSeekBased = false;
   VoidCallback? _timedAyahListener;
   VoidCallback? _timedStateListener;
+  ValueNotifier<double>? _timedProgressNotifier;
+  VoidCallback?          _timedProgressListener;
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -219,13 +222,42 @@ class MiniPlayerService {
       isPlaying.value = tp.isPlayingNotifier.value;
       isLoading.value = tp.isBufferingNotifier.value ||
                         tp.isDownloadingNotifier.value;
+      // Sync barre de progression : visible pendant le download, masquée après
+      if (!tp.isDownloadingNotifier.value) {
+        if (prepProgress.value != null) prepProgress.value = null;
+      } else if (_timedProgressNotifier != null) {
+        prepProgress.value = _timedProgressNotifier!.value;
+      }
     };
     tp.isPlayingNotifier.addListener(_timedStateListener!);
     tp.isBufferingNotifier.addListener(_timedStateListener!);
     tp.isDownloadingNotifier.addListener(_timedStateListener!);
   }
 
+  void _attachTimedProgressListener(ReciterAudioSource source, int surah) {
+    if (_timedProgressListener != null && _timedProgressNotifier != null) {
+      _timedProgressNotifier!.removeListener(_timedProgressListener!);
+      _timedProgressListener = null;
+    }
+    _timedProgressNotifier =
+        TimedSurahDownloader.instance.progressNotifier(source, surah);
+    _timedProgressListener = () {
+      if (!_isSeekBased) return;
+      if (TimedSurahPlayer.instance.isDownloadingNotifier.value) {
+        prepProgress.value = _timedProgressNotifier!.value;
+      }
+    };
+    _timedProgressNotifier!.addListener(_timedProgressListener!);
+  }
+
   void _detachTimedListeners() {
+    // Détacher le listener de progression
+    if (_timedProgressListener != null && _timedProgressNotifier != null) {
+      _timedProgressNotifier!.removeListener(_timedProgressListener!);
+      _timedProgressListener = null;
+    }
+    _timedProgressNotifier = null;
+
     final tp = TimedSurahPlayer.instance;
     if (_timedAyahListener != null) {
       tp.currentAyahNotifier.removeListener(_timedAyahListener!);
@@ -323,6 +355,7 @@ class MiniPlayerService {
   }
 
   void _launchSeekBased(QulReciter reciter) {
+    _attachTimedProgressListener(reciter.timedSource!, _curSurah);
     TimedSurahPlayer.instance.play(
       reciter.timedSource!,
       _curSurah,
@@ -420,6 +453,18 @@ class MiniPlayerService {
 
   /// Annule le pré-téléchargement en cours et replie le mini lecteur.
   void cancelPrep() {
+    // Seek-based : annuler le téléchargement Dio + arrêter le player
+    if (_isSeekBased) {
+      final reciter = _qulReciter;
+      if (reciter?.timedSource != null) {
+        TimedSurahDownloader.instance.cancel(reciter!.timedSource!, _curSurah);
+      }
+      TimedSurahPlayer.instance.stop();
+      _isSeekBased = false;
+      _detachTimedListeners();
+      isLoading.value = false;
+    }
+    // QUL verset-par-verset : annuler les téléchargements Dio en vol
     ++_prepToken;
     _cancelPrepDownloads();
     prepProgress.value = null;

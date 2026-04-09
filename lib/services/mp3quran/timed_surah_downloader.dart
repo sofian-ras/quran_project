@@ -31,8 +31,9 @@ class TimedSurahDownloader {
   // ── Progrès ────────────────────────────────────────────────────────────────
 
   // Clé : "{localCacheId}/{surah:3}"
-  final Map<String, ValueNotifier<double>>         _progress = {};
-  final Map<String, TimedDownloadStatus>           _status   = {};
+  final Map<String, ValueNotifier<double>>         _progress      = {};
+  final Map<String, TimedDownloadStatus>           _status        = {};
+  final Map<String, CancelToken>                   _cancelTokens  = {};
 
   String _key(ReciterAudioSource source, int surah) =>
       '${source.localCacheId}/${surah.toString().padLeft(3, '0')}';
@@ -86,13 +87,16 @@ class TimedSurahDownloader {
 
     await Directory(p.dirname(path)).create(recursive: true);
 
-    final url = source.surahUrl(surah);
+    final url         = source.surahUrl(surah);
+    final cancelToken = CancelToken();
+    _cancelTokens[key] = cancelToken;
     debugPrint('TimedSurahDownloader: téléchargement $url → $path');
 
     try {
       await _dio.download(
         url,
         path,
+        cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
           if (total > 0) {
             progressNotifier(source, surah).value = received / total;
@@ -103,13 +107,32 @@ class TimedSurahDownloader {
       progressNotifier(source, surah).value = 1.0;
       debugPrint('TimedSurahDownloader: téléchargement terminé → $path');
       return path;
-    } catch (e) {
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) {
+        _status[key] = TimedDownloadStatus.notDownloaded;
+        progressNotifier(source, surah).value = 0.0;
+        try { if (await file.exists()) await file.delete(); } catch (_) {}
+        debugPrint('TimedSurahDownloader: annulé $key');
+        rethrow;
+      }
       _status[key] = TimedDownloadStatus.error;
-      // Nettoyer le fichier partiel
       if (await file.exists()) await file.delete();
       debugPrint('TimedSurahDownloader: erreur téléchargement — $e');
       rethrow;
+    } catch (e) {
+      _status[key] = TimedDownloadStatus.error;
+      if (await file.exists()) await file.delete();
+      debugPrint('TimedSurahDownloader: erreur inattendue — $e');
+      rethrow;
+    } finally {
+      _cancelTokens.remove(key);
     }
+  }
+
+  /// Annule le téléchargement en cours pour [source]/[surah] si actif.
+  void cancel(ReciterAudioSource source, int surah) {
+    final key = _key(source, surah);
+    _cancelTokens[key]?.cancel('Annulé par utilisateur');
   }
 
   /// Attend qu'un téléchargement en cours se termine.
