@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/audio_service.dart';
@@ -24,8 +26,12 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
 
   // true = Coran image (ReaderScreen), false = Coran FR (TranslatedQuranScreen)
   bool _useImageReader = true;
+  int?   _lastPage;
+  bool   _showFrLabel  = false;
+  Timer? _frLabelTimer;
 
   static const _kUseImageReader = 'quran_tab_use_image_reader';
+  static const _kLastPage       = 'quran_tab_last_page';
 
   Future<void> _loadReaderPreference() async {
     final prefs = await SharedPreferences.getInstance();
@@ -36,7 +42,17 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
   }
 
   Future<void> _setReaderPreference(bool value) async {
-    setState(() => _useImageReader = value);
+    HapticFeedback.lightImpact();
+    if (value) {
+      _frLabelTimer?.cancel();
+      setState(() { _useImageReader = true; _showFrLabel = false; });
+    } else {
+      setState(() { _useImageReader = false; _showFrLabel = true; });
+      _frLabelTimer?.cancel();
+      _frLabelTimer = Timer(const Duration(milliseconds: 1600), () {
+        if (mounted) setState(() => _showFrLabel = false);
+      });
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kUseImageReader, value);
   }
@@ -47,6 +63,13 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
     _surahListFuture = loadSurahList();
     _loadFavorites();
     _loadReaderPreference();
+    _loadLastPage();
+  }
+
+  Future<void> _loadLastPage() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _lastPage = prefs.getInt(_kLastPage));
   }
 
   Future<void> _loadFavorites() async {
@@ -57,6 +80,10 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
 
   Future<void> _openReader(int page) async {
     debugPrint('🔥🔥🔥 _openReader page=$page useImage=$_useImageReader');
+    // Mémoriser la dernière page consultée
+    setState(() => _lastPage = page);
+    SharedPreferences.getInstance().then((p) => p.setInt(_kLastPage, page));
+
     if (_useImageReader) {
       try {
         await QuranImageService.instance.getPageFile('hafs', page);
@@ -127,7 +154,7 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
               ),
             ),
           ),
-          // Option Coran FR
+          // Option Coran FR (icône + label animé au tap)
           GestureDetector(
             onTap: () => _setReaderPreference(false),
             child: AnimatedContainer(
@@ -138,13 +165,33 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
                 color: !_useImageReader ? green : Colors.transparent,
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Text(
-                'Coran FR',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: !_useImageReader ? Colors.white : unselText,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.translate_rounded, size: 16,
+                      color: !_useImageReader ? Colors.white : unselText),
+                  ClipRect(
+                    child: AnimatedAlign(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: _showFrLabel ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      child: AnimatedOpacity(
+                        opacity: _showFrLabel ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 180),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Text('Coran FR',
+                              style: TextStyle(fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: !_useImageReader
+                                      ? Colors.white
+                                      : unselText)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -155,6 +202,7 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
 
   @override
   void dispose() {
+    _frLabelTimer?.cancel();
     _favoriteIdsNotifier.dispose();
     super.dispose();
   }
@@ -208,6 +256,7 @@ class _QuranTabScreenState extends State<QuranTabScreen> {
           onOpenReader: _openReader,
           onPlaySurah: _playSurah,
           titleWidget: _buildToggle(isDark),
+          lastPage: _useImageReader ? _lastPage : null,
         );
       },
     );

@@ -14,6 +14,7 @@ class SurahListScreen extends StatelessWidget {
   final void Function(int page) onOpenReader;
   final void Function(Map<String, dynamic> s) onPlaySurah;
   final Widget? titleWidget;
+  final int?    lastPage;
 
   const SurahListScreen({
     super.key,
@@ -22,7 +23,43 @@ class SurahListScreen extends StatelessWidget {
     required this.onOpenReader,
     required this.onPlaySurah,
     this.titleWidget,
+    this.lastPage,
   });
+
+  Widget _positionBanner(BuildContext context, bool isDark) {
+    const gold = Color(0xFFD4AF37);
+    return GestureDetector(
+      onTap: () => onOpenReader(lastPage!),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: gold.withValues(alpha: isDark ? 0.10 : 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: gold.withValues(alpha: 0.30), width: 0.8),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.bookmark_rounded, size: 12, color: gold),
+            const SizedBox(width: 8),
+            Text('Ma position',
+                style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
+            const Spacer(),
+            Text('Page $lastPage',
+                style: const TextStyle(
+                    color: gold, fontSize: 12, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 6),
+            Icon(Icons.arrow_forward_ios_rounded,
+                size: 10, color: gold.withValues(alpha: 0.7)),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,74 +153,81 @@ class SurahListScreen extends StatelessWidget {
                       ),
               ),
               child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: isDark ? gold.withOpacity(0.15) : Colors.black12,
-                          width: 1,
+                child: Column(
+                  children: [
+                    if (lastPage != null) _positionBanner(context, isDark),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(16, lastPage != null ? 6 : 12, 16, 16),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: isDark ? gold.withValues(alpha: 0.15) : Colors.black12,
+                                width: 1,
+                              ),
+                            ),
+                            child: FutureBuilder<Map<int, dynamic>>(
+                              future: loadJuzMetadata(),
+                              builder: (context, snap) {
+                                final data = snap.data ?? _juzMetadataCache;
+                                final Map<int, List<(int, int)>> juzBySurah =
+                                    data != null ? _buildJuzBySurah(data) : {};
+
+                                return ListView.builder(
+                                  key: const PageStorageKey('surah_list_full'),
+                                  itemCount: surahList.length,
+                                  itemBuilder: (context, index) {
+                                    final s = surahList[index];
+                                    final int surahId = s['id'] as int;
+                                    final List<(int, int)> juzItems = juzBySurah[surahId] ?? [];
+
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _SurahPlayingTileWidget(
+                                          surahId: surahId,
+                                          childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
+                                            valueListenable: favoriteIdsNotifier,
+                                            builder: (context, favoriteIds, _) {
+                                              return SurahCard(
+                                                id: surahId,
+                                                page: s['page'] as int,
+                                                nameAr: s['nameAr'] as String,
+                                                nameFr: s['nameFr'] as String,
+                                                ayahCount: (s['ayahCount'] as int?) ?? 0,
+                                                isFavorite: favoriteIds.contains(surahId),
+                                                isPlaying: isPlaying,
+                                                onTap: () => onOpenReader(s['page'] as int),
+                                                onPlay: () => onPlaySurah(s),
+                                                onToggleFavorite: () async {
+                                                  await FavoritesService.instance.toggleFavorite(surahId);
+                                                  favoriteIdsNotifier.value =
+                                                      await FavoritesService.instance.getFavorites();
+                                                },
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        ...juzItems.map((item) => _JuzSubItemTile(
+                                          juzNumber: item.$1,
+                                          startPage: item.$2,
+                                          isDark: isDark,
+                                          onOpenReader: onOpenReader,
+                                        )),
+                                      ],
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
-                      child: FutureBuilder<Map<int, dynamic>>(
-                        future: loadJuzMetadata(),
-                        builder: (context, snap) {
-                          final data = snap.data ?? _juzMetadataCache;
-                          final Map<int, List<(int, int)>> juzBySurah =
-                              data != null ? _buildJuzBySurah(data) : {};
-
-                          return ListView.builder(
-                            key: const PageStorageKey('surah_list_full'),
-                            itemCount: surahList.length,
-                            itemBuilder: (context, index) {
-                              final s = surahList[index];
-                              final int surahId = s['id'] as int;
-                              final List<(int, int)> juzItems = juzBySurah[surahId] ?? [];
-
-                              return Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _SurahPlayingTileWidget(
-                                    surahId: surahId,
-                                    childBuilder: (isPlaying) => ValueListenableBuilder<Set<int>>(
-                                      valueListenable: favoriteIdsNotifier,
-                                      builder: (context, favoriteIds, _) {
-                                        return SurahCard(
-                                          id: surahId,
-                                          page: s['page'] as int,
-                                          nameAr: s['nameAr'] as String,
-                                          nameFr: s['nameFr'] as String,
-                                          ayahCount: (s['ayahCount'] as int?) ?? 0,
-                                          isFavorite: favoriteIds.contains(surahId),
-                                          isPlaying: isPlaying,
-                                          onTap: () => onOpenReader(s['page'] as int),
-                                          onPlay: () => onPlaySurah(s),
-                                          onToggleFavorite: () async {
-                                            await FavoritesService.instance.toggleFavorite(surahId);
-                                            favoriteIdsNotifier.value =
-                                                await FavoritesService.instance.getFavorites();
-                                          },
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  ...juzItems.map((item) => _JuzSubItemTile(
-                                    juzNumber: item.$1,
-                                    startPage: item.$2,
-                                    isDark: isDark,
-                                    onOpenReader: onOpenReader,
-                                  )),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -216,7 +260,11 @@ class SurahListScreen extends StatelessWidget {
                       ),
               ),
               child: SafeArea(
-                child: FutureBuilder<Map<int, dynamic>>(
+                child: Column(
+                  children: [
+                    if (lastPage != null) _positionBanner(context, isDark),
+                    Expanded(
+                      child: FutureBuilder<Map<int, dynamic>>(
                   future: loadJuzMetadata(),
                   builder: (context, snap) {
                     if (!snap.hasData) {
@@ -230,7 +278,7 @@ class SurahListScreen extends StatelessWidget {
 
                     return ListView.builder(
                       key: const PageStorageKey('juz_list_full'),
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      padding: EdgeInsets.fromLTRB(16, lastPage != null ? 6 : 12, 16, 16),
                       itemCount: 30,
                       itemBuilder: (context, i) {
                         final juzNumber = i + 1;
@@ -295,6 +343,9 @@ class SurahListScreen extends StatelessWidget {
                       },
                     );
                   },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
