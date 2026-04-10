@@ -107,6 +107,7 @@ Future<void> _checkFirstLaunch() async {
   @override
   void dispose() {
     _scrollCtrl.dispose();
+    _favoriteIdsNotifier.dispose();
     _dio.close(force: true);
     super.dispose();
   }
@@ -459,7 +460,7 @@ Future<void> _checkFirstLaunch() async {
       return Container(
         decoration: BoxDecoration(gradient: bgGradient),
         child: const Center(
-          child: CircularProgressIndicator(color: Color(0xFFFFFFFF)),
+          child: CircularProgressIndicator(),
         ),
       );
     }
@@ -508,7 +509,10 @@ Future<void> _checkFirstLaunch() async {
                         [
                           _HeaderWithEngagement(
                             audio: _audio,
-                            onContinue: () {},
+                            onContinue: () {
+                            final lastSurah = _audio.currentPlayingSurahIdNotifier.value ?? 1;
+                            _audio.loadPlaylistAndPlay(lastSurah);
+                          },
                             onLocationTap: _showLocationPicker,
                             prayerFuture: _prayerFuture,
                             activeIndexFromTimes: _activeIndexFromTimes,
@@ -559,7 +563,13 @@ Future<void> _checkFirstLaunch() async {
                             ],
                             onTap: (item) {
                               if (item.title == 'Apprendre l\'arabe') {
-                                // réservé pour "Apprendre l'arabe"
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Bientôt disponible'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                                return;
                               } else if (item.title == 'Tafsir Session') {
                                 Navigator.push(
                                   context,

@@ -1097,14 +1097,15 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
       final arRes = await _dio.get('https://api.alquran.cloud/v1/surah/$_surahNumber/quran-uthmani');
       final frRes = await _dio.get('https://quranenc.com/api/v1/translation/sura/french_hameedullah/$_surahNumber');
       
-      final arAyahs = (arRes.data['data']['ayahs'] as List);
-      final frData = (frRes.data['result'] as List);
-      
+      final arAyahs = (arRes.data?['data']?['ayahs'] as List?) ?? [];
+      final frData = (frRes.data?['result'] as List?) ?? [];
+
       if (arAyahs.isNotEmpty && frData.isNotEmpty) {
         _verseNumber = 1 + random.nextInt(arAyahs.length);
-        
+
         final arText = arAyahs[_verseNumber - 1]['text']?.toString() ?? '';
-        final frText = frData[_verseNumber - 1]['translation']?.toString() ?? '';
+        final frIdx = (_verseNumber - 1).clamp(0, frData.length - 1);
+        final frText = frData[frIdx]['translation']?.toString() ?? '';
         
         _arabicText = arText
             .replaceAll('\u200C', '')
