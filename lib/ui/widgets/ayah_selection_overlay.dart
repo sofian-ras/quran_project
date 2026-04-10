@@ -27,6 +27,9 @@ class AyahSelectionOverlay extends StatefulWidget {
   /// Appelé avec (surah, ayah, globalRect) sur long-press (verset ou -1 si vide).
   final void Function(int surah, int ayah, Rect? globalRect) onAyahLongPress;
 
+  /// Verset mis en évidence depuis la recherche — surbrillance cyan.
+  final String? searchHighlightKey;
+
   const AyahSelectionOverlay({
     super.key,
     required this.page,
@@ -39,6 +42,7 @@ class AyahSelectionOverlay extends StatefulWidget {
     this.selectionStartKey,
     this.selectionEndKey,
     this.noteAyahKeys = const {},
+    this.searchHighlightKey,
   });
 
   @override
@@ -57,6 +61,9 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
 
   /// Rects des versets avec note — gris léger.
   List<Rect> _noteRects = [];
+
+  /// Rects du verset trouvé par recherche — cyan.
+  List<Rect> _searchRects = [];
 
   /// Position du dernier onTapDown pour l'identifier dans onTap.
   Offset? _lastTapDownPos;
@@ -201,6 +208,25 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     if (mounted) setState(() => _noteRects = all);
   }
 
+  // ── Chargement des rects de résultat de recherche ────────────────────────
+
+  Future<void> _loadSearchRects() async {
+    final key = widget.searchHighlightKey;
+    if (key == null) {
+      if (mounted) setState(() => _searchRects = []);
+      return;
+    }
+    final parts = key.split(':');
+    if (parts.length != 2) return;
+    final surah = int.tryParse(parts[0]);
+    final ayah  = int.tryParse(parts[1]);
+    if (surah == null || ayah == null) return;
+    final rects = await QuranPagesHitboxDb.instance.getAyahRects(
+      page: widget.page, surah: surah, ayah: ayah,
+    );
+    if (mounted) setState(() => _searchRects = rects);
+  }
+
   // ── Cycle de vie ─────────────────────────────────────────────────────────
 
   @override
@@ -209,6 +235,7 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
     _loadPlayingRects();
     _loadSelectionRects();
     _loadNoteRects();
+    _loadSearchRects();
   }
 
   @override
@@ -232,6 +259,9 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
       _loadNoteRects();
     }
 
+    if (widget.searchHighlightKey != oldWidget.searchHighlightKey) {
+      _loadSearchRects();
+    }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -273,6 +303,7 @@ class _AyahSelectionOverlayState extends State<AyahSelectionOverlay> {
           playingRects:   _playingRects,
           selectionRects: _selectionRects,
           noteRects:      _noteRects,
+          searchRects:    _searchRects,
         ),
       ),
     );
@@ -288,6 +319,7 @@ class _AyahHighlightPainter extends CustomPainter {
   final List<Rect> playingRects;   // verset en lecture — vert vif
   final List<Rect> selectionRects; // plage mini lecteur — vert léger
   final List<Rect> noteRects;      // versets notés — gris léger
+  final List<Rect> searchRects;    // résultat de recherche — cyan
 
   _AyahHighlightPainter({
     required this.displaySize,
@@ -296,6 +328,7 @@ class _AyahHighlightPainter extends CustomPainter {
     required this.playingRects,
     required this.selectionRects,
     this.noteRects = const [],
+    this.searchRects = const [],
   });
 
   List<Rect> _groupByLine(List<Rect> rects) {
@@ -349,11 +382,13 @@ class _AyahHighlightPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // 1. Versets notés (couche la plus basse) — gris très léger
     _drawRects(canvas, noteRects,      const Color(0x25909090));
-    // 2. Plage de sélection — vert très léger
+    // 2. Résultat de recherche — cyan
+    _drawRects(canvas, searchRects,    const Color(0x5500BCD4));
+    // 3. Plage de sélection — vert très léger
     _drawRects(canvas, selectionRects, const Color(0x3581C784));
-    // 3. Verset en lecture — même vert que la sélection long-press
+    // 4. Verset en lecture — même vert que la sélection long-press
     _drawRects(canvas, playingRects,   const Color(0x3581C784));
-    // 4. Verset sélectionné (bulle) — jaune
+    // 5. Verset sélectionné (bulle) — jaune
     _drawRects(canvas, wordRects,      const Color(0x55FFD54F));
   }
 
@@ -363,6 +398,7 @@ class _AyahHighlightPainter extends CustomPainter {
       old.playingRects   != playingRects   ||
       old.selectionRects != selectionRects ||
       old.noteRects      != noteRects      ||
+      old.searchRects    != searchRects    ||
       old.displaySize    != displaySize    ||
       old.imageSize      != imageSize;
 }

@@ -44,12 +44,14 @@ class QuranSearchOverlay extends StatefulWidget {
   final PageController pageController;
   final VoidCallback onClose;
   final Future<void> Function(int page)? onNavigateToPage;
+  final void Function(int page, int surah, int ayah)? onAyahNavigated;
 
   const QuranSearchOverlay({
     super.key,
     required this.pageController,
     required this.onClose,
     this.onNavigateToPage,
+    this.onAyahNavigated,
   });
 
   @override
@@ -86,6 +88,25 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
     if (surahNumber < 1 || surahNumber > 114) return '';
     return _surahArabicNames[surahNumber - 1];
   }
+
+  static String _normalizeArabic(String text) {
+    // Supprimer tashkeel et tatweel
+    var s = text.replaceAll(RegExp(r'[\u064B-\u065F\u0670\u0640]'), '');
+    // Normaliser variantes de alef → alef simple
+    s = s.replaceAll(RegExp(r'[أإآٱ]'), 'ا');
+    // Normaliser ya → ya sans points
+    s = s.replaceAll('ى', 'ي');
+    return s;
+  }
+
+  // Pré-calculé une seule fois — évite 6236 normalisations par frappe
+  static final List<String> _normalizedVerseContent = quranCleanPlain
+      .map((v) => _normalizeArabic(v['content'] as String))
+      .toList();
+
+  // Pré-calculé une seule fois — évite 114 normalisations par frappe
+  static final List<String> _normalizedSurahNames =
+      _surahArabicNames.map(_normalizeArabic).toList();
 
   static final Map<int, List<(int, int)>> _pageAyahsCache = {};
 
@@ -128,26 +149,36 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
   }
 
   Future<void> _performSearch(String query) async {
-    // 1. Sourates
+    final normalizedQuery = _normalizeArabic(query.trim());
+    final queryWords = normalizedQuery
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (queryWords.isEmpty) return;
+
+    // 1. Sourates — AND multi-mots (noms pré-normalisés)
     final List<Map<String, dynamic>> suraResults = [];
-    for (int i = 1; i <= 114; i++) {
-      final suraName = _getSurahArabicName(i);
-      if (suraName.contains(query)) {
+    for (int i = 0; i < 114; i++) {
+      final normalizedName = _normalizedSurahNames[i];
+      if (queryWords.every((w) => normalizedName.contains(w))) {
         suraResults.add({
           'type': 'surah',
-          'surah_number': i,
-          'surah_name': suraName,
+          'surah_number': i + 1,
+          'surah_name': _surahArabicNames[i],
         });
       }
     }
 
-    // 2. Versets arabes (en mémoire)
-    final arVerseResults = quranCleanPlain
-        .where((verse) => (verse['content'] as String).contains(query))
-        .map((v) => {...v, 'type': 'verse'})
-        .toList();
+    // 2. Versets arabes (en mémoire) — AND multi-mots (contenu pré-normalisé)
+    final arVerseResults = <Map<String, dynamic>>[];
+    for (int i = 0; i < quranCleanPlain.length; i++) {
+      final content = _normalizedVerseContent[i];
+      if (queryWords.every((w) => content.contains(w))) {
+        arVerseResults.add({...quranCleanPlain[i], 'type': 'verse'});
+      }
+    }
 
-    // 3. Versets français (SQLite, si pack installé)
+    // 3. Versets français (SQLite, si pack installé) — inchangé
     final frMatches = await QuranTextDb.instance.searchFr(query);
     final arKeys = arVerseResults
         .map((v) => '${v['surah_number']}:${v['verse_number']}')
@@ -399,6 +430,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                     } else {
                                       widget.pageController.jumpToPage(page - 1);
                                     }
+                                    widget.onAyahNavigated?.call(page, surah, ayah);
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(

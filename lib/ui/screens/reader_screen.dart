@@ -47,6 +47,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
   bool _isSearchOpen = false;
+  String? _searchHighlightKey;
   bool _isThemePicker = false;
   bool _optionsExpanded = false;
   bool _showArabicSurahName = false;
@@ -549,6 +550,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   setState(() {
                     currentPage = p + 1;
                     _selectedVerseKey = null;
+                    _searchHighlightKey = null;
                   });
                   _preloadPages(p + 1);
 
@@ -859,8 +861,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
               Positioned.fill(
                 child: QuranSearchOverlay(
                   pageController: _pageController,
-                  onClose: () => setState(() => _isSearchOpen = false),
+                  onClose: () => setState(() {
+                    _isSearchOpen = false;
+                    _searchHighlightKey = null;
+                  }),
                   onNavigateToPage: _navigateToPage,
+                  onAyahNavigated: (page, surah, ayah) {
+                    setState(() => _searchHighlightKey = '$surah:$ayah');
+                  },
                 ),
               ),
           ],
@@ -871,6 +879,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   // ── Tap simple ────────────────────────────────────────────────────────────
 
   void _onAyahTap(int surah, int ayah, Rect? globalRect) {
+    if (_searchHighlightKey != null) {
+      setState(() => _searchHighlightKey = null);
+    }
     // Double tap → tout effacer
     final now = DateTime.now();
     final isDouble = _lastTapTime != null &&
@@ -1171,10 +1182,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     selectedVerseKey: _selectedVerseKey,
                     onAyahTap: _onAyahTap,
                     onAyahLongPress: _onAyahLongPress,
-                    playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
-                    selectionStartKey: _selectionStartKey,
-                    selectionEndKey:   _selectionEndKey,
-                    noteAyahKeys:      _noteKeys,
+                    playingAyahKey:      MiniPlayerService.instance.currentAyahKey.value,
+                    selectionStartKey:   _selectionStartKey,
+                    selectionEndKey:     _selectionEndKey,
+                    noteAyahKeys:        _noteKeys,
+                    searchHighlightKey:  _searchHighlightKey,
                   ),
                 ),
                 // Numéro de page — bas droit (impaire) / bas gauche (paire)
@@ -1266,10 +1278,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   selectedVerseKey: _selectedVerseKey,
                   onAyahTap: _onAyahTap,
                   onAyahLongPress: _onAyahLongPress,
-                  playingAyahKey:    MiniPlayerService.instance.currentAyahKey.value,
-                  selectionStartKey: _selectionStartKey,
-                  selectionEndKey:   _selectionEndKey,
-                  noteAyahKeys:      _noteKeys,
+                  playingAyahKey:      MiniPlayerService.instance.currentAyahKey.value,
+                  selectionStartKey:   _selectionStartKey,
+                  selectionEndKey:     _selectionEndKey,
+                  noteAyahKeys:        _noteKeys,
+                  searchHighlightKey:  _searchHighlightKey,
                 ),
               ),
               // Numéro de page — coin bas droit (impaire) / bas gauche (paire)
