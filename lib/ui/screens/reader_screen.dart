@@ -27,11 +27,13 @@ import 'surah_list_screen.dart';
 class ReaderScreen extends StatefulWidget {
   final int initialPage;
   final String reading;
+  final bool openSearch;
 
   const ReaderScreen({
     super.key,
     this.initialPage = 1,
     this.reading = 'hafs',
+    this.openSearch = false,
   });
 
   @override
@@ -212,6 +214,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _initApp();
     _loadReaderTheme();
     _loadNoteKeys();
+
+    if (widget.openSearch) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _isSearchOpen = true);
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _preloadPages(widget.initialPage);
     });

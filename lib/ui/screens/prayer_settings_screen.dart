@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/location_service.dart';
 import '../widgets/location_picker_dialog.dart';
+import 'notification_settings_screen.dart';
 
 class PrayerSettingsScreen extends StatefulWidget {
   const PrayerSettingsScreen({super.key});
@@ -280,8 +281,8 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
           Card(
             child: SwitchListTile(
               secondary: const Icon(Icons.volume_up_rounded),
-              title: const Text('Activer l’adhan'),
-              subtitle: const Text('Lecture audio lors de l’heure de prière'),
+              title: const Text("Activer l'adhan"),
+              subtitle: const Text("Lecture audio lors de l'heure de prière"),
               value: _adhanEnabled,
               onChanged: (v) => _saveAdhanEnabled(v),
             ),
@@ -313,17 +314,24 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Indication (sans fonctionnalité encore)
           const Text(
-            'Notifications & audio (bientôt)',
+            'Notifications',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
-          const Card(
+          Card(
             child: ListTile(
-              leading: Icon(Icons.notifications_rounded),
-              title: Text('Notifications'),
-              subtitle: Text('On ajoutera les rappels et l’adhan en arrière-plan plus tard.'),
+              leading: const Icon(Icons.notifications_rounded,
+                  color: Color(0xFFF97316)),
+              title: const Text('Configurer les notifications'),
+              subtitle: const Text(
+                  'Rappels de prières et rappel de lecture quotidien'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const NotificationSettingsScreen(),
+                ),
+              ),
             ),
           ),
         ],

@@ -8,6 +8,7 @@ import '../../theme/theme_service.dart';
 import 'bookmarks_screen.dart';
 import 'downloads_screen.dart';
 import 'favorites_screen.dart';
+import 'notification_settings_screen.dart';
 import 'statistics_screen.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────────
@@ -264,6 +265,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ]),
+
+                    const SizedBox(height: 24),
+
+                    // ── Notifications ─────────────────────────────────────────
+                    _SectionHeader('Notifications', txtS),
+                    _Card(isDark: isDark, children: [
+                      _NavTile(
+                        icon: Icons.notifications_rounded,
+                        iconBg: const Color(0xFFF97316),
+                        title: 'Notifications',
+                        subtitle: 'Rappels de lecture et alertes de prière',
+                        isDark: isDark, txtP: txtP, txtS: txtS,
+                        onTap: () => _push(const NotificationSettingsScreen()),
                       ),
                     ]),
 

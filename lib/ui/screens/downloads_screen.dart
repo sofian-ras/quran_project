@@ -7,13 +7,26 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../services/download_service.dart';
+import '../../services/font_download_service.dart';
 import '../../services/quran_image_service.dart';
 import '../../services/qul_audio/audio_download_manager.dart' hide DownloadStatus;
 import '../../services/qul_audio/qul_catalog_service.dart';
+import '../../services/tafsir_service.dart';
 import '../../data/surah_name.dart';
 import '../../theme/app_theme.dart';
 
-// ── Data model ────────────────────────────────────────────────────────────────
+// ── Data models ───────────────────────────────────────────────────────────────
+
+class _TafsirEntry {
+  final String slug;
+  final String nameFr;
+  final int sizeBytes;
+  const _TafsirEntry({
+    required this.slug,
+    required this.nameFr,
+    required this.sizeBytes,
+  });
+}
 
 class _AudioEntry {
   final int surahId;
@@ -56,12 +69,21 @@ class _DownloadsScreenState extends State<DownloadsScreen>
   // Audio scan
   Future<Map<String, List<_AudioEntry>>>? _audioFuture;
 
+  // Tafsir scan
+  Future<List<_TafsirEntry>>? _tafsirFuture;
+
+  // Font cache
+  int _fontCacheBytes = 0;
+  int _fontFileCount  = 0;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _refreshQuranPagesState();
     _refreshAudio();
+    _refreshTafsir();
+    _refreshFontCache();
     _quranPollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
       final st = QuranImageService.instance.getDownloadStatus();
       final bool d = st['isDownloading'] == true;
@@ -136,6 +158,57 @@ class _DownloadsScreenState extends State<DownloadsScreen>
   // ── Audio scan ───────────────────────────────────────────────────────────────
 
   void _refreshAudio() => setState(() { _audioFuture = _scanAudioFiles(); });
+
+  void _refreshTafsir() => setState(() { _tafsirFuture = _scanTafsirFiles(); });
+
+  Future<List<_TafsirEntry>> _scanTafsirFiles() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final List<_TafsirEntry> result = [];
+    for (final book in TafsirService.catalog) {
+      final file = File(p.join(docs.path, book.dbFileName));
+      if (await file.exists()) {
+        final size = await file.length();
+        result.add(_TafsirEntry(
+          slug: book.slug,
+          nameFr: book.nameFr,
+          sizeBytes: size,
+        ));
+      }
+    }
+    return result;
+  }
+
+  Future<void> _deleteTafsirBook(String slug) async {
+    final docs = await getApplicationDocumentsDirectory();
+    final file = File(p.join(docs.path, 'tafsir_$slug.sqlite'));
+    if (await file.exists()) await file.delete();
+    _refreshTafsir();
+  }
+
+  Future<void> _refreshFontCache() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final fontDir = Directory(p.join(docs.path, 'fonts'));
+    int bytes = 0;
+    int count = 0;
+    if (await fontDir.exists()) {
+      await for (final f in fontDir.list()) {
+        if (f is File) {
+          bytes += await f.length();
+          count++;
+        }
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _fontCacheBytes = bytes;
+      _fontFileCount  = count;
+    });
+  }
+
+  Future<void> _clearFontCache() async {
+    await FontDownloadService.clearCache();
+    await _refreshFontCache();
+  }
 
   /// Scans quran_audio/ (mp3quran) + qul_audio/ (mushaf mini-player).
   /// quran_audio/001.mp3             → group 'default'
@@ -384,7 +457,11 @@ class _DownloadsScreenState extends State<DownloadsScreen>
             audioGroups.values.fold(0, (s, l) => s + l.length);
 
         return RefreshIndicator(
-          onRefresh: () async => _refreshAudio(),
+          onRefresh: () async {
+            _refreshAudio();
+            _refreshTafsir();
+            await _refreshFontCache();
+          },
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -421,6 +498,42 @@ class _DownloadsScreenState extends State<DownloadsScreen>
                     entries: e.value,
                   ),
                 ),
+
+              const SizedBox(height: 24),
+
+              // ── Tafsir ──────────────────────────────────────────
+              _buildSectionHeader(
+                icon: CupertinoIcons.book_fill,
+                title: 'Tafsir',
+                color: const Color(0xFF8B5E3C),
+              ),
+              const SizedBox(height: 10),
+              FutureBuilder<List<_TafsirEntry>>(
+                future: _tafsirFuture,
+                builder: (context, tafsirSnap) {
+                  if (tafsirSnap.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  return _buildTafsirCard(tafsirSnap.data ?? []);
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Polices arabiques ────────────────────────────────
+              _buildSectionHeader(
+                icon: CupertinoIcons.textformat_abc,
+                title: 'Polices arabiques',
+                count: _fontFileCount,
+                color: const Color(0xFF0D9488),
+              ),
+              const SizedBox(height: 10),
+              _buildFontCacheCard(),
+
+              const SizedBox(height: 16),
             ],
           ),
         );
@@ -452,6 +565,179 @@ class _DownloadsScreenState extends State<DownloadsScreen>
             style: TextStyle(fontSize: 13, color: Colors.grey[500]),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Tafsir card ──────────────────────────────────────────────────────────────
+
+  Widget _buildTafsirCard(List<_TafsirEntry> books) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (books.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+        decoration: _cardDecoration(isDark),
+        child: Column(
+          children: [
+            Icon(CupertinoIcons.book, size: 40, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text(
+              'Aucun tafsir téléchargé',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white60 : Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Ouvrez la bibliothèque Tafsir pour télécharger.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: _cardDecoration(isDark),
+      child: Column(
+        children: books.asMap().entries.map((entry) {
+          final i = entry.key;
+          final book = entry.value;
+          return Column(
+            children: [
+              if (i > 0)
+                Divider(
+                  height: 1,
+                  indent: 16,
+                  endIndent: 16,
+                  color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+                ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8B5E3C).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(CupertinoIcons.book_fill,
+                          color: Color(0xFF8B5E3C), size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            book.nameFr,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatSize(book.sizeBytes),
+                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(CupertinoIcons.trash, size: 18, color: Colors.red[400]),
+                      tooltip: 'Supprimer',
+                      onPressed: () => _deleteTafsirBook(book.slug),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ── Font cache card ───────────────────────────────────────────────────────────
+
+  Widget _buildFontCacheCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (_fontFileCount == 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+        decoration: _cardDecoration(isDark),
+        child: Column(
+          children: [
+            Icon(CupertinoIcons.textformat_abc, size: 40, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text(
+              'Aucune police téléchargée',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white60 : Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Les polices sont téléchargées automatiquement\nlors de la lecture.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: _cardDecoration(isDark),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(CupertinoIcons.textformat_abc,
+                  color: Color(0xFF0D9488), size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Polices QCF — $_fontFileCount fichier${_fontFileCount > 1 ? "s" : ""}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatSize(_fontCacheBytes),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: Icon(CupertinoIcons.trash, size: 18, color: Colors.red[400]),
+              tooltip: 'Vider le cache',
+              onPressed: _clearFontCache,
+            ),
+          ],
+        ),
       ),
     );
   }

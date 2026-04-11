@@ -23,7 +23,11 @@
       "WebFetch(domain:quran.com)",
       "Bash(python3 -c \":*)",
       "Bash(powershell -Command \"Invoke-RestMethod -Uri 'https://mp3quran.net/api/v3/radios' | ConvertTo-Json -Depth 3\")",
-      "Bash(powershell -Command ':*)"
+      "Bash(powershell -Command ':*)",
+      "Bash(grep -E '\\\\.\\(dart|json\\)$')",
+      "Bash(ls -la /c/Users/rasmi/Projects/quran_project/assets/data/reciters*.json)",
+      "Bash(grep -E \"\\\\.dart$\")",
+      "Bash(python3 -c ':*)"
     ],
     "additionalDirectories": [
       "\\tmp"

@@ -23,12 +23,14 @@ class _DribbbleHomeHeader extends StatelessWidget {
   final Future<PrayerHeaderData> prayerFuture;
   final int Function(List<(String, String)>) activeIndexFromTimes;
   final VoidCallback? onLocationTap;
+  final VoidCallback? onSearchTap;
 
   const _DribbbleHomeHeader({
     required this.prayerFuture,
     required this.activeIndexFromTimes,
     required this.pauseTicker,
     this.onLocationTap,
+    this.onSearchTap,
   });
 
   static const _gold = Color(0xFFD4AF37);
@@ -193,6 +195,10 @@ class _DribbbleHomeHeader extends StatelessWidget {
                               ),
                             ],
                           ),
+                        ),
+                        IconButton(
+                          onPressed: onSearchTap,
+                          icon: Icon(Icons.search_rounded, color: isDark ? Colors.white : Colors.black.withValues(alpha: 0.78)),
                         ),
                         _RadioIconButton(
                           onTap: () => RadioBrowserScreen.show(context),
@@ -436,8 +442,7 @@ class _HeaderWithEngagement extends StatelessWidget {
   final String Function(String name) getReciterAsset;
   final AudioService audio;
   final VoidCallback? onLocationTap;
-
-
+  final VoidCallback? onSearchTap;
 
 
 
@@ -452,6 +457,7 @@ class _HeaderWithEngagement extends StatelessWidget {
     required this.getReciterAsset,
     required this.pausePrayerTicker,
     this.onLocationTap,
+    this.onSearchTap,
   });
 
 
@@ -464,8 +470,9 @@ class _HeaderWithEngagement extends StatelessWidget {
         _DribbbleHomeHeader(
           prayerFuture: prayerFuture,
           activeIndexFromTimes: activeIndexFromTimes,
-          pauseTicker: pausePrayerTicker, // <-- AJOUT
+          pauseTicker: pausePrayerTicker,
           onLocationTap: onLocationTap,
+          onSearchTap: onSearchTap,
         ),
 
         const SizedBox(height: 12),

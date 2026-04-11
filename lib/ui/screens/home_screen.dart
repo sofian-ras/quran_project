@@ -27,6 +27,7 @@ import '../../services/location_service.dart';
 import 'prayers_screen.dart';
 import '../../services/mp3quran_api.dart';
 import 'radio_browser_screen.dart';
+import 'reader_screen.dart';
 part 'home_screen_widgets.dart';
 
 
@@ -514,13 +515,18 @@ Future<void> _checkFirstLaunch() async {
                             _audio.loadPlaylistAndPlay(lastSurah);
                           },
                             onLocationTap: _showLocationPicker,
+                            onSearchTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ReaderScreen(openSearch: true),
+                              ),
+                            ),
                             prayerFuture: _prayerFuture,
                             activeIndexFromTimes: _activeIndexFromTimes,
                             reciters: _reciters,
                             recitersLoading: _recitersLoading,
                             onReciterTap: _onReciterSelected,
                             getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
-                            pausePrayerTicker: _isUserScrolling, // <-- AJOUT
+                            pausePrayerTicker: _isUserScrolling,
                           ),
                           const SizedBox(height: vGap),
                           const _VerseOfTheDayCard(),
