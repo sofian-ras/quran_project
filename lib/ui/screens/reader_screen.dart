@@ -48,7 +48,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   List<Map<String, dynamic>> fullSurahList = [];
   bool _showUI = true;
-  bool _isSearchOpen = false;
+  late bool _isSearchOpen;
   String? _searchHighlightKey;
   bool _isThemePicker = false;
   bool _optionsExpanded = false;
@@ -211,15 +211,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageController = PageController(initialPage: startPage - 1);
     _pageController.addListener(_onPageScroll);
 
+    _isSearchOpen = widget.openSearch;
+
     _initApp();
     _loadReaderTheme();
     _loadNoteKeys();
 
-    if (widget.openSearch) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _isSearchOpen = true);
-      });
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _preloadPages(widget.initialPage);
     });

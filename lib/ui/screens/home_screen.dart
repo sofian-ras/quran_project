@@ -27,7 +27,7 @@ import '../../services/location_service.dart';
 import 'prayers_screen.dart';
 import '../../services/mp3quran_api.dart';
 import 'radio_browser_screen.dart';
-import 'quran_search_screen.dart';
+import 'reader_screen.dart';
 part 'home_screen_widgets.dart';
 
 
@@ -516,7 +516,9 @@ Future<void> _checkFirstLaunch() async {
                           },
                             onLocationTap: _showLocationPicker,
                             onSearchTap: () => Navigator.of(context).push(
-                              QuranSearchScreen.route(),
+                              MaterialPageRoute(
+                                builder: (_) => const ReaderScreen(openSearch: true),
+                              ),
                             ),
                             prayerFuture: _prayerFuture,
                             activeIndexFromTimes: _activeIndexFromTimes,
