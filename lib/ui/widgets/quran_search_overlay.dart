@@ -41,14 +41,14 @@ const List<String> _surahArabicNames = [
 ];
 
 class QuranSearchOverlay extends StatefulWidget {
-  final PageController pageController;
+  final PageController? pageController;
   final VoidCallback onClose;
   final Future<void> Function(int page)? onNavigateToPage;
   final void Function(int page, int surah, int ayah)? onAyahNavigated;
 
   const QuranSearchOverlay({
     super.key,
-    required this.pageController,
+    this.pageController,
     required this.onClose,
     this.onNavigateToPage,
     this.onAyahNavigated,
@@ -362,7 +362,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                 if (widget.onNavigateToPage != null) {
                                   await widget.onNavigateToPage!(page);
                                 } else {
-                                  widget.pageController.jumpToPage(page - 1);
+                                  widget.pageController?.jumpToPage(page - 1);
                                 }
                               },
                               child: Container(
@@ -428,7 +428,7 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                     if (widget.onNavigateToPage != null) {
                                       await widget.onNavigateToPage!(page);
                                     } else {
-                                      widget.pageController.jumpToPage(page - 1);
+                                      widget.pageController?.jumpToPage(page - 1);
                                     }
                                     widget.onAyahNavigated?.call(page, surah, ayah);
                                   },
