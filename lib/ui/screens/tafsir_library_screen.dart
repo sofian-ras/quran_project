@@ -34,11 +34,12 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
   }
 
   /// Écoute chaque ValueNotifier de progression pour rafraîchir l'UI.
+  /// Note: le progès en lui-même est géré par ValueListenableBuilder dans _BookCard
+  /// (pas de setState ici). On ne setState que quand le téléchargement se termine.
   void _setupListeners() {
     for (final book in TafsirService.catalog) {
       void listener() {
         if (!mounted) return;
-        setState(() {});
         // Quand le téléchargement se termine (null), vérifier si installé
         if (TafsirDownloadManager.instance.progressFor(book.slug).value == null) {
           TafsirService.isDownloaded(book).then((ok) {
@@ -60,7 +61,7 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
 
   void _startDownload(TafsirBook book) {
     TafsirDownloadManager.instance.start(book);
-    setState(() {}); // affiche immédiatement la barre de progression
+    // Pas de setState — ValueListenableBuilder dans _BookCard réagit au progressNotifier
   }
 
   void _cancelDownload(TafsirBook book) {
@@ -170,14 +171,14 @@ class _TafsirLibraryScreenState extends State<TafsirLibraryScreen> {
               itemBuilder: (ctx, i) {
                 final book = TafsirService.catalog[i];
                 return _BookCard(
-                  book:         book,
-                  dark:         dark,
-                  isDownloaded: _downloaded[book.slug] ?? false,
-                  progress:     TafsirDownloadManager.instance.progressFor(book.slug).value,
-                  onDownload:   () => _startDownload(book),
-                  onCancel:     () => _cancelDownload(book),
-                  onOpen:       () => _openBook(book),
-                  onDelete:     () => _deleteBook(book),
+                  book:             book,
+                  dark:             dark,
+                  isDownloaded:     _downloaded[book.slug] ?? false,
+                  progressNotifier: TafsirDownloadManager.instance.progressFor(book.slug),
+                  onDownload:       () => _startDownload(book),
+                  onCancel:         () => _cancelDownload(book),
+                  onOpen:           () => _openBook(book),
+                  onDelete:         () => _deleteBook(book),
                 );
               },
             ),
@@ -255,20 +256,20 @@ class _SectionTitle extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _BookCard extends StatelessWidget {
-  final TafsirBook book;
-  final bool       dark;
-  final bool       isDownloaded;
-  final double?    progress;
-  final VoidCallback onDownload;
-  final VoidCallback onCancel;
-  final VoidCallback onOpen;
-  final VoidCallback onDelete;
+  final TafsirBook                book;
+  final bool                      dark;
+  final bool                      isDownloaded;
+  final ValueNotifier<double?>    progressNotifier;
+  final VoidCallback              onDownload;
+  final VoidCallback              onCancel;
+  final VoidCallback              onOpen;
+  final VoidCallback              onDelete;
 
   const _BookCard({
     required this.book,
     required this.dark,
     required this.isDownloaded,
-    required this.progress,
+    required this.progressNotifier,
     required this.onDownload,
     required this.onCancel,
     required this.onOpen,
@@ -277,9 +278,6 @@ class _BookCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDownloading = progress != null;
-    // Parchment-style card: slightly darker than page background, subtle warm border
-    const cardBg      = Colors.transparent;
     final borderColor = dark
         ? Colors.white.withAlpha(12)
         : const Color(0xFFC8B89A).withAlpha(85);
@@ -287,101 +285,107 @@ class _BookCard extends StatelessWidget {
         ? Colors.black.withAlpha(60)
         : Colors.black.withAlpha(18);
 
-    return GestureDetector(
-      onTap:      isDownloaded ? onOpen : (isDownloading ? null : onDownload),
-      onLongPress: isDownloaded ? onDelete : null,
-      child: Container(
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor),
-          boxShadow: [
-            BoxShadow(
-              color:      shadowColor,
-              blurRadius: 8,
-              offset:     const Offset(0, 3),
+    // ValueListenableBuilder scopé à cette carte uniquement.
+    // Résultat : sur une mise à jour de progression, seul ce widget rebuild
+    // au lieu du GridView entier (comportement précédent avec setState((){})).
+    return ValueListenableBuilder<double?>(
+      valueListenable: progressNotifier,
+      builder: (context, progress, _) {
+        final isDownloading = progress != null;
+        return GestureDetector(
+          onTap:       isDownloaded ? onOpen : (isDownloading ? null : onDownload),
+          onLongPress: isDownloaded ? onDelete : null,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: borderColor),
+              boxShadow: [
+                BoxShadow(
+                  color:      shadowColor,
+                  blurRadius: 8,
+                  offset:     const Offset(0, 3),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Book cover image (≈ 60 % de la hauteur) ─────────────────────
-            Expanded(
-              flex: 6,
-              child: ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(17)),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-                  child: Image.asset(
-                    'assets/tafsir/${book.slug}.png',
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) =>
-                        _BookCoverPlaceholder(book: book),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Book cover image (≈ 60 % de la hauteur) ───────────────
+                Expanded(
+                  flex: 6,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(17)),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+                      child: Image.asset(
+                        'assets/tafsir/${book.slug}.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) =>
+                            _BookCoverPlaceholder(book: book),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-            // ── Info (≈ 40 % de la hauteur) ──────────────────────────────────
-            Expanded(
-              flex: 4,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 4, 10, 12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Titres
-                    Column(
+                // ── Info (≈ 40 % de la hauteur) ───────────────────────────
+                Expanded(
+                  flex: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 4, 10, 12),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          book.nameAr,
-                          textAlign: TextAlign.center,
-                          textDirection: TextDirection.rtl,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'UthmanTahaNaskh',
-                            fontSize:   20,
-                            color: dark
-                                ? const Color(0xFFE8D5B0)
-                                : const Color(0xFF4A3F30),
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                          ),
+                        Column(
+                          children: [
+                            Text(
+                              book.nameAr,
+                              textAlign: TextAlign.center,
+                              textDirection: TextDirection.rtl,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'UthmanTahaNaskh',
+                                fontSize:   20,
+                                color: dark
+                                    ? const Color(0xFFE8D5B0)
+                                    : const Color(0xFF4A3F30),
+                                fontWeight: FontWeight.w700,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              book.nameFr,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: dark
+                                    ? const Color(0xFF9B8060)
+                                    : const Color(0xFF8B7050),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          book.nameFr,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: dark
-                                ? const Color(0xFF9B8060)
-                                : const Color(0xFF8B7050),
-                          ),
+                        _StatusChip(
+                          isDownloaded:  isDownloaded,
+                          isDownloading: isDownloading,
+                          progress:      progress,
+                          dark:          dark,
+                          onCancel:      onCancel,
                         ),
                       ],
                     ),
-
-                    // Statut
-                    _StatusChip(
-                      isDownloaded:  isDownloaded,
-                      isDownloading: isDownloading,
-                      progress:      progress,
-                      dark:          dark,
-                      onCancel:      onCancel,
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

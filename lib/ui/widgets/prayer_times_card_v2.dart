@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 class PrayerTimesCardV2 extends StatelessWidget {
+  static final _starfieldPainter = _StarfieldPainter();
+
   final String nextPrayerName;
   final String nextPrayerTime;
   final Duration remaining;
@@ -74,8 +76,10 @@ class PrayerTimesCardV2 extends StatelessWidget {
                   // étoiles discrètes
                   Positioned.fill(
                     child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _StarfieldPainter(),
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _starfieldPainter,
+                        ),
                       ),
                     ),
                   ),

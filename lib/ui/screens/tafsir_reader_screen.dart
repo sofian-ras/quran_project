@@ -508,6 +508,8 @@ class _VersesList extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _VerseBlock extends StatelessWidget {
+  static final _cornerPainter = _VerseFrameCornerPainter();
+
   final TafsirVerse verse;
   final QVerse?     arabicVerse;
   final double      fontSize;
@@ -608,7 +610,9 @@ class _VerseBlock extends StatelessWidget {
                     ),
                   ),
                   Positioned.fill(
-                    child: CustomPaint(painter: _VerseFrameCornerPainter()),
+                    child: RepaintBoundary(
+                      child: CustomPaint(painter: _cornerPainter),
+                    ),
                   ),
                 ],
               ),
@@ -1585,6 +1589,8 @@ class _EmptyView extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _VerseIndicatorBox extends StatelessWidget {
+  static final _cornerPainter = _VerseFrameCornerPainter();
+
   final int          surah;
   final int          ayah;
   final String       verseKey;
@@ -1708,7 +1714,9 @@ class _VerseIndicatorBox extends StatelessWidget {
             ),
           ),
           Positioned.fill(
-            child: CustomPaint(painter: _VerseFrameCornerPainter()),
+            child: RepaintBoundary(
+              child: CustomPaint(painter: _cornerPainter),
+            ),
           ),
         ],
       ),
