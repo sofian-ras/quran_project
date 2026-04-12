@@ -60,7 +60,6 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
   final Map<String, List<_HomeMoshafServer>> _moshafByName = {};
   final Map<int, List<_HomeMoshafServer>> _moshafById = {}; // Ajout pour indexation par reciterId
-  bool _isLoading = true;
   final ValueNotifier<Set<int>> _favoriteIdsNotifier = ValueNotifier<Set<int>>(<int>{});
   List<Reciter> _reciters = [];
   bool _recitersLoading = true;
@@ -82,7 +81,6 @@ void initState() {
   _checkFirstLaunch();
   
   _prayerFuture = _loadPrayerHeader();
-  _loadSurahData();
   _loadFavorites();
   _loadReciters();
   _loadReciterServersIfNeeded();
@@ -113,16 +111,10 @@ Future<void> _checkFirstLaunch() async {
     super.dispose();
   }
 
-  Future<void> _loadSurahData() async {
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-  }
   Future<void> _loadFavorites() async {
     final favs = await FavoritesService.instance.getFavorites();
     if (!mounted) return;
-    setState(() {
-      _favoriteIdsNotifier.value = favs;
-    });
+    _favoriteIdsNotifier.value = favs;
   }
 
   Future<void> _loadReciters() async {
@@ -180,9 +172,7 @@ Future<void> _checkFirstLaunch() async {
     try {
       final baseUrls = await Mp3QuranApi.instance.preloadBaseUrls(reciterIds);
       if (!mounted) return;
-      setState(() {
-        _baseUrlById.addAll(baseUrls);
-      });
+      _baseUrlById.addAll(baseUrls);
     } catch (e) {
       debugPrint('Erreur lors du préchargement des baseUrl: $e');
     }
@@ -457,15 +447,6 @@ Future<void> _checkFirstLaunch() async {
       );
 
 
-    Widget loading() {
-      return Container(
-        decoration: BoxDecoration(gradient: bgGradient),
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
     Widget content() {
       return Container(
         decoration: BoxDecoration(gradient: bgGradient),
@@ -600,7 +581,7 @@ Future<void> _checkFirstLaunch() async {
   }
 
   return Scaffold(
-    body: _isLoading ? loading() : content(),
+    body: content(),
   );
  }
 }
