@@ -43,7 +43,7 @@ const List<String> _surahArabicNames = [
 class QuranSearchOverlay extends StatefulWidget {
   final PageController? pageController;
   final VoidCallback onClose;
-  final Future<void> Function(int page)? onNavigateToPage;
+  final Future<void> Function(int page, int? surah, int? ayah)? onNavigateToPage;
   final void Function(int page, int surah, int ayah)? onAyahNavigated;
 
   const QuranSearchOverlay({
@@ -358,10 +358,11 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
 
                             return InkWell(
                               onTap: () async {
-                                _closeSearch();
+                                _debounce?.cancel();
                                 if (widget.onNavigateToPage != null) {
-                                  await widget.onNavigateToPage!(page);
+                                  await widget.onNavigateToPage!(page, null, null);
                                 } else {
+                                  _closeSearch();
                                   widget.pageController?.jumpToPage(page - 1);
                                 }
                               },
@@ -424,13 +425,14 @@ class _QuranSearchOverlayState extends State<QuranSearchOverlay> {
                                 final fontReady = alreadyLoaded || snapshot.connectionState == ConnectionState.done;
                                 return InkWell(
                                   onTap: () async {
-                                    _closeSearch();
+                                    _debounce?.cancel();
                                     if (widget.onNavigateToPage != null) {
-                                      await widget.onNavigateToPage!(page);
+                                      await widget.onNavigateToPage!(page, surah, ayah);
                                     } else {
+                                      _closeSearch();
                                       widget.pageController?.jumpToPage(page - 1);
+                                      widget.onAyahNavigated?.call(page, surah, ayah);
                                     }
-                                    widget.onAyahNavigated?.call(page, surah, ayah);
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(

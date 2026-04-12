@@ -28,12 +28,14 @@ class ReaderScreen extends StatefulWidget {
   final int initialPage;
   final String reading;
   final bool openSearch;
+  final String? initialHighlightKey;
 
   const ReaderScreen({
     super.key,
     this.initialPage = 1,
     this.reading = 'hafs',
     this.openSearch = false,
+    this.initialHighlightKey,
   });
 
   @override
@@ -212,6 +214,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageController.addListener(_onPageScroll);
 
     _isSearchOpen = widget.openSearch;
+    _searchHighlightKey = widget.initialHighlightKey;
 
     _initApp();
     _loadReaderTheme();
@@ -261,7 +264,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   /// Downloads (if needed) and precaches [page] before jumping to it.
-  Future<void> _navigateToPage(int page) async {
+  Future<void> _navigateToPage(int page, [int? surah, int? ayah]) async {
     if (!mounted) return;
     File? file = QuranImageService.instance.getSyncCached(page);
     if (file == null) {
@@ -274,6 +277,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
       await precacheImage(FileImage(file), context);
     }
     if (!mounted) return;
+    if (surah != null && ayah != null) {
+      setState(() => _searchHighlightKey = '$surah:$ayah');
+    }
     _pageController.jumpToPage(page - 1);
   }
 
@@ -871,9 +877,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     _searchHighlightKey = null;
                   }),
                   onNavigateToPage: _navigateToPage,
-                  onAyahNavigated: (page, surah, ayah) {
-                    setState(() => _searchHighlightKey = '$surah:$ayah');
-                  },
                 ),
               ),
           ],
