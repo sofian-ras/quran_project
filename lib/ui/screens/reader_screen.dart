@@ -345,6 +345,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     MiniPlayerService.instance.currentAyahKey.removeListener(_onPlayingAyahChanged);
     _preloadDebounce?.cancel();
     _saveTimer?.cancel();
+    _saveToHistory(currentPage);
     _uiTimer?.cancel();
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
