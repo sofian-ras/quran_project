@@ -156,20 +156,18 @@ class _DribbbleHomeHeader extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (hijriLine.isNotEmpty) ...[
-                                Text(
-                                  hijriLine,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: accent,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.3,
-                                  ),
+                              Text(
+                                hijriLine,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.3,
                                 ),
-                                const SizedBox(height: 3),
-                              ],
+                              ),
+                              const SizedBox(height: 3),
                               GestureDetector(
                                 onTap: onLocationTap,
                                 child: Row(
@@ -273,18 +271,17 @@ class _DribbbleHomeHeader extends StatelessWidget {
                                   letterSpacing: -1.5,
                                 ),
                               ),
-                              if (remLabel.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    remLabel,
-                                    style: TextStyle(
-                                      color: textMuted,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  remLabel,
+                                  style: TextStyle(
+                                    color: textMuted,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
+                              ),
                             ],
                           ),
                         ),
