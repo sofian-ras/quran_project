@@ -30,7 +30,6 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
       final position = await LastReadingService.getLastReading();
 
       if (position != null) {
-        // Charger le nom de la sourate
         final jsonString = await rootBundle.loadString('assets/data/quran-metadata-juz.json');
         final data = jsonDecode(jsonString) as Map<String, dynamic>;
         final surahs = data['surahs'] as List;
@@ -47,46 +46,40 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
           _isLoading = false;
         });
       } else {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       debugPrint('Erreur chargement position: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _openPage(int page) async {
+    try {
+      await QuranImageService.instance.getPageFile('hafs', page);
+      if (!mounted) return;
+      final File? file = QuranImageService.instance.getSyncCached(page);
+      if (file != null) await precacheImage(FileImage(file), context);
+      if (!mounted) return;
+    } catch (_) {}
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReaderScreen(initialPage: page, reading: 'hafs'),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        try {
-          await QuranImageService.instance.getPageFile('hafs', _pageNumber);
-          if (!mounted) return;
-          final File? file = QuranImageService.instance.getSyncCached(_pageNumber);
-          if (file != null) await precacheImage(FileImage(file), context);
-          if (!mounted) return;
-        } catch (_) {}
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ReaderScreen(
-              initialPage: _pageNumber,
-              reading: 'hafs',
-            ),
-          ),
-        );
-      },
+    return SizedBox(
+      height: 100,
       child: Container(
-        margin: EdgeInsets.zero,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.18),
+              color: Colors.black.withValues(alpha:0.18),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -95,110 +88,164 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: Stack(
+            fit: StackFit.expand,
             children: [
-              // image de fond
-              Positioned.fill(
-                child: Image.asset(
-                  'assets/images/reprendre_lecture/reprendre_lecture.webp',
-                  fit: BoxFit.cover,
-                ),
+              // Image de fond full-width
+              Image.asset(
+                'assets/images/reprendre_lecture/reprendre_lecture.webp',
+                fit: BoxFit.cover,
               ),
 
-              // voile léger pour lisibilité (supprime si tu veux l'image "pure")
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.10),
-                          Colors.black.withOpacity(0.45),
-                        ],
-                      ),
+              // Overlay gauche — vert
+              ClipPath(
+                clipper: const _LeftSplitClipper(),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF0B3D1F).withValues(alpha:0.84),
+                        const Color(0xFF0F5A2A).withValues(alpha:0.84),
+                      ],
                     ),
                   ),
                 ),
               ),
 
-              // Contenu (sans logo / sans fond coloré)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Row(
-                  children: [
-                    // ✅ icône supprimée
+              // Overlay droite — navy
+              ClipPath(
+                clipper: const _RightSplitClipper(),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF0A1F4E).withValues(alpha:0.84),
+                        const Color(0xFF1A3678).withValues(alpha:0.84),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
-                    // Texte
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _position == null ? 'Commencer la lecture' : 'Reprendre la lecture',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            _surahName,
-                            style: const TextStyle(
+              // Contenu : deux zones tappables
+              Row(
+                children: [
+                  // — Gauche : Commencer la lecture
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _openPage(1),
+                      behavior: HitTestBehavior.opaque,
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.menu_book_rounded,
                               color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.3,
+                              size: 20,
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(5),
-                                ),
-                                child: Text(
-                                  'Page $_pageNumber',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                            SizedBox(height: 6),
+                            Text(
+                              'Commencer',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                               ),
-                              if (_position != null) ...[
-                                const SizedBox(width: 6),
-                                Text(
-                                  _position!.getRelativeTime(),
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.8),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
+                            ),
+                            Text(
+                              'la lecture',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                  ),
 
-                    // Flèche
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.white.withOpacity(0.8),
-                      size: 16,
+                  // — Droite : Reprendre la lecture
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _openPage(_pageNumber),
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Reprendre',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha:0.85),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _surahName,
+                              textAlign: TextAlign.right,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha:0.2),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    'Page $_pageNumber',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                if (_position != null) ...[
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _position!.getRelativeTime(),
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha:0.8),
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -206,4 +253,49 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
       ),
     );
   }
+}
+
+// Clippe la moitié gauche avec un bord droit diagonal légèrement courbe
+class _LeftSplitClipper extends CustomClipper<Path> {
+  const _LeftSplitClipper();
+
+  @override
+  Path getClip(Size size) {
+    final p = Path();
+    p.moveTo(0, 0);
+    p.lineTo(size.width * 0.58, 0);
+    p.quadraticBezierTo(
+      size.width * 0.52, size.height * 0.5,
+      size.width * 0.44, size.height,
+    );
+    p.lineTo(0, size.height);
+    p.close();
+    return p;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+// Clippe la moitié droite — inverse exact du gauche
+class _RightSplitClipper extends CustomClipper<Path> {
+  const _RightSplitClipper();
+
+  @override
+  Path getClip(Size size) {
+    final p = Path();
+    p.moveTo(size.width * 0.58, 0);
+    p.lineTo(size.width, 0);
+    p.lineTo(size.width, size.height);
+    p.lineTo(size.width * 0.44, size.height);
+    p.quadraticBezierTo(
+      size.width * 0.52, size.height * 0.5,
+      size.width * 0.58, 0,
+    );
+    p.close();
+    return p;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
