@@ -24,8 +24,6 @@ const _kTeal  = Color(0xFF0E6B63);
 const _kTeal2 = Color(0xFF0B4F4A);
 const _kGold  = Color(0xFFFFD37A);
 
-// Couleur unique pour toutes les prières actives : vert émeraude vif
-const _kActiveGreen = Color(0xFF22C55E);
 
 // ── Muezzins & URLs ──────────────────────────────────────────────────────────
 const _kMuezzins = <String, String>{
@@ -934,7 +932,7 @@ Widget _togglesColumn(Color color) => Column(
 
   @override
   Widget build(BuildContext context) {
-    const color  = _kActiveGreen;
+    const color  = _kTeal;
     final isDark = widget.isDark;
 
     // ── Carte : prière suivante ────────────────────────────────────────────
