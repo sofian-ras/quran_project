@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import '../../services/location_service.dart';
+import '../../services/notification_service.dart';
 import '../widgets/location_picker_dialog.dart';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -249,15 +250,24 @@ class _PrayersScreenState extends State<PrayersScreen> {
       final city    = loc.city.isNotEmpty    ? loc.city    : (prefs.getString(_prefCity)    ?? _defCity).trim();
       final country = loc.country.isNotEmpty ? loc.country : (prefs.getString(_prefCountry) ?? _defCountry).trim();
 
+      final times = {
+        'Fajr':    (timings['Fajr']    ?? '').toString(),
+        'Dhuhr':   (timings['Dhuhr']   ?? '').toString(),
+        'Asr':     (timings['Asr']     ?? '').toString(),
+        'Maghrib': (timings['Maghrib'] ?? '').toString(),
+        'Isha':    (timings['Isha']    ?? '').toString(),
+      };
+
+      // Persist horaires et re-planifier les notifications de prière si activées.
+      NotificationService.instance.savePrayerTimesCache(times).then((_) async {
+        if (await NotificationService.instance.arePrayersEnabled()) {
+          await NotificationService.instance.scheduleFromStringTimes(times);
+        }
+      });
+
       return _PrayersData(
         city: city, country: country, method: method, hijriLine: hijriLine,
-        times: {
-          'Fajr':    (timings['Fajr']    ?? '').toString(),
-          'Dhuhr':   (timings['Dhuhr']   ?? '').toString(),
-          'Asr':     (timings['Asr']     ?? '').toString(),
-          'Maghrib': (timings['Maghrib'] ?? '').toString(),
-          'Isha':    (timings['Isha']    ?? '').toString(),
-        },
+        times: times,
       );
     } catch (_) {
       final prefs = await SharedPreferences.getInstance();

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,10 +7,11 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 // ── Clés SharedPreferences ────────────────────────────────────────────────────
-const _kDailyEnabled  = 'notif_daily_enabled';
-const _kDailyHour     = 'notif_daily_hour';
-const _kDailyMinute   = 'notif_daily_minute';
+const _kDailyEnabled   = 'notif_daily_enabled';
+const _kDailyHour      = 'notif_daily_hour';
+const _kDailyMinute    = 'notif_daily_minute';
 const _kPrayersEnabled = 'notif_prayers_enabled';
+const _kPrayerCache    = 'notif_last_prayer_times'; // JSON Map<String,String> HH:mm
 
 // ── IDs de notification ───────────────────────────────────────────────────────
 const _kDailyId   = 1;
@@ -64,18 +67,19 @@ class NotificationService {
   // ── Rappel quotidien ──────────────────────────────────────────────────────
   Future<void> scheduleDailyReminder(TimeOfDay time) async {
     await init();
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      time.hour,
-      time.minute,
-    );
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
+    // Utiliser DateTime.now() (heure locale du device) pour éviter le décalage
+    // UTC : tz.TZDateTime(tz.local, ...) interprète l'heure en UTC si
+    // setLocalLocation() n'est pas appelé, ce qui décale la notification.
+    final now = DateTime.now();
+    var localScheduled = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    if (!localScheduled.isAfter(now)) {
+      localScheduled = localScheduled.add(const Duration(days: 1));
     }
+    // fromMillisecondsSinceEpoch préserve l'instant UTC exact.
+    final scheduled = tz.TZDateTime.fromMillisecondsSinceEpoch(
+      tz.local,
+      localScheduled.millisecondsSinceEpoch,
+    );
 
     await _plugin.zonedSchedule(
       _kDailyId,
@@ -168,5 +172,56 @@ class NotificationService {
   Future<bool> arePrayersEnabled() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_kPrayersEnabled) ?? false;
+  }
+
+  // ── Cache des horaires de prière ──────────────────────────────────────────
+  /// Persiste une map { "Fajr": "05:30", ... } pour un usage hors-ligne.
+  Future<void> savePrayerTimesCache(Map<String, String> times) async {
+    if (!Platform.isAndroid) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrayerCache, json.encode(times));
+  }
+
+  Future<Map<String, String>?> _loadPrayerTimesCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kPrayerCache);
+    if (raw == null) return null;
+    final decoded = json.decode(raw) as Map<String, dynamic>;
+    return decoded.map((k, v) => MapEntry(k, v.toString()));
+  }
+
+  // ── Planification depuis des horaires HH:mm (aujourd'hui + demain) ────────
+  /// Converts "HH:mm" strings to DateTimes for today AND tomorrow,
+  /// then schedules up to 10 one-shot notifications.
+  /// Returns false if times map is empty.
+  Future<bool> scheduleFromStringTimes(Map<String, String> times) async {
+    if (times.isEmpty) return false;
+    await init();
+    final now = DateTime.now();
+
+    final Map<String, DateTime> toSchedule = {};
+    for (final entry in times.entries) {
+      final parts = entry.value.split(':');
+      if (parts.length < 2) continue;
+      final h = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      if (h == null || m == null) continue;
+
+      var dt = DateTime(now.year, now.month, now.day, h, m);
+      if (!dt.isAfter(now)) dt = dt.add(const Duration(days: 1));
+      // If still within 24h window, also schedule the next occurrence (tomorrow)
+      toSchedule[entry.key] = dt;
+    }
+
+    await schedulePrayerNotifications(toSchedule);
+    return toSchedule.isNotEmpty;
+  }
+
+  /// Loads the cached prayer times and schedules notifications.
+  /// Returns false if no cache is available.
+  Future<bool> scheduleFromCache() async {
+    final cached = await _loadPrayerTimesCache();
+    if (cached == null || cached.isEmpty) return false;
+    return scheduleFromStringTimes(cached);
   }
 }

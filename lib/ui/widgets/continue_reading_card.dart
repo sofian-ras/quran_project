@@ -24,11 +24,19 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
   void initState() {
     super.initState();
     _loadData();
+    LastReadingService.changeNotifier.addListener(_loadData);
+  }
+
+  @override
+  void dispose() {
+    LastReadingService.changeNotifier.removeListener(_loadData);
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     try {
       final position = await LastReadingService.getLastReading();
+      if (!mounted) return;
 
       if (position != null) {
         final jsonString = await rootBundle.loadString('assets/data/quran-metadata-juz.json');
@@ -40,6 +48,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
           orElse: () => surahs.first,
         ) as Map<String, dynamic>;
 
+        if (!mounted) return;
         setState(() {
           _position = position;
           _surahName = surahData['nameFr'] as String;
@@ -51,6 +60,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
       }
     } catch (e) {
       debugPrint('Erreur chargement position: $e');
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
@@ -65,12 +75,13 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
       if (file != null) await precacheImage(FileImage(file), context);
       if (!mounted) return;
     } catch (_) {}
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ReaderScreen(initialPage: page, reading: 'hafs'),
       ),
     );
+    if (mounted) _loadData();
   }
 
   @override
@@ -136,7 +147,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
               // Contenu : deux zones tappables
               Row(
                 children: [
-                  // — Gauche : Commencer la lecture
+                  // — Gauche : Lecture aléatoire
                   Expanded(
                     child: GestureDetector(
                       onTap: _openRandomPage,
@@ -148,7 +159,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Commencer',
+                              'Lecture',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
@@ -156,7 +167,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                               ),
                             ),
                             Text(
-                              'la lecture',
+                              'aléatoire',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,

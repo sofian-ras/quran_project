@@ -406,7 +406,7 @@ class _SurahPlayingTileWidgetState extends State<_SurahPlayingTileWidget> {
 List<Map<String, dynamic>>? _surahListCache;
 
 /// Charge et parse quran_data.json une seule fois, puis retourne le cache.
-/// Utilisé par home_screen, quran_tab_screen et reader_screen.
+/// Utilisé par home_screen et reader_screen.
 Future<List<Map<String, dynamic>>> loadSurahList() async {
   if (_surahListCache != null) return _surahListCache!;
 

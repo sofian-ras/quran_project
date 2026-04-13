@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service pour sauvegarder et récupérer la dernière position de lecture du Coran
@@ -5,6 +6,9 @@ class LastReadingService {
   static const String _keyLastSurah = 'last_reading_surah';
   static const String _keyLastPage = 'last_reading_page';
   static const String _keyLastTimestamp = 'last_reading_timestamp';
+
+  /// S'incrémente à chaque sauvegarde — les widgets peuvent écouter ce notifier.
+  static final ValueNotifier<int> changeNotifier = ValueNotifier(0);
 
   /// Sauvegarde la dernière position de lecture
   static Future<void> saveLastReading({
@@ -17,6 +21,7 @@ class LastReadingService {
       prefs.setInt(_keyLastPage, pageNumber),
       prefs.setInt(_keyLastTimestamp, DateTime.now().millisecondsSinceEpoch),
     ]);
+    changeNotifier.value++;
   }
 
   /// Récupère la dernière position de lecture

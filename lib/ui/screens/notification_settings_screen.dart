@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../services/notification_service.dart';
 
 // ── Palette (cohérente avec settings_screen) ──────────────────────────────────
@@ -43,11 +45,20 @@ class _NotificationSettingsScreenState
   // ── Rappel quotidien ──────────────────────────────────────────────────────
   Future<void> _toggleDaily(bool value) async {
     if (value) {
+      if (!Platform.isAndroid) {
+        setState(() => _dailyEnabled = true);
+        return;
+      }
       final granted = await NotificationService.instance.requestPermission();
       if (!granted && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Permission de notifications refusée.')),
+          SnackBar(
+            content: const Text('Permission de notifications refusée.'),
+            action: SnackBarAction(
+              label: 'Paramètres',
+              onPressed: () => Geolocator.openAppSettings(),
+            ),
+          ),
         );
         return;
       }
@@ -78,18 +89,35 @@ class _NotificationSettingsScreenState
   // ── Prières ───────────────────────────────────────────────────────────────
   Future<void> _togglePrayers(bool value) async {
     if (value) {
+      if (!Platform.isAndroid) {
+        setState(() => _prayersEnabled = true);
+        return;
+      }
       final granted = await NotificationService.instance.requestPermission();
       if (!granted && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Permission de notifications refusée.')),
+          SnackBar(
+            content: const Text('Permission de notifications refusée.'),
+            action: SnackBarAction(
+              label: 'Paramètres',
+              onPressed: () => Geolocator.openAppSettings(),
+            ),
+          ),
         );
         return;
       }
-      // Les horaires sont calculés au prochain recalcul dans PrayerSettings.
-      // Pour l'instant on persiste juste la préférence — les notifications
-      // seront programmées lors du prochain chargement des horaires.
-      await NotificationService.instance.schedulePrayerNotifications({});
+      // Planifier depuis le cache (horaires du dernier fetch dans l'onglet Prières).
+      final scheduled = await NotificationService.instance.scheduleFromCache();
+      if (!scheduled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Ouvrez l\'onglet Prières pour charger les horaires, '
+              'puis revenez ici.',
+            ),
+          ),
+        );
+      }
     } else {
       await NotificationService.instance.cancelPrayerNotifications();
     }
