@@ -481,25 +481,21 @@ class _HeaderWithEngagement extends StatelessWidget {
 
         // Reciters
         _HomeCardShell(
-          child: recitersLoading
-              ? const SizedBox(
-                  height: 64,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : _RecitersSection(
-                  onSeeAll: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        fullscreenDialog: true,
-                        builder: (_) => const ReciterPickerScreen(),
-                      ),
-                    );
-                  },
-                  reciters: reciters,
-                  onReciterTap: onReciterTap,
-                  getAssetByName: getReciterAsset,
+          child: _RecitersSection(
+            onSeeAll: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => const ReciterPickerScreen(),
                 ),
+              );
+            },
+            reciters: reciters,
+            onReciterTap: onReciterTap,
+            getAssetByName: getReciterAsset,
+            isLoading: recitersLoading,
+          ),
         ),
       ],
     );
@@ -512,12 +508,14 @@ class _RecitersSection extends StatefulWidget {
   final List<Reciter> reciters;
   final void Function(Reciter) onReciterTap;
   final String Function(String name) getAssetByName;
+  final bool isLoading;
 
   const _RecitersSection({
     required this.onSeeAll,
     required this.reciters,
     required this.onReciterTap,
     required this.getAssetByName,
+    this.isLoading = false,
   });
 
   @override
@@ -601,7 +599,9 @@ class _RecitersSectionState extends State<_RecitersSection> {
           const SizedBox(height: 0),
           SizedBox(
             height: 64,
-            child: ListView.separated(
+            child: widget.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.separated(
               controller: _hCtrl,
               scrollDirection: Axis.horizontal,
               // Réduit les conflits “scroll vertical” vs “horizontal”
@@ -666,6 +666,7 @@ class _RecitersSectionState extends State<_RecitersSection> {
     );
   }
 }
+
 
 
 class _FeatureChipData {
