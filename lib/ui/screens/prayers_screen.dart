@@ -15,6 +15,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import '../../services/location_service.dart';
 import '../widgets/location_picker_dialog.dart';
 
@@ -47,6 +48,29 @@ const _kAdhanUrls = <String, String>{
   'Ghamadi':             'https://www.islamcan.com/audio/adhan/azan7.mp3',
 };
 
+const _kMethods = <String, String>{
+  '2':  'ISNA',
+  '3':  'Muslim World League',
+  '4':  'Umm al-Qura, Makkah',
+  '5':  'Egyptian Authority',
+  '8':  'Gulf Region',
+  '9':  'Kuwait',
+  '10': 'Qatar',
+  '11': 'Singapour (MUIS)',
+  '12': 'UOIF – France',
+  '13': 'Turkey (Diyanet)',
+  '14': 'Russie',
+  '15': 'Moon Sighting Committee',
+  '16': 'Dubai',
+  '17': 'Malaysia (JAKIM)',
+  '18': 'Tunisie',
+  '19': 'Algérie',
+  '20': 'Indonésie (KEMENAG)',
+  '21': 'Maroc',
+  '22': 'Portugal',
+  '23': 'Jordanie',
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PrayersScreen extends StatefulWidget {
@@ -65,14 +89,19 @@ class _PrayersScreenState extends State<PrayersScreen> {
   static const _defCountry  = 'France';
 
   late Future<_PrayersData> _future;
+  late final StreamController<DateTime> _clockCtrl;
+  late final Timer _clockTimer;
   late final Stream<DateTime> _clock;
   String _currentMethod = _defMethod;
 
   @override
   void initState() {
     super.initState();
-    _clock  = Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now())
-        .asBroadcastStream();
+    _clockCtrl  = StreamController<DateTime>.broadcast();
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _clockCtrl.add(DateTime.now());
+    });
+    _clock  = _clockCtrl.stream;
     _future = _loadPrayers();
     _loadMethod();
   }
@@ -82,6 +111,13 @@ class _PrayersScreenState extends State<PrayersScreen> {
     if (!mounted) return;
     final raw = (prefs.getString(_prefMethod) ?? _defMethod).trim();
     setState(() => _currentMethod = raw.isEmpty ? _defMethod : raw);
+  }
+
+  @override
+  void dispose() {
+    _clockTimer.cancel();
+    _clockCtrl.close();
+    super.dispose();
   }
 
   Future<void> _saveMethod(String id) async {
@@ -94,28 +130,6 @@ class _PrayersScreenState extends State<PrayersScreen> {
 
   void _showMethodSheet(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const methods = <Map<String, String>>[
-      {'id': '2',  'label': 'ISNA'},
-      {'id': '3',  'label': 'Muslim World League'},
-      {'id': '4',  'label': 'Umm al-Qura, Makkah'},
-      {'id': '5',  'label': 'Egyptian Authority'},
-      {'id': '8',  'label': 'Gulf Region'},
-      {'id': '9',  'label': 'Kuwait'},
-      {'id': '10', 'label': 'Qatar'},
-      {'id': '11', 'label': 'Singapour (MUIS)'},
-      {'id': '12', 'label': 'UOIF – France'},
-      {'id': '13', 'label': 'Turkey (Diyanet)'},
-      {'id': '14', 'label': 'Russie'},
-      {'id': '15', 'label': 'Moon Sighting Committee'},
-      {'id': '16', 'label': 'Dubai'},
-      {'id': '17', 'label': 'Malaysia (JAKIM)'},
-      {'id': '18', 'label': 'Tunisie'},
-      {'id': '19', 'label': 'Algérie'},
-      {'id': '20', 'label': 'Indonésie (KEMENAG)'},
-      {'id': '21', 'label': 'Maroc'},
-      {'id': '22', 'label': 'Portugal'},
-      {'id': '23', 'label': 'Jordanie'},
-    ];
     showModalBottomSheet(
       context: context,
       backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
@@ -141,8 +155,8 @@ class _PrayersScreenState extends State<PrayersScreen> {
               Expanded(
                 child: ListView(
                   controller: scroll,
-                  children: methods.map((m) {
-                    final sel = m['id'] == _currentMethod;
+                  children: _kMethods.entries.map((e) {
+                    final sel = e.key == _currentMethod;
                     return ListTile(
                       contentPadding: const EdgeInsets.fromLTRB(20, 2, 16, 2),
                       leading: AnimatedContainer(
@@ -160,14 +174,14 @@ class _PrayersScreenState extends State<PrayersScreen> {
                           size: 18,
                         ),
                       ),
-                      title: Text(m['label']!,
+                      title: Text(e.value,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                             color: sel ? _kTeal : txtP,
                           )),
                       onTap: () {
-                        _saveMethod(m['id']!);
+                        _saveMethod(e.key);
                         Navigator.pop(ctx);
                       },
                     );
@@ -293,31 +307,7 @@ class _PrayersScreenState extends State<PrayersScreen> {
     return '${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s';
   }
 
-  static String _methodLabel(String id) {
-    const labels = <String, String>{
-      '2':  'ISNA',
-      '3':  'Muslim World League',
-      '4':  'Umm al-Qura, Makkah',
-      '5':  'Egyptian Authority',
-      '8':  'Gulf Region',
-      '9':  'Kuwait',
-      '10': 'Qatar',
-      '11': 'Singapour (MUIS)',
-      '12': 'UOIF – France',
-      '13': 'Turkey (Diyanet)',
-      '14': 'Russie',
-      '15': 'Moon Sighting Committee',
-      '16': 'Dubai',
-      '17': 'Malaysia (JAKIM)',
-      '18': 'Tunisie',
-      '19': 'Algérie',
-      '20': 'Indonésie (KEMENAG)',
-      '21': 'Maroc',
-      '22': 'Portugal',
-      '23': 'Jordanie',
-    };
-    return labels[id] ?? 'Méthode $id';
-  }
+  static String _methodLabel(String id) => _kMethods[id] ?? 'Méthode $id';
 
   // ── Build ──────────────────────────────────────────────────────────────────
 
@@ -615,14 +605,7 @@ class _PrayerHeaderDelegate extends SliverPersistentHeaderDelegate {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
+                    const SizedBox(width: 48),
                     const Expanded(
                       child: Text(
                         'Horaires de prières',
@@ -751,11 +734,7 @@ class _PrayerHeaderDelegate extends SliverPersistentHeaderDelegate {
                 height: kToolbarHeight,
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white, size: 20),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
+                    const SizedBox(width: 48),
                     Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1158,6 +1137,7 @@ class _AdhanSectionState extends State<_AdhanSection> {
   final AudioPlayer _player = AudioPlayer();
   String? _playing;
   String? _downloading;
+  Timer? _autoStopTimer;
 
   /// Retourne le chemin local du fichier adhan (télécharge si absent du cache).
   Future<String> _getOrDownloadAdhan(String key) async {
@@ -1188,6 +1168,7 @@ class _AdhanSectionState extends State<_AdhanSection> {
 
   @override
   void dispose() {
+    _autoStopTimer?.cancel();
     _player.dispose();
     super.dispose();
   }
@@ -1398,6 +1379,7 @@ class _AdhanSectionState extends State<_AdhanSection> {
                       trailing: GestureDetector(
                         onTap: () async {
                           if (playing) {
+                            _autoStopTimer?.cancel();
                             await _player.stop();
                             setSheet(() => _playing = null);
                             if (mounted) setState(() => _playing = null);
@@ -1418,15 +1400,22 @@ class _AdhanSectionState extends State<_AdhanSection> {
                                   _playing = e.key;
                                 });
                               }
-                              await _player.setFilePath(path);
+                              await _player.setAudioSource(
+                                AudioSource.uri(
+                                  Uri.file(path),
+                                  tag: MediaItem(
+                                    id: 'adhan_${e.key}',
+                                    title: e.value,
+                                    artist: 'Adhan',
+                                  ),
+                                ),
+                              );
                               await _player.play();
                               // Auto-stop après 30 s
-                              Future.delayed(const Duration(seconds: 30), () {
+                              _autoStopTimer?.cancel();
+                              _autoStopTimer = Timer(const Duration(seconds: 30), () {
                                 _player.stop();
-                                if (mounted) {
-                                  setSheet(() => _playing = null);
-                                  setState(() => _playing = null);
-                                }
+                                if (mounted) setState(() => _playing = null);
                               });
                             } catch (err) {
                               setSheet(() {
@@ -1607,11 +1596,6 @@ class _NotifSectionState extends State<_NotifSection> {
                             subtitle: Text('5 minutes avant',
                                 style:
                                     TextStyle(fontSize: 12, color: txtS)),
-                            trailing: Icon(Icons.chevron_right_rounded,
-                                color: isDark
-                                    ? Colors.white30
-                                    : Colors.black26),
-                            onTap: () {},
                           ),
                         ],
                       )
