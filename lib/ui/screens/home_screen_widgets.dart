@@ -736,7 +736,8 @@ class _ExploreFeaturesSection extends StatelessWidget {
                 },
                 blendMode: BlendMode.dstIn,
                 child: ListView.separated(
-                  physics: const BouncingScrollPhysics(),
+                  physics: const ClampingScrollPhysics(),
+                  dragStartBehavior: DragStartBehavior.start,
                   scrollDirection: Axis.horizontal,
                   itemCount: features.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
