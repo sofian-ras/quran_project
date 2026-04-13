@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/last_reading_service.dart';
@@ -54,6 +55,8 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
     }
   }
 
+  Future<void> _openRandomPage() => _openPage(math.Random().nextInt(604) + 1);
+
   Future<void> _openPage(int page) async {
     try {
       await QuranImageService.instance.getPageFile('hafs', page);
@@ -105,8 +108,8 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF0B3D1F).withValues(alpha:0.84),
-                        const Color(0xFF0F5A2A).withValues(alpha:0.84),
+                        const Color(0xFF0B3D1F).withValues(alpha:0.55),
+                        const Color(0xFF0F5A2A).withValues(alpha:0.55),
                       ],
                     ),
                   ),
@@ -122,8 +125,8 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF0A1F4E).withValues(alpha:0.84),
-                        const Color(0xFF1A3678).withValues(alpha:0.84),
+                        const Color(0xFF0A1F4E).withValues(alpha:0.55),
+                        const Color(0xFF1A3678).withValues(alpha:0.55),
                       ],
                     ),
                   ),
@@ -136,7 +139,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                   // — Gauche : Commencer la lecture
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => _openPage(1),
+                      onTap: _openRandomPage,
                       behavior: HitTestBehavior.opaque,
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16),
@@ -144,12 +147,6 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.menu_book_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            SizedBox(height: 6),
                             Text(
                               'Commencer',
                               style: TextStyle(
