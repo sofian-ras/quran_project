@@ -1,9 +1,7 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../../services/last_reading_service.dart';
+import '../../services/reading_history_service.dart';
 import '../../services/quran_image_service.dart';
 import '../screens/reader_screen.dart';
 
@@ -15,61 +13,38 @@ class ContinueReadingCard extends StatefulWidget {
 }
 
 class _ContinueReadingCardState extends State<ContinueReadingCard> {
-  LastReadingPosition? _position;
-  String _surahName = 'Al-Fatiha';
-  int _pageNumber = 1;
-  bool _isLoading = true;
+  Map<String, dynamic>? _lastReading;
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    LastReadingService.changeNotifier.addListener(_loadData);
+    ReadingHistoryService.changeNotifier.addListener(_loadData);
   }
 
   @override
   void dispose() {
-    LastReadingService.changeNotifier.removeListener(_loadData);
+    ReadingHistoryService.changeNotifier.removeListener(_loadData);
     super.dispose();
   }
 
   Future<void> _loadData() async {
-    try {
-      final position = await LastReadingService.getLastReading();
-      if (!mounted) return;
-
-      if (position != null) {
-        final jsonString = await rootBundle.loadString('assets/data/quran-metadata-juz.json');
-        final data = jsonDecode(jsonString) as Map<String, dynamic>;
-        final surahs = data['surahs'] as List;
-
-        final surahData = surahs.firstWhere(
-          (s) => s['id'] == position.surahNumber,
-          orElse: () => surahs.first,
-        ) as Map<String, dynamic>;
-
-        if (!mounted) return;
-        setState(() {
-          _position = position;
-          _surahName = surahData['nameFr'] as String;
-          _pageNumber = position.pageNumber;
-          _isLoading = false;
-        });
-      } else {
-        setState(() => _isLoading = false);
-      }
-    } catch (e) {
-      debugPrint('Erreur chargement position: $e');
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    }
+    final data = await ReadingHistoryService.instance.getLastReading();
+    if (!mounted) return;
+    setState(() {
+      _lastReading = data;
+    });
   }
 
-  Future<void> _openRandomPage() => _openPage(math.Random().nextInt(604) + 1);
+  int get _pageNumber => (_lastReading?['page'] as int?) ?? 1;
+  String get _surahName => (_lastReading?['surahName'] as String?) ?? 'Al-Fatiha';
+  String get _reading => (_lastReading?['reading'] as String?) ?? 'hafs';
 
-  Future<void> _openPage(int page) async {
+  Future<void> _openRandomPage() => _openPage(math.Random().nextInt(604) + 1, 'hafs');
+
+  Future<void> _openPage(int page, String reading) async {
     try {
-      await QuranImageService.instance.getPageFile('hafs', page);
+      await QuranImageService.instance.getPageFile(reading, page);
       if (!mounted) return;
       final File? file = QuranImageService.instance.getSyncCached(page);
       if (file != null) await precacheImage(FileImage(file), context);
@@ -78,7 +53,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ReaderScreen(initialPage: page, reading: 'hafs'),
+        builder: (_) => ReaderScreen(initialPage: page, reading: reading),
       ),
     );
     if (mounted) _loadData();
@@ -93,7 +68,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha:0.18),
+              color: Colors.black.withValues(alpha: 0.18),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -119,8 +94,8 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF0B3D1F).withValues(alpha:0.55),
-                        const Color(0xFF0F5A2A).withValues(alpha:0.55),
+                        const Color(0xFF0B3D1F).withValues(alpha: 0.55),
+                        const Color(0xFF0F5A2A).withValues(alpha: 0.55),
                       ],
                     ),
                   ),
@@ -136,8 +111,8 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF0A1F4E).withValues(alpha:0.55),
-                        const Color(0xFF1A3678).withValues(alpha:0.55),
+                        const Color(0xFF0A1F4E).withValues(alpha: 0.55),
+                        const Color(0xFF1A3678).withValues(alpha: 0.55),
                       ],
                     ),
                   ),
@@ -184,7 +159,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                   // — Droite : Reprendre la lecture
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => _openPage(_pageNumber),
+                      onTap: () => _openPage(_pageNumber, _reading),
                       behavior: HitTestBehavior.opaque,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -195,7 +170,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                             Text(
                               'Reprendre',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha:0.85),
+                                color: Colors.white.withValues(alpha: 0.85),
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -223,7 +198,7 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha:0.2),
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(5),
                                   ),
                                   child: Text(
@@ -235,12 +210,12 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
                                     ),
                                   ),
                                 ),
-                                if (_position != null) ...[
+                                if (_lastReading != null) ...[
                                   const SizedBox(width: 6),
                                   Text(
-                                    _position!.getRelativeTime(),
+                                    _getRelativeTime(),
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha:0.8),
+                                      color: Colors.white.withValues(alpha: 0.8),
                                       fontSize: 9,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -260,6 +235,18 @@ class _ContinueReadingCardState extends State<ContinueReadingCard> {
         ),
       ),
     );
+  }
+
+  String _getRelativeTime() {
+    final ts = _lastReading?['timestamp'] as String?;
+    if (ts == null) return '';
+    final dt = DateTime.tryParse(ts);
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inDays > 0) return 'il y a ${diff.inDays}j';
+    if (diff.inHours > 0) return 'il y a ${diff.inHours}h';
+    if (diff.inMinutes > 0) return 'il y a ${diff.inMinutes}min';
+    return 'à l\'instant';
   }
 }
 

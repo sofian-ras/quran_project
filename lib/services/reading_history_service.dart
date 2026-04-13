@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 class ReadingHistoryService {
   static final ReadingHistoryService instance = ReadingHistoryService._();
   ReadingHistoryService._();
+
+  static final ValueNotifier<int> changeNotifier = ValueNotifier(0);
   
   static const String _lastReadingKey = 'last_reading';
   static const String _historyKey = 'reading_history';
@@ -38,6 +41,7 @@ class ReadingHistoryService {
     };
     await prefs.setString(_lastReadingKey, json.encode(data));
     await _addToHistory(data);
+    changeNotifier.value++;
   }
   
   // Récupérer la dernière lecture
