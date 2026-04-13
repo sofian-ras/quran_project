@@ -1,7 +1,18 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_service.dart';
+
+const _kMuezzins = <String, String>{
+  'AbdulBaset':          'Abdul Basit Abdul Samad',
+  'AbdulBaset_Mujawwad': 'Abdul Basit (Mujawwad)',
+  'Sudais':              'Abdurrahman As-Sudais',
+  'Alafasy':             'Mishary Rashid Alafasy',
+  'Husary':              'Mahmoud Khalil Al-Husary',
+  'Minshawi':            'Mohamed Siddiq El-Minshawi',
+  'Ghamadi':             'Saad Al-Ghamdi',
+};
 
 // ── Palette (cohérente avec settings_screen) ──────────────────────────────────
 const _kTeal  = Color(0xFF0E6B63);
@@ -17,10 +28,11 @@ class NotificationSettingsScreen extends StatefulWidget {
 
 class _NotificationSettingsScreenState
     extends State<NotificationSettingsScreen> {
-  bool _dailyEnabled  = false;
+  bool _dailyEnabled   = false;
   bool _prayersEnabled = false;
   TimeOfDay _dailyTime = const TimeOfDay(hour: 8, minute: 0);
-  bool _loading = true;
+  String _muezzin      = 'AbdulBaset';
+  bool _loading        = true;
 
   @override
   void initState() {
@@ -33,11 +45,14 @@ class _NotificationSettingsScreenState
     final dailyEnabled   = await NotificationService.instance.isDailyEnabled();
     final prayersEnabled = await NotificationService.instance.arePrayersEnabled();
     final dailyTime      = await NotificationService.instance.getDailyTime();
+    final prefs          = await SharedPreferences.getInstance();
+    final muezzin        = prefs.getString('prayer_muezzin') ?? 'AbdulBaset';
     if (!mounted) return;
     setState(() {
       _dailyEnabled   = dailyEnabled;
       _prayersEnabled = prayersEnabled;
       _dailyTime      = dailyTime;
+      _muezzin        = muezzin;
       _loading        = false;
     });
   }
@@ -106,6 +121,10 @@ class _NotificationSettingsScreenState
         );
         return;
       }
+      // Activer aussi l'adhan quand on active les alertes de prière.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('adhan_enabled', true);
+
       // Planifier depuis le cache (horaires du dernier fetch dans l'onglet Prières).
       final scheduled = await NotificationService.instance.scheduleFromCache();
       if (!scheduled && mounted) {
@@ -123,6 +142,25 @@ class _NotificationSettingsScreenState
     }
     if (!mounted) return;
     setState(() => _prayersEnabled = value);
+  }
+
+  // ── Muezzin ───────────────────────────────────────────────────────────────
+  Future<void> _pickMuezzin(
+      bool isDark, Color txtP, Color txtS, Color div) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MuezzinSheet(
+        current: _muezzin,
+        isDark: isDark,
+        txtP: txtP,
+        txtS: txtS,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('prayer_muezzin', selected);
+    setState(() => _muezzin = selected);
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -311,6 +349,48 @@ class _NotificationSettingsScreenState
 
                     if (_prayersEnabled) ...[
                       Divider(height: 1, indent: 60, color: div),
+
+                      // Sélecteur muezzin
+                      InkWell(
+                        onTap: () => _pickMuezzin(isDark, txtP, txtS, div),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          child: Row(
+                            children: [
+                              const _IconBox(
+                                  Icons.record_voice_over_rounded,
+                                  Color(0xFF0EA5E9)),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Muezzin',
+                                        style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                            color: txtP)),
+                                    Text(
+                                      _kMuezzins[_muezzin] ?? _muezzin,
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: _kTeal,
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_right_rounded,
+                                  color: isDark
+                                      ? Colors.white24
+                                      : Colors.black26,
+                                  size: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      Divider(height: 1, indent: 60, color: div),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                         child: Row(
@@ -424,4 +504,90 @@ class _IconBox extends StatelessWidget {
         ),
         child: Icon(icon, color: Colors.white, size: 18),
       );
+}
+
+// ── Sélecteur de muezzin ──────────────────────────────────────────────────────
+class _MuezzinSheet extends StatelessWidget {
+  final String current;
+  final bool isDark;
+  final Color txtP;
+  final Color txtS;
+
+  const _MuezzinSheet({
+    required this.current,
+    required this.isDark,
+    required this.txtP,
+    required this.txtS,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF111827) : const Color(0xFFF6F1EB);
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).padding.bottom + 8,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white24 : Colors.black12,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Choisir le muezzin',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: txtP,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._kMuezzins.entries.map((e) {
+            final isSelected = e.key == current;
+            return InkWell(
+              onTap: () => Navigator.pop(context, e.key),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        e.value,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: isSelected ? _kTeal : txtP,
+                        ),
+                      ),
+                    ),
+                    if (isSelected)
+                      const Icon(Icons.check_rounded,
+                          color: _kTeal, size: 20),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
 }
