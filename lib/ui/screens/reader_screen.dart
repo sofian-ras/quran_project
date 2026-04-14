@@ -757,6 +757,69 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
               ),
 
+            // ── Dropdown settings — landscape ───────────────────────────────
+            if (isLandscape)
+              Positioned(
+                bottom: viewPadding.bottom + 62,
+                right: viewPadding.right + 8,
+                child: IgnorePointer(
+                  ignoring: !(_showUI && _optionsExpanded),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: (_showUI && _optionsExpanded) ? 1.0 : 0.0,
+                    child: AnimatedScale(
+                      scale: _optionsExpanded ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      alignment: Alignment.bottomRight,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: _themeBg.withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: _themeIconColor.withValues(alpha: 0.15)),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                            child: _isThemePicker
+                                ? _themeCirclesDropdown()
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: _showThemePicker,
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(8),
+                                          child: Icon(_themeIcon, size: 20, color: _themeIconColor),
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          _showNotesListModal();
+                                          setState(() => _optionsExpanded = false);
+                                          _uiTimer?.cancel();
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(8),
+                                          child: Icon(
+                                            _noteKeys.isNotEmpty ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
+                                            size: 20,
+                                            color: _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
             // ── Nom sourate arabe SVG — UI cachée ──────────────────────────
             if (!isLandscape)
               Positioned(
@@ -794,18 +857,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOut,
-                top: _showUI ? (viewPadding.top + 4) : (viewPadding.top - 60),
-                left: 4,
+                top: _showUI ? (viewPadding.top + 8) : (viewPadding.top - 60),
+                left: viewPadding.left + 8,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 220),
                   opacity: _showUI ? 1.0 : 0.0,
                   child: IgnorePointer(
                     ignoring: !_showUI,
-                    child: Opacity(
-                      opacity: 0.6,
-                      child: IconButton(
-                        icon: Icon(Icons.arrow_back_ios, size: 20, color: _themeIconColor),
-                        onPressed: () => Navigator.pop(context),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _themeBg.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: _themeIconColor.withValues(alpha: 0.12)),
+                          ),
+                          child: IconButton(
+                            padding: const EdgeInsets.all(6),
+                            constraints: const BoxConstraints(),
+                            icon: Icon(Icons.arrow_back_ios_new, size: 20, color: _themeIconColor),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -853,13 +929,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   child: IgnorePointer(
                     ignoring: !_showUI,
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         _bottomBarLandscapeInfo(surahNameFr),
                         const SizedBox(width: 8),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 320),
-                          child: MiniPlayerWidget(currentSurah: currentSurah),
+                        Expanded(
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 320),
+                              child: MiniPlayerWidget(currentSurah: currentSurah),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         _landscapeThemeNotesPill(),
@@ -1103,18 +1182,25 @@ class _ReaderScreenState extends State<ReaderScreen> {
               IconButton(
                 padding: const EdgeInsets.all(6),
                 constraints: const BoxConstraints(),
-                icon: Icon(_themeIcon, size: 18, color: _themeIconColor),
-                onPressed: _showThemePicker,
+                icon: Opacity(
+                  opacity: 0.65,
+                  child: Icon(Icons.search_rounded, size: 18, color: _themeIconColor),
+                ),
+                onPressed: () => setState(() => _isSearchOpen = true),
               ),
               IconButton(
                 padding: const EdgeInsets.all(6),
                 constraints: const BoxConstraints(),
-                icon: Icon(
-                  _noteKeys.isNotEmpty ? Icons.sticky_note_2_rounded : Icons.sticky_note_2_outlined,
-                  size: 18,
-                  color: _noteKeys.isNotEmpty ? const Color(0xFFFF8F00) : _themeIconColor,
+                icon: AnimatedRotation(
+                  turns: _optionsExpanded ? 0.25 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  child: Icon(Icons.settings_outlined, size: 18, color: _themeIconColor),
                 ),
-                onPressed: _showNotesListModal,
+                onPressed: () {
+                  setState(() => _optionsExpanded = !_optionsExpanded);
+                  if (_optionsExpanded) _resetOptionsTimer();
+                },
               ),
             ],
           ),
