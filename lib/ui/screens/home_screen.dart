@@ -41,7 +41,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   final ScrollController _scrollCtrl = ScrollController();
   bool _statusBarGreen = false;
-  bool _isUserScrolling = false;
+  final ValueNotifier<bool> _isUserScrollingNotifier = ValueNotifier(false);
   bool? _lastStatusBarGreen;
   bool? _lastIsDark;
   static const double hPad = 14;
@@ -107,6 +107,7 @@ Future<void> _checkFirstLaunch() async {
   void dispose() {
     _scrollCtrl.dispose();
     _favoriteIdsNotifier.dispose();
+    _isUserScrollingNotifier.dispose();
     _dio.close(force: true);
     super.dispose();
   }
@@ -475,8 +476,8 @@ Future<void> _checkFirstLaunch() async {
               onNotification: (n) {
                 final scrolling =
                     n is UserScrollNotification && n.direction != ScrollDirection.idle;
-                if (scrolling != _isUserScrolling) {
-                  setState(() => _isUserScrolling = scrolling);
+                if (scrolling != _isUserScrollingNotifier.value) {
+                  _isUserScrollingNotifier.value = scrolling;
                 }
                 return false;
               },
@@ -489,23 +490,26 @@ Future<void> _checkFirstLaunch() async {
                     sliver: SliverList(
                       delegate: SliverChildListDelegate(
                         [
-                          _HeaderWithEngagement(
-                            audio: _audio,
-                            onContinue: () {
-                            final lastSurah = _audio.currentPlayingSurahIdNotifier.value ?? 1;
-                            _audio.loadPlaylistAndPlay(lastSurah);
-                          },
-                            onLocationTap: _showLocationPicker,
-                            onSearchTap: () => Navigator.of(context).push(
-                              QuranSearchScreen.route(),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: _isUserScrollingNotifier,
+                            builder: (_, paused, __) => _HeaderWithEngagement(
+                              audio: _audio,
+                              onContinue: () {
+                                final lastSurah = _audio.currentPlayingSurahIdNotifier.value ?? 1;
+                                _audio.loadPlaylistAndPlay(lastSurah);
+                              },
+                              onLocationTap: _showLocationPicker,
+                              onSearchTap: () => Navigator.of(context).push(
+                                QuranSearchScreen.route(),
+                              ),
+                              prayerFuture: _prayerFuture,
+                              activeIndexFromTimes: _activeIndexFromTimes,
+                              reciters: _reciters,
+                              recitersLoading: _recitersLoading,
+                              onReciterTap: _onReciterSelected,
+                              getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
+                              pausePrayerTicker: paused,
                             ),
-                            prayerFuture: _prayerFuture,
-                            activeIndexFromTimes: _activeIndexFromTimes,
-                            reciters: _reciters,
-                            recitersLoading: _recitersLoading,
-                            onReciterTap: _onReciterSelected,
-                            getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
-                            pausePrayerTicker: _isUserScrolling,
                           ),
                           const SizedBox(height: vGap),
                           const _VerseOfTheDayCard(),
