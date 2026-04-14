@@ -187,6 +187,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _uiTimer?.cancel();
     _uiTimer = Timer(const Duration(seconds: 5), () {
       if (!mounted) return;
+      if (_isThemePicker) return;
       setState(() => _optionsExpanded = false);
     });
   }
