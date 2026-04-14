@@ -27,7 +27,26 @@
       "Bash(grep -E '\\\\.\\(dart|json\\)$')",
       "Bash(ls -la /c/Users/rasmi/Projects/quran_project/assets/data/reciters*.json)",
       "Bash(grep -E \"\\\\.dart$\")",
-      "Bash(python3 -c ':*)"
+      "Bash(python3 -c ':*)",
+      "WebFetch(domain:aladhan.com)",
+      "WebFetch(domain:cdn.aladhan.com)",
+      "WebFetch(domain:praytimes.org)",
+      "Bash(curl -I \"https://praytimes.org/audio/sunni/Abdul-Basit-fajr.mp3\")",
+      "Bash(curl -I \"https://praytimes.org/audio/sunni/fajr/Abdul-Basit.mp3\")",
+      "Bash(curl -I \"https://praytimes.org/audio/sunni/Abdul-Basit_Fajr.mp3\")",
+      "WebSearch",
+      "Bash(curl -I \"https://archive.org/download/adhan_fajr_mansour_zahrani/adhan_fajr_mansour_zahrani.mp3\")",
+      "Bash(curl -sI \"https://praytimes.org/audio/sunni/Abdul-Basit-Fajr.mp3\")",
+      "Bash(curl -sI \"https://praytimes.org/audio/fajr/Abdul-Basit.mp3\")",
+      "Bash(curl -sI \"https://cdn.aladhan.com/audio/adhans/fajr/a1.mp3\")",
+      "Bash(curl -sI \"https://cdn.aladhan.com/audio/adhans/a1-fajr.mp3\")",
+      "Bash(curl -sI \"https://aladhan.com/download-adhans\")",
+      "Bash(curl -sI \"https://github.com/abodehq/Athan-MP3\")",
+      "Bash(curl -s \"https://api.github.com/repos/abodehq/Athan-MP3/contents/\")",
+      "Bash(curl -sL \"https://praytimes.org/audio/sunni/\")",
+      "Bash(curl -sL \"https://cdn.aladhan.com/audio/adhans/\")",
+      "Bash(curl -s \"https://api.github.com/repos/abodehq/Athan-MP3/contents/Sounds\")",
+      "Bash(curl -sI \"https://raw.githubusercontent.com/abodehq/Athan-MP3/master/Sounds/Abdul-Basit-Fajr.mp3\")"
     ],
     "additionalDirectories": [
       "\\tmp"

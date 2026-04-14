@@ -20,14 +20,14 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
   static const String _prefMethod = 'prayer_method';
 
   static const String _prefAdhanEnabled = 'adhan_enabled';
-  static const String _prefMuezzin = 'adhan_muezzin';
+  static const String _prefMuezzin = 'prayer_muezzin';
 
   static const String _defaultCity = 'Paris';
   static const String _defaultCountry = 'France';
   static const String _defaultMethod = '12';
 
   static const bool _defaultAdhanEnabled = false;
-  static const String _defaultMuezzin = 'Abdulbaset';
+  static const String _defaultMuezzin = 'AbdulBaset';
 
   String _city = _defaultCity;
   String _country = _defaultCountry;
@@ -59,12 +59,16 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
     {'id': '23', 'label': 'Jordanie'},
   ];
 
-  final List<String> _muezzins = const [
-    'Abdulbaset',
-    'Al-Sudais',
-    'Mishary Alafasy',
-    'Maher Al-Muaiqly',
-  ];
+  // key → display name (même liste que prayers_screen.dart)
+  static const Map<String, String> _muezzins = {
+    'AbdulBaset':          'Abdul Basit Abdul Samad',
+    'AbdulBaset_Mujawwad': 'Abdul Basit (Mujawwad)',
+    'Sudais':              'Abdurrahman As-Sudais',
+    'Alafasy':             'Mishary Rashid Alafasy',
+    'Husary':              'Mahmoud Khalil Al-Husary',
+    'Minshawi':            'Mohamed Siddiq El-Minshawi',
+    'Ghamadi':             'Saad Al-Ghamdi',
+  };
 
   @override
   void initState() {
@@ -99,7 +103,7 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
       _country = country;
       _method = method;
       _adhanEnabled = adhanEnabled;
-      _muezzin = _muezzins.contains(muezzin) ? muezzin : _defaultMuezzin;
+      _muezzin = _muezzins.containsKey(muezzin) ? muezzin : _defaultMuezzin;
     });
   }
 
@@ -292,14 +296,14 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
             child: ListTile(
               leading: const Icon(Icons.record_voice_over_rounded),
               title: const Text('Muezzin'),
-              subtitle: Text(_muezzin),
+              subtitle: Text(_muezzins[_muezzin] ?? _muezzin),
               trailing: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _muezzin,
-                  items: _muezzins
-                      .map((m) => DropdownMenuItem<String>(
-                            value: m,
-                            child: Text(m),
+                  items: _muezzins.entries
+                      .map((e) => DropdownMenuItem<String>(
+                            value: e.key,
+                            child: Text(e.value),
                           ))
                       .toList(),
                   onChanged: _adhanEnabled

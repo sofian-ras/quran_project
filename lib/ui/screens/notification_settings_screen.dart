@@ -1,6 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_service.dart';
 
@@ -507,7 +512,17 @@ class _IconBox extends StatelessWidget {
 }
 
 // ── Sélecteur de muezzin ──────────────────────────────────────────────────────
-class _MuezzinSheet extends StatelessWidget {
+const _kAdhanUrls = <String, String>{
+  'AbdulBaset':          'https://www.islamcan.com/audio/adhan/azan1.mp3',
+  'AbdulBaset_Mujawwad': 'https://www.islamcan.com/audio/adhan/azan2.mp3',
+  'Sudais':              'https://www.islamcan.com/audio/adhan/azan3.mp3',
+  'Alafasy':             'https://www.islamcan.com/audio/adhan/azan4.mp3',
+  'Husary':              'https://www.islamcan.com/audio/adhan/azan5.mp3',
+  'Minshawi':            'https://www.islamcan.com/audio/adhan/azan6.mp3',
+  'Ghamadi':             'https://www.islamcan.com/audio/adhan/azan7.mp3',
+};
+
+class _MuezzinSheet extends StatefulWidget {
   final String current;
   final bool isDark;
   final Color txtP;
@@ -521,23 +536,87 @@ class _MuezzinSheet extends StatelessWidget {
   });
 
   @override
+  State<_MuezzinSheet> createState() => _MuezzinSheetState();
+}
+
+class _MuezzinSheetState extends State<_MuezzinSheet> {
+  final AudioPlayer _player = AudioPlayer();
+  String? _playing;
+  String? _downloading;
+  Timer? _autoStopTimer;
+
+  @override
+  void dispose() {
+    _autoStopTimer?.cancel();
+    _player.stop();
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<String> _getOrDownloadAdhan(String key) async {
+    final dir  = await getApplicationCacheDirectory();
+    final file = File('${dir.path}/adhan_$key.mp3');
+    if (!await file.exists()) {
+      final res = await http.get(Uri.parse(_kAdhanUrls[key]!));
+      if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
+      await file.writeAsBytes(res.bodyBytes);
+    }
+    return file.path;
+  }
+
+  Future<void> _togglePreview(String key) async {
+    if (_playing == key) {
+      _autoStopTimer?.cancel();
+      await _player.stop();
+      setState(() { _playing = null; });
+      return;
+    }
+    setState(() { _downloading = key; });
+    try {
+      await _player.stop();
+      final path = await _getOrDownloadAdhan(key);
+      if (!mounted) return;
+      setState(() { _downloading = null; _playing = key; });
+      await _player.setAudioSource(
+        AudioSource.uri(
+          Uri.file(path),
+          tag: MediaItem(id: 'adhan_$key', title: _kMuezzins[key] ?? key, artist: 'Adhan'),
+        ),
+      );
+      await _player.play();
+      _autoStopTimer?.cancel();
+      _autoStopTimer = Timer(const Duration(seconds: 30), () {
+        _player.stop();
+        if (mounted) setState(() => _playing = null);
+      });
+    } catch (_) {
+      if (mounted) setState(() { _downloading = null; _playing = null; });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bg = isDark ? const Color(0xFF111827) : const Color(0xFFF6F1EB);
+    final isDark = widget.isDark;
+    final txtP   = widget.txtP;
+    final bg     = isDark ? const Color(0xFF111827) : const Color(0xFFF6F1EB);
+    final bottom = MediaQuery.of(context).padding.bottom;
+
     return Container(
       decoration: BoxDecoration(
         color: bg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).padding.bottom + 8,
+      // Hauteur max pour éviter l'overflow sur petits écrans
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Handle
           const SizedBox(height: 12),
           Container(
-            width: 36,
-            height: 4,
+            width: 36, height: 4,
             decoration: BoxDecoration(
               color: isDark ? Colors.white24 : Colors.black12,
               borderRadius: BorderRadius.circular(2),
@@ -546,46 +625,94 @@ class _MuezzinSheet extends StatelessWidget {
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              'Choisir le muezzin',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: txtP,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Choisir le muezzin',
+                style: TextStyle(
+                  fontSize: 17, fontWeight: FontWeight.w700, color: txtP,
+                ),
               ),
             ),
           ),
           const SizedBox(height: 8),
-          ..._kMuezzins.entries.map((e) {
-            final isSelected = e.key == current;
-            return InkWell(
-              onTap: () => Navigator.pop(context, e.key),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 14),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        e.value,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                          color: isSelected ? _kTeal : txtP,
+
+          // Liste scrollable
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: EdgeInsets.only(bottom: bottom + 8),
+              children: _kMuezzins.entries.map((e) {
+                final isSelected   = e.key == widget.current;
+                final isPlaying    = _playing == e.key;
+                final isDownloading = _downloading == e.key;
+                return InkWell(
+                  onTap: () => Navigator.pop(context, e.key),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            e.value,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                              color: isSelected ? _kTeal : txtP,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (isSelected)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 8),
+                            child: Icon(Icons.check_rounded,
+                                color: _kTeal, size: 18),
+                          ),
+                        // Bouton écoute
+                        GestureDetector(
+                          onTap: () => _togglePreview(e.key),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(
+                              color: isPlaying
+                                  ? _kTeal.withValues(alpha: 0.15)
+                                  : (isDark
+                                      ? Colors.white.withValues(alpha: 0.06)
+                                      : Colors.black.withValues(alpha: 0.04)),
+                              shape: BoxShape.circle,
+                            ),
+                            child: isDownloading
+                                ? Padding(
+                                    padding: const EdgeInsets.all(9),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: _kTeal,
+                                    ),
+                                  )
+                                : Icon(
+                                    isPlaying
+                                        ? Icons.stop_rounded
+                                        : Icons.play_arrow_rounded,
+                                    size: 20,
+                                    color: isPlaying
+                                        ? _kTeal
+                                        : (isDark
+                                            ? Colors.white54
+                                            : Colors.black45),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
-                    if (isSelected)
-                      const Icon(Icons.check_rounded,
-                          color: _kTeal, size: 20),
-                  ],
-                ),
-              ),
-            );
-          }),
-          const SizedBox(height: 8),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
         ],
       ),
     );
