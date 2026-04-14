@@ -638,13 +638,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             children: [
                               GestureDetector(
                                 onTap: () => Navigator.of(context).pop(),
-                                child: Icon(Icons.arrow_back_ios_new, size: 16, color: _themeIconColor),
+                                child: Icon(Icons.arrow_back_ios_new, size: 20, color: _themeIconColor),
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 surahNameFr,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: _themeIconColor,
                                   letterSpacing: 0.3,
@@ -658,7 +658,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           onTap: () => setState(() => _isSearchOpen = true),
                           child: Opacity(
                             opacity: 0.65,
-                            child: Icon(Icons.search_rounded, size: 22, color: _themeIconColor),
+                            child: Icon(Icons.search_rounded, size: 26, color: _themeIconColor),
                           ),
                         ),
                         // Juzz / Hizb + Settings — droite
@@ -669,7 +669,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             children: [
                               Text(
                                 '${_juzzText(currentPage)} ${_hizbText(currentPage)}',
-                                style: TextStyle(fontSize: 12, color: _themeIconColor, fontWeight: FontWeight.bold),
+                                style: TextStyle(fontSize: 14, color: _themeIconColor, fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(width: 8),
                               GestureDetector(
@@ -681,7 +681,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                   turns: _optionsExpanded ? 0.25 : 0.0,
                                   duration: const Duration(milliseconds: 300),
                                   curve: Curves.easeOut,
-                                  child: Icon(Icons.settings_outlined, size: 18, color: _themeIconColor),
+                                  child: Icon(Icons.settings_outlined, size: 22, color: _themeIconColor),
                                 ),
                               ),
                             ],
@@ -773,12 +773,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         children: [
                           SvgPicture.asset(
                             'assets/images/Translated_Quran/surah_svg/$currentSurah.svg',
-                            height: 22,
+                            height: 30,
                             colorFilter: ColorFilter.mode(_themeIconColor, BlendMode.srcIn),
                           ),
                           SvgPicture.asset(
                             'assets/images/Translated_Quran/surah_svg/0. surah.svg',
-                            height: 22,
+                            height: 30,
                             colorFilter: ColorFilter.mode(_themeIconColor, BlendMode.srcIn),
                           ),
                         ],
@@ -1252,16 +1252,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
         final imgAspect = imagePxSize.width / imagePxSize.height;
         final dispAspect = displaySize.width / effectiveH;
         double imgW, imgH, offsetX, offsetY;
+        const double kVerticalNudge = 20.0; // décale l'image vers le bas
         if (imgAspect > dispAspect) {
           imgW = displaySize.width;
           imgH = imgW / imgAspect;
           offsetX = 0;
-          offsetY = topInset + (effectiveH - imgH) / 2;
+          offsetY = topInset + (effectiveH - imgH) / 2 + kVerticalNudge;
         } else {
           imgH = effectiveH;
           imgW = imgH * imgAspect;
           offsetX = (displaySize.width - imgW) / 2;
-          offsetY = topInset;
+          offsetY = topInset + kVerticalNudge;
         }
 
         // Pas de SizedBox fixe — le Stack remplit les contraintes disponibles.
