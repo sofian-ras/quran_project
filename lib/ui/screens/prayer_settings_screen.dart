@@ -20,21 +20,17 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
   static const String _prefMethod = 'prayer_method';
 
   static const String _prefAdhanEnabled = 'adhan_enabled';
-  static const String _prefMuezzin = 'prayer_muezzin';
 
   static const String _defaultCity = 'Paris';
   static const String _defaultCountry = 'France';
   static const String _defaultMethod = '12';
 
   static const bool _defaultAdhanEnabled = false;
-  static const String _defaultMuezzin = 'AbdulBaset';
-
   String _city = _defaultCity;
   String _country = _defaultCountry;
   String _method = _defaultMethod;
 
   bool _adhanEnabled = _defaultAdhanEnabled;
-  String _muezzin = _defaultMuezzin;
 
   final List<Map<String, String>> _methods = const [
     {'id': '2',  'label': 'ISNA'},
@@ -58,17 +54,6 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
     {'id': '22', 'label': 'Portugal'},
     {'id': '23', 'label': 'Jordanie'},
   ];
-
-  // key → display name (même liste que prayers_screen.dart)
-  static const Map<String, String> _muezzins = {
-    'AbdulBaset':          'Abdul Basit Abdul Samad',
-    'AbdulBaset_Mujawwad': 'Abdul Basit (Mujawwad)',
-    'Sudais':              'Abdurrahman As-Sudais',
-    'Alafasy':             'Mishary Rashid Alafasy',
-    'Husary':              'Mahmoud Khalil Al-Husary',
-    'Minshawi':            'Mohamed Siddiq El-Minshawi',
-    'Ghamadi':             'Saad Al-Ghamdi',
-  };
 
   @override
   void initState() {
@@ -94,8 +79,6 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
     final method = methodRaw.isEmpty ? _defaultMethod : methodRaw;
 
     final adhanEnabled = prefs.getBool(_prefAdhanEnabled) ?? _defaultAdhanEnabled;
-    final muezzinRaw = (prefs.getString(_prefMuezzin) ?? _defaultMuezzin).trim();
-    final muezzin = muezzinRaw.isEmpty ? _defaultMuezzin : muezzinRaw;
 
     if (!mounted) return;
     setState(() {
@@ -103,7 +86,6 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
       _country = country;
       _method = method;
       _adhanEnabled = adhanEnabled;
-      _muezzin = _muezzins.containsKey(muezzin) ? muezzin : _defaultMuezzin;
     });
   }
 
@@ -119,13 +101,6 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
     await prefs.setBool(_prefAdhanEnabled, value);
     if (!mounted) return;
     setState(() => _adhanEnabled = value);
-  }
-
-  Future<void> _saveMuezzin(String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefMuezzin, value);
-    if (!mounted) return;
-    setState(() => _muezzin = value);
   }
 
   String _methodLabel(String id) {
@@ -289,31 +264,6 @@ class _PrayerSettingsScreenState extends State<PrayerSettingsScreen> {
               subtitle: const Text("Lecture audio lors de l'heure de prière"),
               value: _adhanEnabled,
               onChanged: (v) => _saveAdhanEnabled(v),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.record_voice_over_rounded),
-              title: const Text('Muezzin'),
-              subtitle: Text(_muezzins[_muezzin] ?? _muezzin),
-              trailing: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _muezzin,
-                  items: _muezzins.entries
-                      .map((e) => DropdownMenuItem<String>(
-                            value: e.key,
-                            child: Text(e.value),
-                          ))
-                      .toList(),
-                  onChanged: _adhanEnabled
-                      ? (v) {
-                          if (v == null) return;
-                          _saveMuezzin(v);
-                        }
-                      : null,
-                ),
-              ),
             ),
           ),
           const SizedBox(height: 16),

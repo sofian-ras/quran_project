@@ -1201,27 +1201,28 @@ class _AdhanSectionState extends State<_AdhanSection> {
 
         const SizedBox(height: 8),
 
-        // Sélecteur muezzin (ouvre la sheet combinée)
+        // Sélecteurs muezzin — chaque ligne ouvre sa propre sheet
         AnimatedOpacity(
           opacity: _adhanEnabled ? 1.0 : 0.45,
           duration: const Duration(milliseconds: 220),
-          child: GestureDetector(
-            onTap: _adhanEnabled ? () => _showMuezzinSheet(context) : null,
-            child: Container(
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
-                    blurRadius: 8, offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Ligne muezzin normal
-                  Padding(
+          child: Container(
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                  blurRadius: 8, offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Ligne muezzin normal
+                InkWell(
+                  onTap: _adhanEnabled ? () => _showMuezzinSheet(context, fajrOnly: false) : null,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     child: Row(
                       children: [
@@ -1261,10 +1262,14 @@ class _AdhanSectionState extends State<_AdhanSection> {
                       ],
                     ),
                   ),
-                  Divider(height: 1, indent: 70,
-                      color: isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.06)),
-                  // Ligne muezzin Fajr
-                  Padding(
+                ),
+                Divider(height: 1, indent: 70,
+                    color: isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.06)),
+                // Ligne muezzin Fajr
+                InkWell(
+                  onTap: _adhanEnabled ? () => _showMuezzinSheet(context, fajrOnly: true) : null,
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     child: Row(
                       children: [
@@ -1297,8 +1302,8 @@ class _AdhanSectionState extends State<_AdhanSection> {
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1306,7 +1311,7 @@ class _AdhanSectionState extends State<_AdhanSection> {
     );
   }
 
-  void _showMuezzinSheet(BuildContext context) {
+  void _showMuezzinSheet(BuildContext context, {required bool fajrOnly}) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: widget.isDark ? const Color(0xFF111827) : Colors.white,
@@ -1319,6 +1324,7 @@ class _AdhanSectionState extends State<_AdhanSection> {
         current:     _muezzin,
         currentFajr: _muezzinFajr,
         isDark:      widget.isDark,
+        fajrOnly:    fajrOnly,
       ),
     ).whenComplete(() {
       if (mounted) _load();
@@ -1332,11 +1338,13 @@ class _MuezzinSheet extends StatefulWidget {
   final String  current;
   final String? currentFajr;
   final bool    isDark;
+  final bool    fajrOnly;
 
   const _MuezzinSheet({
     required this.current,
     required this.currentFajr,
     required this.isDark,
+    this.fajrOnly = false,
   });
 
   @override
@@ -1496,68 +1504,61 @@ class _MuezzinSheetState extends State<_MuezzinSheet> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Text('Choisir un Muezzin',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: txtP)),
+            child: Text(
+              widget.fajrOnly ? 'Adhan du Fajr' : 'Choisir un muezzin',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: txtP),
+            ),
           ),
           Flexible(
             child: ListView(
               shrinkWrap: true,
               children: [
-                // ── Adhan normal ───────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-                  child: Text('ADHAN',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                          color: txtS, letterSpacing: 1.2)),
-                ),
-                ...kMuezzins.entries.map(
-                  (e) => _muezzinTile(e.key, e.value, e.key == _current, false),
-                ),
-                // ── Adhan Fajr ─────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-                  child: Text('ADHAN FAJR',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                          color: txtS, letterSpacing: 1.2)),
-                ),
-                // Option "Même que l'adhan normal"
-                ListTile(
-                  contentPadding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
-                  leading: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      color: _currentFajr == null
-                          ? _kTeal
-                          : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Icon(
-                      _currentFajr == null ? Icons.check_rounded : Icons.person_rounded,
-                      color: _currentFajr == null ? Colors.white : (isDark ? Colors.white38 : Colors.black38),
-                      size: 18,
-                    ),
+                if (!widget.fajrOnly) ...[
+                  // ── Adhan normal ─────────────────────────────────────────
+                  ...kMuezzins.entries.map(
+                    (e) => _muezzinTile(e.key, e.value, e.key == _current, false),
                   ),
-                  title: Text(
-                    'Même que l\'adhan normal',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: _currentFajr == null ? FontWeight.w700 : FontWeight.w500,
-                      color: _currentFajr == null ? _kTeal : txtP,
+                ] else ...[
+                  // ── Adhan Fajr uniquement ─────────────────────────────────
+                  // Option "Même que l'adhan normal"
+                  ListTile(
+                    contentPadding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
+                    leading: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 38, height: 38,
+                      decoration: BoxDecoration(
+                        color: _currentFajr == null
+                            ? _kTeal
+                            : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04)),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Icon(
+                        _currentFajr == null ? Icons.check_rounded : Icons.person_rounded,
+                        color: _currentFajr == null ? Colors.white : (isDark ? Colors.white38 : Colors.black38),
+                        size: 18,
+                      ),
                     ),
+                    title: Text(
+                      'Même que l\'adhan normal',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: _currentFajr == null ? FontWeight.w700 : FontWeight.w500,
+                        color: _currentFajr == null ? _kTeal : txtP,
+                      ),
+                    ),
+                    subtitle: _currentFajr == null
+                        ? Text('Sélectionné', style: TextStyle(fontSize: 11, color: txtS))
+                        : null,
+                    onTap: () {
+                      _player.stop();
+                      setState(() => _playing = null);
+                      _selectFajr(null);
+                    },
                   ),
-                  subtitle: _currentFajr == null
-                      ? Text('Sélectionné', style: TextStyle(fontSize: 11, color: txtS))
-                      : null,
-                  onTap: () {
-                    _player.stop();
-                    setState(() => _playing = null);
-                    _selectFajr(null);
-                  },
-                ),
-                ...kFajrMuezzins.entries.map(
-                  (e) => _muezzinTile(e.key, e.value, e.key == _currentFajr, true),
-                ),
+                  ...kFajrMuezzins.entries.map(
+                    (e) => _muezzinTile(e.key, e.value, e.key == _currentFajr, true),
+                  ),
+                ],
                 SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
               ],
             ),
