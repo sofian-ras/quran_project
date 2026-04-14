@@ -1027,6 +1027,13 @@ class _VerseOfTheDayCard extends StatefulWidget {
 }
 
 class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
+  // Cache statique : survit aux rebuilds du parent (scroll setState)
+  static String? _cachedDate;
+  static String? _cachedArabic;
+  static String? _cachedTranslation;
+  static int?    _cachedSurah;
+  static int?    _cachedVerse;
+
   String _arabicText = '';
   String _translationText = '';
   int _surahNumber = 1;
@@ -1047,9 +1054,23 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
   }
 
   Future<void> _loadRandomVerse() async {
+    // Vérifier le cache statique : si le verset du jour est déjà chargé, l'utiliser directement
+    final today = DateTime.now();
+    final todayKey = '${today.year}-${today.month}-${today.day}';
+    if (_cachedDate == todayKey && _cachedArabic != null) {
+      if (!mounted) return;
+      setState(() {
+        _arabicText      = _cachedArabic!;
+        _translationText = _cachedTranslation ?? '';
+        _surahNumber     = _cachedSurah ?? 1;
+        _verseNumber     = _cachedVerse ?? 1;
+        _isLoading       = false;
+      });
+      return;
+    }
+
     try {
       // Générer un verset aléatoire basé sur la date du jour
-      final today = DateTime.now();
       final seed = today.year * 10000 + today.month * 100 + today.day;
       final random = math.Random(seed);
       
@@ -1089,6 +1110,11 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
                   .replaceAll('\u200E', '')
                   .trim();
               _translationText = (row['fr'] as String?) ?? '';
+              _cachedDate        = todayKey;
+              _cachedArabic      = _arabicText;
+              _cachedTranslation = _translationText;
+              _cachedSurah       = _surahNumber;
+              _cachedVerse       = _verseNumber;
               if (!mounted) return;
               setState(() => _isLoading = false);
               return;
@@ -1123,6 +1149,11 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
         _translationText = frText.replaceAll(RegExp(r'<[^>]*>'), '').trim();
       }
 
+      _cachedDate        = todayKey;
+      _cachedArabic      = _arabicText;
+      _cachedTranslation = _translationText;
+      _cachedSurah       = _surahNumber;
+      _cachedVerse       = _verseNumber;
       if (!mounted) return;
       setState(() => _isLoading = false);
     } catch (e) {
@@ -1131,7 +1162,11 @@ class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
       _verseNumber = 286;
       _arabicText = 'لَا يُكَلِّفُ ٱللَّهُ نَفۡسًا إِلَّا وُسۡعَهَاۚ';
       _translationText = 'Allah n\'impose à aucune âme une charge supérieure à sa capacité.';
-      
+      _cachedDate        = todayKey;
+      _cachedArabic      = _arabicText;
+      _cachedTranslation = _translationText;
+      _cachedSurah       = _surahNumber;
+      _cachedVerse       = _verseNumber;
       if (!mounted) return;
       setState(() => _isLoading = false);
     }
