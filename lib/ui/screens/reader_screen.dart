@@ -579,7 +579,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ?? QuranImageService.instance.getSyncCached(pageNum);
                   if (cached != null) {
                     _imageCache[pageNum] = cached;
-                    return _buildPageContent(cached, isLandscape, pageNum, viewPadding.bottom);
+                    return _buildPageContent(cached, isLandscape, pageNum, viewPadding.bottom, viewPadding.top);
                   }
 
                   return FutureBuilder<File?>(
@@ -606,7 +606,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       }
 
                       _imageCache[pageNum] = file;
-                      return _buildPageContent(file, isLandscape, pageNum, viewPadding.bottom);
+                      return _buildPageContent(file, isLandscape, pageNum, viewPadding.bottom, viewPadding.top);
                     },
                   );
                 },
@@ -1156,7 +1156,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
 
-  Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum, double navBarHeight) {
+  Widget _buildPageContent(File imageFile, bool isLandscape, int pageNum, double navBarHeight, double topBarHeight) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Avec SystemUiMode.edgeToEdge, la fenêtre Flutter couvre toujours
@@ -1242,19 +1242,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
         }
 
         // Portrait : calcul de la zone réelle de l'image basé sur les dims physiques
+        // On réserve de l'espace pour l'entête et le mini-player (fix tablettes).
+        const double kHeaderReserve = 72.0; // hauteur entête sous la barre d'état
+        const double kPlayerReserve = 96.0; // hauteur mini-player au-dessus de la safe area
+        final topInset = topBarHeight + kHeaderReserve;
+        final botInset = navBarHeight + kPlayerReserve;
+        final effectiveH = displaySize.height - topInset - botInset;
+
         final imgAspect = imagePxSize.width / imagePxSize.height;
-        final dispAspect = displaySize.width / displaySize.height;
+        final dispAspect = displaySize.width / effectiveH;
         double imgW, imgH, offsetX, offsetY;
         if (imgAspect > dispAspect) {
           imgW = displaySize.width;
           imgH = imgW / imgAspect;
           offsetX = 0;
-          offsetY = (displaySize.height - imgH) / 2;
+          offsetY = topInset + (effectiveH - imgH) / 2;
         } else {
-          imgH = displaySize.height;
+          imgH = effectiveH;
           imgW = imgH * imgAspect;
           offsetX = (displaySize.width - imgW) / 2;
-          offsetY = 0;
+          offsetY = topInset;
         }
 
         // Pas de SizedBox fixe — le Stack remplit les contraintes disponibles.
