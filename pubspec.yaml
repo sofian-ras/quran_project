@@ -31,6 +31,7 @@ dependencies:
   url_launcher: ^6.2.0
   font_awesome_flutter: ^10.4.0
   flutter_svg: ^2.0.10
+  flutter_native_splash: ^2.4.3
   scrollable_positioned_list: ^0.3.8
   connectivity_plus: ^6.1.4
   flutter_local_notifications: ^18.0.0
@@ -41,6 +42,19 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0 # Version standard stable
+
+flutter_native_splash:
+  color: "#0A1A10"
+  image: assets/icon/logo_coran.png
+  color_dark: "#0A1A10"
+  image_dark: assets/icon/logo_coran.png
+  android_12:
+    image: assets/icon/logo_coran.png
+    icon_background_color: "#0A1A10"
+    image_dark: assets/icon/logo_coran.png
+    icon_background_color_dark: "#0A1A10"
+  web: false
+  ios: false
 
 # Configuration pour générer l'icône
 flutter_icons:

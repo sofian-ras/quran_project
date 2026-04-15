@@ -86,9 +86,18 @@ void initState() {
   _loadReciterServersIfNeeded();
 
   _scrollCtrl.addListener(() {
-    final shouldBeGreen = _scrollCtrl.offset > 4; // seuil
+    final shouldBeGreen = _scrollCtrl.offset > 4;
     if (shouldBeGreen == _statusBarGreen) return;
-    setState(() => _statusBarGreen = shouldBeGreen);
+    _statusBarGreen = shouldBeGreen;
+    _lastStatusBarGreen = shouldBeGreen; // sync so build() skips the redundant call
+    final isDark = _lastIsDark ?? false;
+    final color = isDark
+        ? Colors.transparent
+        : (shouldBeGreen ? const Color(0xFFF7EEDB) : Colors.transparent);
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: color,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    ));
   });
 
 }

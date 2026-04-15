@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-import 'ui/screens/bottom_nav_shell.dart';
+import 'ui/screens/splash_screen.dart';
 import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
@@ -14,8 +15,9 @@ import 'services/quran_translation_pack_service.dart';
 
 
 Future<void> main() async {
-  // Doit être le premier appel — requis avant tout channel platform.
-  WidgetsFlutterBinding.ensureInitialized();
+  // Preserve the native splash until Flutter signals it's ready.
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   // Inits bloquantes parallélisées : JustAudioBackground (lent) + ThemeService
   // (nécessaire avant runApp pour éviter le flash de thème).
@@ -116,7 +118,7 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: mode,
-          home: const BottomNavShell(),
+          home: const SplashScreen(),
           builder: (context, child) {
             return Material(
               color: Colors.transparent,
