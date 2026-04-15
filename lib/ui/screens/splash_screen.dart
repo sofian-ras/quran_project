@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -8,24 +9,43 @@ const _kBgCenter = Color(0xFF1A3528);
 const _kBgEdge   = Color(0xFF0A1A10);
 const _kGold     = Color(0xFFD4AF77);
 
-// 18 surahs spread across all 114 — covers variety of name lengths and shapes
-const _kSurahIndices = [1, 7, 12, 18, 23, 29, 36, 48, 55, 67, 78, 89, 93, 99, 103, 108, 112, 114];
+// Noms arabes des 18 sourates utilisées comme particules flottantes
+const _kSurahNames = {
+  1:   'الفاتحة',
+  7:   'الأعراف',
+  12:  'يوسف',
+  18:  'الكهف',
+  23:  'المؤمنون',
+  29:  'العنكبوت',
+  36:  'يس',
+  48:  'الفتح',
+  55:  'الرحمن',
+  67:  'الملك',
+  78:  'النبأ',
+  89:  'الفجر',
+  93:  'الضحى',
+  99:  'الزلزلة',
+  103: 'العصر',
+  108: 'الكوثر',
+  112: 'الإخلاص',
+  114: 'الناس',
+};
 
 // ── Particle config ──────────────────────────────────────────────────────────
 
 class _ParticleConfig {
   final int    surahIndex;
-  final double x;        // fraction of screen width  (top-left anchor)
-  final double y;        // fraction of screen height (top-left anchor)
-  final double size;     // SVG height in logical px
-  final double opacity;  // peak opacity 0.10–0.22
-  final int    delayMs;  // initial delay before first appearance
+  final double x;         // fraction of screen width  (top-left anchor)
+  final double y;         // fraction of screen height (top-left anchor)
+  final double fontSize;  // text size in logical px
+  final double opacity;   // peak opacity 0.10–0.22
+  final int    delayMs;   // initial delay before first appearance
 
   const _ParticleConfig({
     required this.surahIndex,
     required this.x,
     required this.y,
-    required this.size,
+    required this.fontSize,
     required this.opacity,
     required this.delayMs,
   });
@@ -42,9 +62,9 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double>   _logoFade;
-  late final Animation<double>   _logoReveal;
+  late final AnimationController  _ctrl;
+  late final Animation<double>    _logoFade;
+  late final Animation<double>    _logoReveal;
   late final List<_ParticleConfig> _particles;
 
   @override
@@ -59,7 +79,6 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1200),
     );
 
-    // Logo fades in during the first 25% of the animation
     _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _ctrl,
@@ -67,7 +86,6 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    // Logo reveals right-to-left from 17% to 100% of the animation
     _logoReveal = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _ctrl,
@@ -75,24 +93,24 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    // Fixed seed for reproducible layout across rebuilds
+    // Positions fixes (seed 42) pour un layout stable entre rebuilds
     final rng = math.Random(42);
     _particles = [];
-    for (final idx in _kSurahIndices) {
+    for (final idx in _kSurahNames.keys) {
       double x, y;
-      // Avoid the central zone [20%–80% wide, 25%–75% tall] where the logo sits
+      // Évite la zone centrale où se trouve le logo + bismillah
       do {
         x = rng.nextDouble() * 0.82;
         y = rng.nextDouble() * 0.82;
-      } while (x > 0.18 && x < 0.78 && y > 0.23 && y < 0.73);
+      } while (x > 0.18 && x < 0.78 && y > 0.20 && y < 0.80);
 
       _particles.add(_ParticleConfig(
         surahIndex: idx,
         x: x,
         y: y,
-        size:    40.0 + rng.nextDouble() * 50.0,   // 40–90 px
-        opacity: 0.10 + rng.nextDouble() * 0.12,   // 0.10–0.22
-        delayMs: rng.nextInt(2000),                 // 0–2 000 ms
+        fontSize: 14.0 + rng.nextDouble() * 12.0,  // 14–26 px
+        opacity:  0.10 + rng.nextDouble() * 0.12,  // 0.10–0.22
+        delayMs:  rng.nextInt(2000),                // 0–2 000 ms
       ));
     }
 
@@ -123,39 +141,61 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
+    final size      = MediaQuery.sizeOf(context);
+    final logoWidth = size.width * 0.70;
 
     return Scaffold(
       backgroundColor: _kBgEdge,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Layer 1 — radial gradient background (static)
+          // Layer 1 — fond radial gradient (statique)
           const _SplashBackground(),
 
-          // Layer 2 — floating surah names
+          // Layer 2 — noms de sourates flottants en texte
           for (final p in _particles)
             Positioned(
               left: p.x * size.width,
               top:  p.y * size.height,
-              child: _FloatingSurahName(config: p),
+              child: _FloatingSurahText(config: p),
             ),
 
-          // Layer 3 — central logo with fill-reveal
+          // Layer 3 — logo + halo + bismillah (centré verticalement)
           Center(
-            child: AnimatedBuilder(
-              animation: _ctrl,
-              builder: (_, __) => FadeTransition(
-                opacity: _logoFade,
-                child: ClipRect(
-                  clipper: _RevealClipper(_logoReveal.value),
-                  child: SvgPicture.asset(
-                    'assets/images/navbar/Quran_Kareem.svg',
-                    width: size.width * 0.70,
-                    colorFilter: const ColorFilter.mode(_kGold, BlendMode.srcIn),
-                  ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Halo pulsant derrière le logo
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    _PulsingHalo(logoWidth: logoWidth),
+                    // Logo avec reveal droite→gauche
+                    AnimatedBuilder(
+                      animation: _ctrl,
+                      builder: (_, __) => FadeTransition(
+                        opacity: _logoFade,
+                        child: ClipRect(
+                          clipper: _RevealClipper(_logoReveal.value),
+                          child: SvgPicture.asset(
+                            'assets/images/navbar/Quran_Kareem.svg',
+                            width: logoWidth,
+                            colorFilter: const ColorFilter.mode(
+                              _kGold,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+
+                const SizedBox(height: 20),
+
+                // Bismillah qui s'écrit lettre par lettre
+                const _BismillahTypewriter(startDelayMs: 900),
+              ],
             ),
           ),
         ],
@@ -185,7 +225,7 @@ class _SplashBackground extends StatelessWidget {
   }
 }
 
-// ── Reveal clipper (right → left, natural Arabic direction) ──────────────────
+// ── Reveal clipper (droite → gauche, sens naturel de l'arabe) ────────────────
 
 class _RevealClipper extends CustomClipper<Rect> {
   final double progress;
@@ -204,18 +244,154 @@ class _RevealClipper extends CustomClipper<Rect> {
   bool shouldReclip(_RevealClipper old) => old.progress != progress;
 }
 
-// ── Floating surah name ───────────────────────────────────────────────────────
+// ── Halo pulsant ─────────────────────────────────────────────────────────────
 
-class _FloatingSurahName extends StatefulWidget {
-  final _ParticleConfig config;
+class _PulsingHalo extends StatefulWidget {
+  final double logoWidth;
 
-  const _FloatingSurahName({required this.config});
+  const _PulsingHalo({required this.logoWidth});
 
   @override
-  State<_FloatingSurahName> createState() => _FloatingSurahNameState();
+  State<_PulsingHalo> createState() => _PulsingHaloState();
 }
 
-class _FloatingSurahNameState extends State<_FloatingSurahName>
+class _PulsingHaloState extends State<_PulsingHalo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  late final Animation<double>   _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+
+    _opacity = Tween<double>(begin: 0.20, end: 0.55).animate(
+      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final haloSize = widget.logoWidth * 1.4;
+
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, __) => Container(
+        width:  haloSize,
+        height: haloSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              _kGold.withValues(alpha: _opacity.value),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 1.0],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bismillah typewriter ──────────────────────────────────────────────────────
+
+class _BismillahTypewriter extends StatefulWidget {
+  final int startDelayMs;
+
+  const _BismillahTypewriter({required this.startDelayMs});
+
+  @override
+  State<_BismillahTypewriter> createState() => _BismillahTypewriterState();
+}
+
+class _BismillahTypewriterState extends State<_BismillahTypewriter>
+    with SingleTickerProviderStateMixin {
+  static const _text = 'بسم الله الرحمن الرحيم';
+
+  late final AnimationController _fadeCtrl;
+  late final Animation<double>   _fadeAnim;
+
+  Timer? _timer;
+  int    _charCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+
+    Future.delayed(Duration(milliseconds: widget.startDelayMs), _start);
+  }
+
+  void _start() {
+    if (!mounted) return;
+    _fadeCtrl.forward();
+    _timer = Timer.periodic(const Duration(milliseconds: 80), (t) {
+      if (!mounted) { t.cancel(); return; }
+      final chars = _text.characters;
+      if (_charCount >= chars.length) {
+        t.cancel();
+        return;
+      }
+      setState(() => _charCount++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _fadeCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayed = _text.characters.take(_charCount).string;
+
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Text(
+        displayed,
+        textDirection: TextDirection.rtl,
+        style: TextStyle(
+          fontFamily: 'UthmanTahaNaskh',
+          fontSize: 22,
+          color: _kGold.withValues(alpha: 0.85),
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Noms de sourates flottants (texte) ───────────────────────────────────────
+
+class _FloatingSurahText extends StatefulWidget {
+  final _ParticleConfig config;
+
+  const _FloatingSurahText({required this.config});
+
+  @override
+  State<_FloatingSurahText> createState() => _FloatingSurahTextState();
+}
+
+class _FloatingSurahTextState extends State<_FloatingSurahText>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
   late final Animation<double>   _opacity;
@@ -225,7 +401,7 @@ class _FloatingSurahNameState extends State<_FloatingSurahName>
     super.initState();
 
     final rng = math.Random(widget.config.surahIndex * 17 + widget.config.delayMs);
-    final durationMs = 1600 + rng.nextInt(800); // 1 600–2 400 ms per cycle
+    final durationMs = 1600 + rng.nextInt(800); // 1 600–2 400 ms par cycle
 
     _anim = AnimationController(
       vsync: this,
@@ -247,7 +423,6 @@ class _FloatingSurahNameState extends State<_FloatingSurahName>
       ),
     ]).animate(CurvedAnimation(parent: _anim, curve: Curves.easeInOut));
 
-    // Start with the configured initial delay, then loop indefinitely
     Future.delayed(Duration(milliseconds: widget.config.delayMs), _startLoop);
   }
 
@@ -259,11 +434,10 @@ class _FloatingSurahNameState extends State<_FloatingSurahName>
   void _scheduleNext() {
     if (!mounted) return;
     _anim.reset();
-    // Vary the pause between cycles so particles don't pulse in sync
     final rng = math.Random(
       widget.config.surahIndex + DateTime.now().millisecondsSinceEpoch % 10000,
     );
-    final pauseMs = 300 + rng.nextInt(900); // 300–1 200 ms pause
+    final pauseMs = 300 + rng.nextInt(900); // 300–1 200 ms de pause
     Future.delayed(Duration(milliseconds: pauseMs), _startLoop);
   }
 
@@ -279,10 +453,15 @@ class _FloatingSurahNameState extends State<_FloatingSurahName>
       animation: _anim,
       builder: (_, __) => Opacity(
         opacity: _opacity.value,
-        child: SvgPicture.asset(
-          'assets/images/Translated_Quran/surah_svg/${widget.config.surahIndex}.svg',
-          height: widget.config.size,
-          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+        child: Text(
+          _kSurahNames[widget.config.surahIndex]!,
+          textDirection: TextDirection.rtl,
+          style: TextStyle(
+            fontFamily: 'ScheherazadeNew',
+            fontSize: widget.config.fontSize,
+            color: Colors.white,
+            fontWeight: FontWeight.w300,
+          ),
         ),
       ),
     );

@@ -18,7 +18,7 @@ class _HomeTopBar extends StatelessWidget {
   }
 }
 
-class _DribbbleHomeHeader extends StatelessWidget {
+class _DribbbleHomeHeader extends StatefulWidget {
   final bool pauseTicker;
   final Future<PrayerHeaderData> prayerFuture;
   final int Function(List<(String, String)>) activeIndexFromTimes;
@@ -32,6 +32,28 @@ class _DribbbleHomeHeader extends StatelessWidget {
     this.onLocationTap,
     this.onSearchTap,
   });
+
+  @override
+  State<_DribbbleHomeHeader> createState() => _DribbbleHomeHeaderState();
+}
+
+class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
+  bool _showSalam = false;
+  Timer? _cycleTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _cycleTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      setState(() => _showSalam = !_showSalam);
+    });
+  }
+
+  @override
+  void dispose() {
+    _cycleTimer?.cancel();
+    super.dispose();
+  }
 
   static const _gold = Color(0xFFD4AF37);
 
@@ -108,7 +130,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.fromLTRB(20, topPad + 10, 12, 32),
         child: FutureBuilder<PrayerHeaderData>(
-          future: prayerFuture,
+          future: widget.prayerFuture,
           builder: (context, snap) {
             final data = snap.data;
             final hijriLine = data?.hijriLine ?? '';
@@ -127,7 +149,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                 : null;
 
             return StreamBuilder<int>(
-              stream: pauseTicker || prayers5 == null
+              stream: widget.pauseTicker || prayers5 == null
                   ? const Stream.empty()
                   : Stream.periodic(const Duration(seconds: 1), (i) => i),
               builder: (context, _) {
@@ -136,7 +158,7 @@ class _DribbbleHomeHeader extends StatelessWidget {
                 Duration rem = Duration.zero;
 
                 if (prayers5 != null) {
-                  final idx = activeIndexFromTimes(prayers5);
+                  final idx = widget.activeIndexFromTimes(prayers5);
                   nextName = prayers5[idx].$1;
                   nextTime = prayers5[idx].$2;
                   rem = _remaining(nextTime);
@@ -152,50 +174,70 @@ class _DribbbleHomeHeader extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                hijriLine,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: accent,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              GestureDetector(
-                                onTap: onLocationTap,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.place_rounded,
-                                        size: 12, color: textMuted),
-                                    const SizedBox(width: 3),
-                                    Flexible(
-                                      child: Text(
-                                        location,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 500),
+                            child: _showSalam
+                                ? Align(
+                                    key: const ValueKey('salam'),
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Salam Alaykoum',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: accent,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  )
+                                : Column(
+                                    key: const ValueKey('info'),
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        hijriLine,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: textMuted,
+                                          color: accent,
                                           fontSize: 12,
-                                          fontWeight: FontWeight.w500,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.3,
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                                      const SizedBox(height: 3),
+                                      GestureDetector(
+                                        onTap: widget.onLocationTap,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.place_rounded,
+                                                size: 12, color: textMuted),
+                                            const SizedBox(width: 3),
+                                            Flexible(
+                                              child: Text(
+                                                location,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: textMuted,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                           ),
                         ),
                         IconButton(
-                          onPressed: onSearchTap,
+                          onPressed: widget.onSearchTap,
                           icon: Icon(Icons.search_rounded, color: isDark ? Colors.white : Colors.black.withValues(alpha: 0.78)),
                         ),
                         _RadioIconButton(
