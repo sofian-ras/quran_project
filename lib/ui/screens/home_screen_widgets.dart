@@ -44,7 +44,7 @@ class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
   @override
   void initState() {
     super.initState();
-    _cycleTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _cycleTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       setState(() => _showSalam = !_showSalam);
     });
   }
@@ -175,7 +175,22 @@ class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
                       children: [
                         Expanded(
                           child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 500),
+                            duration: const Duration(milliseconds: 400),
+                            transitionBuilder: (child, animation) {
+                              final isIncoming = (child.key == const ValueKey('salam')) == _showSalam;
+                              final offsetTween = Tween<Offset>(
+                                begin: Offset(0, isIncoming ? 1.0 : -1.0),
+                                end: Offset.zero,
+                              );
+                              return ClipRect(
+                                child: SlideTransition(
+                                  position: offsetTween.animate(
+                                    CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+                                  ),
+                                  child: child,
+                                ),
+                              );
+                            },
                             child: _showSalam
                                 ? Align(
                                     key: const ValueKey('salam'),
@@ -186,7 +201,7 @@ class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         color: accent,
-                                        fontSize: 13,
+                                        fontSize: 17,
                                         fontWeight: FontWeight.w700,
                                         letterSpacing: 0.3,
                                       ),
