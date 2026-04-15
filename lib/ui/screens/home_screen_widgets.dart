@@ -820,7 +820,7 @@ class _ExploreFeaturesSection extends StatelessWidget {
                     );
                   },
                 ),
-              ),
+              ],
             ),
           ),
         ),
