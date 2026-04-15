@@ -175,20 +175,33 @@ class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
                       children: [
                         Expanded(
                           child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 400),
+                            duration: const Duration(milliseconds: 500),
                             transitionBuilder: (child, animation) {
                               final isIncoming = (child.key == const ValueKey('salam')) == _showSalam;
-                              final offsetTween = Tween<Offset>(
-                                begin: Offset(0, isIncoming ? 1.0 : -1.0),
-                                end: Offset.zero,
-                              );
-                              return ClipRect(
-                                child: SlideTransition(
-                                  position: offsetTween.animate(
-                                    CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-                                  ),
-                                  child: child,
-                                ),
+                              // Incoming : bascule depuis le bas (pi/2 → 0)
+                              // Outgoing : part vers le haut (0 → -pi/2),
+                              //   mais animation est reversée (1→0), donc tween(begin: -pi/2, end: 0)
+                              final angleTween = isIncoming
+                                  ? Tween<double>(begin: math.pi / 2, end: 0.0)
+                                  : Tween<double>(begin: -math.pi / 2, end: 0.0);
+                              final curve = isIncoming
+                                  ? Curves.easeOutBack
+                                  : Curves.easeIn;
+                              return AnimatedBuilder(
+                                animation: animation,
+                                builder: (ctx, ch) {
+                                  final angle = angleTween.evaluate(
+                                    CurvedAnimation(parent: animation, curve: curve),
+                                  );
+                                  return Transform(
+                                    transform: Matrix4.identity()
+                                      ..setEntry(3, 2, 0.002)
+                                      ..rotateX(angle),
+                                    alignment: Alignment.center,
+                                    child: ch,
+                                  );
+                                },
+                                child: child,
                               );
                             },
                             child: _showSalam
