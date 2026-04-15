@@ -1,11 +1,7 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/adhan_audio_service.dart';
 import '../../services/notification_service.dart';
 
 // ── Palette (cohérente avec settings_screen) ──────────────────────────────────
@@ -25,8 +21,6 @@ class _NotificationSettingsScreenState
   bool _dailyEnabled   = false;
   bool _prayersEnabled = false;
   TimeOfDay _dailyTime = const TimeOfDay(hour: 8, minute: 0);
-  String  _muezzin     = kDefaultMuezzin;
-  String? _muezzinFajr;
   bool _loading        = true;
 
   @override
@@ -40,15 +34,11 @@ class _NotificationSettingsScreenState
     final dailyEnabled   = await NotificationService.instance.isDailyEnabled();
     final prayersEnabled = await NotificationService.instance.arePrayersEnabled();
     final dailyTime      = await NotificationService.instance.getDailyTime();
-    final p = await AdhanAudioService.loadPrefs();
     if (!mounted) return;
-    final muezzin = kMuezzins.containsKey(p.muezzin) ? p.muezzin : kDefaultMuezzin;
     setState(() {
       _dailyEnabled   = dailyEnabled;
       _prayersEnabled = prayersEnabled;
       _dailyTime      = dailyTime;
-      _muezzin        = muezzin;
-      _muezzinFajr    = p.muezzinFajr;
       _loading        = false;
     });
   }
@@ -152,32 +142,6 @@ class _NotificationSettingsScreenState
     }
     if (!mounted) return;
     setState(() => _prayersEnabled = value);
-  }
-
-  // ── Muezzin ───────────────────────────────────────────────────────────────
-  Future<void> _pickMuezzin(bool isDark) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: isDark ? const Color(0xFF111827) : const Color(0xFFF6F1EB),
-      showDragHandle: true,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (_) => _MuezzinSheet(
-        current:     _muezzin,
-        currentFajr: _muezzinFajr,
-        isDark:      isDark,
-      ),
-    );
-    if (!mounted) return;
-    final p = await AdhanAudioService.loadPrefs();
-    if (!mounted) return;
-    final muezzin = kMuezzins.containsKey(p.muezzin) ? p.muezzin : kDefaultMuezzin;
-    setState(() {
-      _muezzin     = muezzin;
-      _muezzinFajr = p.muezzinFajr;
-    });
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -366,48 +330,6 @@ class _NotificationSettingsScreenState
 
                     if (_prayersEnabled) ...[
                       Divider(height: 1, indent: 60, color: div),
-
-                      // Sélecteur muezzin
-                      InkWell(
-                        onTap: () => _pickMuezzin(isDark),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                          child: Row(
-                            children: [
-                              const _IconBox(
-                                  Icons.record_voice_over_rounded,
-                                  Color(0xFF0EA5E9)),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Muezzin',
-                                        style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                            color: txtP)),
-                                    Text(
-                                      AdhanAudioService.displayName(_muezzin),
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: _kTeal,
-                                          fontWeight: FontWeight.w600),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.chevron_right_rounded,
-                                  color: isDark
-                                      ? Colors.white24
-                                      : Colors.black26,
-                                  size: 20),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      Divider(height: 1, indent: 60, color: div),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                         child: Row(
@@ -521,247 +443,4 @@ class _IconBox extends StatelessWidget {
         ),
         child: Icon(icon, color: Colors.white, size: 18),
       );
-}
-
-// ── Sélecteur de muezzin ──────────────────────────────────────────────────────
-
-class _MuezzinSheet extends StatefulWidget {
-  final String  current;
-  final String? currentFajr;
-  final bool    isDark;
-
-  const _MuezzinSheet({
-    required this.current,
-    required this.currentFajr,
-    required this.isDark,
-  });
-
-  @override
-  State<_MuezzinSheet> createState() => _MuezzinSheetState();
-}
-
-class _MuezzinSheetState extends State<_MuezzinSheet> {
-  late String  _current;
-  late String? _currentFajr;
-  final AudioPlayer _player = AudioPlayer();
-  String? _playing;
-  String? _downloading;
-  Timer?  _autoStopTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _current     = widget.current;
-    _currentFajr = widget.currentFajr;
-  }
-
-  @override
-  void dispose() {
-    _autoStopTimer?.cancel();
-    _player.stop();
-    _player.dispose();
-    super.dispose();
-  }
-
-  Future<void> _selectNormal(String key) async {
-    await AdhanAudioService.setMuezzin(key);
-    if (mounted) setState(() => _current = key);
-  }
-
-  Future<void> _selectFajr(String? key) async {
-    await AdhanAudioService.setFajrMuezzin(key);
-    if (mounted) setState(() => _currentFajr = key);
-  }
-
-  Future<void> _togglePreview(String key) async {
-    if (_playing == key) {
-      _autoStopTimer?.cancel();
-      await _player.stop();
-      if (mounted) setState(() => _playing = null);
-      return;
-    }
-    if (mounted) setState(() => _downloading = key);
-    try {
-      await _player.stop();
-      final url = AdhanAudioService.url(key);
-      if (url == null) throw Exception('URL not found');
-      final path = await AdhanAudioService.getOrDownload(key, url);
-      if (!mounted) return;
-      setState(() { _downloading = null; _playing = key; });
-      await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.file(path),
-          tag: MediaItem(
-            id: 'adhan_$key',
-            title: AdhanAudioService.displayName(key),
-            artist: 'Adhan',
-          ),
-        ),
-      );
-      await _player.play();
-      _autoStopTimer?.cancel();
-      _autoStopTimer = Timer(const Duration(seconds: 30), () {
-        _player.stop();
-        if (mounted) setState(() => _playing = null);
-      });
-    } catch (_) {
-      if (mounted) setState(() { _downloading = null; _playing = null; });
-    }
-  }
-
-  Widget _muezzinTile(String key, String name, bool isSelected, bool isFajr) {
-    final isDark        = widget.isDark;
-    final isPlaying     = _playing == key;
-    final isDownloading = _downloading == key;
-    final txtP = isDark ? Colors.white : const Color(0xFF0F172A);
-    final txtS = isDark ? Colors.white54 : Colors.black45;
-
-    return InkWell(
-      onTap: () {
-        _player.stop();
-        setState(() => _playing = null);
-        if (isFajr) { _selectFajr(key); } else { _selectNormal(key); }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                        color: isSelected ? _kTeal : txtP,
-                      )),
-                  if (isSelected)
-                    Text('Sélectionné',
-                        style: TextStyle(fontSize: 11, color: txtS)),
-                ],
-              ),
-            ),
-            if (isSelected)
-              const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.check_rounded, color: _kTeal, size: 18),
-              ),
-            GestureDetector(
-              onTap: () => _togglePreview(key),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: isPlaying
-                      ? _kTeal.withValues(alpha: 0.15)
-                      : (isDark
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : Colors.black.withValues(alpha: 0.04)),
-                  shape: BoxShape.circle,
-                ),
-                child: isDownloading
-                    ? const Padding(
-                        padding: EdgeInsets.all(9),
-                        child: CircularProgressIndicator(strokeWidth: 2, color: _kTeal),
-                      )
-                    : Icon(
-                        isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                        size: 20,
-                        color: isPlaying
-                            ? _kTeal
-                            : (isDark ? Colors.white54 : Colors.black45),
-                      ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = widget.isDark;
-    final txtP   = isDark ? Colors.white : const Color(0xFF0F172A);
-    final txtS   = isDark ? Colors.white54 : Colors.black45;
-
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Choisir le muezzin',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: txtP)),
-            ),
-          ),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                // ── Adhan normal ───────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-                  child: Text('ADHAN',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                          color: txtS, letterSpacing: 1.2)),
-                ),
-                ...kMuezzins.entries.map(
-                  (e) => _muezzinTile(e.key, e.value, e.key == _current, false),
-                ),
-                // ── Adhan Fajr ─────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-                  child: Text('ADHAN FAJR',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                          color: txtS, letterSpacing: 1.2)),
-                ),
-                InkWell(
-                  onTap: () {
-                    _player.stop();
-                    setState(() => _playing = null);
-                    _selectFajr(null);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Même que l\'adhan normal',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: _currentFajr == null ? FontWeight.w700 : FontWeight.w400,
-                                    color: _currentFajr == null ? _kTeal : txtP,
-                                  )),
-                              if (_currentFajr == null)
-                                Text('Sélectionné', style: TextStyle(fontSize: 11, color: txtS)),
-                            ],
-                          ),
-                        ),
-                        if (_currentFajr == null)
-                          const Icon(Icons.check_rounded, color: _kTeal, size: 18),
-                      ],
-                    ),
-                  ),
-                ),
-                ...kFajrMuezzins.entries.map(
-                  (e) => _muezzinTile(e.key, e.value, e.key == _currentFajr, true),
-                ),
-                SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

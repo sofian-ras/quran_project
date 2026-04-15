@@ -24,6 +24,10 @@ class QuranImageService {
   // Cache synchrone : pages dont le fichier local est confirmé disponible.
   final Map<int, File> _syncCache = {};
 
+  // État du téléchargement global (toutes les pages).
+  bool _isDownloadingAll = false;
+  double _downloadAllProgress = 0.0;
+
   /// Retourne le fichier immédiatement si déjà connu, sans I/O.
   File? getSyncCached(int page) => _syncCache[page];
 
@@ -127,18 +131,52 @@ class QuranImageService {
   }
 
   Map<String, dynamic> getDownloadStatus() => {
-        'isDownloading': _inProgress.isNotEmpty,
+        'isDownloading': _isDownloadingAll,
         'isExtracting': false,
-        'downloadProgress': 0.0,
+        'downloadProgress': _downloadAllProgress,
         'extractionProgress': 0.0,
       };
 
-  /// Conservé pour compatibilité — le téléchargement est désormais per-page via getPageFile().
+  /// Télécharge toutes les 604 pages en arrière-plan (5 pages en parallèle).
+  /// Saute les pages déjà présentes localement.
   Future<void> downloadAndExtractImages({
     Function(double)? onDownloadProgress,
     Function(double)? onExtractionProgress,
   }) async {
-    debugPrint('downloadAndExtractImages: obsolète, téléchargement per-page actif.');
+    if (_isDownloadingAll) return;
+    _isDownloadingAll = true;
+    _downloadAllProgress = 0.0;
+
+    await _ensurePaths();
+
+    int done = 0;
+    const batchSize = 5;
+
+    try {
+      for (int start = 1; start <= totalPages; start += batchSize) {
+        final end = (start + batchSize - 1).clamp(1, totalPages);
+        final batch = <Future<void>>[];
+
+        for (int page = start; page <= end; page++) {
+          final localFile = File(p.join(_hafsPath!, _pageFileName(page)));
+          if (await localFile.exists()) {
+            done++;
+          } else {
+            final captured = page;
+            batch.add(
+              _downloadPage(captured, localFile).then((_) {}).catchError((_) {}),
+            );
+          }
+        }
+
+        await Future.wait(batch);
+        done += batch.length;
+        _downloadAllProgress = done / totalPages;
+        onDownloadProgress?.call(_downloadAllProgress);
+      }
+    } finally {
+      _isDownloadingAll = false;
+    }
   }
 
   Future<void> clearCache() async {
