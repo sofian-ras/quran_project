@@ -9,7 +9,6 @@ const _kBgCenter = Color(0xFF1A3528);
 const _kBgEdge   = Color(0xFF0A1A10);
 const _kGold     = Color(0xFFD4AF77);
 
-// Noms arabes des 18 sourates utilisées comme particules flottantes
 const _kSurahNames = {
   1:   'الفاتحة',
   7:   'الأعراف',
@@ -35,16 +34,16 @@ const _kSurahNames = {
 
 class _ParticleConfig {
   final int    surahIndex;
-  final double x;         // fraction of screen width  (top-left anchor)
-  final double y;         // fraction of screen height (top-left anchor)
-  final double fontSize;  // text size in logical px
-  final double opacity;   // peak opacity 0.10–0.22
-  final int    delayMs;   // initial delay before first appearance
+  final double angle;     // direction en radians (0–2π)
+  final double distance;  // distance depuis le centre en px
+  final double fontSize;  // taille du texte
+  final double opacity;   // opacité max 0.10–0.28
+  final int    delayMs;   // délai initial avant apparition
 
   const _ParticleConfig({
     required this.surahIndex,
-    required this.x,
-    required this.y,
+    required this.angle,
+    required this.distance,
     required this.fontSize,
     required this.opacity,
     required this.delayMs,
@@ -62,16 +61,15 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController  _ctrl;
-  late final Animation<double>    _logoFade;
-  late final Animation<double>    _logoReveal;
+  late final AnimationController   _ctrl;
+  late final Animation<double>     _logoFade;
+  late final Animation<double>     _logoReveal;
   late final List<_ParticleConfig> _particles;
 
   @override
   void initState() {
     super.initState();
 
-    // Retire le splash natif : Flutter est prêt, notre widget prend le relais.
     FlutterNativeSplash.remove();
 
     _ctrl = AnimationController(
@@ -93,24 +91,22 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    // Positions fixes (seed 42) pour un layout stable entre rebuilds
-    final rng = math.Random(42);
-    _particles = [];
-    for (final idx in _kSurahNames.keys) {
-      double x, y;
-      // Évite la zone centrale où se trouve le logo + bismillah
-      do {
-        x = rng.nextDouble() * 0.82;
-        y = rng.nextDouble() * 0.82;
-      } while (x > 0.18 && x < 0.78 && y > 0.20 && y < 0.80);
+    final indices = _kSurahNames.keys.toList();
+    final rng     = math.Random(42);
+    _particles    = [];
+
+    for (int i = 0; i < indices.length; i++) {
+      // Angles répartis uniformément sur 360°, avec légère variation aléatoire
+      final baseAngle = (i / indices.length) * 2 * math.pi;
+      final angle     = baseAngle + (rng.nextDouble() - 0.5) * 0.5;
 
       _particles.add(_ParticleConfig(
-        surahIndex: idx,
-        x: x,
-        y: y,
-        fontSize: 14.0 + rng.nextDouble() * 12.0,  // 14–26 px
-        opacity:  0.10 + rng.nextDouble() * 0.12,  // 0.10–0.22
-        delayMs:  rng.nextInt(2000),                // 0–2 000 ms
+        surahIndex: indices[i],
+        angle:      angle,
+        distance:   100.0 + rng.nextDouble() * 160.0, // 100–260 px
+        fontSize:   14.0  + rng.nextDouble() * 12.0,  // 14–26 px
+        opacity:    0.12  + rng.nextDouble() * 0.16,  // 0.12–0.28
+        delayMs:    rng.nextInt(1600),                 // 0–1 600 ms
       ));
     }
 
@@ -149,28 +145,27 @@ class _SplashScreenState extends State<SplashScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Layer 1 — fond radial gradient (statique)
+          // Layer 1 — fond radial gradient
           const _SplashBackground(),
 
-          // Layer 2 — noms de sourates flottants en texte
+          // Layer 2 — noms de sourates qui partent du centre vers l'extérieur
           for (final p in _particles)
-            Positioned(
-              left: p.x * size.width,
-              top:  p.y * size.height,
-              child: _FloatingSurahText(config: p),
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.center,
+                child: _FloatingSurahText(config: p),
+              ),
             ),
 
-          // Layer 3 — logo + halo + bismillah (centré verticalement)
+          // Layer 3 — halo + logo + bismillah
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Halo pulsant derrière le logo
                 Stack(
                   alignment: Alignment.center,
                   children: [
                     _PulsingHalo(logoWidth: logoWidth),
-                    // Logo avec reveal droite→gauche
                     AnimatedBuilder(
                       animation: _ctrl,
                       builder: (_, __) => FadeTransition(
@@ -193,7 +188,6 @@ class _SplashScreenState extends State<SplashScreen>
 
                 const SizedBox(height: 20),
 
-                // Bismillah qui s'écrit lettre par lettre
                 const _BismillahTypewriter(startDelayMs: 900),
               ],
             ),
@@ -217,7 +211,6 @@ class _SplashBackground extends StatelessWidget {
           center: Alignment.center,
           radius: 1.1,
           colors: [_kBgCenter, _kBgEdge],
-          stops: [0.0, 1.0],
         ),
       ),
       child: SizedBox.expand(),
@@ -225,19 +218,15 @@ class _SplashBackground extends StatelessWidget {
   }
 }
 
-// ── Reveal clipper (droite → gauche, sens naturel de l'arabe) ────────────────
+// ── Reveal clipper (droite → gauche) ─────────────────────────────────────────
 
 class _RevealClipper extends CustomClipper<Rect> {
   final double progress;
-
   const _RevealClipper(this.progress);
 
   @override
   Rect getClip(Size size) => Rect.fromLTRB(
-    size.width * (1.0 - progress),
-    0,
-    size.width,
-    size.height,
+    size.width * (1.0 - progress), 0, size.width, size.height,
   );
 
   @override
@@ -248,7 +237,6 @@ class _RevealClipper extends CustomClipper<Rect> {
 
 class _PulsingHalo extends StatefulWidget {
   final double logoWidth;
-
   const _PulsingHalo({required this.logoWidth});
 
   @override
@@ -263,7 +251,6 @@ class _PulsingHaloState extends State<_PulsingHalo>
   @override
   void initState() {
     super.initState();
-
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -283,7 +270,6 @@ class _PulsingHaloState extends State<_PulsingHalo>
   @override
   Widget build(BuildContext context) {
     final haloSize = widget.logoWidth * 1.4;
-
     return AnimatedBuilder(
       animation: _pulse,
       builder: (_, __) => Container(
@@ -296,7 +282,6 @@ class _PulsingHaloState extends State<_PulsingHalo>
               _kGold.withValues(alpha: _opacity.value),
               Colors.transparent,
             ],
-            stops: const [0.0, 1.0],
           ),
         ),
       ),
@@ -304,11 +289,10 @@ class _PulsingHaloState extends State<_PulsingHalo>
   }
 }
 
-// ── Bismillah typewriter ──────────────────────────────────────────────────────
+// ── Bismillah typewriter + pulse ──────────────────────────────────────────────
 
 class _BismillahTypewriter extends StatefulWidget {
   final int startDelayMs;
-
   const _BismillahTypewriter({required this.startDelayMs});
 
   @override
@@ -316,11 +300,13 @@ class _BismillahTypewriter extends StatefulWidget {
 }
 
 class _BismillahTypewriterState extends State<_BismillahTypewriter>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const _text = 'بسم الله الرحمن الرحيم';
 
   late final AnimationController _fadeCtrl;
   late final Animation<double>   _fadeAnim;
+  late final AnimationController _pulseCtrl;
+  late final Animation<double>   _pulseAnim;
 
   Timer? _timer;
   int    _charCount = 0;
@@ -333,8 +319,15 @@ class _BismillahTypewriterState extends State<_BismillahTypewriter>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _pulseAnim = Tween<double>(begin: 0.65, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
 
     Future.delayed(Duration(milliseconds: widget.startDelayMs), _start);
   }
@@ -344,9 +337,11 @@ class _BismillahTypewriterState extends State<_BismillahTypewriter>
     _fadeCtrl.forward();
     _timer = Timer.periodic(const Duration(milliseconds: 80), (t) {
       if (!mounted) { t.cancel(); return; }
-      final chars = _text.characters;
-      if (_charCount >= chars.length) {
+      final total = _text.characters.length;
+      if (_charCount >= total) {
         t.cancel();
+        // Démarre le pulse une fois l'écriture terminée
+        _pulseCtrl.repeat(reverse: true);
         return;
       }
       setState(() => _charCount++);
@@ -357,6 +352,7 @@ class _BismillahTypewriterState extends State<_BismillahTypewriter>
   void dispose() {
     _timer?.cancel();
     _fadeCtrl.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
@@ -366,25 +362,30 @@ class _BismillahTypewriterState extends State<_BismillahTypewriter>
 
     return FadeTransition(
       opacity: _fadeAnim,
-      child: Text(
-        displayed,
-        textDirection: TextDirection.rtl,
-        style: TextStyle(
-          fontFamily: 'UthmanTahaNaskh',
-          fontSize: 22,
-          color: _kGold.withValues(alpha: 0.85),
-          height: 1.4,
+      child: AnimatedBuilder(
+        animation: _pulseCtrl,
+        builder: (_, __) => Opacity(
+          opacity: _pulseCtrl.isAnimating ? _pulseAnim.value : 0.85,
+          child: Text(
+            displayed,
+            textDirection: TextDirection.rtl,
+            style: TextStyle(
+              fontFamily: 'UthmanTahaNaskh',
+              fontSize: 22,
+              color: _kGold.withValues(alpha: 1.0),
+              height: 1.4,
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Noms de sourates flottants (texte) ───────────────────────────────────────
+// ── Noms de sourates — partent du centre vers l'extérieur ────────────────────
 
 class _FloatingSurahText extends StatefulWidget {
   final _ParticleConfig config;
-
   const _FloatingSurahText({required this.config});
 
   @override
@@ -395,33 +396,31 @@ class _FloatingSurahTextState extends State<_FloatingSurahText>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
   late final Animation<double>   _opacity;
+  late final Animation<double>   _move;   // 0.0 → 1.0 (centre → destination)
 
   @override
   void initState() {
     super.initState();
 
-    final rng = math.Random(widget.config.surahIndex * 17 + widget.config.delayMs);
-    final durationMs = 1600 + rng.nextInt(800); // 1 600–2 400 ms par cycle
+    final rng         = math.Random(widget.config.surahIndex * 17 + widget.config.delayMs);
+    final durationMs  = 1800 + rng.nextInt(800); // 1 800–2 600 ms par cycle
 
     _anim = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: durationMs),
     );
 
+    // Opacité : apparaît → reste visible → disparaît
     _opacity = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 0.0, end: widget.config.opacity),
-        weight: 25,
-      ),
-      TweenSequenceItem(
-        tween: ConstantTween(widget.config.opacity),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: widget.config.opacity, end: 0.0),
-        weight: 25,
-      ),
-    ]).animate(CurvedAnimation(parent: _anim, curve: Curves.easeInOut));
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: widget.config.opacity), weight: 20),
+      TweenSequenceItem(tween: ConstantTween(widget.config.opacity),           weight: 55),
+      TweenSequenceItem(tween: Tween(begin: widget.config.opacity, end: 0.0),  weight: 25),
+    ]).animate(CurvedAnimation(parent: _anim, curve: Curves.linear));
+
+    // Mouvement : part vite du centre, décélère (easeOut)
+    _move = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _anim, curve: Curves.easeOut),
+    );
 
     Future.delayed(Duration(milliseconds: widget.config.delayMs), _startLoop);
   }
@@ -434,10 +433,10 @@ class _FloatingSurahTextState extends State<_FloatingSurahText>
   void _scheduleNext() {
     if (!mounted) return;
     _anim.reset();
-    final rng = math.Random(
+    final rng      = math.Random(
       widget.config.surahIndex + DateTime.now().millisecondsSinceEpoch % 10000,
     );
-    final pauseMs = 300 + rng.nextInt(900); // 300–1 200 ms de pause
+    final pauseMs  = 400 + rng.nextInt(1000);
     Future.delayed(Duration(milliseconds: pauseMs), _startLoop);
   }
 
@@ -451,19 +450,28 @@ class _FloatingSurahTextState extends State<_FloatingSurahText>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) => Opacity(
-        opacity: _opacity.value,
-        child: Text(
-          _kSurahNames[widget.config.surahIndex]!,
-          textDirection: TextDirection.rtl,
-          style: TextStyle(
-            fontFamily: 'ScheherazadeNew',
-            fontSize: widget.config.fontSize,
-            color: Colors.white,
-            fontWeight: FontWeight.w300,
+      builder: (_, __) {
+        final progress = _move.value;
+        final dx = math.cos(widget.config.angle) * widget.config.distance * progress;
+        final dy = math.sin(widget.config.angle) * widget.config.distance * progress;
+
+        return Transform.translate(
+          offset: Offset(dx, dy),
+          child: Opacity(
+            opacity: _opacity.value,
+            child: Text(
+              _kSurahNames[widget.config.surahIndex]!,
+              textDirection: TextDirection.rtl,
+              style: TextStyle(
+                fontFamily: 'ScheherazadeNew',
+                fontSize: widget.config.fontSize,
+                color: Colors.white,
+                fontWeight: FontWeight.w300,
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -787,23 +787,9 @@ class _ExploreFeaturesSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 0),
           child: SizedBox(
             height: 112,
-            child: ClipRect(
-              child: ShaderMask(
-                shaderCallback: (Rect rect) {
-                  return const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black,
-                      Colors.black,
-                      Colors.transparent,
-                    ],
-                    stops: [0.0, 0.08, 0.92, 1.0],
-                  ).createShader(rect);
-                },
-                blendMode: BlendMode.dstIn,
-                child: ListView.separated(
+            child: Stack(
+              children: [
+                ListView.separated(
                   physics: const ClampingScrollPhysics(),
                   dragStartBehavior: DragStartBehavior.start,
                   scrollDirection: Axis.horizontal,
