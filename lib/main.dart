@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
@@ -19,17 +21,18 @@ Future<void> main() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // Inits bloquantes parallélisées : JustAudioBackground (lent) + ThemeService
-  // (nécessaire avant runApp pour éviter le flash de thème).
-  await Future.wait([
-    JustAudioBackground.init(
-      androidNotificationChannelId: 'com.quran.app.audio',
-      androidNotificationChannelName: 'Coran Audio',
-      androidNotificationOngoing: false,
-      androidStopForegroundOnPause: true,
-    ),
-    ThemeService.init(),
-  ]);
+  // JustAudioBackground : lancé en arrière-plan — la registration de la
+  // plateforme est synchrone ; le service Android se connecte pendant le splash
+  // (bien avant que l'utilisateur touche un contrôle audio).
+  unawaited(JustAudioBackground.init(
+    androidNotificationChannelId: 'com.quran.app.audio',
+    androidNotificationChannelName: 'Coran Audio',
+    androidNotificationOngoing: false,
+    androidStopForegroundOnPause: true,
+  ));
+
+  // ThemeService doit être prêt avant runApp pour éviter le flash de thème.
+  await ThemeService.init();
 
   // Opérations non-bloquantes : lancées en arrière-plan sans retarder runApp.
   AppUsageService.init();

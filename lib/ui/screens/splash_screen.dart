@@ -111,7 +111,7 @@ class _SplashScreenState extends State<SplashScreen>
     }
 
     _ctrl.forward().then((_) {
-      Future.delayed(const Duration(milliseconds: 1600), _navigate);
+      Future.delayed(const Duration(milliseconds: 800), _navigate);
     });
   }
 
@@ -126,7 +126,7 @@ class _SplashScreenState extends State<SplashScreen>
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         pageBuilder: (_, __, ___) => const BottomNavShell(),
-        transitionDuration: const Duration(milliseconds: 600),
+        transitionDuration: const Duration(milliseconds: 300),
         transitionsBuilder: (_, anim, __, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeIn),
           child: child,
@@ -335,7 +335,7 @@ class _BismillahTypewriterState extends State<_BismillahTypewriter>
   void _start() {
     if (!mounted) return;
     _fadeCtrl.forward();
-    _timer = Timer.periodic(const Duration(milliseconds: 80), (t) {
+    _timer = Timer.periodic(const Duration(milliseconds: 50), (t) {
       if (!mounted) { t.cancel(); return; }
       final total = _text.characters.length;
       if (_charCount >= total) {

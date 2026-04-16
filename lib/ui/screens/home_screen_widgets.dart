@@ -705,9 +705,7 @@ class _HeaderWithEngagement extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Radio en vedette
-        const _HomeCardShell(
-          child: _RadioFeaturedSection(),
-        ),
+        const _RadioFeaturedSection(),
       ],
     );
   }
@@ -924,22 +922,8 @@ class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF111827);
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: isDark
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1B3A4B), Color(0xFF0D2233)],
-              )
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFE8F4F8), Color(0xFFD0E8F0)],
-              ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 6, 0, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1002,20 +986,23 @@ class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
                       ),
                       if (chips.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        Row(
-                          children: chips.map((s) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: _StationChip(
-                                station: s,
-                                isPlaying: current?.id == s.id,
-                                isDark: isDark,
-                                onTap: current?.id == s.id
-                                    ? _stopStation
-                                    : () => _playStation(s),
-                              ),
-                            );
-                          }).toList(),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: chips.map((s) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: _StationChip(
+                                  station: s,
+                                  isPlaying: current?.id == s.id,
+                                  isDark: isDark,
+                                  onTap: current?.id == s.id
+                                      ? _stopStation
+                                      : () => _playStation(s),
+                                ),
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ],
                     ],
