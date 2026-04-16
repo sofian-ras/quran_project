@@ -1067,10 +1067,8 @@ class _FeaturedStationCard extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          station.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: _RadioTitleMarquee(
+                          text: station.displayName,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -1330,6 +1328,113 @@ class _StationChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// Marquee scrolling text for long station names
+class _RadioTitleMarquee extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+
+  const _RadioTitleMarquee({required this.text, required this.style});
+
+  @override
+  State<_RadioTitleMarquee> createState() => _RadioTitleMarqueeState();
+}
+
+class _RadioTitleMarqueeState extends State<_RadioTitleMarquee>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  Timer? _startTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 6000),
+    );
+    _startTimer = Timer(const Duration(milliseconds: 1800), _startIfMounted);
+  }
+
+  void _startIfMounted() {
+    if (mounted) _ctrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_RadioTitleMarquee old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text) {
+      _ctrl.reset();
+      _startTimer?.cancel();
+      _startTimer = Timer(const Duration(milliseconds: 1800), _startIfMounted);
+    }
+  }
+
+  @override
+  void dispose() {
+    _startTimer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (_, constraints) {
+      final tp = TextPainter(
+        text: TextSpan(text: widget.text, style: widget.style),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: double.infinity);
+
+      final textW = tp.width;
+      final boxW  = constraints.maxWidth;
+
+      if (textW <= boxW) {
+        return Text(widget.text, style: widget.style, maxLines: 1);
+      }
+
+      final overflow = textW - boxW;
+
+      return ClipRect(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, __) {
+            final t = _ctrl.value;
+            // 0…0.12  pause at start
+            // 0.12…0.80  scroll left
+            // 0.80…0.92  pause at end
+            // 0.92…1.0  snap back
+            final double offset;
+            if (t < 0.12) {
+              offset = 0;
+            } else if (t < 0.80) {
+              offset = overflow * (t - 0.12) / 0.68;
+            } else if (t < 0.92) {
+              offset = overflow;
+            } else {
+              offset = 0;
+            }
+            return SizedBox(
+              width: boxW,
+              child: Transform.translate(
+                offset: Offset(-offset, 0),
+                child: SizedBox(
+                  width: textW,
+                  child: Text(
+                    widget.text,
+                    style: widget.style,
+                    softWrap: false,
+                    maxLines: 1,
+                    overflow: TextOverflow.visible,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    });
   }
 }
 
