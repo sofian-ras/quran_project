@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1046,7 +1047,7 @@ class _HeroCard extends StatelessWidget {
               ),
             ),
             // Play/pause + arrow
-            const _EqualizerBars(color: Colors.white),
+            const _SineWave(color: Colors.white),
             const SizedBox(width: 6),
             Icon(Icons.chevron_right_rounded,
                 color: Colors.white.withValues(alpha: 0.6), size: 22),
@@ -1404,7 +1405,7 @@ class _HomeCard extends StatelessWidget {
                         ),
                         if (isActive) ...[
                           const SizedBox(width: 4),
-                          const _EqualizerBars(color: Color(0xFF38C172)),
+                          const _SineWave(color: Color(0xFF38C172)),
                         ],
                       ],
                     ),
@@ -1660,7 +1661,7 @@ class _StationTile extends StatelessWidget {
                   if (isActive)
                     const Padding(
                       padding: EdgeInsets.only(right: 4),
-                      child: _EqualizerBars(color: Color(0xFF38C172)),
+                      child: _SineWave(color: Color(0xFF38C172)),
                     ),
                   // Heart button
                   IconButton(
@@ -1883,66 +1884,95 @@ class _MarqueeTextState extends State<_MarqueeText>
   }
 }
 
-// ── Animated equalizer bars ───────────────────────────────────────────────────
+// ── Animated sine wave ────────────────────────────────────────────────────────
 
-class _EqualizerBars extends StatefulWidget {
+class _SineWave extends StatefulWidget {
   final Color color;
-  const _EqualizerBars({required this.color});
+  const _SineWave({required this.color});
 
   @override
-  State<_EqualizerBars> createState() => _EqualizerBarsState();
+  State<_SineWave> createState() => _SineWaveState();
 }
 
-class _EqualizerBarsState extends State<_EqualizerBars>
-    with TickerProviderStateMixin {
-  late final List<AnimationController> _ctrls;
-  late final List<Animation<double>>   _anims;
+class _SineWaveState extends State<_SineWave>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _ctrls = List.generate(3, (i) {
-      final c = AnimationController(
-        vsync: this,
-        duration: Duration(milliseconds: 480 + i * 140),
-      )..repeat(reverse: true);
-      c.value = i * 0.33;
-      return c;
-    });
-    _anims = _ctrls
-        .map((c) => Tween<double>(begin: 0.2, end: 1.0)
-            .animate(CurvedAnimation(parent: c, curve: Curves.easeInOut)))
-        .toList();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    for (final c in _ctrls) { c.dispose(); }
+    _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge(_ctrls),
-      builder: (_, __) => Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(
-          3,
-          (i) => Container(
-            width: 3,
-            height: 14 * _anims[i].value,
-            margin: const EdgeInsets.only(right: 2),
-            decoration: BoxDecoration(
-              color: widget.color,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+      animation: _ctrl,
+      builder: (_, __) => CustomPaint(
+        size: const Size(48, 16),
+        painter: _SineWavePainter(
+          phase: _ctrl.value * 2 * math.pi,
+          color: widget.color,
         ),
       ),
     );
   }
+}
+
+class _SineWavePainter extends CustomPainter {
+  final double phase;
+  final Color  color;
+  const _SineWavePainter({required this.phase, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint1 = Paint()
+      ..color       = color.withValues(alpha: 0.9)
+      ..strokeWidth = 1.6
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
+
+    final paint2 = Paint()
+      ..color       = color.withValues(alpha: 0.35)
+      ..strokeWidth = 1.2
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
+
+    final path1 = Path();
+    final path2 = Path();
+    const amp  = 5.0;
+    const freq = 2.0;
+    final cy   = size.height / 2;
+
+    for (int x = 0; x <= size.width.toInt(); x++) {
+      final t  = x / size.width;
+      final y1 = cy + amp * math.sin(2 * math.pi * freq * t + phase);
+      final y2 = cy + amp * 0.55 *
+          math.sin(2 * math.pi * freq * t + phase + math.pi * 0.6);
+      if (x == 0) {
+        path1.moveTo(x.toDouble(), y1);
+        path2.moveTo(x.toDouble(), y2);
+      } else {
+        path1.lineTo(x.toDouble(), y1);
+        path2.lineTo(x.toDouble(), y2);
+      }
+    }
+
+    canvas.drawPath(path2, paint2);
+    canvas.drawPath(path1, paint1);
+  }
+
+  @override
+  bool shouldRepaint(_SineWavePainter old) => old.phase != phase;
 }
 
 class _HeaderControlBtn extends StatelessWidget {

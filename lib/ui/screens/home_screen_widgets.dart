@@ -701,6 +701,13 @@ class _HeaderWithEngagement extends StatelessWidget {
             isLoading: recitersLoading,
           ),
         ),
+
+        const SizedBox(height: 12),
+
+        // Radio en vedette
+        const _HomeCardShell(
+          child: _RadioFeaturedSection(),
+        ),
       ],
     );
   }
@@ -872,6 +879,472 @@ class _RecitersSectionState extends State<_RecitersSection> {
 }
 
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RADIO FEATURED SECTION
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RadioFeaturedSection extends StatefulWidget {
+  const _RadioFeaturedSection();
+
+  @override
+  State<_RadioFeaturedSection> createState() => _RadioFeaturedSectionState();
+}
+
+class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
+  late final Future<List<RadioStation>> _stationsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _stationsFuture = _loadStations();
+  }
+
+  Future<List<RadioStation>> _loadStations() async {
+    var popular = await RadioService.instance.getPopular(limit: 4);
+    if (popular.isEmpty) {
+      final all = await RadioService.instance.getStations();
+      popular = all.take(4).toList();
+    }
+    return popular;
+  }
+
+  Future<void> _playStation(RadioStation s) async {
+    RadioService.instance.currentStationNotifier.value = s;
+    await AudioService.instance.playRadio(s);
+    await RadioService.instance.trackPlay(s);
+  }
+
+  Future<void> _stopStation() async {
+    await AudioService.instance.stopRadio();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: isDark
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1B3A4B), Color(0xFF0D2233)],
+              )
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFE8F4F8), Color(0xFFD0E8F0)],
+              ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Radio',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: titleColor,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => RadioBrowserScreen.show(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF2C6CB5),
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: const Text(
+                  'Tout voir',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          FutureBuilder<List<RadioStation>>(
+            future: _stationsFuture,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 110,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final stations = snap.data ?? [];
+              if (stations.isEmpty) return const SizedBox.shrink();
+
+              final featured = stations[0];
+              final chips =
+                  stations.length > 1 ? stations.sublist(1) : <RadioStation>[];
+
+              return ValueListenableBuilder<RadioStation?>(
+                valueListenable: RadioService.instance.currentStationNotifier,
+                builder: (_, current, __) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _FeaturedStationCard(
+                        station: featured,
+                        isPlaying: current?.id == featured.id,
+                        isDark: isDark,
+                        onPlay: () => _playStation(featured),
+                        onStop: _stopStation,
+                      ),
+                      if (chips.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: chips.map((s) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _StationChip(
+                                station: s,
+                                isPlaying: current?.id == s.id,
+                                isDark: isDark,
+                                onTap: current?.id == s.id
+                                    ? _stopStation
+                                    : () => _playStation(s),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeaturedStationCard extends StatelessWidget {
+  final RadioStation station;
+  final bool isPlaying;
+  final bool isDark;
+  final VoidCallback onPlay;
+  final VoidCallback onStop;
+
+  const _FeaturedStationCard({
+    required this.station,
+    required this.isPlaying,
+    required this.isDark,
+    required this.onPlay,
+    required this.onStop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cat = categorizeStation(station);
+    final grad = radioCategoryGradient(cat);
+    final catLabel =
+        cat.contains(' ') ? cat.substring(cat.indexOf(' ') + 1) : cat;
+
+    return GestureDetector(
+      onTap: () => RadioBrowserScreen.show(context),
+      child: Container(
+        height: 80,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              grad[0].withValues(alpha: isDark ? 0.85 : 1.0),
+              grad[1],
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            StationThumbnail(station: station, size: 50, circular: false),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          station.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _LiveBadge(isActive: isPlaying),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    catLabel,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (isPlaying) const _WaveformBars(),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: isPlaying ? onStop : onPlay,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.35),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WaveformBars extends StatefulWidget {
+  const _WaveformBars();
+
+  @override
+  State<_WaveformBars> createState() => _WaveformBarsState();
+}
+
+class _WaveformBarsState extends State<_WaveformBars>
+    with TickerProviderStateMixin {
+  late final List<AnimationController> _controllers;
+  late final List<Animation<double>> _anims;
+
+  static const _maxHeights = [16.0, 22.0, 10.0, 20.0];
+  static const _durations = [480, 600, 520, 560];
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(4, (i) {
+      return AnimationController(
+        vsync: this,
+        duration: Duration(milliseconds: _durations[i]),
+      )..repeat(reverse: true);
+    });
+    _anims = List.generate(4, (i) {
+      return Tween<double>(begin: 4, end: _maxHeights[i]).animate(
+        CurvedAnimation(parent: _controllers[i], curve: Curves.easeInOut),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: List.generate(4, (i) {
+          return Padding(
+            padding: EdgeInsets.only(right: i < 3 ? 3.0 : 0),
+            child: AnimatedBuilder(
+              animation: _anims[i],
+              builder: (_, __) => Container(
+                width: 3,
+                height: _anims[i].value,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF38C172),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _LiveBadge extends StatefulWidget {
+  final bool isActive;
+  const _LiveBadge({required this.isActive});
+
+  @override
+  State<_LiveBadge> createState() => _LiveBadgeState();
+}
+
+class _LiveBadgeState extends State<_LiveBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: widget.isActive
+            ? const Color(0xFFE74C3C)
+            : Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: _opacity,
+            builder: (_, __) => Opacity(
+              opacity: widget.isActive ? _opacity.value : 1.0,
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Text(
+            'EN DIRECT',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 8,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StationChip extends StatelessWidget {
+  final RadioStation station;
+  final bool isPlaying;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _StationChip({
+    required this.station,
+    required this.isPlaying,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? const LinearGradient(
+                  colors: [Color(0xFF4A2E06), Color(0xFF6B4510)],
+                )
+              : const LinearGradient(
+                  colors: [Color(0xFFE8D5B3), Color(0xFFCFAF7E)],
+                ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isPlaying
+                ? const Color(0xFF38C172)
+                : const Color(0xFFC8A97E),
+            width: isPlaying ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isPlaying
+                    ? const Color(0xFF38C172)
+                    : const Color(0xFFE74C3C),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              station.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? const Color(0xFFE8D5B0)
+                    : const Color(0xFF4A3F30),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _FeatureChipData {
   final String label;
