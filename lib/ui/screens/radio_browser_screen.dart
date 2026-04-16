@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../models/radio_station.dart';
 import '../../services/audio_service.dart';
 import '../../services/radio_service.dart';
@@ -414,74 +415,37 @@ class _RadioBrowserScreenState extends State<RadioBrowserScreen>
                 padding: const EdgeInsets.all(8),
               ),
             ),
-            // ── Now-playing pill à droite ────────────────────────────
+            // ── Contrôles lecture en haut à droite ───────────────────
             Positioned(
-              right: 16,
+              right: 12,
               child: ValueListenableBuilder<RadioStation?>(
                 valueListenable: RadioService.instance.currentStationNotifier,
                 builder: (_, station, __) {
                   if (station == null) return const SizedBox.shrink();
-                  return GestureDetector(
-                    onTap: () {
-                      if (_navigating) return;
-                      _navigating = true;
-                      _searchFocus.unfocus();
-                      Navigator.of(context, rootNavigator: true).push(
-                        PageRouteBuilder<void>(
-                          opaque: true,
-                          pageBuilder: (_, __, ___) =>
-                              RadioPlayerScreen(station: station),
-                          transitionsBuilder: (_, anim, __, child) =>
-                              SlideTransition(
-                                position: Tween<Offset>(
-                                  begin: const Offset(0, 1),
-                                  end: Offset.zero,
-                                ).animate(CurvedAnimation(
-                                    parent: anim, curve: Curves.easeOutCubic)),
-                                child: child,
-                              ),
-                          transitionDuration: const Duration(milliseconds: 300),
-                        ),
-                      ).then((_) {
-                        _navigating = false;
-                        _reloadFavorites();
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF38C172).withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFF38C172).withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Row(
+                  return StreamBuilder<PlayerState>(
+                    stream: AudioService.instance.playerStateStream,
+                    builder: (_, snap) {
+                      final playing = snap.data?.playing ?? false;
+                      return Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 6, height: 6,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xFF38C172),
-                            ),
+                          _HeaderControlBtn(
+                            icon: playing
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: const Color(0xFF38C172),
+                            onTap: () =>
+                                AudioService.instance.togglePlayPause(),
                           ),
                           const SizedBox(width: 6),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 90),
-                            child: Text(
-                              station.displayName,
-                              style: const TextStyle(
-                                color: Color(0xFF38C172), fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          _HeaderControlBtn(
+                            icon: Icons.stop_rounded,
+                            color: const Color(0xFFEF4444),
+                            onTap: () => AudioService.instance.stopRadio(),
                           ),
                         ],
-                      ),
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -1976,6 +1940,34 @@ class _EqualizerBarsState extends State<_EqualizerBars>
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HeaderControlBtn extends StatelessWidget {
+  const _HeaderControlBtn({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: 0.15),
+          border: Border.all(color: color.withValues(alpha: 0.45)),
+        ),
+        child: Icon(icon, color: color, size: 18),
       ),
     );
   }
