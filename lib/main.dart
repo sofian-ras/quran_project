@@ -12,6 +12,7 @@ import 'package:quran/theme/theme_service.dart';
 import 'services/app_usage_service.dart';
 import 'services/audio_service.dart';
 import 'services/navigation_service.dart';
+import 'services/notification_service.dart';
 import 'services/quran_translation_pack_service.dart';
 
 
@@ -37,6 +38,8 @@ Future<void> main() async {
   // Opérations non-bloquantes : lancées en arrière-plan sans retarder runApp.
   AppUsageService.init();
   QuranTranslationPackService.migrateLegacyToQulIfNeeded();
+  // Re-planifie les notifications actives (one-shots expirés, nouvelles alarmes).
+  unawaited(NotificationService.instance.scheduleOnStartup());
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

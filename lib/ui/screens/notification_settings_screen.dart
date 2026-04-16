@@ -18,10 +18,11 @@ class NotificationSettingsScreen extends StatefulWidget {
 
 class _NotificationSettingsScreenState
     extends State<NotificationSettingsScreen> {
-  bool _dailyEnabled   = false;
-  bool _prayersEnabled = false;
-  TimeOfDay _dailyTime = const TimeOfDay(hour: 8, minute: 0);
-  bool _loading        = true;
+  bool _dailyEnabled      = false;
+  bool _prayersEnabled    = false;
+  TimeOfDay _dailyTime    = const TimeOfDay(hour: 8, minute: 0);
+  bool _loading           = true;
+  bool _exactAlarmGranted = true;
 
   @override
   void initState() {
@@ -31,16 +32,54 @@ class _NotificationSettingsScreenState
 
   Future<void> _load() async {
     await NotificationService.instance.init();
-    final dailyEnabled   = await NotificationService.instance.isDailyEnabled();
-    final prayersEnabled = await NotificationService.instance.arePrayersEnabled();
-    final dailyTime      = await NotificationService.instance.getDailyTime();
+    final dailyEnabled      = await NotificationService.instance.isDailyEnabled();
+    final prayersEnabled    = await NotificationService.instance.arePrayersEnabled();
+    final dailyTime         = await NotificationService.instance.getDailyTime();
+    final exactAlarmGranted = await NotificationService.instance.canScheduleExactNotifications();
     if (!mounted) return;
     setState(() {
-      _dailyEnabled   = dailyEnabled;
-      _prayersEnabled = prayersEnabled;
-      _dailyTime      = dailyTime;
-      _loading        = false;
+      _dailyEnabled      = dailyEnabled;
+      _prayersEnabled    = prayersEnabled;
+      _dailyTime         = dailyTime;
+      _exactAlarmGranted = exactAlarmGranted;
+      _loading           = false;
     });
+  }
+
+  /// Affiche un dialog et ouvre les paramètres système si l'utilisateur accepte.
+  /// Retourne true si la permission est accordée après retour des paramètres.
+  Future<bool> _ensureExactAlarmPermission() async {
+    if (_exactAlarmGranted) return true;
+    if (!mounted) return false;
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Alarmes et rappels'),
+        content: const Text(
+          'Pour recevoir les notifications à l\'heure exacte de la prière, '
+          'activez "Alarmes et rappels" pour cette application dans les '
+          'paramètres système.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Plus tard'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ouvrir', style: TextStyle(color: _kTeal)),
+          ),
+        ],
+      ),
+    );
+    if (shouldOpen == true) {
+      await NotificationService.instance.requestExactAlarmPermission();
+      final granted = await NotificationService.instance.canScheduleExactNotifications();
+      if (mounted) setState(() => _exactAlarmGranted = granted);
+      return granted;
+    }
+    // L'utilisateur a refusé — on continue en mode inexact (notifications moins précises).
+    return true;
   }
 
   // ── Rappel quotidien ──────────────────────────────────────────────────────
@@ -63,6 +102,7 @@ class _NotificationSettingsScreenState
         );
         return;
       }
+      await _ensureExactAlarmPermission();
       await NotificationService.instance.scheduleDailyReminder(_dailyTime);
     } else {
       await NotificationService.instance.cancelDailyReminder();
@@ -121,6 +161,7 @@ class _NotificationSettingsScreenState
         );
         return;
       }
+      await _ensureExactAlarmPermission();
       // Activer aussi l'adhan quand on active les alertes de prière.
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('adhan_enabled', true);

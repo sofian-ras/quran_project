@@ -53,6 +53,25 @@ class NotificationService {
     return granted ?? false;
   }
 
+  /// Vérifie si les alarmes exactes sont autorisées (Android 12+ / API 31+).
+  /// Retourne toujours true sur les versions antérieures.
+  Future<bool> canScheduleExactNotifications() async {
+    if (!Platform.isAndroid) return true;
+    await init();
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) return true;
+    return await android.canScheduleExactNotifications() ?? true;
+  }
+
+  /// Ouvre l'écran système "Alarmes et rappels" pour que l'utilisateur
+  /// puisse autoriser les alarmes exactes (Android 12+).
+  Future<void> requestExactAlarmPermission() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.requestExactAlarmsPermission();
+  }
+
   // ── Canal Android ─────────────────────────────────────────────────────────
   AndroidNotificationDetails get _androidDetails =>
       const AndroidNotificationDetails(
@@ -81,13 +100,21 @@ class NotificationService {
       localScheduled.millisecondsSinceEpoch,
     );
 
+    // Sur Android 12+, SCHEDULE_EXACT_ALARM doit être accordée explicitement.
+    // Si elle ne l'est pas, on replie sur inexact pour que la notification
+    // s'affiche quand même (avec un léger décalage possible).
+    final canExact = await canScheduleExactNotifications();
+    final schedMode = canExact
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexact;
+
     await _plugin.zonedSchedule(
       _kDailyId,
       'Rappel de lecture',
       'N\'oubliez pas votre lecture du Coran aujourd\'hui 📖',
       scheduled,
       NotificationDetails(android: _androidDetails),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: schedMode,
       matchDateTimeComponents: DateTimeComponents.time,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
@@ -124,6 +151,12 @@ class NotificationService {
       'Isha': 'العشاء',
     };
 
+    // Sur Android 12+, SCHEDULE_EXACT_ALARM doit être accordée explicitement.
+    final canExact = await canScheduleExactNotifications();
+    final schedMode = canExact
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexact;
+
     for (final entry in prayerTimes.entries) {
       final id = ids[entry.key];
       if (id == null) continue;
@@ -137,7 +170,7 @@ class NotificationService {
         'C\'est l\'heure de ${entry.key}',
         tzTime,
         NotificationDetails(android: _androidDetails),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: schedMode,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
       );
@@ -223,5 +256,22 @@ class NotificationService {
     final cached = await _loadPrayerTimesCache();
     if (cached == null || cached.isEmpty) return false;
     return scheduleFromStringTimes(cached);
+  }
+
+  // ── Re-planification au démarrage ─────────────────────────────────────────
+  /// À appeler dans main() : re-planifie les notifications actives dont
+  /// les one-shots auraient expiré depuis le dernier lancement de l'app.
+  Future<void> scheduleOnStartup() async {
+    await init();
+    // Rappel quotidien (matchDateTimeComponents le rend récurrent, mais on
+    // le re-planifie quand même pour mettre à jour l'heure si elle a changé).
+    if (await isDailyEnabled()) {
+      final time = await getDailyTime();
+      await scheduleDailyReminder(time);
+    }
+    // Prières : re-planifie depuis le cache pour remplacer les one-shots expirés.
+    if (await arePrayersEnabled()) {
+      await scheduleFromCache();
+    }
   }
 }

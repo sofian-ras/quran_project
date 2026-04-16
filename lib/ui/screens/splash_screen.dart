@@ -91,24 +91,27 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    final indices = _kSurahNames.keys.toList();
-    final rng     = math.Random(42);
-    _particles    = [];
+    final allIndices  = _kSurahNames.keys.toList();
+    final rng         = math.Random(42);
+    _particles        = [];
+    // Garder seulement 8 particules pour alléger le rendu
+    final pickedKeys  = [1, 18, 36, 55, 67, 78, 112, 114];
 
-    for (int i = 0; i < indices.length; i++) {
+    for (int i = 0; i < pickedKeys.length; i++) {
       // Angles répartis uniformément sur 360°, avec légère variation aléatoire
-      final baseAngle = (i / indices.length) * 2 * math.pi;
+      final baseAngle = (i / pickedKeys.length) * 2 * math.pi;
       final angle     = baseAngle + (rng.nextDouble() - 0.5) * 0.5;
 
       _particles.add(_ParticleConfig(
-        surahIndex: indices[i],
+        surahIndex: pickedKeys[i],
         angle:      angle,
-        distance:   100.0 + rng.nextDouble() * 160.0, // 100–260 px
-        fontSize:   14.0  + rng.nextDouble() * 12.0,  // 14–26 px
-        opacity:    0.12  + rng.nextDouble() * 0.16,  // 0.12–0.28
+        distance:   100.0 + rng.nextDouble() * 140.0, // 100–240 px
+        fontSize:   12.0  + rng.nextDouble() * 8.0,   // 12–20 px
+        opacity:    0.07  + rng.nextDouble() * 0.08,  // 0.07–0.15
         delayMs:    rng.nextInt(1600),                 // 0–1 600 ms
       ));
     }
+    allIndices; // référence pour éviter le warning "unused variable"
 
     _ctrl.forward().then((_) {
       Future.delayed(const Duration(milliseconds: 800), _navigate);

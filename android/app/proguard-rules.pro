@@ -2,6 +2,9 @@
 -keep class io.flutter.** { *; }
 -dontwarn io.flutter.embedding.**
 
+# flutter_local_notifications — conserver les receivers de notifications planifiées
+-keep class com.dexterous.** { *; }
+
 # Google Play Core / Asset Delivery
 -keep class com.google.android.play.core.** { *; }
 -dontwarn com.google.android.play.core.**
