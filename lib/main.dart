@@ -125,7 +125,13 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
               child: Stack(
                 children: [
                   if (child != null) child,
-                  const GlobalMiniPlayerOverlay(),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: AudioService.instance.isRadioModeNotifier,
+                    builder: (_, isRadio, __) {
+                      if (isRadio) return const SizedBox.shrink();
+                      return const GlobalMiniPlayerOverlay();
+                    },
+                  ),
                 ],
               ),
             );
