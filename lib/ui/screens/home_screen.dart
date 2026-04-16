@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dua_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
-import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/navigation_service.dart';
@@ -11,9 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/audio_service.dart';
 import '../../services/favorites_service.dart';
-import '../../services/quran_translation_pack_service.dart';
-import 'package:sqflite/sqflite.dart';
-import '../../data/surah_name.dart';
 import 'reciter_picker_screen.dart';
 import 'tafsir_library_screen.dart';
 import '../widgets/continue_reading_card.dart';
@@ -520,8 +516,6 @@ Future<void> _checkFirstLaunch() async {
                               pausePrayerTicker: paused,
                             ),
                           ),
-                          const SizedBox(height: vGap),
-                          const _VerseOfTheDayCard(),
                           const SizedBox(height: vGap),
                           const YoutubeVideoCard(mode: QuranVideoMode.sufi),
                           const SizedBox(height: vGap),

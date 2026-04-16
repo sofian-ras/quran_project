@@ -174,34 +174,34 @@ class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
+                          child: ClipRect(
                           child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 500),
+                            duration: const Duration(milliseconds: 1200),
                             transitionBuilder: (child, animation) {
-                              final isIncoming = (child.key == const ValueKey('salam')) == _showSalam;
-                              // Incoming : bascule depuis le bas (pi/2 → 0)
-                              // Outgoing : part vers le haut (0 → -pi/2),
-                              //   mais animation est reversée (1→0), donc tween(begin: -pi/2, end: 0)
-                              final angleTween = isIncoming
-                                  ? Tween<double>(begin: math.pi / 2, end: 0.0)
-                                  : Tween<double>(begin: -math.pi / 2, end: 0.0);
-                              final curve = isIncoming
-                                  ? Curves.easeOutBack
-                                  : Curves.easeIn;
-                              return AnimatedBuilder(
-                                animation: animation,
-                                builder: (ctx, ch) {
-                                  final angle = angleTween.evaluate(
-                                    CurvedAnimation(parent: animation, curve: curve),
-                                  );
-                                  return Transform(
-                                    transform: Matrix4.identity()
-                                      ..setEntry(3, 2, 0.002)
-                                      ..rotateX(angle),
-                                    alignment: Alignment.center,
+                              final isIncoming =
+                                  (child.key == const ValueKey('salam')) == _showSalam;
+
+                              final offsetAnim = animation.drive(
+                                Tween<double>(
+                                  begin: isIncoming ? 18.0 : 0.0,
+                                  end:   isIncoming ? 0.0  : -18.0,
+                                ).chain(CurveTween(
+                                  curve: isIncoming
+                                      ? Curves.easeOutCubic
+                                      : Curves.easeInCubic,
+                                )),
+                              );
+
+                              return FadeTransition(
+                                opacity: animation,
+                                child: AnimatedBuilder(
+                                  animation: offsetAnim,
+                                  builder: (_, ch) => Transform.translate(
+                                    offset: Offset(0, offsetAnim.value),
                                     child: ch,
-                                  );
-                                },
-                                child: child,
+                                  ),
+                                  child: child,
+                                ),
                               );
                             },
                             child: _showSalam
@@ -263,11 +263,9 @@ class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
                                     ],
                                   ),
                           ),
-                        ),
-                        IconButton(
-                          onPressed: widget.onSearchTap,
-                          icon: Icon(Icons.search_rounded, color: isDark ? Colors.white : Colors.black.withValues(alpha: 0.78)),
-                        ),
+                          ),   // ClipRect
+                        ),     // Expanded
+                        _SearchIconButton(onTap: widget.onSearchTap),
                         _RadioIconButton(
                           onTap: () => RadioBrowserScreen.show(context),
                         ),
@@ -372,7 +370,63 @@ class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
 }
 
 
-class _NotificationBellButton extends StatelessWidget {
+class _SearchIconButton extends StatefulWidget {
+  final VoidCallback? onTap;
+  const _SearchIconButton({this.onTap});
+
+  @override
+  State<_SearchIconButton> createState() => _SearchIconButtonState();
+}
+
+class _SearchIconButtonState extends State<_SearchIconButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.72), weight: 1),
+      TweenSequenceItem(
+        tween: Tween(begin: 0.72, end: 1.08)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 1,
+      ),
+      TweenSequenceItem(tween: Tween(begin: 1.08, end: 1.0), weight: 0.5),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onTap() {
+    _ctrl.forward(from: 0).then((_) => widget.onTap?.call());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black.withValues(alpha: 0.78);
+    return AnimatedBuilder(
+      animation: _scale,
+      builder: (_, child) => Transform.scale(scale: _scale.value, child: child),
+      child: IconButton(
+        onPressed: _onTap,
+        icon: Icon(Icons.search_rounded, color: iconColor),
+      ),
+    );
+  }
+}
+
+class _NotificationBellButton extends StatefulWidget {
   final int count;
   final VoidCallback onTap;
 
@@ -382,40 +436,120 @@ class _NotificationBellButton extends StatelessWidget {
   });
 
   @override
+  State<_NotificationBellButton> createState() => _NotificationBellButtonState();
+}
+
+class _NotificationBellButtonState extends State<_NotificationBellButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _swing;
+  late final Animation<double> _badgeScale;
+  Timer? _idleTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    // Cloche qui se balance : pivot en haut → gauche → droite → retour, amorti
+    _swing = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -0.22), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -0.22, end: 0.22), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 0.22, end: -0.14), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -0.14, end: 0.10), weight: 1.5),
+      TweenSequenceItem(tween: Tween(begin: 0.10, end: 0.0), weight: 1),
+    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+
+    // Badge qui pulse en sync (grossit légèrement au milieu du swing)
+    _badgeScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 3),
+      TweenSequenceItem(tween: Tween(begin: 1.35, end: 1.0), weight: 3),
+    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+
+    if (widget.count > 0) _scheduleNext();
+  }
+
+  void _scheduleNext() {
+    final delay = 6 + (DateTime.now().millisecond % 6); // 6–11 s
+    _idleTimer = Timer(Duration(seconds: delay), () {
+      if (mounted) {
+        _ctrl.forward(from: 0).then((_) {
+          if (mounted) _scheduleNext();
+        });
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(_NotificationBellButton old) {
+    super.didUpdateWidget(old);
+    if (widget.count > 0 && old.count == 0) {
+      _idleTimer?.cancel();
+      _scheduleNext();
+    } else if (widget.count == 0) {
+      _idleTimer?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    _idleTimer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white : Colors.black.withValues(alpha: 0.78);
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        IconButton(
-          onPressed: onTap,
-          icon: Icon(Icons.notifications_none_rounded, color: iconColor),
-        ),
-        if (count > 0)
-          Positioned(
-            right: 6,
-            top: 6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE53935),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  height: 1.0,
+    return AnimatedBuilder(
+      animation: _swing,
+      builder: (_, child) => Transform.rotate(
+        angle: _swing.value,
+        alignment: Alignment.topCenter,
+        child: child,
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(
+            onPressed: widget.onTap,
+            icon: Icon(Icons.notifications_none_rounded, color: iconColor),
+          ),
+          if (widget.count > 0)
+            Positioned(
+              right: 6,
+              top: 6,
+              child: AnimatedBuilder(
+                animation: _badgeScale,
+                builder: (_, child) => Transform.scale(
+                  scale: _badgeScale.value,
+                  child: child,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE53935),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1),
+                  ),
+                  child: Text(
+                    '${widget.count}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      height: 1.0,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1073,272 +1207,6 @@ class _DiagonalBannerClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _VerseOfTheDayCard extends StatefulWidget {
-  const _VerseOfTheDayCard();
-
-  @override
-  State<_VerseOfTheDayCard> createState() => _VerseOfTheDayCardState();
-}
-
-class _VerseOfTheDayCardState extends State<_VerseOfTheDayCard> {
-  // Cache statique : survit aux rebuilds du parent (scroll setState)
-  static String? _cachedDate;
-  static String? _cachedArabic;
-  static String? _cachedTranslation;
-  static int?    _cachedSurah;
-  static int?    _cachedVerse;
-
-  String _arabicText = '';
-  String _translationText = '';
-  int _surahNumber = 1;
-  int _verseNumber = 1;
-  bool _isLoading = true;
-  final Dio _dio = Dio();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRandomVerse();
-  }
-
-  @override
-  void dispose() {
-    _dio.close(force: true);
-    super.dispose();
-  }
-
-  Future<void> _loadRandomVerse() async {
-    // Vérifier le cache statique : si le verset du jour est déjà chargé, l'utiliser directement
-    final today = DateTime.now();
-    final todayKey = '${today.year}-${today.month}-${today.day}';
-    if (_cachedDate == todayKey && _cachedArabic != null) {
-      if (!mounted) return;
-      setState(() {
-        _arabicText      = _cachedArabic!;
-        _translationText = _cachedTranslation ?? '';
-        _surahNumber     = _cachedSurah ?? 1;
-        _verseNumber     = _cachedVerse ?? 1;
-        _isLoading       = false;
-      });
-      return;
-    }
-
-    try {
-      // Générer un verset aléatoire basé sur la date du jour
-      final seed = today.year * 10000 + today.month * 100 + today.day;
-      final random = math.Random(seed);
-      
-      // Sourate aléatoire (1-114)
-      _surahNumber = 1 + random.nextInt(114);
-      
-      // Essayer d'abord avec le pack offline français
-      final isReady = await QuranTranslationPackService.isPackReady(AppLang.fr);
-      if (isReady) {
-        final dbPath = await QuranTranslationPackService.getDbPath(AppLang.fr);
-        final db = await openDatabase(dbPath, readOnly: true);
-        
-        try {
-          // Compter les versets de cette sourate
-          final countResult = await db.rawQuery(
-            'SELECT COUNT(*) as cnt FROM verses WHERE sura = ?',
-            [_surahNumber],
-          );
-          final versesInSurah = (countResult.first['cnt'] as int?) ?? 0;
-          
-          if (versesInSurah > 0) {
-            _verseNumber = 1 + random.nextInt(versesInSurah);
-            
-            // Récupérer le verset
-            final rows = await db.rawQuery(
-              'SELECT ar, fr FROM verses WHERE sura = ? AND aya = ?',
-              [_surahNumber, _verseNumber],
-            );
-            
-            if (rows.isNotEmpty) {
-              final row = rows.first;
-              _arabicText = ((row['ar'] as String?) ?? '')
-                  .replaceAll('\u200C', '')
-                  .replaceAll('\u200D', '')
-                  .replaceAll('\u200B', '')
-                  .replaceAll('\u200F', '')
-                  .replaceAll('\u200E', '')
-                  .trim();
-              _translationText = (row['fr'] as String?) ?? '';
-              _cachedDate        = todayKey;
-              _cachedArabic      = _arabicText;
-              _cachedTranslation = _translationText;
-              _cachedSurah       = _surahNumber;
-              _cachedVerse       = _verseNumber;
-              if (!mounted) return;
-              setState(() => _isLoading = false);
-              return;
-            }
-          }
-        } finally {
-          await db.close();
-        }
-      }
-      
-      // Fallback: utiliser l'API en ligne si le pack offline n'est pas disponible
-      final arRes = await _dio.get('https://api.alquran.cloud/v1/surah/$_surahNumber/quran-uthmani');
-      final frRes = await _dio.get('https://quranenc.com/api/v1/translation/sura/french_hameedullah/$_surahNumber');
-      
-      final arAyahs = (arRes.data?['data']?['ayahs'] as List?) ?? [];
-      final frData = (frRes.data?['result'] as List?) ?? [];
-
-      if (arAyahs.isNotEmpty && frData.isNotEmpty) {
-        _verseNumber = 1 + random.nextInt(arAyahs.length);
-
-        final arText = arAyahs[_verseNumber - 1]['text']?.toString() ?? '';
-        final frIdx = (_verseNumber - 1).clamp(0, frData.length - 1);
-        final frText = frData[frIdx]['translation']?.toString() ?? '';
-        
-        _arabicText = arText
-            .replaceAll('\u200C', '')
-            .replaceAll('\u200D', '')
-            .replaceAll('\u200B', '')
-            .replaceAll('\u200F', '')
-            .replaceAll('\u200E', '')
-            .trim();
-        _translationText = frText.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-      }
-
-      _cachedDate        = todayKey;
-      _cachedArabic      = _arabicText;
-      _cachedTranslation = _translationText;
-      _cachedSurah       = _surahNumber;
-      _cachedVerse       = _verseNumber;
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    } catch (e) {
-      // Fallback sur un verset par défaut
-      _surahNumber = 2;
-      _verseNumber = 286;
-      _arabicText = 'لَا يُكَلِّفُ ٱللَّهُ نَفۡسًا إِلَّا وُسۡعَهَاۚ';
-      _translationText = 'Allah n\'impose à aucune âme une charge supérieure à sa capacité.';
-      _cachedDate        = todayKey;
-      _cachedArabic      = _arabicText;
-      _cachedTranslation = _translationText;
-      _cachedSurah       = _surahNumber;
-      _cachedVerse       = _verseNumber;
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    if (_isLoading) {
-      return SizedBox(
-        height: 190,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: isDark
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF2C3E50), Color(0xFF1A252F)],
-                  )
-                : const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFFEF5E7), Color(0xFFFAE5D3)],
-                  ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: (isDark ? Colors.black : Colors.orange.shade200).withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-      );
-
-    }
-
-    final surahName = surahFr[_surahNumber] ?? 'Sourate $_surahNumber';
-    final arabicColor = isDark ? const Color(0xFFF6E9D7) : const Color(0xFF3D2817);
-    final translationColor = isDark ? const Color(0xFFD4C5B0) : const Color(0xFF6B5744);
-    const goldColor = Color(0xFFA67C52);
-
-    return SizedBox(
-      height: 190,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF2C3E50),
-                    Color(0xFF1A252F),
-                  ],
-                )
-              : const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFFEF5E7),
-                    Color(0xFFFAE5D3),
-                  ],
-                ),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              _arabicText,
-              textAlign: TextAlign.center,
-              textDirection: TextDirection.rtl,
-              locale: const Locale('ar'),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'ScheherazadeNew',
-                fontSize: 18,
-                letterSpacing: 0.0,
-                color: arabicColor,
-                height: 1.6,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              _translationText,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: translationColor,
-                height: 1.4,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$surahName $_surahNumber:$_verseNumber',
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: goldColor,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _HomeCardShell extends StatelessWidget {
