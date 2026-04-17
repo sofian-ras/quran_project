@@ -9,10 +9,12 @@ import 'ui/screens/splash_screen.dart';
 import 'ui/widgets/mini_audio_player.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
+import 'package:workmanager/workmanager.dart';
 import 'services/app_usage_service.dart';
 import 'services/audio_service.dart';
 import 'services/navigation_service.dart';
 import 'services/notification_service.dart';
+import 'services/prayer_reschedule_worker.dart';
 import 'services/quran_translation_pack_service.dart';
 
 
@@ -34,6 +36,19 @@ Future<void> main() async {
 
   // ThemeService doit être prêt avant runApp pour éviter le flash de thème.
   await ThemeService.init();
+
+  // WorkManager : initialisation synchrone requise avant tout registerTask.
+  await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+  // Tâche périodique toutes les 12h — re-planifie les prières app fermée.
+  // ExistingWorkPolicy.keep : ne re-crée pas si déjà enregistrée.
+  unawaited(Workmanager().registerPeriodicTask(
+    kRescheduleTaskUnique,
+    kRescheduleTaskName,
+    frequency: const Duration(hours: 12),
+    initialDelay: const Duration(minutes: 5),
+    existingWorkPolicy: ExistingWorkPolicy.keep,
+    constraints: Constraints(networkType: NetworkType.not_required),
+  ));
 
   // Opérations non-bloquantes : lancées en arrière-plan sans retarder runApp.
   AppUsageService.init();

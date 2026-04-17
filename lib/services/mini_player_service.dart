@@ -131,6 +131,7 @@ class MiniPlayerService {
   int  _rangeRepeatCount  = 0; // nb de fois que la plage entière a joué
   int  _playlistStartAyah = 0; // premier ayah de la playlist courante
   bool _stopping          = false;
+  ConcatenatingAudioSource? _playlistSource; // source mise en cache pour le repeat fiable
 
   // Génération courante — s'incrémente à chaque _playCurrent.
   // Permet d'annuler tout appel obsolète après un await.
@@ -542,8 +543,9 @@ class MiniPlayerService {
     _playlistStartAyah       = startAyah;
     _rangeRepeatCount        = 0;
 
+    _playlistSource = ConcatenatingAudioSource(useLazyPreparation: true, children: sources);
     await _player.setAudioSource(
-      ConcatenatingAudioSource(useLazyPreparation: true, children: sources),
+      _playlistSource!,
       initialIndex:    0,
       initialPosition: Duration.zero,
     );
@@ -553,8 +555,29 @@ class MiniPlayerService {
   /// Libère les ressources du mode playlist.
   void _clearPlaylist() {
     _indexSub?.cancel();
-    _indexSub      = null;
-    _playlistAyahs = null;
+    _indexSub       = null;
+    _playlistAyahs  = null;
+    _playlistSource = null;
+  }
+
+  /// Redémarre la playlist depuis le début pour le repeat.
+  /// Utilise setAudioSource (plus fiable que seek sur un player en état completed).
+  Future<void> _restartPlaylist() async {
+    final source = _playlistSource;
+    final ayahs  = _playlistAyahs;
+    if (source == null || ayahs == null || _stopping) {
+      isRangeAutoAdvancing.value = false;
+      return;
+    }
+    await _player.setAudioSource(source, initialIndex: 0, initialPosition: Duration.zero);
+    if (_stopping || _playlistAyahs == null) {
+      isRangeAutoAdvancing.value = false;
+      return;
+    }
+    _curAyah             = _playlistStartAyah;
+    currentAyahKey.value = '$_curSurah:$_playlistStartAyah';
+    await _player.play();
+    isRangeAutoAdvancing.value = false;
   }
 
   Future<void> _playCurrent() async {
@@ -661,15 +684,9 @@ class MiniPlayerService {
       _rangeRepeatCount++;
 
       if (limit < 0 || _rangeRepeatCount < limit) {
-        // Rejouer la plage depuis le début
+        // Rejouer la plage depuis le début via setAudioSource (plus fiable que seek sur completed)
         isRangeAutoAdvancing.value = true;
-        _player.seek(Duration.zero, index: 0).then((_) {
-          if (!_stopping && _playlistAyahs != null) {
-            _curAyah             = _playlistStartAyah;
-            currentAyahKey.value = '$_curSurah:$_playlistStartAyah';
-            _player.play();
-          }
-        });
+        _restartPlaylist();
         return;
       }
 

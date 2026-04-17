@@ -91,11 +91,10 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    final allIndices  = _kSurahNames.keys.toList();
-    final rng         = math.Random(42);
-    _particles        = [];
+    final rng        = math.Random(42);
+    _particles       = [];
     // Garder seulement 8 particules pour alléger le rendu
-    final pickedKeys  = [1, 18, 36, 55, 67, 78, 112, 114];
+    const pickedKeys = [1, 18, 36, 55, 67, 78, 112, 114];
 
     for (int i = 0; i < pickedKeys.length; i++) {
       // Angles répartis uniformément sur 360°, avec légère variation aléatoire
@@ -111,7 +110,6 @@ class _SplashScreenState extends State<SplashScreen>
         delayMs:    rng.nextInt(1600),                 // 0–1 600 ms
       ));
     }
-    allIndices; // référence pour éviter le warning "unused variable"
 
     _ctrl.forward().then((_) {
       Future.delayed(const Duration(milliseconds: 800), _navigate);
@@ -160,39 +158,41 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
 
-          // Layer 3 — halo + logo + bismillah
+          // Layer 3 — halo + logo centré
           Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    _PulsingHalo(logoWidth: logoWidth),
-                    AnimatedBuilder(
-                      animation: _ctrl,
-                      builder: (_, __) => FadeTransition(
-                        opacity: _logoFade,
-                        child: ClipRect(
-                          clipper: _RevealClipper(_logoReveal.value),
-                          child: SvgPicture.asset(
-                            'assets/images/navbar/Quran_Kareem.svg',
-                            width: logoWidth,
-                            colorFilter: const ColorFilter.mode(
-                              _kGold,
-                              BlendMode.srcIn,
-                            ),
-                          ),
+                _PulsingHalo(logoWidth: logoWidth),
+                AnimatedBuilder(
+                  animation: _ctrl,
+                  builder: (_, __) => FadeTransition(
+                    opacity: _logoFade,
+                    child: ClipRect(
+                      clipper: _RevealClipper(_logoReveal.value),
+                      child: SvgPicture.asset(
+                        'assets/images/navbar/Quran_Kareem.svg',
+                        width: logoWidth,
+                        colorFilter: const ColorFilter.mode(
+                          _kGold,
+                          BlendMode.srcIn,
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-
-                const SizedBox(height: 20),
-
-                const _BismillahTypewriter(startDelayMs: 900),
               ],
+            ),
+          ),
+
+          // Layer 4 — bismillah en haut
+          const Positioned(
+            top: 0, left: 0, right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(top: 32),
+                child: _BismillahTypewriter(startDelayMs: 400),
+              ),
             ),
           ),
         ],
@@ -328,7 +328,7 @@ class _BismillahTypewriterState extends State<_BismillahTypewriter>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-    _pulseAnim = Tween<double>(begin: 0.65, end: 1.0).animate(
+    _pulseAnim = Tween<double>(begin: 0.80, end: 1.0).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
 
@@ -371,12 +371,18 @@ class _BismillahTypewriterState extends State<_BismillahTypewriter>
           opacity: _pulseCtrl.isAnimating ? _pulseAnim.value : 0.85,
           child: Text(
             displayed,
+            textAlign: TextAlign.center,
             textDirection: TextDirection.rtl,
             style: TextStyle(
               fontFamily: 'UthmanTahaNaskh',
-              fontSize: 22,
+              fontSize: 26,
               color: _kGold.withValues(alpha: 1.0),
               height: 1.4,
+              shadows: [
+                Shadow(color: _kGold.withValues(alpha: 0.9),          blurRadius: 12),
+                Shadow(color: _kGold.withValues(alpha: 0.5),          blurRadius: 28),
+                Shadow(color: Colors.white.withValues(alpha: 0.25),   blurRadius: 6),
+              ],
             ),
           ),
         ),

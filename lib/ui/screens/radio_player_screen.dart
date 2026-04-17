@@ -119,12 +119,15 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
         .then((v) { if (mounted) setState(() => _isFavorite = v); });
   }
 
-  RadioStation? get _nextStation {
+  List<({RadioStation station, int delta})> _stationsAround() {
     final stations = RadioService.instance.cachedStations;
-    if (stations.isEmpty) return null;
+    if (stations.length < 2) return [];
     final idx = stations.indexWhere((s) => s.id == _station.id);
-    if (idx < 0) return null;
-    return stations[(idx + 1) % stations.length];
+    if (idx < 0) return [];
+    final n = stations.length;
+    return [1, 2, 3]
+        .map((d) => (station: stations[(idx + d) % n], delta: d))
+        .toList();
   }
 
   // ── Sleep timer ───────────────────────────────────────────────────────────
@@ -602,14 +605,16 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             ],
           ),
 
-          // ── Preview station suivante ───────────────────────────────
-          if (_nextStation != null)
-            _NextStationPreview(
-              station: _nextStation!,
+          // ── Canaux voisins ────────────────────────────────────────
+          ..._stationsAround().map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: _NextStationPreview(
+              station: e.station,
               isDark: isDark,
               grad: grad,
-              onTap: () => _skipTo(1),
+              onTap: () => _skipTo(e.delta),
             ),
+          )),
 
           const Spacer(flex: 1),
         ],
