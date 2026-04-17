@@ -31,31 +31,32 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
   @override
   void initState() {
     super.initState();
-    MiniPlayerService.instance.isPlaying.addListener(_onPlayingChanged);
-    MiniPlayerService.instance.isRangeAutoAdvancing.addListener(_onPlayingChanged);
-    MiniPlayerService.instance.prepProgress.addListener(_onPrepChanged);
+    MiniPlayerService.instance.isPlaying.addListener(_onActivityChanged);
+    MiniPlayerService.instance.isRangeAutoAdvancing.addListener(_onActivityChanged);
+    MiniPlayerService.instance.isLoading.addListener(_onActivityChanged);
+    MiniPlayerService.instance.prepProgress.addListener(_onActivityChanged);
   }
 
   @override
   void dispose() {
-    MiniPlayerService.instance.isPlaying.removeListener(_onPlayingChanged);
-    MiniPlayerService.instance.isRangeAutoAdvancing.removeListener(_onPlayingChanged);
-    MiniPlayerService.instance.prepProgress.removeListener(_onPrepChanged);
+    MiniPlayerService.instance.isPlaying.removeListener(_onActivityChanged);
+    MiniPlayerService.instance.isRangeAutoAdvancing.removeListener(_onActivityChanged);
+    MiniPlayerService.instance.isLoading.removeListener(_onActivityChanged);
+    MiniPlayerService.instance.prepProgress.removeListener(_onActivityChanged);
     super.dispose();
   }
 
-  void _onPlayingChanged() {
+  void _onActivityChanged() {
+    if (!mounted) return;
     final svc = MiniPlayerService.instance;
-    if (svc.isPlaying.value || svc.isRangeAutoAdvancing.value) {
-      if (!_showControls && mounted) setState(() => _showControls = true);
-    }
-  }
-
-  void _onPrepChanged() {
-    final svc = MiniPlayerService.instance;
-    // Quand le téléchargement se termine → passer en mode contrôles
-    if (svc.prepProgress.value == null && mounted) {
+    final isActive = svc.isPlaying.value ||
+        svc.isRangeAutoAdvancing.value ||
+        svc.isLoading.value ||
+        svc.prepProgress.value != null;
+    if (isActive && !_showControls) {
       setState(() => _showControls = true);
+    } else if (!isActive && _showControls) {
+      setState(() => _showControls = false);
     }
   }
 
