@@ -922,22 +922,8 @@ class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF111827);
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: isDark
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1B3A4B), Color(0xFF0D2233)],
-              )
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFE8F4F8), Color(0xFFD0E8F0)],
-              ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 6, 0, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
