@@ -132,7 +132,6 @@ class MiniPlayerService {
   int  _endAyah           = 0;
   int  _seekFromAyah      = 0; // premier ayah du play seek-based courant
   int  _repeatCount       = 0;
-  int  _rangeRepeatCount  = 0; // nb de fois que la plage entière a joué
   int  _playlistStartAyah = 0; // premier ayah de la playlist courante
   bool _stopping          = false;
   ConcatenatingAudioSource? _playlistSource; // source mise en cache pour le repeat fiable
@@ -503,8 +502,11 @@ class MiniPlayerService {
     final docs       = await getApplicationDocumentsDirectory();
     final reciterDir = p.join(docs.path, 'qul_audio', qid.toString());
 
-    // Répétition gérée au niveau de la plage entière (dans _onAyahCompleted)
-    const factor = 1;
+    // Répétition par verset : chaque verset est ajouté `factor` fois dans la
+    // playlist, ce qui fait que just_audio avance naturellement après N écoutes.
+    // Pour ∞, on ajoute chaque verset une fois et on met LoopMode.all (la plage
+    // entière boucle indéfiniment jusqu'à ce que l'utilisateur appuie sur stop).
+    final factor = repeatMode.value == MiniRepeatMode.infinite ? 1 : _repeatLimit;
 
     // Construire la playlist de startAyah → _endAyah
     final sources = <AudioSource>[];
@@ -551,8 +553,10 @@ class MiniPlayerService {
       }
     });
 
-    // Mode de boucle : ∞ répète la piste courante, sinon lecture unique
-    await _player.setLoopMode(LoopMode.off);
+    // Mode de boucle : ∞ → toute la plage boucle, sinon lecture unique
+    // (le repeat par verset est géré par `factor` ci-dessus).
+    await _player.setLoopMode(
+        repeatMode.value == MiniRepeatMode.infinite ? LoopMode.all : LoopMode.off);
 
     unavailableMessage.value = null;
     currentAyahKey.value     = '$surah:$startAyah';
@@ -695,19 +699,11 @@ class MiniPlayerService {
   void _onAyahCompleted() {
     if (_stopping) return;
 
-    // Mode playlist (surah/selection) : la playlist entière est terminée.
+    // Mode playlist (surah/selection) : toute la playlist est terminée.
+    // La répétition par verset est gérée via `factor` dans _startPlaylistMode
+    // (chaque verset apparaît N fois dans la playlist). En mode ∞, LoopMode.all
+    // empêche ce callback de se déclencher — la playlist boucle seule.
     if (_playlistAyahs != null) {
-      final limit = _repeatLimit; // -1 = infinite, 1/2/3 = fini
-      _rangeRepeatCount++;
-
-      if (limit < 0 || _rangeRepeatCount < limit) {
-        // Rejouer la plage depuis le début via setAudioSource (plus fiable que seek sur completed)
-        isRangeAutoAdvancing.value = true;
-        _restartPlaylist();
-        return;
-      }
-
-      // Limite atteinte → stop
       _clearPlaylist();
       isPlaying.value            = false;
       isRangeAutoAdvancing.value = false;

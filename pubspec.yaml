@@ -57,9 +57,9 @@ flutter_native_splash:
 flutter_icons:
   android: true
   ios: false
-  image_path: "assets/icon/logo_coran_v3.png"  # chemin vers logo 512x512
+  image_path: "assets/icon/logo_app_quran_v4.png"  # chemin vers logo 512x512
   adaptive_icon_background: "#FFFFFF"  # fond pour adaptive icon Android
-  adaptive_icon_foreground: "assets/icon/logo_coran_v3.png"  # même image pour foreground
+  adaptive_icon_foreground: "assets/icon/logo_app_quran_v4.png"  # même image pour foreground
 
 
 flutter:

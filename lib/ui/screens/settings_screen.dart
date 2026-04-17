@@ -171,6 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 scrolledUnderElevation: 0,
+                foregroundColor: txtP,
                 flexibleSpace: FlexibleSpaceBar(
                   titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                   title: Text(
