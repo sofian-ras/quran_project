@@ -203,25 +203,29 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     required bool loading,
     required double? prep,
   }) {
-    return Column(
+    return Row(
       key: key,
-      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _CtrlBtn(icon: Icons.skip_previous_rounded, onTap: svc.prevVerse),
-            _playBtn(svc, playing, autoAdv, loading, prep, size: 30),
-            _CtrlBtn(
-              icon: Icons.stop_rounded,
-              onTap: () { svc.stop(); setState(() => _showControls = false); },
-              color: Colors.redAccent.shade100,
-            ),
-            _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
-          ],
+        _CtrlBtn(icon: Icons.skip_previous_rounded, onTap: svc.prevVerse),
+        _playBtn(svc, playing, autoAdv, loading, prep, size: 30),
+        _CtrlBtn(
+          icon: Icons.stop_rounded,
+          onTap: () { svc.stop(); setState(() => _showControls = false); },
+          color: Colors.redAccent.shade100,
         ),
-        const SizedBox(height: 8),
-        _chipsRow(svc),
+        _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
+        ValueListenableBuilder<MiniRepeatMode>(
+          valueListenable: svc.repeatMode,
+          builder: (_, repeat, __) => _ChipBtn(
+            label: _repeatLabel(repeat),
+            onTap: svc.cycleRepeat,
+          ),
+        ),
+        ValueListenableBuilder<double>(
+          valueListenable: svc.playbackSpeed,
+          builder: (_, speed, __) => _SpeedBtn(speed: speed, onTap: svc.cycleSpeed),
+        ),
       ],
     );
   }
@@ -380,8 +384,6 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
             _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
           ],
         ),
-        const SizedBox(height: 8),
-        _chipsRow(svc),
         _unavailableMsg(svc),
       ],
     );
@@ -402,11 +404,7 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
         const SizedBox(width: 8),
         ValueListenableBuilder<double>(
           valueListenable: svc.playbackSpeed,
-          builder: (_, speed, __) => _ChipBtn(
-            label: _speedLabel(speed),
-            onTap: svc.cycleSpeed,
-            active: speed != 1.0,
-          ),
+          builder: (_, speed, __) => _SpeedBtn(speed: speed, onTap: svc.cycleSpeed),
         ),
       ],
     );
@@ -591,10 +589,6 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     }
   }
 
-  String _speedLabel(double speed) {
-    if (speed == speed.truncateToDouble()) return '×${speed.toInt()}';
-    return '×$speed';
-  }
 }
 
 // ── Chip bouton (repeat / vitesse) ───────────────────────────────────────────
@@ -602,8 +596,7 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
 class _ChipBtn extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
-  final bool active;
-  const _ChipBtn({required this.label, required this.onTap, this.active = false});
+  const _ChipBtn({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -612,19 +605,75 @@ class _ChipBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: active
-              ? const Color(0xFFD4A855).withValues(alpha: 0.28)
-              : Colors.white.withValues(alpha: 0.15),
+          color: Colors.white.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
-          border: active
-              ? Border.all(color: const Color(0xFFD4A855).withValues(alpha: 0.55), width: 1)
-              : null,
         ),
         child: Text(label,
-            style: TextStyle(
-                color: active ? const Color(0xFFD4A855) : Colors.white,
+            style: const TextStyle(
+                color: Colors.white,
                 fontSize: 13,
                 fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+}
+
+// ── Bouton vitesse avec badge ─────────────────────────────────────────────────
+
+class _SpeedBtn extends StatelessWidget {
+  final double speed;
+  final VoidCallback onTap;
+  const _SpeedBtn({required this.speed, required this.onTap});
+
+  String get _label {
+    if (speed == speed.truncateToDouble()) return '×${speed.toInt()}';
+    return '×$speed';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFD4A855);
+    final active = speed != 1.0;
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 32,
+        height: 32,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(
+              Icons.speed_rounded,
+              color: active ? gold.withValues(alpha: 0.9) : Colors.white70,
+              size: 26,
+            ),
+            Positioned(
+              top: -5,
+              right: -8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                decoration: BoxDecoration(
+                  color: active
+                      ? gold.withValues(alpha: 0.22)
+                      : Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(6),
+                  border: active
+                      ? Border.all(color: gold.withValues(alpha: 0.55), width: 0.8)
+                      : Border.all(color: Colors.white.withValues(alpha: 0.25), width: 0.8),
+                ),
+                child: Text(
+                  _label,
+                  style: TextStyle(
+                    color: active ? gold : Colors.white,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

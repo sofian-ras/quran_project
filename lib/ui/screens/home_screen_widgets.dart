@@ -922,8 +922,22 @@ class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF111827);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 6, 0, 10),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: isDark
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1B3A4B), Color(0xFF0D2233)],
+              )
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFE8F4F8), Color(0xFFD0E8F0)],
+              ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1121,6 +1135,74 @@ class _FeaturedStationCard extends StatelessWidget {
   }
 }
 
+class _StationChip extends StatelessWidget {
+  final RadioStation station;
+  final bool isPlaying;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _StationChip({
+    required this.station,
+    required this.isPlaying,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? const LinearGradient(
+                  colors: [Color(0xFF4A2E06), Color(0xFF6B4510)],
+                )
+              : const LinearGradient(
+                  colors: [Color(0xFFE8D5B3), Color(0xFFCFAF7E)],
+                ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isPlaying
+                ? const Color(0xFF38C172)
+                : const Color(0xFFC8A97E),
+            width: isPlaying ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isPlaying
+                    ? const Color(0xFF38C172)
+                    : const Color(0xFFE74C3C),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              station.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? const Color(0xFFE8D5B0)
+                    : const Color(0xFF4A3F30),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _WaveformBars extends StatefulWidget {
   const _WaveformBars();
 
@@ -1258,74 +1340,6 @@ class _LiveBadgeState extends State<_LiveBadge>
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StationChip extends StatelessWidget {
-  final RadioStation station;
-  final bool isPlaying;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _StationChip({
-    required this.station,
-    required this.isPlaying,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? const LinearGradient(
-                  colors: [Color(0xFF4A2E06), Color(0xFF6B4510)],
-                )
-              : const LinearGradient(
-                  colors: [Color(0xFFE8D5B3), Color(0xFFCFAF7E)],
-                ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isPlaying
-                ? const Color(0xFF38C172)
-                : const Color(0xFFC8A97E),
-            width: isPlaying ? 1.5 : 1.0,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: isPlaying
-                    ? const Color(0xFF38C172)
-                    : const Color(0xFFE74C3C),
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              station.displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isDark
-                    ? const Color(0xFFE8D5B0)
-                    : const Color(0xFF4A3F30),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
