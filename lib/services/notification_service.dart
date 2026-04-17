@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -24,6 +26,8 @@ const _kIshaId    = 14;
 const _kChannelId   = 'quran_reminders';
 const _kChannelName = 'Rappels Quran';
 
+const _kBatteryChannel = MethodChannel('com.sofian.quran/battery');
+
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -40,7 +44,75 @@ class NotificationService {
     const settings = InitializationSettings(android: android);
 
     await _plugin.initialize(settings);
+
+    // Crée / recrée le canal avec la bonne importance.
+    // Si une ancienne install avait créé le canal avec une importance plus basse,
+    // on le supprime et le recrée pour forcer le son et les alertes en tête.
+    if (Platform.isAndroid) {
+      final impl = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (impl != null) {
+        await impl.deleteNotificationChannel(_kChannelId);
+        await impl.createNotificationChannel(const AndroidNotificationChannel(
+          _kChannelId,
+          _kChannelName,
+          description: 'Rappels de lecture et alertes de prière',
+          importance: Importance.high,
+          playSound: true,
+          enableVibration: true,
+        ));
+      }
+    }
+
     _initialized = true;
+  }
+
+  // ── Batterie ──────────────────────────────────────────────────────────────
+  /// Vérifie si l'app est exemptée de l'optimisation batterie Android.
+  /// Retourne true si c'est le cas (ou si non-Android / erreur).
+  Future<bool> isIgnoringBatteryOptimizations() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      return await _kBatteryChannel
+              .invokeMethod<bool>('isIgnoringBatteryOptimizations') ??
+          false;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Ouvre la boîte de dialogue système pour désactiver l'optimisation batterie.
+  Future<void> requestBatteryOptimizationExclusion() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _kBatteryChannel.invokeMethod('requestIgnoreBatteryOptimizations');
+    } catch (_) {
+      await Geolocator.openAppSettings();
+    }
+  }
+
+  // ── Notification de test ──────────────────────────────────────────────────
+  /// Planifie une notification visible dans 5 secondes pour vérifier
+  /// que la pipeline fonctionne (permissions, canal, alarme).
+  Future<void> showTestNotification() async {
+    await init();
+    final in5s = tz.TZDateTime.fromMillisecondsSinceEpoch(
+      tz.local,
+      DateTime.now().add(const Duration(seconds: 5)).millisecondsSinceEpoch,
+    );
+    final canExact = await canScheduleExactNotifications();
+    await _plugin.zonedSchedule(
+      99,
+      'Test ✓',
+      'Les notifications fonctionnent !',
+      in5s,
+      NotificationDetails(android: _androidDetails),
+      androidScheduleMode: canExact
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexact,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
   }
 
   // ── Permissions (Android 13+) ─────────────────────────────────────────────

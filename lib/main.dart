@@ -38,17 +38,20 @@ Future<void> main() async {
   await ThemeService.init();
 
   // WorkManager : initialisation synchrone requise avant tout registerTask.
-  await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
-  // Tâche périodique toutes les 12h — re-planifie les prières app fermée.
-  // ExistingWorkPolicy.keep : ne re-crée pas si déjà enregistrée.
-  unawaited(Workmanager().registerPeriodicTask(
-    kRescheduleTaskUnique,
-    kRescheduleTaskName,
-    frequency: const Duration(hours: 12),
-    initialDelay: const Duration(minutes: 5),
-    existingWorkPolicy: ExistingWorkPolicy.keep,
-    constraints: Constraints(networkType: NetworkType.not_required),
-  ));
+  // Try-catch : un crash ici empêcherait runApp() de s'exécuter.
+  try {
+    await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+    unawaited(Workmanager().registerPeriodicTask(
+      kRescheduleTaskUnique,
+      kRescheduleTaskName,
+      frequency: const Duration(hours: 12),
+      initialDelay: const Duration(minutes: 5),
+      existingWorkPolicy: ExistingWorkPolicy.keep,
+      constraints: Constraints(networkType: NetworkType.not_required),
+    ));
+  } catch (e) {
+    debugPrint('[WorkManager] init failed: $e');
+  }
 
   // Opérations non-bloquantes : lancées en arrière-plan sans retarder runApp.
   AppUsageService.init();

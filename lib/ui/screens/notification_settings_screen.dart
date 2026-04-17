@@ -17,17 +17,36 @@ class NotificationSettingsScreen extends StatefulWidget {
 }
 
 class _NotificationSettingsScreenState
-    extends State<NotificationSettingsScreen> {
+    extends State<NotificationSettingsScreen>
+    with WidgetsBindingObserver {
   bool _dailyEnabled      = false;
   bool _prayersEnabled    = false;
   TimeOfDay _dailyTime    = const TimeOfDay(hour: 8, minute: 0);
   bool _loading           = true;
   bool _exactAlarmGranted = true;
+  bool _batteryOk         = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Re-vérifie le statut batterie quand l'user revient de Settings.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      NotificationService.instance
+          .isIgnoringBatteryOptimizations()
+          .then((ok) { if (mounted) setState(() => _batteryOk = ok); });
+    }
   }
 
   Future<void> _load() async {
@@ -36,12 +55,14 @@ class _NotificationSettingsScreenState
     final prayersEnabled    = await NotificationService.instance.arePrayersEnabled();
     final dailyTime         = await NotificationService.instance.getDailyTime();
     final exactAlarmGranted = await NotificationService.instance.canScheduleExactNotifications();
+    final batteryOk         = await NotificationService.instance.isIgnoringBatteryOptimizations();
     if (!mounted) return;
     setState(() {
       _dailyEnabled      = dailyEnabled;
       _prayersEnabled    = prayersEnabled;
       _dailyTime         = dailyTime;
       _exactAlarmGranted = exactAlarmGranted;
+      _batteryOk         = batteryOk;
       _loading           = false;
     });
   }
@@ -230,6 +251,16 @@ class _NotificationSettingsScreenState
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
 
+                  // ── Bandeau batterie ──────────────────────────────────
+                  if (!_batteryOk) ...[
+                    _BatteryWarningCard(
+                      isDark: isDark,
+                      onFix: () => NotificationService.instance
+                          .requestBatteryOptimizationExclusion(),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // ── Rappel de lecture ─────────────────────────────────
                   _SectionHeader('Rappel de lecture', txtS),
                   _Card(isDark: isDark, children: [
@@ -396,6 +427,49 @@ class _NotificationSettingsScreenState
 
                   const SizedBox(height: 24),
 
+                  // ── Bouton test ───────────────────────────────────────
+                  _SectionHeader('Diagnostic', txtS),
+                  _Card(isDark: isDark, children: [
+                    InkWell(
+                      onTap: _sendTestNotification,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        child: Row(
+                          children: [
+                            const _IconBox(
+                                Icons.notifications_active_rounded,
+                                Color(0xFF0EA5E9)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Tester maintenant',
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: txtP)),
+                                  Text(
+                                      'Envoie une notification de test dans 5 s',
+                                      style: TextStyle(
+                                          fontSize: 12, color: txtS)),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right_rounded,
+                                color: isDark
+                                    ? Colors.white24
+                                    : Colors.black26,
+                                size: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ]),
+
+                  const SizedBox(height: 24),
+
                   // ── Note bas de page ──────────────────────────────────
                   Center(
                     child: Text(
@@ -414,10 +488,85 @@ class _NotificationSettingsScreenState
     );
   }
 
+  Future<void> _sendTestNotification() async {
+    await NotificationService.instance.showTestNotification();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Notification envoyée — elle apparaît dans 5 secondes.'),
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
+
   String _formatTime(TimeOfDay t) {
     final h = t.hour.toString().padLeft(2, '0');
     final m = t.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+}
+
+// ── Bandeau avertissement batterie ───────────────────────────────────────────
+class _BatteryWarningCard extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onFix;
+  const _BatteryWarningCard({required this.isDark, required this.onFix});
+
+  @override
+  Widget build(BuildContext context) {
+    const amber = Color(0xFFF59E0B);
+    final bg = isDark ? const Color(0xFF2D1F00) : const Color(0xFFFFF8E7);
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: amber.withValues(alpha: 0.5), width: 1),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.battery_alert_rounded, color: amber, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Optimisation batterie active',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: amber,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Realme peut bloquer les notifications en arrière-plan. '
+                  'Désactivez l\'optimisation batterie pour cette application.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white70 : const Color(0xFF78350F),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: onFix,
+                  child: const Text(
+                    'Désactiver maintenant →',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: amber,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
