@@ -226,6 +226,8 @@ class TimedSurahPlayer {
     // _posSub est déjà actif — reprend immédiatement la surveillance
   }
 
+  Future<void> setSpeed(double speed) => _audio.setSpeed(speed);
+
   Future<void> stop() async {
     ++_token;
     _cancelPositionSub();

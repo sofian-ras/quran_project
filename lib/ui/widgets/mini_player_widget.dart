@@ -10,6 +10,7 @@
 // Tap repos  → lance la lecture (vérification WiFi)
 // Tap actif  → ouvre le sélecteur de récitateur
 
+import 'dart:async';
 import 'dart:ui';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +27,8 @@ class MiniPlayerWidget extends StatefulWidget {
 
 class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
   int get currentSurah => widget.currentSurah;
-  bool _showControls = false;
+  bool   _showControls  = false;
+  Timer? _collapseTimer;
 
   @override
   void initState() {
@@ -39,6 +41,7 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
 
   @override
   void dispose() {
+    _collapseTimer?.cancel();
     MiniPlayerService.instance.isPlaying.removeListener(_onActivityChanged);
     MiniPlayerService.instance.isRangeAutoAdvancing.removeListener(_onActivityChanged);
     MiniPlayerService.instance.isLoading.removeListener(_onActivityChanged);
@@ -53,10 +56,16 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
         svc.isRangeAutoAdvancing.value ||
         svc.isLoading.value ||
         svc.prepProgress.value != null;
-    if (isActive && !_showControls) {
-      setState(() => _showControls = true);
-    } else if (!isActive && _showControls) {
-      setState(() => _showControls = false);
+
+    if (isActive) {
+      _collapseTimer?.cancel();
+      _collapseTimer = null;
+      if (!_showControls) setState(() => _showControls = true);
+    } else if (_showControls) {
+      _collapseTimer?.cancel();
+      _collapseTimer = Timer(const Duration(milliseconds: 500), () {
+        if (mounted) setState(() => _showControls = false);
+      });
     }
   }
 
@@ -326,12 +335,12 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     required bool autoAdv,
     required MiniPlayerService svc,
   }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _showReciterPicker(context, svc),
-      child: Row(
-        children: [
-          Expanded(
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _showReciterPicker(context, svc),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -353,14 +362,14 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          if (isActive)
-            _chipsRow(svc)
-          else
-            const Icon(Icons.keyboard_arrow_right_rounded,
-                color: Colors.white38, size: 18),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        if (isActive)
+          _chipsRow(svc)
+        else
+          const Icon(Icons.keyboard_arrow_right_rounded,
+              color: Colors.white38, size: 18),
+      ],
     );
   }
 

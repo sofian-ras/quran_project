@@ -130,6 +130,7 @@ class MiniPlayerService {
   int  _curSurah          = 0;
   int  _curAyah           = 0;
   int  _endAyah           = 0;
+  int  _seekFromAyah      = 0; // premier ayah du play seek-based courant
   int  _repeatCount       = 0;
   int  _rangeRepeatCount  = 0; // nb de fois que la plage entière a joué
   int  _playlistStartAyah = 0; // premier ayah de la playlist courante
@@ -214,7 +215,19 @@ class MiniPlayerService {
         _curAyah             = ayah;
         currentAyahKey.value = '$_curSurah:$ayah';
       } else {
-        // ayah=null → verset terminé, plus rien en cours
+        // Plage terminée → vérifier repeat
+        _repeatCount++;
+        final limit = _repeatLimit;
+        if (limit < 0 || _repeatCount < limit) {
+          TimedSurahPlayer.instance.play(
+            _qulReciter!.timedSource!,
+            _curSurah,
+            _seekFromAyah,
+            toAyah: _endAyah,
+          );
+          return;
+        }
+        _repeatCount         = 0;
         currentAyahKey.value = null;
         isPlaying.value      = false;
       }
@@ -359,6 +372,7 @@ class MiniPlayerService {
   }
 
   void _launchSeekBased(QulReciter reciter) {
+    _seekFromAyah = _curAyah;
     _attachTimedProgressListener(reciter.timedSource!, _curSurah);
     TimedSurahPlayer.instance.play(
       reciter.timedSource!,
@@ -860,7 +874,11 @@ class MiniPlayerService {
     final idx  = kSpeedValues.indexOf(playbackSpeed.value);
     final next = kSpeedValues[(idx < 0 ? 1 : (idx + 1)) % kSpeedValues.length];
     playbackSpeed.value = next;
-    _player.setSpeed(next);
+    if (_isSeekBased) {
+      TimedSurahPlayer.instance.setSpeed(next);
+    } else {
+      _player.setSpeed(next);
+    }
     _savePrefs();
   }
 
