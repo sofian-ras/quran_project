@@ -203,25 +203,25 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
     required bool loading,
     required double? prep,
   }) {
-    return Row(
+    return Column(
       key: key,
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _CtrlBtn(icon: Icons.skip_previous_rounded, onTap: svc.prevVerse),
-        _playBtn(svc, playing, autoAdv, loading, prep, size: 30),
-        _CtrlBtn(
-          icon: Icons.stop_rounded,
-          onTap: () { svc.stop(); setState(() => _showControls = false); },
-          color: Colors.redAccent.shade100,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _CtrlBtn(icon: Icons.skip_previous_rounded, onTap: svc.prevVerse),
+            _playBtn(svc, playing, autoAdv, loading, prep, size: 30),
+            _CtrlBtn(
+              icon: Icons.stop_rounded,
+              onTap: () { svc.stop(); setState(() => _showControls = false); },
+              color: Colors.redAccent.shade100,
+            ),
+            _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
+          ],
         ),
-        _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
-        ValueListenableBuilder<MiniRepeatMode>(
-          valueListenable: svc.repeatMode,
-          builder: (_, repeat, __) => _ChipBtn(
-            label: _repeatLabel(repeat),
-            onTap: svc.cycleRepeat,
-          ),
-        ),
+        const SizedBox(height: 8),
+        _chipsRow(svc),
       ],
     );
   }
@@ -350,13 +350,7 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
           ),
           const SizedBox(width: 8),
           if (isActive)
-            ValueListenableBuilder<MiniRepeatMode>(
-              valueListenable: svc.repeatMode,
-              builder: (_, repeat, __) => _ChipBtn(
-                label: _repeatLabel(repeat),
-                onTap: svc.cycleRepeat,
-              ),
-            )
+            _chipsRow(svc)
           else
             const Icon(Icons.keyboard_arrow_right_rounded,
                 color: Colors.white38, size: 18),
@@ -386,7 +380,34 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
             _CtrlBtn(icon: Icons.skip_next_rounded, onTap: svc.nextVerse),
           ],
         ),
+        const SizedBox(height: 8),
+        _chipsRow(svc),
         _unavailableMsg(svc),
+      ],
+    );
+  }
+
+  /// Ligne repeat + vitesse, utilisée dans le header et les deux modes de contrôles.
+  Widget _chipsRow(MiniPlayerService svc) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ValueListenableBuilder<MiniRepeatMode>(
+          valueListenable: svc.repeatMode,
+          builder: (_, repeat, __) => _ChipBtn(
+            label: _repeatLabel(repeat),
+            onTap: svc.cycleRepeat,
+          ),
+        ),
+        const SizedBox(width: 8),
+        ValueListenableBuilder<double>(
+          valueListenable: svc.playbackSpeed,
+          builder: (_, speed, __) => _ChipBtn(
+            label: _speedLabel(speed),
+            onTap: svc.cycleSpeed,
+            active: speed != 1.0,
+          ),
+        ),
       ],
     );
   }
@@ -569,30 +590,41 @@ class _MiniPlayerWidgetState extends State<MiniPlayerWidget> {
       case MiniRepeatMode.infinite: return '∞';
     }
   }
+
+  String _speedLabel(double speed) {
+    if (speed == speed.truncateToDouble()) return '×${speed.toInt()}';
+    return '×$speed';
+  }
 }
 
-// ── Chip bouton (repeat) ──────────────────────────────────────────────────────
+// ── Chip bouton (repeat / vitesse) ───────────────────────────────────────────
 
 class _ChipBtn extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
-  const _ChipBtn({required this.label, required this.onTap});
+  final bool active;
+  const _ChipBtn({required this.label, required this.onTap, this.active = false});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(8),
+          color: active
+              ? const Color(0xFFD4A855).withValues(alpha: 0.28)
+              : Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+          border: active
+              ? Border.all(color: const Color(0xFFD4A855).withValues(alpha: 0.55), width: 1)
+              : null,
         ),
         child: Text(label,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600)),
+            style: TextStyle(
+                color: active ? const Color(0xFFD4A855) : Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700)),
       ),
     );
   }

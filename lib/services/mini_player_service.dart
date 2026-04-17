@@ -96,10 +96,13 @@ class MiniPlayerService {
   /// Clé du verset en cours : "surah:ayah" (ex : "2:255"), null si arrêté.
   final ValueNotifier<String?> currentAyahKey = ValueNotifier(null);
 
-  final ValueNotifier<MiniPlayMode>   playMode   = ValueNotifier(MiniPlayMode.surah);
-  final ValueNotifier<MiniRepeatMode> repeatMode = ValueNotifier(MiniRepeatMode.x1);
+  final ValueNotifier<MiniPlayMode>   playMode      = ValueNotifier(MiniPlayMode.surah);
+  final ValueNotifier<MiniRepeatMode> repeatMode    = ValueNotifier(MiniRepeatMode.x1);
+  final ValueNotifier<double>         playbackSpeed = ValueNotifier(1.0);
   final ValueNotifier<MiniReciter>    currentReciter =
       ValueNotifier(kMiniReciters[0]);
+
+  static const List<double> kSpeedValues = [0.75, 1.0, 1.25, 1.5, 2.0];
 
   /// Message d'erreur affiché quand l'audio est indisponible sur QUL.
   final ValueNotifier<String?> unavailableMessage = ValueNotifier(null);
@@ -853,6 +856,14 @@ class MiniPlayerService {
     _savePrefs();
   }
 
+  void cycleSpeed() {
+    final idx  = kSpeedValues.indexOf(playbackSpeed.value);
+    final next = kSpeedValues[(idx < 0 ? 1 : (idx + 1)) % kSpeedValues.length];
+    playbackSpeed.value = next;
+    _player.setSpeed(next);
+    _savePrefs();
+  }
+
   void setReciter(MiniReciter reciter) {
     if (reciter.folder == currentReciter.value.folder) return;
     currentReciter.value     = reciter;
@@ -970,13 +981,20 @@ class MiniPlayerService {
     if (repeatIdx < MiniRepeatMode.values.length) {
       repeatMode.value = MiniRepeatMode.values[repeatIdx];
     }
+
+    final speed = prefs.getDouble('mini_speed') ?? 1.0;
+    if (kSpeedValues.contains(speed)) {
+      playbackSpeed.value = speed;
+      await _player.setSpeed(speed);
+    }
   }
 
   Future<void> _savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('mini_reciter_qul_v1', currentReciter.value.folder);
-    await prefs.setInt('mini_mode',   playMode.value.index);
-    await prefs.setInt('mini_repeat', repeatMode.value.index);
+    await prefs.setInt('mini_mode',    playMode.value.index);
+    await prefs.setInt('mini_repeat',  repeatMode.value.index);
+    await prefs.setDouble('mini_speed', playbackSpeed.value);
   }
 
   void dispose() {
