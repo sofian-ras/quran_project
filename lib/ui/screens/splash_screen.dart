@@ -5,8 +5,8 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'bottom_nav_shell.dart';
 
-const _kBgCenter = Color(0xFF1A3528);
-const _kBgEdge   = Color(0xFF0A1A10);
+const _kBgCenter = Color(0xFF25D366);
+const _kBgEdge   = Color(0xFF1AAF58);
 const _kGold     = Color(0xFFD4AF77);
 
 const _kSurahNames = {
@@ -174,7 +174,7 @@ class _SplashScreenState extends State<SplashScreen>
                         'assets/images/navbar/Quran_Kareem.svg',
                         width: logoWidth,
                         colorFilter: const ColorFilter.mode(
-                          _kGold,
+                          Colors.white,
                           BlendMode.srcIn,
                         ),
                       ),
