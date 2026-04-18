@@ -405,10 +405,10 @@ class MiniPlayerService {
     final total   = kSurahAyahCounts[surah - 1];
     final mgr     = AudioDownloadManager.instance;
 
-    // Si tout est déjà téléchargé → lecture immédiate
+    // Si tout est déjà téléchargé → lecture immédiate en mode playlist
     if (_allAyahsDownloaded(qid, surah, total)) {
       prepProgress.value = null;
-      if (myToken == _prepToken && !_stopping) await _playCurrent();
+      if (myToken == _prepToken && !_stopping) await _startPlaylistMode(reciter, surah, startAyah);
       return;
     }
 
