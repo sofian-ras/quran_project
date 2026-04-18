@@ -44,6 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Keystore credentials (ne jamais committer)
+android/app/key.properties
+
 # Exclure les images du Mushaf (trop lourdes pour Git)
 assets/mushaf/**/*.jpg
 assets/mushaf/**/*.png

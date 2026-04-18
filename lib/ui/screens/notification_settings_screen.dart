@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_service.dart';
@@ -489,6 +490,7 @@ class _NotificationSettingsScreenState
   }
 
   Future<void> _sendTestNotification() async {
+    HapticFeedback.lightImpact();
     await NotificationService.instance.showTestNotification();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

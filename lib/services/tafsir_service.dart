@@ -238,6 +238,9 @@ class TafsirService {
               text: _stripHtml(r['text'] as String),
             ))
         .toList();
+    if (_surahCache.length >= 8) {
+      _surahCache.remove(_surahCache.keys.first);
+    }
     _surahCache[cacheKey] = result;
     return result;
   }

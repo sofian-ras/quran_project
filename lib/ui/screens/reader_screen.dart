@@ -248,7 +248,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     for (int offset = -_preloadRange; offset <= _preloadRange; offset++) {
       final pageNum = centerPage + offset;
       if (pageNum >= 1 && pageNum <= 604 && !_imageCache.containsKey(pageNum)) {
-        _loadPageIntoCache(pageNum);
+        await _loadPageIntoCache(pageNum);
       }
     }
     _cleanDistantPages(centerPage);
@@ -465,7 +465,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ],
         ),
       ),
-    );
+    ).then((_) => ctrl.dispose());
   }
 
   // ── Liste des notes ───────────────────────────────────────────────────────

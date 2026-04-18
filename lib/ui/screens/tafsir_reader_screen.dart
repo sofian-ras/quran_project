@@ -210,6 +210,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
           alignment: 0.1,
         );
       }
+      if (!mounted) return;
       _targetAyah = 0;
     });
   }

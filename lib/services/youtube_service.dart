@@ -83,6 +83,7 @@ class YoutubeService {
     required String query,
     required Set<String> allowedChannelIds,
   }) async {
+    if (_apiKey == 'YOUR_YOUTUBE_API_KEY_HERE') return [];
     try {
       final uri = Uri.https('www.googleapis.com', '/youtube/v3/search', {
         'part': 'snippet',

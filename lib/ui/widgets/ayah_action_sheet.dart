@@ -137,7 +137,9 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
         _qfcText = qfcText.isNotEmpty ? qfcText : null;
         _qfcFontLoaded = true;
       });
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('AyahActionSheet: erreur chargement police QFC: $e');
+    }
   }
 
   Future<void> _load() async {
@@ -173,7 +175,9 @@ class _AyahActionSheetState extends State<AyahActionSheet> {
         final ready = await QuranTranslationPackService.isPackReady(AppLang.fr);
         if (mounted) setState(() => _packReady = ready);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('AyahActionSheet: erreur chargement traduction: $e');
+    }
 
     // Phase 3 : tafsir — cache local ou fetch en ligne
     if (!mounted) return;

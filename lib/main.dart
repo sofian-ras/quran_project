@@ -70,8 +70,8 @@ Future<void> main() async {
       systemNavigationBarContrastEnforced: false,
     ),
   );
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 * 1024 * 1024;
-  PaintingBinding.instance.imageCache.maximumSize = 60;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 25 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 150;
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);

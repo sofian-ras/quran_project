@@ -808,6 +808,7 @@ class AudioService {
       await _ayahPlayer.play();
     } catch (e) {
       debugPrint('Erreur audio (_playAyahInternal): $e');
+      isAyahPlayingNotifier.value = false;
     }
   }
 

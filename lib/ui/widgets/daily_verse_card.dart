@@ -62,7 +62,7 @@ class DailyVerseCard extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildLoadingCard(isDark);
         }
-        if (!snapshot.hasData || snapshot.data == null) {
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
           return _buildErrorCard(isDark);
         }
         return _buildCard(snapshot.data!, isDark);

@@ -13,6 +13,9 @@ class ResumeReadingWidget extends StatelessWidget {
     return FutureBuilder<Map<String, dynamic>?>(
       future: ReadingHistoryService.instance.getLastReading(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          debugPrint('ResumeReadingWidget: ${snapshot.error}');
+        }
         final lastReading = snapshot.data;
 
         // Fallbacks robustes

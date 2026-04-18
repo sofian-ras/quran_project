@@ -121,7 +121,11 @@ class DownloadService {
       return p.join(await pagesPath, fileName);
     }
     
-    final actualUrl = url ?? 'https://example.com/pages/$pageNumber.png'; // Remplacer par vraie URL
+    if (url == null) {
+      debugPrint('downloadPage: aucune URL fournie pour la page $pageNumber');
+      return null;
+    }
+    final actualUrl = url;
     
     final item = DownloadItem(
       id: id,
@@ -224,7 +228,9 @@ class DownloadService {
         item.error = e.toString();
       }
       _notifyListeners();
-      debugPrint('Erreur téléchargement ${item.id}: $e');
+      if (item.status != DownloadStatus.cancelled) {
+        debugPrint('Erreur téléchargement ${item.id}: $e');
+      }
       return null;
     }
   }

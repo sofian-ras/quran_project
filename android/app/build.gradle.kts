@@ -33,12 +33,17 @@ android {
         }
     }
 
+    val keyProps = java.util.Properties().apply {
+        val f = rootProject.file("app/key.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+
     signingConfigs {
         create("release") {
-            storeFile = file("new-upload-keystore.jks")
-            storePassword = "Football59"
-            keyAlias = "upload"
-            keyPassword = "Football59"
+            storeFile = file(keyProps["storeFile"] as String)
+            storePassword = keyProps["storePassword"] as String
+            keyAlias = keyProps["keyAlias"] as String
+            keyPassword = keyProps["keyPassword"] as String
         }
     }
 
