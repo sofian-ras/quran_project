@@ -217,9 +217,10 @@ class MiniPlayerService {
         currentAyahKey.value = '$_curSurah:$ayah';
       } else if (_isRangePlay) {
         // ── Plage (selection) : avancer verset par verset, répéter la plage N fois ──
-        if (_curAyah < _endAyah) {
-          // Verset suivant dans la plage
-          _curAyah++;
+        // _targetAyah = verset réellement joué (pas _curAyah qui peut avoir dérivé
+        // dans le suivant à cause des 400 ms de marge de _stopAt)
+        if (_targetAyah < _endAyah) {
+          _curAyah = _targetAyah + 1;
           currentAyahKey.value = '$_curSurah:$_curAyah';
           _playCurrentSeekAyah(reciter);
         } else {
@@ -239,7 +240,9 @@ class MiniPlayerService {
         }
       } else {
         // ── Verset unique (verseByVerse / surah / sélection sans plage) ──
-        // Répète ce verset N fois puis s'arrête (pas d'avancement automatique)
+        // Corriger le drift : _curAyah a pu avancer dans le verset suivant
+        // pendant les 400 ms de marge → revenir au verset intentionnellement joué.
+        _curAyah = _targetAyah;
         _repeatCount++;
         final limit = _repeatLimit;
         if (limit < 0 || _repeatCount < limit) {
@@ -401,6 +404,7 @@ class MiniPlayerService {
   }
 
   void _playCurrentSeekAyah(QulReciter reciter) {
+    _targetAyah = _curAyah; // figer le verset demandé avant tout drift du position stream
     TimedSurahPlayer.instance.play(
       reciter.timedSource!,
       _curSurah,
@@ -796,6 +800,7 @@ class MiniPlayerService {
     _endAyah           = 0;
     _repeatCount       = 0;
     _rangeStartAyah    = 0;
+    _targetAyah        = 0;
     repeatMode.value   = MiniRepeatMode.x1;
   }
 

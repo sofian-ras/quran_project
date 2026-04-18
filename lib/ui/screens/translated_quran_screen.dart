@@ -996,6 +996,7 @@ class _SurahTabState extends State<_SurahTab> {
                     juz: juz,
                     surah: surah,
                     ayah: ayah,
+                    startPage: juzzMap[juz - 1]['start_page']!,
                     tqsTheme: tqsTheme,
                     onTap: () => _openSurah(context, surah, initialAyah: ayah,
                         overridePage: juzzMap[juz - 1]['start_page']!),
@@ -1065,6 +1066,24 @@ class _SurahTabState extends State<_SurahTab> {
                                   ),
                                 ],
                               ),
+                            ),
+                            // ── Page ─────────────────────────────────
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '${item['page']}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: accentColor,
+                                  ),
+                                ),
+                                Text(
+                                  isEn ? 'page' : 'page',
+                                  style: TextStyle(fontSize: 10, color: subColor),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -1226,10 +1245,11 @@ class _JuzBanner extends StatelessWidget {
   final int juz;
   final int surah;
   final int ayah;
+  final int startPage;
   final int tqsTheme;
   final VoidCallback onTap;
 
-  const _JuzBanner({required this.juz, required this.surah, required this.ayah, required this.tqsTheme, required this.onTap});
+  const _JuzBanner({required this.juz, required this.surah, required this.ayah, required this.startPage, required this.tqsTheme, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1260,6 +1280,15 @@ class _JuzBanner extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: textColor.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'p.$startPage',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: textColor,
               ),
             ),
           ],
