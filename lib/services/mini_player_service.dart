@@ -132,7 +132,6 @@ class MiniPlayerService {
   int  _endAyah           = 0;
   int  _seekFromAyah      = 0; // premier ayah du play seek-based courant
   int  _repeatCount       = 0;
-  int  _playlistStartAyah = 0; // premier ayah de la playlist courante
   bool _stopping          = false;
   ConcatenatingAudioSource? _playlistSource; // source mise en cache pour le repeat fiable
 
@@ -325,8 +324,6 @@ class MiniPlayerService {
   Future<void> playFrom({required int surah, required int ayah}) async {
     _stopping           = false;
     _repeatCount        = 0;
-    _rangeRepeatCount   = 0;
-    _playlistStartAyah  = 0;
     isRangeAutoAdvancing.value = false;
     unavailableMessage.value = null;
 
@@ -561,8 +558,6 @@ class MiniPlayerService {
     unavailableMessage.value = null;
     currentAyahKey.value     = '$surah:$startAyah';
     _curAyah                 = startAyah;
-    _playlistStartAyah       = startAyah;
-    _rangeRepeatCount        = 0;
 
     _playlistSource = ConcatenatingAudioSource(useLazyPreparation: true, children: sources);
     await _player.setAudioSource(
@@ -582,25 +577,6 @@ class MiniPlayerService {
   }
 
   /// Redémarre la playlist depuis le début pour le repeat.
-  /// Utilise setAudioSource (plus fiable que seek sur un player en état completed).
-  Future<void> _restartPlaylist() async {
-    final source = _playlistSource;
-    final ayahs  = _playlistAyahs;
-    if (source == null || ayahs == null || _stopping) {
-      isRangeAutoAdvancing.value = false;
-      return;
-    }
-    await _player.setAudioSource(source, initialIndex: 0, initialPosition: Duration.zero);
-    if (_stopping || _playlistAyahs == null) {
-      isRangeAutoAdvancing.value = false;
-      return;
-    }
-    _curAyah             = _playlistStartAyah;
-    currentAyahKey.value = '$_curSurah:$_playlistStartAyah';
-    await _player.play();
-    isRangeAutoAdvancing.value = false;
-  }
-
   Future<void> _playCurrent() async {
     if (_stopping) {
       isRangeAutoAdvancing.value = false;
@@ -788,8 +764,6 @@ class MiniPlayerService {
     _curAyah           = 0;
     _endAyah           = 0;
     _repeatCount       = 0;
-    _rangeRepeatCount  = 0;
-    _playlistStartAyah = 0;
   }
 
   Future<void> nextVerse() async {
@@ -809,7 +783,6 @@ class MiniPlayerService {
       final idx = _playlistAyahs!.indexOf(_curAyah + 1);
       if (idx >= 0) {
         _repeatCount      = 0;
-        _rangeRepeatCount = 0;
         await _player.seek(Duration.zero, index: idx);
         if (!_player.playing) await _player.play();
       }
@@ -837,7 +810,6 @@ class MiniPlayerService {
       final idx = _playlistAyahs!.indexOf(_curAyah - 1);
       if (idx >= 0) {
         _repeatCount      = 0;
-        _rangeRepeatCount = 0;
         await _player.seek(Duration.zero, index: idx);
         if (!_player.playing) await _player.play();
       }
