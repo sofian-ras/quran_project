@@ -855,9 +855,10 @@ class _PrayerRow extends StatefulWidget {
   State<_PrayerRow> createState() => _PrayerRowState();
 }
 
+enum _PrayerNotifMode { silent, notif, adhan }
+
 class _PrayerRowState extends State<_PrayerRow> {
-  bool _adhanOn = false;
-  bool _notifOn = false;
+  _PrayerNotifMode _notifMode = _PrayerNotifMode.silent;
 
   static const _icons = <String, IconData>{
     'Fajr':    Icons.wb_twilight_rounded,
@@ -879,44 +880,38 @@ class _PrayerRowState extends State<_PrayerRow> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
+    final adhan = prefs.getBool(_adhanPref) ?? false;
+    final notif = prefs.getBool(_notifPref) ?? false;
     setState(() {
-      _adhanOn = prefs.getBool(_adhanPref) ?? false;
-      _notifOn = prefs.getBool(_notifPref) ?? false;
+      if (adhan)      _notifMode = _PrayerNotifMode.adhan;
+      else if (notif) _notifMode = _PrayerNotifMode.notif;
+      else            _notifMode = _PrayerNotifMode.silent;
     });
   }
 
-  Future<void> _setAdhan(bool v) async {
+  Future<void> _setMode(_PrayerNotifMode mode) async {
+    setState(() => _notifMode = mode);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_adhanPref, v);
-    if (mounted) setState(() => _adhanOn = v);
+    await prefs.setBool(_adhanPref, mode == _PrayerNotifMode.adhan);
+    await prefs.setBool(_notifPref, mode != _PrayerNotifMode.silent);
   }
 
-  Future<void> _setNotif(bool v) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_notifPref, v);
-    if (mounted) setState(() => _notifOn = v);
+  Widget _singleToggle(Color color) {
+    final (IconData icon, bool active, String tip) = switch (_notifMode) {
+      _PrayerNotifMode.silent => (Icons.notifications_off_rounded, false, 'Silencieux'),
+      _PrayerNotifMode.notif  => (Icons.notifications_rounded,     true,  'Notification'),
+      _PrayerNotifMode.adhan  => (Icons.volume_up_rounded,         true,  'Adhan'),
+    };
+    return _IconToggle(
+      icon:      icon,
+      value:     active,
+      color:     color,
+      tooltip:   tip,
+      onChanged: (_) => _setMode(
+        _PrayerNotifMode.values[(_notifMode.index + 1) % _PrayerNotifMode.values.length],
+      ),
+    );
   }
-
-Widget _togglesColumn(Color color) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _IconToggle(
-            icon: Icons.volume_up_rounded,
-            value: _adhanOn,
-            color: color,
-            onChanged: _setAdhan,
-            tooltip: 'Adhan',
-          ),
-          const SizedBox(height: 4),
-          _IconToggle(
-            icon: Icons.notifications_rounded,
-            value: _notifOn,
-            color: color,
-            onChanged: _setNotif,
-            tooltip: 'Notification',
-          ),
-        ],
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -1011,7 +1006,7 @@ Widget _togglesColumn(Color color) => Column(
                 ),
               ),
               const SizedBox(width: 10),
-              _togglesColumn(color),
+              _singleToggle(color),
             ],
           ),
         ),
@@ -1055,7 +1050,7 @@ Widget _togglesColumn(Color color) => Column(
             ),
           ),
           const SizedBox(width: 10),
-          _togglesColumn(color),
+          _singleToggle(color),
         ],
       ),
     );

@@ -60,6 +60,7 @@ class NotificationService {
           importance: Importance.high,
           playSound: true,
           enableVibration: true,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
         ));
       }
     }
