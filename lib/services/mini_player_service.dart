@@ -130,7 +130,6 @@ class MiniPlayerService {
   int  _curSurah          = 0;
   int  _curAyah           = 0;
   int  _endAyah           = 0;
-  int  _seekFromAyah      = 0; // premier ayah du play seek-based courant
   int  _repeatCount       = 0;
   bool _stopping          = false;
   ConcatenatingAudioSource? _playlistSource; // source mise en cache pour le repeat fiable
@@ -208,26 +207,30 @@ class MiniPlayerService {
 
     _timedAyahListener = () {
       if (!_isSeekBased) return;
+      final reciter = _qulReciter;
+      if (reciter == null) return;
       final ayah = tp.currentAyahNotifier.value;
       if (ayah != null) {
         _curAyah             = ayah;
         currentAyahKey.value = '$_curSurah:$ayah';
       } else {
-        // Plage terminée → vérifier repeat
+        // Verset courant terminé → vérifier repeat
         _repeatCount++;
         final limit = _repeatLimit;
         if (limit < 0 || _repeatCount < limit) {
-          TimedSurahPlayer.instance.play(
-            _qulReciter!.timedSource!,
-            _curSurah,
-            _seekFromAyah,
-            toAyah: _endAyah,
-          );
+          _playCurrentSeekAyah(reciter);
           return;
         }
-        _repeatCount         = 0;
-        currentAyahKey.value = null;
-        isPlaying.value      = false;
+        // Avancer au verset suivant
+        _repeatCount = 0;
+        if (_curAyah < _endAyah) {
+          _curAyah++;
+          currentAyahKey.value = '$_curSurah:$_curAyah';
+          _playCurrentSeekAyah(reciter);
+        } else {
+          currentAyahKey.value = null;
+          isPlaying.value      = false;
+        }
       }
     };
     tp.currentAyahNotifier.addListener(_timedAyahListener!);
@@ -368,13 +371,16 @@ class MiniPlayerService {
   }
 
   void _launchSeekBased(QulReciter reciter) {
-    _seekFromAyah = _curAyah;
     _attachTimedProgressListener(reciter.timedSource!, _curSurah);
+    _playCurrentSeekAyah(reciter);
+  }
+
+  void _playCurrentSeekAyah(QulReciter reciter) {
     TimedSurahPlayer.instance.play(
       reciter.timedSource!,
       _curSurah,
       _curAyah,
-      toAyah: _endAyah,
+      toAyah: _curAyah,
     );
   }
 
@@ -773,6 +779,7 @@ class MiniPlayerService {
 
     if (_isSeekBased) {
       _curAyah++;
+      _repeatCount = 0;
       _endAyah = _computeEndAyah(_curSurah, _curAyah);
       _launchSeekBased(_qulReciter!);
       return;
@@ -801,6 +808,7 @@ class MiniPlayerService {
 
     if (_isSeekBased) {
       _curAyah--;
+      _repeatCount = 0;
       _endAyah = _computeEndAyah(_curSurah, _curAyah);
       _launchSeekBased(_qulReciter!);
       return;
