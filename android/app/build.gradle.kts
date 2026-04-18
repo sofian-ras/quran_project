@@ -1,9 +1,8 @@
 import java.util.Properties
 
-val keyProps = Properties().apply {
-    val f = rootProject.file("app/key.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
+val keyProps = Properties()
+val keyPropsFile = rootProject.file("app/key.properties")
+if (keyPropsFile.exists()) keyPropsFile.inputStream().use { keyProps.load(it) }
 
 plugins {
     id("com.android.application")
