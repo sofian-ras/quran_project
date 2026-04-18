@@ -101,8 +101,6 @@ class _SurahCardState extends State<SurahCard> {
         : (isDark ? Colors.white : const Color(0xFF1a0033));
 
     final Color nameArColor = isDark ? Colors.white70 : Colors.grey.shade600;
-    final Color dotColor = gold.withValues(alpha: isDark ? 0.35 : 0.5);
-
     final Color playIconColor = widget.isPlaying
         ? gold
         : (isDark ? Colors.white38 : Colors.grey.shade400);
@@ -170,13 +168,25 @@ class _SurahCardState extends State<SurahCard> {
                 ],
               ),
             ),
-            Container(
-              width: 4,
-              height: 4,
-              decoration: BoxDecoration(
-                color: dotColor,
-                shape: BoxShape.circle,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${widget.page}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: widget.isPlaying ? gold : (isDark ? Colors.white54 : Colors.grey.shade500),
+                  ),
+                ),
+                Text(
+                  'page',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDark ? Colors.white30 : Colors.grey.shade400,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(width: 8),
             if (widget.onPlay != null)

@@ -900,9 +900,13 @@ class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
 
   Future<List<RadioStation>> _loadStations() async {
     var popular = await RadioService.instance.getPopular(limit: 4);
-    if (popular.isEmpty) {
-      final all = await RadioService.instance.getStations();
-      popular = all.take(4).toList();
+    if (popular.length < 4) {
+      final all        = await RadioService.instance.getStations();
+      final popularIds = popular.map((s) => s.id).toSet();
+      popular = [
+        ...popular,
+        ...all.where((s) => !popularIds.contains(s.id)).take(4 - popular.length),
+      ];
     }
     return popular;
   }

@@ -131,6 +131,8 @@ class MiniPlayerService {
   int  _curAyah           = 0;
   int  _endAyah           = 0;
   int  _repeatCount       = 0;
+  int  _rangeStartAyah    = 0;
+  int  _targetAyah        = 0; // verset intentionnellement demandé (≠ _curAyah qui peut dériver)
   bool _stopping          = false;
   ConcatenatingAudioSource? _playlistSource; // source mise en cache pour le repeat fiable
 
@@ -213,21 +215,37 @@ class MiniPlayerService {
       if (ayah != null) {
         _curAyah             = ayah;
         currentAyahKey.value = '$_curSurah:$ayah';
-      } else {
-        // Verset courant terminé → vérifier repeat
-        _repeatCount++;
-        final limit = _repeatLimit;
-        if (limit < 0 || _repeatCount < limit) {
-          _playCurrentSeekAyah(reciter);
-          return;
-        }
-        // Avancer au verset suivant
-        _repeatCount = 0;
+      } else if (_isRangePlay) {
+        // ── Plage (selection) : avancer verset par verset, répéter la plage N fois ──
         if (_curAyah < _endAyah) {
+          // Verset suivant dans la plage
           _curAyah++;
           currentAyahKey.value = '$_curSurah:$_curAyah';
           _playCurrentSeekAyah(reciter);
         } else {
+          // Fin de plage → répétition de la plage entière
+          _repeatCount++;
+          final limit = _repeatLimit;
+          if (limit < 0 || _repeatCount < limit) {
+            _curAyah             = _rangeStartAyah;
+            currentAyahKey.value = '$_curSurah:$_rangeStartAyah';
+            _playCurrentSeekAyah(reciter);
+          } else {
+            _repeatCount         = 0;
+            _curAyah             = _rangeStartAyah;
+            currentAyahKey.value = null;
+            isPlaying.value      = false;
+          }
+        }
+      } else {
+        // ── Verset unique (verseByVerse / surah / sélection sans plage) ──
+        // Répète ce verset N fois puis s'arrête (pas d'avancement automatique)
+        _repeatCount++;
+        final limit = _repeatLimit;
+        if (limit < 0 || _repeatCount < limit) {
+          _playCurrentSeekAyah(reciter);
+        } else {
+          _repeatCount         = 0;
           currentAyahKey.value = null;
           isPlaying.value      = false;
         }
@@ -304,6 +322,12 @@ class MiniPlayerService {
     return TimedSurahDownloader.instance.isDownloaded(reciter.timedSource!, surah);
   }
 
+  // Vrai si une plage explicite est sélectionnée (mode selection, start < end)
+  bool get _isRangePlay =>
+      playMode.value == MiniPlayMode.selection &&
+      hasFullSelection &&
+      _endAyah > _rangeStartAyah;
+
   // ── Calcul du dernier ayah selon le mode ─────────────────────────────────
 
   int _computeEndAyah(int surah, int startAyah) {
@@ -339,6 +363,7 @@ class MiniPlayerService {
       _curAyah  = ayah;
     }
 
+    _rangeStartAyah = _curAyah;
     _endAyah = _computeEndAyah(_curSurah, _curAyah);
     isExpanded.value = true;
 
@@ -770,6 +795,8 @@ class MiniPlayerService {
     _curAyah           = 0;
     _endAyah           = 0;
     _repeatCount       = 0;
+    _rangeStartAyah    = 0;
+    repeatMode.value   = MiniRepeatMode.x1;
   }
 
   Future<void> nextVerse() async {

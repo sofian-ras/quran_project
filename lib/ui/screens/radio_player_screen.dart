@@ -588,7 +588,7 @@ class _RadioPlayerScreenState extends State<RadioPlayerScreen>
             children: [
               TextButton.icon(
                 onPressed: _stop,
-                icon: Icon(Icons.stop_circle_outlined, color: mutedColor, size: 18),
+                icon: const Icon(Icons.stop_circle_outlined, color: Colors.red, size: 18),
                 label: Text('Arrêter',
                     style: TextStyle(color: mutedColor, fontSize: 13)),
               ),
