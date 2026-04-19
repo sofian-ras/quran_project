@@ -457,19 +457,22 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen> {
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: colors,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A1408), Color(0xFF0C0A04)],
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: SvgPicture.asset(
-            'assets/images/Translated_Quran/surah_svg/$surahId.svg',
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-            fit: BoxFit.contain,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: SvgPicture.asset(
+              'assets/images/navbar/Quran_Kareem.svg',
+              colorFilter: const ColorFilter.mode(
+                  Color(0xFFC8A165), BlendMode.srcIn),
+              fit: BoxFit.fitWidth,
+            ),
           ),
         ),
       ),
