@@ -11,7 +11,6 @@ import '../../services/audio_service.dart';
 import '../../services/download_service.dart';
 import '../../data/surah_name.dart';
 import '../widgets/mini_audio_player.dart';
-
 // ── Gradients (même que home screen) ─────────────────────────────────────────
 const _kDarkBgColors = [
   Color(0xFF020617),
@@ -331,7 +330,8 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
               ],
             ),
 
-            // Mini lecteur ancré en bas de l'écran (visible dès qu'une sourate joue)
+
+            // Mini lecteur ancré en bas (visible uniquement sur cet écran)
             Positioned(
               left: 0,
               right: 0,
@@ -339,13 +339,11 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
               child: StreamBuilder<bool>(
                 stream: _audio.isActiveStream,
                 builder: (_, snap) {
-                  final isActive = snap.data ?? false;
-                  if (!isActive) return const SizedBox.shrink();
-                  return const MiniAudioPlayer();
+                  if (!(snap.data ?? false)) return const SizedBox.shrink();
+                  return MiniPlayerContainer(onDismiss: _audio.stopAll);
                 },
               ),
             ),
-
           ],
         ),
       ),
@@ -475,8 +473,11 @@ class _ReciterHeader extends SliverPersistentHeaderDelegate {
                 ),
 
                 // Infos étendues
-                Expanded(
-                  child: Opacity(
+                SizedBox(
+                  height: (maxExtent - minExtent - shrinkOffset)
+                      .clamp(0.0, maxExtent - minExtent),
+                  child: ClipRect(
+                    child: Opacity(
                     opacity: (1.0 - t * 2).clamp(0.0, 1.0),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
@@ -490,9 +491,13 @@ class _ReciterHeader extends SliverPersistentHeaderDelegate {
 
                           // Texte
                           Expanded(
-                            child: Column(
+                            child: OverflowBox(
+                              minHeight: 0,
+                              maxHeight: double.infinity,
+                              alignment: Alignment.centerLeft,
+                              child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(name,
                                     style: TextStyle(
@@ -536,10 +541,12 @@ class _ReciterHeader extends SliverPersistentHeaderDelegate {
                                 ),
                               ],
                             ),
+                            ),
                           ),
                         ],
                       ),
                     ),
+                  ),
                   ),
                 ),
               ],

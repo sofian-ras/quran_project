@@ -1,154 +1,165 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../services/audio_service.dart';
 import '../../services/favorites_service.dart';
 import '../../data/surah_name.dart';
-import '../widgets/reciter_selector.dart';
 import 'package:dio/dio.dart';
 
 class MusicPlayerFullScreen extends StatefulWidget {
   final ScrollController? scrollController;
-  
+
   const MusicPlayerFullScreen({super.key, this.scrollController});
 
   @override
   State<MusicPlayerFullScreen> createState() => _MusicPlayerFullScreenState();
 }
 
-class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
-    with SingleTickerProviderStateMixin {
+class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen> {
   final AudioService _audio = AudioService.instance;
-  late AnimationController _animationController;
   final Dio _dio = Dio();
+  List<Map<String, dynamic>>? _cachedReciters;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   String _normName(String s) => s
-    .toLowerCase()
-    .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
-    .replaceAll(RegExp(r'\s+'), ' ')
-    .trim();
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   String _baseReciterName(String s) {
     final i = s.indexOf('(');
     return (i == -1 ? s : s.substring(0, i)).trim();
   }
 
-  String _prettyMoshafName(String raw) {
+  String _prettyMoshaf(String raw) {
     final s = raw.toLowerCase();
-
-    String riwaya;
-    if (s.contains('hafs')) riwaya = 'Hafs';
-    else if (s.contains('warsh')) riwaya = 'Warsh';
-    else if (s.contains('khalaf')) riwaya = 'Khalaf';
-    else if (s.contains('assosi') || s.contains('soosi') || s.contains('soussi')) riwaya = 'As-Soosi';
-    else riwaya = raw;
-
+    String riwaya = '';
+    if (s.contains('hafs')) {
+      riwaya = 'Hafs';
+    } else if (s.contains('warsh')) {
+      riwaya = 'Warsh';
+    } else if (s.contains('khalaf')) {
+      riwaya = 'Khalaf';
+    }
     String type = '';
-    if (s.contains('murattal')) type = 'Murattal';
-    else if (s.contains('mujawwad') || s.contains('mujawad')) type = 'Mujawwad';
-
-    return type.isEmpty ? riwaya : '$riwaya • $type';
+    if (s.contains('murattal')) {
+      type = 'Murattal';
+    } else if (s.contains('mujawwad') || s.contains('mujawad')) {
+      type = 'Mujawwad';
+    }
+    if (riwaya.isEmpty && type.isEmpty) return raw;
+    if (type.isEmpty)   return riwaya;
+    if (riwaya.isEmpty) return type;
+    return '$riwaya • $type';
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 20),
-    );
-    // Ne pas démarrer automatiquement, attendre que l'audio joue
+  String _formatDuration(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final mm = two(d.inMinutes.remainder(60));
+    final ss = two(d.inSeconds.remainder(60));
+    return d.inHours > 0 ? '${two(d.inHours)}:$mm:$ss' : '$mm:$ss';
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
+
+  List<Color> _surahColors(int surahId) {
+    final g = (surahId - 1) ~/ 23;
+    return switch (g) {
+      0 => const [Color(0xFF0E6B63), Color(0xFF0B4F4A)],
+      1 => const [Color(0xFF1A3A6B), Color(0xFF0F2355)],
+      2 => const [Color(0xFF3A1A6B), Color(0xFF250F55)],
+      3 => const [Color(0xFF6B4A1A), Color(0xFF503510)],
+      _ => const [Color(0xFF1A6B3A), Color(0xFF0F5025)],
+    };
   }
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    return duration.inHours > 0
-        ? "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds"
-        : "$twoDigitMinutes:$twoDigitSeconds";
-  }
+  // ── Pickers ───────────────────────────────────────────────────────────────
 
-  void _showSurahPicker(BuildContext context) {
-    int selectedSurahId = _audio.currentSurahId ?? 1;
-    
+  void _showSurahPicker() {
+    int selected = _audio.currentSurahId ?? 1;
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
+      builder: (_) {
         return Container(
-          height: 300,
-          decoration: BoxDecoration(
-            color: Colors.black87,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          height: 320,
+          decoration: const BoxDecoration(
+            color: Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Annuler', style: TextStyle(color: Colors.white70)),
+                      child: const Text('Annuler',
+                          style: TextStyle(color: Colors.white54)),
                     ),
-                    const Text(
-                      'Choisir une sourate',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
+                    const Text('Choisir une sourate',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
                     TextButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        _audio.loadPlaylistAndPlay(selectedSurahId);
+                        _audio.loadPlaylistAndPlay(selected);
                       },
-                      child: const Text('OK', style: TextStyle(color: Color(0xFFC8A165), fontWeight: FontWeight.bold)),
+                      child: const Text('OK',
+                          style: TextStyle(
+                              color: Color(0xFFC8A165),
+                              fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
               ),
               Expanded(
                 child: Stack(
+                  alignment: Alignment.center,
                   children: [
                     ListWheelScrollView.useDelegate(
-                      itemExtent: 50,
+                      itemExtent: 48,
                       diameterRatio: 1.5,
                       perspective: 0.003,
                       physics: const FixedExtentScrollPhysics(),
-                      controller: FixedExtentScrollController(initialItem: selectedSurahId - 1),
-                      onSelectedItemChanged: (index) {
-                        selectedSurahId = index + 1;
-                      },
+                      controller: FixedExtentScrollController(initialItem: selected - 1),
+                      onSelectedItemChanged: (i) => selected = i + 1,
                       childDelegate: ListWheelChildBuilderDelegate(
                         childCount: 114,
-                        builder: (context, index) {
-                          final surahId = index + 1;
-                          final surahName = surahFr[surahId] ?? 'Sourate $surahId';
+                        builder: (_, i) {
+                          final id = i + 1;
                           return Center(
-                            child: Text(
-                              '$surahId. $surahName',
-                              style: const TextStyle(color: Colors.white, fontSize: 18),
-                            ),
+                            child: Text('$id. ${surahFr[id] ?? 'Sourate $id'}',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 17)),
                           );
                         },
                       ),
                     ),
-                    Center(
-                      child: Container(
-                        height: 50,
-                        decoration: BoxDecoration(
-                          border: Border(
-                            top: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
-                            bottom: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
-                          ),
-                        ),
+                    IgnorePointer(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Divider(height: 1, color: const Color(0xFFC8A165).withValues(alpha: 0.35)),
+                          const SizedBox(height: 48),
+                          Divider(height: 1, color: const Color(0xFFC8A165).withValues(alpha: 0.35)),
+                        ],
                       ),
                     ),
                   ],
@@ -161,469 +172,433 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
     );
   }
 
-  void _showReciterPicker(BuildContext context) async {
+  Future<void> _showReciterPicker() async {
     List<Map<String, dynamic>> reciters = [];
     try {
-      final res = await _dio.get("https://mp3quran.net/api/v3/reciters?language=eng");
-      reciters = ((res.data['reciters'] as List?) ?? []).cast<Map<String, dynamic>>();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur de chargement des récitateurs')),
-      );
+      _cachedReciters ??= ((await _dio.get(
+        'https://mp3quran.net/api/v3/reciters?language=eng',
+      )).data['reciters'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      reciters = _cachedReciters!;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erreur réseau')),
+        );
+      }
       return;
     }
-
     if (reciters.isEmpty || !mounted) return;
 
-    final currentReciter = _audio.currentReciterNotifier.value;
-    final currentBase = _baseReciterName(currentReciter);
+    final currentBase = _baseReciterName(_audio.currentReciterNotifier.value);
     int initialIndex = 0;
     for (int i = 0; i < reciters.length; i++) {
-      final name = (reciters[i]['name'] ?? '').toString();
-      if (_normName(name) == _normName(currentBase)) {
+      if (_normName((reciters[i]['name'] ?? '').toString()) == _normName(currentBase)) {
         initialIndex = i;
         break;
       }
     }
-
     int selectedIndex = initialIndex;
-    
-    showModalBottomSheet(
+
+    await showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return Container(
-          height: 350,
-          decoration: BoxDecoration(
-            color: Colors.black87,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Annuler', style: TextStyle(color: Colors.white70)),
-                    ),
-                    const Text(
-                      'Choisir un récitateur',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        final selected = reciters[selectedIndex];
-                        final name = (selected['name'] ?? '').toString();
-                        final moshafs = (selected['moshaf'] as List?) ?? [];
-                        
-                        if (moshafs.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Aucun moshaf disponible pour $name')),
-                          );
-                          return;
-                        }
-
-                        Map<String, dynamic>? selectedMoshaf;
-                        for (final m in moshafs) {
-                          final moshafName = (m['name'] ?? '').toString().toLowerCase();
-                          if (moshafName.contains('hafs')) {
-                            selectedMoshaf = m as Map<String, dynamic>;
-                            break;
-                          }
-                        }
-                        selectedMoshaf ??= moshafs.first as Map<String, dynamic>;
-
-                        final server = (selectedMoshaf['server'] ?? '').toString();
-                        final moshafName = (selectedMoshaf['name'] ?? '').toString();
-                        final displayName = '$name (${_prettyMoshafName(moshafName)})';
-
-                        _audio.setReciter(displayName, server);
-                        final id = _audio.currentSurahId;
-                        if (id != null) _audio.loadPlaylistAndPlay(id);
-                      },
-                      child: const Text('OK', style: TextStyle(color: Color(0xFFC8A165), fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Stack(
-                  children: [
-                    ListWheelScrollView.useDelegate(
-                      itemExtent: 50,
-                      diameterRatio: 1.5,
-                      perspective: 0.003,
-                      physics: const FixedExtentScrollPhysics(),
-                      controller: FixedExtentScrollController(initialItem: initialIndex),
-                      onSelectedItemChanged: (index) {
-                        selectedIndex = index;
-                      },
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: reciters.length,
-                        builder: (context, index) {
-                          final reciterName = (reciters[index]['name'] ?? '').toString();
-                          return Center(
-                            child: Text(
-                              reciterName,
-                              style: const TextStyle(color: Colors.white, fontSize: 18),
-                              textAlign: TextAlign.center,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Center(
-                      child: Container(
-                        height: 50,
-                        decoration: BoxDecoration(
-                          border: Border(
-                            top: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
-                            bottom: BorderSide(color: const Color(0xFFC8A165).withOpacity(0.3), width: 1),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showPlaylist(BuildContext context) {
-    const gold = Color(0xFFC8A165);
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          decoration: BoxDecoration(
-            color: Colors.black87,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Favoris',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-              // Liste des favoris
-              Expanded(
-                child: FutureBuilder<Set<int>>(
-                  future: FavoritesService.instance.getFavorites(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator(color: Colors.white));
-                    }
-
-                    final favorites = snapshot.data!.toList()..sort();
-                    if (favorites.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.favorite_border, size: 64, color: Colors.white30),
-                            const SizedBox(height: 16),
-                            const Text(
-                              "Aucun favori pour le moment.",
-                              style: TextStyle(color: Colors.white60, fontSize: 16),
-                            ),
-                          ],
-                        ),
+      builder: (_) => Container(
+        height: 350,
+        decoration: const BoxDecoration(
+          color: Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Annuler',
+                        style: TextStyle(color: Colors.white54)),
+                  ),
+                  const Text('Choisir un réciteur',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white)),
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      final r = reciters[selectedIndex];
+                      final name = (r['name'] ?? '').toString();
+                      final moshafs = (r['moshaf'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                      if (moshafs.isEmpty) return;
+                      final moshaf = moshafs.firstWhere(
+                        (m) => (m['name'] ?? '').toString().toLowerCase().contains('hafs'),
+                        orElse: () => moshafs.first,
                       );
-                    }
-
-                    return StreamBuilder<int?>(
-                      stream: _audio.currentIndexStream,
-                      builder: (context, indexSnapshot) {
-                        final currentIndex = indexSnapshot.data;
-                        final currentSurahId = currentIndex != null ? currentIndex + 1 : null;
-                        
-                        return ListView.builder(
-                          itemCount: favorites.length,
-                          itemBuilder: (context, index) {
-                            final surahId = favorites[index];
-                            final surahName = surahFr[surahId] ?? 'Sourate $surahId';
-                            final isPlaying = currentSurahId == surahId;
-                            
-                            return ListTile(
-                              leading: isPlaying
-                                  ? Icon(Icons.volume_up, color: gold)
-                                  : Text(
-                                      '$surahId',
-                                      style: const TextStyle(color: Colors.white60, fontSize: 16),
-                                    ),
-                              title: Text(
-                                surahName,
-                                style: TextStyle(
-                                  color: isPlaying ? gold : Colors.white,
-                                  fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
-                                ),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.white38),
-                                onPressed: () async {
-                                  await FavoritesService.instance.removeFavorite(surahId);
-                                  // Rafraîchir l'écran parent pour mettre à jour le bouton favori
-                                  if (mounted) setState(() {});
-                                  // Rafraîchir en fermant et réouvrant
-                                  Navigator.pop(context);
-                                  _showPlaylist(context);
-                                },
-                              ),
-                              onTap: () {
-                                Navigator.pop(context);
-                                _audio.loadPlaylistAndPlay(surahId);
-                              },
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
+                      final server = (moshaf['server'] ?? '').toString();
+                      final displayName = '$name (${_prettyMoshaf(moshaf['name'].toString())})';
+                      _audio.setReciter(displayName, server);
+                      final id = _audio.currentSurahId;
+                      if (id != null) _audio.loadPlaylistAndPlay(id);
+                    },
+                    child: const Text('OK',
+                        style: TextStyle(
+                            color: Color(0xFFC8A165),
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      },
+            ),
+            Expanded(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  ListWheelScrollView.useDelegate(
+                    itemExtent: 48,
+                    diameterRatio: 1.5,
+                    perspective: 0.003,
+                    physics: const FixedExtentScrollPhysics(),
+                    controller: FixedExtentScrollController(initialItem: initialIndex),
+                    onSelectedItemChanged: (i) => selectedIndex = i,
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: reciters.length,
+                      builder: (_, i) => Center(
+                        child: Text(
+                          (reciters[i]['name'] ?? '').toString(),
+                          style: const TextStyle(color: Colors.white, fontSize: 17),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+                  IgnorePointer(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Divider(height: 1, color: const Color(0xFFC8A165).withValues(alpha: 0.35)),
+                        const SizedBox(height: 48),
+                        Divider(height: 1, color: const Color(0xFFC8A165).withValues(alpha: 0.35)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     const gold = Color(0xFFC8A165);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      body: Stack(
-          children: [
-            // Image de La Mecque en fond
-            Positioned.fill(
-              child: Image.asset(
-                'assets/images/la_mecque_portrait.webp',
-                fit: BoxFit.cover,
-              ),
-            ),
-            
-            // Dégradé noir en bas pour la lisibilité
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.3),
-                      Colors.black.withOpacity(0.7),
-                      Colors.black.withOpacity(0.9),
-                    ],
-                    stops: const [0.0, 0.4, 0.7, 1.0],
-                  ),
-                ),
-              ),
-            ),
-
-            SafeArea(
-            child: Column(
-              children: [
-                // AppBar personnalisée
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const SizedBox(width: 48),
-                      const Text(
-                        'Lecteur Audio',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => _showPlaylist(context),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
+      backgroundColor: Colors.black,
+      body: ValueListenableBuilder<String?>(
+        valueListenable: _audio.currentReciterAssetNotifier,
+        builder: (_, reciterAsset, __) {
+          return ValueListenableBuilder<int?>(
+            valueListenable: _audio.currentPlayingSurahIdNotifier,
+            builder: (_, surahId, __) {
+              final colors = _surahColors(surahId ?? 1);
+              return Stack(
+                children: [
+                  // ── Fond ───────────────────────────────────────────────────
+                  Positioned.fill(
+                    child: reciterAsset != null
+                        ? Image.asset(reciterAsset, fit: BoxFit.cover)
+                        : AnimatedContainer(
+                            duration: const Duration(milliseconds: 600),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [colors[0], colors[1]],
                               ),
-                            ),
-                            child: const Icon(
-                              CupertinoIcons.heart_fill,
-                              color: Colors.white,
-                              size: 24,
                             ),
                           ),
-                        ),
-                      ),
-                    ],
                   ),
-                ),
 
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: widget.scrollController,
-                    physics: const BouncingScrollPhysics(),
-                    child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 32.0, vertical: 16.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const SizedBox(height: 20),
-                            // Espace pour l'artwork (maintenant l'image est en fond)
-                            const SizedBox(height: 240),
+                  // ── Blur + overlay sombre ──────────────────────────────────
+                  Positioned.fill(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 48, sigmaY: 48),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: reciterAsset != null ? 0.55 : 0.45),
+                      ),
+                    ),
+                  ),
 
-                            const SizedBox(height: 32),
+                  // ── Contenu ────────────────────────────────────────────────
+                  SafeArea(
+                    child: Column(
+                      children: [
+                        // Top bar
+                        _buildTopBar(surahId, gold),
 
-                            // Titre et récitant
-                            ValueListenableBuilder<String>(
-                              valueListenable: _audio.currentTitleNotifier,
-                              builder: (context, title, _) => GestureDetector(
-                                onTap: () => _showSurahPicker(context),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      title,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Icon(Icons.arrow_drop_down, color: Colors.white70, size: 28),
-                                  ],
-                                ),
-                              ),
-                            ),
+                        const Spacer(),
 
-                            const SizedBox(height: 8),
+                        // Artwork
+                        _buildArtwork(surahId ?? 1, reciterAsset, colors, gold),
 
-                            ValueListenableBuilder<String>(
-                              valueListenable: _audio.currentReciterNotifier,
-                              builder: (context, reciter, _) => GestureDetector(
-                                onTap: () => _showReciterPicker(context),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      reciter,
-                                      style: const TextStyle(
-                                        color: gold,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Icon(Icons.arrow_drop_down, color: gold.withOpacity(0.7), size: 24),
-                                  ],
-                                ),
-                              ),
-                            ),
+                        const SizedBox(height: 36),
 
-                            const SizedBox(height: 32),
+                        // Infos
+                        _buildTrackInfo(gold),
 
-                            // Barre de progression
-                            _buildProgressBar(),
+                        const SizedBox(height: 32),
 
-                            const SizedBox(height: 24),
+                        // Progress bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          child: _buildProgressBar(gold),
+                        ),
 
-                            // Contrôles de lecture
-                            _buildControls(gold),
+                        const SizedBox(height: 20),
 
-                            const SizedBox(height: 16),
+                        // Contrôles principaux
+                        _buildControls(gold),
 
-                            // Contrôles secondaires
-                            _buildSecondaryControls(gold),
+                        const SizedBox(height: 20),
 
-                            const SizedBox(height: 20),
-                          ],
-                        ), // Fermeture Column interne
-                      ), // Fermeture Padding
-                    ), // Fermeture SingleChildScrollView
-                  ), // Fermeture Expanded
-                ], // Fermeture children de Column SafeArea
-            ), // Fermeture Column SafeArea
-          ), // Fermeture SafeArea
-          ], // Fermeture children de Stack
-        ), // Fermeture Stack
-    ); // Fermeture Scaffold
+                        // Contrôles secondaires
+                        _buildSecondaryControls(gold),
+
+                        const Spacer(),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 
-  Widget _buildProgressBar() {
-    const gold = Color(0xFFC8A165);
+  // ── Top bar ───────────────────────────────────────────────────────────────
 
+  Widget _buildTopBar(int? surahId, Color gold) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 16, 0),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(CupertinoIcons.chevron_down,
+                color: Colors.white, size: 22),
+            onPressed: () => Navigator.pop(context),
+          ),
+          const Expanded(
+            child: Text(
+              'En lecture',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          ValueListenableBuilder<int?>(
+            valueListenable: _audio.currentPlayingSurahIdNotifier,
+            builder: (_, id, __) {
+              return FutureBuilder<bool>(
+                future: id != null
+                    ? FavoritesService.instance.isFavorite(id)
+                    : Future.value(false),
+                builder: (_, snap) {
+                  final isFav = snap.data ?? false;
+                  return IconButton(
+                    icon: Icon(
+                      isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                      color: isFav ? const Color(0xFFFF6B6B) : Colors.white60,
+                      size: 22,
+                    ),
+                    onPressed: () async {
+                      if (id != null) {
+                        await FavoritesService.instance.toggleFavorite(id);
+                        setState(() {});
+                      }
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Artwork ───────────────────────────────────────────────────────────────
+
+  Widget _buildArtwork(
+      int surahId, String? reciterAsset, List<Color> colors, Color gold) {
+    const size = 260.0;
+    const radius = 24.0;
+
+    final svgFallback = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: colors,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: SvgPicture.asset(
+            'assets/images/Translated_Quran/surah_svg/$surahId.svg',
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+    );
+
+    Widget artContent;
+    if (reciterAsset != null) {
+      artContent = ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: Image.asset(
+          reciterAsset,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => svgFallback,
+        ),
+      );
+    } else {
+      artContent = svgFallback;
+    }
+
+    return Center(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 40,
+              spreadRadius: 8,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: artContent,
+      ),
+    );
+  }
+
+  // ── Infos track ───────────────────────────────────────────────────────────
+
+  Widget _buildTrackInfo(Color gold) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: _showSurahPicker,
+            child: Row(
+              children: [
+                Expanded(
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: _audio.currentTitleNotifier,
+                    builder: (_, title, __) => Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                const Icon(CupertinoIcons.chevron_up_chevron_down,
+                    color: Colors.white38, size: 18),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: _showReciterPicker,
+            child: Row(
+              children: [
+                Expanded(
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: _audio.currentReciterNotifier,
+                    builder: (_, reciter, __) => Text(
+                      _baseReciterName(reciter),
+                      style: TextStyle(
+                        color: gold.withValues(alpha: 0.9),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                Icon(CupertinoIcons.chevron_up_chevron_down,
+                    color: gold.withValues(alpha: 0.4), size: 14),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Progress bar ──────────────────────────────────────────────────────────
+
+  Widget _buildProgressBar(Color gold) {
     return StreamBuilder<PositionData>(
       stream: _audio.positionDataStream,
-      builder: (context, snapshot) {
-        final positionData = snapshot.data;
-        final position = positionData?.position ?? Duration.zero;
-        final duration = positionData?.duration ?? Duration.zero;
+      builder: (_, snap) {
+        final pos = snap.data?.position ?? Duration.zero;
+        final dur = snap.data?.duration ?? Duration.zero;
+        final maxMs = dur.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+        final posMs = pos.inMilliseconds.toDouble().clamp(0.0, maxMs);
 
         return Column(
           children: [
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                trackHeight: 4.0,
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 8.0),
-                overlayShape:
-                    const RoundSliderOverlayShape(overlayRadius: 16.0),
-                activeTrackColor: gold,
-                inactiveTrackColor: Colors.white.withOpacity(0.2),
-                thumbColor: gold,
-                overlayColor: gold.withOpacity(0.3),
+                trackHeight: 3,
+                activeTrackColor: Colors.white,
+                inactiveTrackColor: Colors.white24,
+                thumbColor: Colors.white,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                overlayColor: Colors.white24,
               ),
               child: Slider(
-                max: duration.inMilliseconds
-                    .toDouble()
-                    .clamp(1.0, double.infinity),
-                value: position.inMilliseconds
-                    .toDouble()
-                    .clamp(0.0, duration.inMilliseconds.toDouble()),
-                onChanged: (value) =>
-                    _audio.seek(Duration(milliseconds: value.toInt())),
+                value: posMs,
+                max: maxMs,
+                onChanged: (v) =>
+                    _audio.seek(Duration(milliseconds: v.toInt())),
               ),
             ),
             Padding(
@@ -631,20 +606,16 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    _formatDuration(position),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    _formatDuration(duration),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 14,
-                    ),
-                  ),
+                  Text(_formatDuration(pos),
+                      style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
+                  Text(_formatDuration(dur),
+                      style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
@@ -654,263 +625,147 @@ class _MusicPlayerFullScreenState extends State<MusicPlayerFullScreen>
     );
   }
 
+  void _seekRelative(int seconds) {
+    _audio.positionDataStream.first.then((data) {
+      final newPos = data.position + Duration(seconds: seconds);
+      _audio.seek(newPos.isNegative ? Duration.zero : newPos);
+    });
+  }
+
+  // ── Contrôles principaux ──────────────────────────────────────────────────
+
   Widget _buildControls(Color gold) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Précédent
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: _audio.skipToPrevious,
-            borderRadius: BorderRadius.circular(30),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: const Icon(
-                CupertinoIcons.backward_fill,
-                color: Colors.white,
-                size: 32,
-              ),
-            ),
-          ),
+        // Sourate précédente
+        IconButton(
+          icon: const Icon(CupertinoIcons.backward_fill,
+              color: Colors.white, size: 32),
+          onPressed: _audio.skipToPrevious,
+          iconSize: 32,
         ),
+        const SizedBox(width: 8),
 
-        // Play/Pause
+        // -10 secondes
+        IconButton(
+          icon: const Icon(Icons.replay_10_rounded,
+              color: Colors.white, size: 32),
+          onPressed: () => _seekRelative(-10),
+          iconSize: 32,
+        ),
+        const SizedBox(width: 16),
+
+        // Play / Pause
         StreamBuilder<PlayerState>(
           stream: _audio.playerStateStream,
-          builder: (context, snapshot) {
-            final playerState = snapshot.data;
-            final isPlaying = playerState?.playing ?? false;
-            final processingState = playerState?.processingState;
+          builder: (_, snap) {
+            final playing = snap.data?.playing ?? false;
+            final process = snap.data?.processingState;
+            final loading = process == ProcessingState.loading ||
+                process == ProcessingState.buffering;
 
-            if (processingState == ProcessingState.loading ||
-                processingState == ProcessingState.buffering) {
-              return Container(
-                width: 80,
-                height: 80,
+            return GestureDetector(
+              onTap: _audio.togglePlayPause,
+              child: Container(
+                width: 72, height: 72,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: gold.withOpacity(0.3),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: gold,
-                    strokeWidth: 3,
-                  ),
-                ),
-              );
-            }
-
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _audio.togglePlayPause,
-                borderRadius: BorderRadius.circular(40),
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: gold,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: gold.withOpacity(0.5),
-                        blurRadius: 20,
-                        spreadRadius: 2,
+                child: loading
+                    ? const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator(
+                            color: Colors.black54, strokeWidth: 2.5))
+                    : Icon(
+                        playing
+                            ? CupertinoIcons.pause_fill
+                            : CupertinoIcons.play_fill,
+                        color: Colors.black87,
+                        size: 34,
                       ),
-                    ],
-                  ),
-                  child: Icon(
-                    isPlaying
-                        ? CupertinoIcons.pause_fill
-                        : CupertinoIcons.play_fill,
-                    color: Colors.white,
-                    size: 40,
-                  ),
-                ),
               ),
             );
           },
         ),
+        const SizedBox(width: 16),
 
-        // Suivant
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: _audio.skipToNext,
-            borderRadius: BorderRadius.circular(30),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: const Icon(
-                CupertinoIcons.forward_fill,
-                color: Colors.white,
-                size: 32,
-              ),
-            ),
-          ),
+        // +10 secondes
+        IconButton(
+          icon: const Icon(Icons.forward_10_rounded,
+              color: Colors.white, size: 32),
+          onPressed: () => _seekRelative(10),
+          iconSize: 32,
+        ),
+        const SizedBox(width: 8),
+
+        // Sourate suivante
+        IconButton(
+          icon: const Icon(CupertinoIcons.forward_fill,
+              color: Colors.white, size: 32),
+          onPressed: _audio.skipToNext,
+          iconSize: 32,
         ),
       ],
     );
   }
 
+  // ── Contrôles secondaires ─────────────────────────────────────────────────
+
   Widget _buildSecondaryControls(Color gold) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        // Mode répétition
-        ValueListenableBuilder<LoopMode>(
-          valueListenable: _audio.loopModeNotifier,
-          builder: (context, loopMode, _) {
-            final isActive = loopMode != LoopMode.off;
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _audio.cycleLoopMode,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? gold.withOpacity(0.2)
-                        : Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isActive
-                          ? gold.withOpacity(0.5)
-                          : Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    loopMode == LoopMode.one
-                        ? CupertinoIcons.repeat_1
-                        : CupertinoIcons.repeat,
-                    color: isActive ? gold : Colors.white.withOpacity(0.6),
-                    size: 24,
-                  ),
-                ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 48),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Repeat
+          ValueListenableBuilder<LoopMode>(
+            valueListenable: _audio.loopModeNotifier,
+            builder: (_, mode, __) => IconButton(
+              icon: Icon(
+                mode == LoopMode.one
+                    ? CupertinoIcons.repeat_1
+                    : CupertinoIcons.repeat,
+                color: mode == LoopMode.off ? Colors.white38 : gold,
+                size: 22,
               ),
-            );
-          },
-        ),
+              onPressed: _audio.cycleLoopMode,
+            ),
+          ),
 
-        // Shuffle
-        ValueListenableBuilder<bool>(
-          valueListenable: _audio.isShuffleEnabled,
-          builder: (context, isShuffleOn, _) {
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _audio.toggleShuffle(),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    CupertinoIcons.shuffle,
-                    color: isShuffleOn ? gold : Colors.white.withOpacity(0.6),
-                    size: 24,
-                  ),
-                ),
+          // Shuffle
+          ValueListenableBuilder<bool>(
+            valueListenable: _audio.isShuffleEnabled,
+            builder: (_, isOn, __) => IconButton(
+              icon: Icon(
+                CupertinoIcons.shuffle,
+                color: isOn ? gold : Colors.white38,
+                size: 22,
               ),
-            );
-          },
-        ),
+              onPressed: () => _audio.toggleShuffle(),
+            ),
+          ),
 
-        // Favori
-        FutureBuilder<bool>(
-          future: _audio.currentSurahId != null 
-              ? FavoritesService.instance.isFavorite(_audio.currentSurahId!)
-              : Future.value(false),
-          builder: (context, snapshot) {
-            final isFavorite = snapshot.data ?? false;
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () async {
-                  final surahId = _audio.currentSurahId;
-                  if (surahId != null) {
-                    await FavoritesService.instance.toggleFavorite(surahId);
-                    setState(() {}); // Rafraîchir l'icône
-                  }
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isFavorite
-                        ? const Color(0xFFFF6B6B).withOpacity(0.2)
-                        : Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isFavorite
-                          ? const Color(0xFFFF6B6B).withOpacity(0.5)
-                          : Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                    color: isFavorite ? const Color(0xFFFF6B6B) : Colors.white.withOpacity(0.6),
-                    size: 24,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-
-        // Stop
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
+          // Stop
+          IconButton(
+            icon: const Icon(CupertinoIcons.stop_fill,
+                color: Colors.white38, size: 22),
+            onPressed: () {
               _audio.stop();
               Navigator.pop(context);
             },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: Icon(
-                CupertinoIcons.stop_fill,
-                color: Colors.white.withOpacity(0.6),
-                size: 24,
-              ),
-            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
+

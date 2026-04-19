@@ -1,12 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-import 'ui/screens/splash_screen.dart';
-import 'ui/widgets/mini_audio_player.dart';
+import 'ui/screens/bottom_nav_shell.dart';
 import 'package:quran/theme/app_theme.dart';
 import 'package:quran/theme/theme_service.dart';
 import 'package:workmanager/workmanager.dart';
@@ -20,9 +17,7 @@ import 'services/quran_translation_pack_service.dart';
 
 
 Future<void> main() async {
-  // Preserve the native splash until Flutter signals it's ready.
-  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  WidgetsFlutterBinding.ensureInitialized();
 
   // JustAudioBackground doit être prêt AVANT tout setAudioSource.
   // Avec unawaited, le service n'était pas encore lié quand l'utilisateur
@@ -142,22 +137,11 @@ class _QuranAppState extends State<QuranApp> with WidgetsBindingObserver {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: mode,
-          home: const SplashScreen(),
+          home: const BottomNavShell(),
           builder: (context, child) {
             return Material(
               color: Colors.transparent,
-              child: Stack(
-                children: [
-                  if (child != null) child,
-                  ValueListenableBuilder<bool>(
-                    valueListenable: AudioService.instance.isRadioModeNotifier,
-                    builder: (_, isRadio, __) {
-                      if (isRadio) return const SizedBox.shrink();
-                      return const GlobalMiniPlayerOverlay();
-                    },
-                  ),
-                ],
-              ),
+              child: child ?? const SizedBox.shrink(),
             );
           },
         ),       // MaterialApp

@@ -433,15 +433,15 @@ class SeekBarState extends State<SeekBar> {
 
 // ── Conteneur principal : gère collapse + swipe prev/next/dismiss ─────────────
 
-class _MiniPlayerContainer extends StatefulWidget {
+class MiniPlayerContainer extends StatefulWidget {
   final VoidCallback onDismiss;
-  const _MiniPlayerContainer({required this.onDismiss});
+  const MiniPlayerContainer({super.key, required this.onDismiss});
 
   @override
-  State<_MiniPlayerContainer> createState() => _MiniPlayerContainerState();
+  State<MiniPlayerContainer> createState() => MiniPlayerContainerState();
 }
 
-class _MiniPlayerContainerState extends State<_MiniPlayerContainer> {
+class MiniPlayerContainerState extends State<MiniPlayerContainer> {
   final AudioService _audio = AudioService.instance;
   double _offsetY = 0;
   double _offsetX = 0;
@@ -691,7 +691,7 @@ class GlobalMiniPlayerOverlay extends StatelessWidget {
                           (navBarVisible ? _kNavBarAboveSafeArea : 0),
                       left: 0,
                       right: 0,
-                      child: _MiniPlayerContainer(
+                      child: MiniPlayerContainer(
                         onDismiss: audio.stopAll,
                       ),
                     );

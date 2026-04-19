@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/audio_service.dart';
 import '../../services/download_service.dart';
 import 'reciter_surah_list_screen.dart';
+import '../widgets/mini_audio_player.dart';
 
 // ── Gradients (identiques au home screen) ────────────────────────────────────
 const _kDarkColors = [
@@ -391,7 +392,9 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Container(
+      body: Stack(
+        children: [
+        Container(
         decoration: BoxDecoration(gradient: _bgGrad(isDark)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,41 +404,29 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
               bottom: false,
               child: Padding(
                 padding: const EdgeInsets.only(top: 4, bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    // Back button
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: IconButton(
-                        icon: Icon(Icons.arrow_back_ios_new_rounded,
-                            color: fg, size: 20),
-                        onPressed: () => Navigator.pop(context),
+                    // Back button (left)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: IconButton(
+                          icon: Icon(Icons.arrow_back_ios_new_rounded,
+                              color: fg, size: 20),
+                          onPressed: () => Navigator.pop(context),
+                        ),
                       ),
                     ),
-                    // Title + subtitle
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Récitateurs',
-                              style: TextStyle(
-                                color: fg,
-                                fontSize: 30,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.5,
-                              )),
-                          const SizedBox(height: 2),
-                          Text('Récitations du Saint Coran',
-                              style: TextStyle(
-                                color: muted,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              )),
-                        ],
-                      ),
-                    ),
+                    // Title (centered)
+                    Text('Récitateurs',
+                        style: TextStyle(
+                          color: fg,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                        )),
                   ],
                 ),
               ),
@@ -494,6 +485,21 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
             ),
           ],
         ),
+      ),
+          // Mini lecteur ancré en bas
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: MediaQuery.of(context).padding.bottom,
+            child: StreamBuilder<bool>(
+              stream: AudioService.instance.isActiveStream,
+              builder: (_, snap) {
+                if (!(snap.data ?? false)) return const SizedBox.shrink();
+                return MiniPlayerContainer(onDismiss: AudioService.instance.stopAll);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -721,38 +727,51 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hint = isDark ? Colors.white38    : Colors.black38;
-    final fill = isDark
-        ? Colors.white.withValues(alpha: 0.07)
-        : Colors.black.withValues(alpha: 0.06);
+    final hint    = isDark ? Colors.white38 : Colors.black26;
+    final fg      = isDark ? Colors.white70 : const Color(0xFF0F172A);
+    final lineClr = isDark
+        ? Colors.white.withValues(alpha: 0.15)
+        : Colors.black.withValues(alpha: 0.12);
 
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
       builder: (_, val, __) => TextField(
         controller: controller,
         textInputAction: TextInputAction.search,
-        style: TextStyle(
-            color: isDark ? Colors.white : Colors.black87, fontSize: 14),
+        style: TextStyle(color: fg, fontSize: 14, fontWeight: FontWeight.w400),
         decoration: InputDecoration(
-          hintText: 'Rechercher…',
+          hintText: 'Rechercher un récitateur…',
           hintStyle: TextStyle(color: hint, fontSize: 14),
-          prefixIcon: Icon(Icons.search_rounded, color: hint, size: 20),
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Icon(Icons.search_rounded, color: hint, size: 18),
+          ),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 28, minHeight: 0),
           suffixIcon: val.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear_rounded, color: hint, size: 18),
-                  onPressed: () {
+              ? GestureDetector(
+                  onTap: () {
                     controller.clear();
                     FocusScope.of(context).unfocus();
                   },
+                  child: Icon(Icons.close_rounded, color: hint, size: 16),
                 )
               : null,
-          filled: true,
-          fillColor: fill,
+          suffixIconConstraints:
+              const BoxConstraints(minWidth: 28, minHeight: 0),
+          filled: false,
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(13),
-            borderSide: BorderSide.none,
+              const EdgeInsets.only(bottom: 8),
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: lineClr, width: 1),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.40)
+                  : Colors.black.withValues(alpha: 0.30),
+              width: 1.2,
+            ),
           ),
         ),
       ),
@@ -830,7 +849,7 @@ class _ReciterRow extends StatelessWidget {
                       ),
                       if (isActive) ...[
                         const SizedBox(width: 4),
-                        Icon(Icons.volume_up_rounded,
+                        const Icon(Icons.volume_up_rounded,
                             color: _kPlay, size: 14),
                       ],
                     ],
