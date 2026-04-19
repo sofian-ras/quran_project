@@ -258,7 +258,7 @@ class TafsirService {
     var text = html.replaceAll(RegExp(r'<[^>]*>'), '');
     // Décodage des entités HTML
     text = text
-        .replaceAll('&nbsp;', '\u00A0')
+        .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')

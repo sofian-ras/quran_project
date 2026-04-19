@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../services/tafsir_service.dart';
 import '../../services/quran_text_db.dart';
 import '../../services/quran_ayah_metadata_db.dart';
@@ -30,11 +31,8 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
   bool _loading = true;
   String? _error;
   final double _fontSize = 18;
-  final ScrollController _scrollCtrl = ScrollController();
+  final ItemScrollController _itemScrollCtrl = ItemScrollController();
   bool _searchVisible = false;
-
-  // Clés GlobalKey pour chaque verset (permettent de scroller vers un ayah)
-  final Map<int, GlobalKey> _verseKeys = {};
 
   // Compteur de chargement — protège contre les courses asynchrones :
   // un chargement abandonne s'il n'est plus le plus récent.
@@ -55,7 +53,6 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
 
   @override
   void dispose() {
-    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -97,7 +94,6 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
       _error = null;
       _verses = [];
       _arabicVerses = {};
-      _verseKeys.clear();
     });
 
     try {
@@ -116,12 +112,8 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
           _currentAyah  = target.clamp(1, TafsirService.surahAyahCounts[surah - 1]);
         });
 
-        if (_scrollCtrl.hasClients) {
-          _scrollCtrl.jumpTo(0);
-        }
-
         if (_targetAyah > 1) {
-          _scrollToAyah(_targetAyah);
+          _scrollToAyah(_targetAyah, afterLoad: true);
         } else {
           _targetAyah = 0;
         }
@@ -191,26 +183,23 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
     return arVerses;
   }
 
-  void _scrollToAyah(int ayah) {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || !_scrollCtrl.hasClients) return;
-      // Saut approximatif pour déclencher le build de l'item cible
-      // (ListView.builder ne construit les items que si leur zone est visible)
-      final maxExt = _scrollCtrl.position.maxScrollExtent;
-      _scrollCtrl.jumpTo(((ayah - 1) * 320.0).clamp(0.0, maxExt));
-      // Attente de la frame suivante pour que l'item soit positionné
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-      final key = _verseKeys[ayah];
-      if (key?.currentContext != null) {
-        await Scrollable.ensureVisible(
-          key!.currentContext!,
-          duration: const Duration(milliseconds: 300),
-          curve:    Curves.easeOut,
-          alignment: 0.1,
-        );
-      }
-      if (!mounted) return;
+  void _scrollToAyah(int ayah, {bool afterLoad = false}) {
+    if (!afterLoad) {
+      // Navigation prev/next : liste déjà rendue, scroll immédiat
+      if (!_itemScrollCtrl.isAttached) return;
+      _itemScrollCtrl.jumpTo(index: ayah, alignment: 0.05);
+      _targetAyah = 0;
+      return;
+    }
+    // Après chargement d'une nouvelle sourate : attendre que le widget soit attaché
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_itemScrollCtrl.isAttached) return;
+      _itemScrollCtrl.scrollTo(
+        index:     ayah,
+        duration:  const Duration(milliseconds: 350),
+        curve:     Curves.easeOut,
+        alignment: 0.05,
+      );
       _targetAyah = 0;
     });
   }
@@ -222,13 +211,14 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
       setState(() => _currentAyah = ayah.clamp(1, _totalAyahs));
       if (ayah > 1) {
         _scrollToAyah(ayah);
-      } else if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(
-          0,
+      } else if (_itemScrollCtrl.isAttached) {
+        _itemScrollCtrl.scrollTo(
+          index: 0,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
+      _targetAyah = 0; // évite un scroll parasite si la sourate est rechargée plus tard
       return;
     }
     setState(() => _currentSurah = surah);
@@ -343,20 +333,19 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
                     : _verses.isEmpty
                         ? const _EmptyView()
                         : _VersesList(
-                            verses:        _verses,
-                            arabicVerses:  _arabicVerses,
-                            scrollCtrl:    _scrollCtrl,
-                            fontSize:      _fontSize,
-                            surah:         _currentSurah,
-                            textPrimary:   _textPrimary,
-                            textSecondary: _textSecondary,
-                            dark:          dark,
-                            bookGradient:  widget.book.gradient,
-                            bookNameAr:    widget.book.nameAr,
-                            bookSlug:      widget.book.slug,
-                            verseKeys:     _verseKeys,
-                            favorites:     _favorites,
-                            onToggleFav:   _toggleFavorite,
+                            verses:           _verses,
+                            arabicVerses:     _arabicVerses,
+                            itemScrollCtrl:   _itemScrollCtrl,
+                            fontSize:         _fontSize,
+                            surah:            _currentSurah,
+                            textPrimary:      _textPrimary,
+                            textSecondary:    _textSecondary,
+                            dark:             dark,
+                            bookGradient:     widget.book.gradient,
+                            bookNameAr:       widget.book.nameAr,
+                            bookSlug:         widget.book.slug,
+                            favorites:        _favorites,
+                            onToggleFav:      _toggleFavorite,
                           ),
           ),
 
@@ -436,7 +425,7 @@ class _TafsirReaderScreenState extends State<TafsirReaderScreen> {
 class _VersesList extends StatelessWidget {
   final List<TafsirVerse> verses;
   final Map<String, QVerse> arabicVerses;
-  final ScrollController scrollCtrl;
+  final ItemScrollController itemScrollCtrl;
   final double fontSize;
   final int surah;
   final Color textPrimary;
@@ -445,14 +434,13 @@ class _VersesList extends StatelessWidget {
   final List<Color> bookGradient;
   final String bookNameAr;
   final String bookSlug;
-  final Map<int, GlobalKey> verseKeys;
   final Set<String> favorites;
   final void Function(String key) onToggleFav;
 
   const _VersesList({
     required this.verses,
     required this.arabicVerses,
-    required this.scrollCtrl,
+    required this.itemScrollCtrl,
     required this.fontSize,
     required this.surah,
     required this.textPrimary,
@@ -461,7 +449,6 @@ class _VersesList extends StatelessWidget {
     required this.bookGradient,
     required this.bookNameAr,
     required this.bookSlug,
-    required this.verseKeys,
     required this.favorites,
     required this.onToggleFav,
   });
@@ -469,8 +456,8 @@ class _VersesList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = bookGradient.first;
-    return ListView.builder(
-      controller: scrollCtrl,
+    return ScrollablePositionedList.builder(
+      itemScrollController: itemScrollCtrl,
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
       itemCount: verses.length + 1,
       itemBuilder: (context, i) {
@@ -484,9 +471,7 @@ class _VersesList extends StatelessWidget {
         }
         final v = verses[i - 1];
         final ar = arabicVerses[v.verseKey];
-        final vKey = verseKeys.putIfAbsent(v.ayah, () => GlobalKey());
         return _VerseBlock(
-          key: vKey,
           verse: v,
           arabicVerse: ar,
           fontSize: fontSize,
@@ -524,7 +509,6 @@ class _VerseBlock extends StatelessWidget {
   final void Function(String key) onToggleFav;
 
   const _VerseBlock({
-    super.key,
     required this.verse,
     required this.arabicVerse,
     required this.fontSize,
@@ -592,11 +576,14 @@ class _VerseBlock extends StatelessWidget {
                       ],
                     ),
                     child: Text(
-                      arabicVerse!.ar,
+                      // Strip trailing verse-number digits (Arabic-Indic + NBSP)
+                      arabicVerse!.ar.replaceAll(
+                          RegExp(r'[\u00A0\s\u0660-\u0669\u06F0-\u06F9]+$'), ''),
                       textAlign:     TextAlign.center,
                       textDirection: TextDirection.rtl,
+                      locale:        const Locale('ar'),
                       style: TextStyle(
-                        fontFamily: 'UthmanTahaNaskh',
+                        fontFamily: 'UthmanicHafs',
                         fontSize:   fontSize + 9,
                         color:      const Color(0xFF4A3F30),
                         height:     2.4,
@@ -611,8 +598,10 @@ class _VerseBlock extends StatelessWidget {
                     ),
                   ),
                   Positioned.fill(
-                    child: RepaintBoundary(
-                      child: CustomPaint(painter: _cornerPainter),
+                    child: IgnorePointer(
+                      child: RepaintBoundary(
+                        child: CustomPaint(painter: _cornerPainter),
+                      ),
                     ),
                   ),
                 ],
@@ -640,6 +629,7 @@ class _VerseBlock extends StatelessWidget {
               verse.text,
               textAlign:     TextAlign.right,
               textDirection: TextDirection.rtl,
+              locale:        const Locale('ar'),
               style: TextStyle(
                 fontFamily: 'ScheherazadeNew',
                 fontSize:   fontSize,
@@ -688,6 +678,7 @@ class _SurahHeader extends StatelessWidget {
           Text(
             arName,
             textDirection: TextDirection.rtl,
+            locale: const Locale('ar'),
             style: TextStyle(
               fontFamily: 'UthmanTahaNaskh',
               fontSize: 38,
@@ -850,6 +841,7 @@ class _BottomNav extends StatelessWidget {
                   Text(
                     arName,
                     textDirection: TextDirection.rtl,
+                    locale: const Locale('ar'),
                     style: TextStyle(
                       fontFamily: 'UthmanTahaNaskh',
                       fontSize: 19,
@@ -1715,8 +1707,10 @@ class _VerseIndicatorBox extends StatelessWidget {
             ),
           ),
           Positioned.fill(
-            child: RepaintBoundary(
-              child: CustomPaint(painter: _cornerPainter),
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(painter: _cornerPainter),
+              ),
             ),
           ),
         ],
