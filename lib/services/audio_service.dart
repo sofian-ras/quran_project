@@ -187,8 +187,8 @@ class AudioService {
       }
 
       play();
-    } catch (e) {
-      debugPrint("Erreur lors du chargement de la playlist: $e");
+    } catch (e, st) {
+      debugPrint("Erreur lors du chargement de la playlist: $e\n$st");
       _playlist = null;
       _audioSourceReady = false;
     }

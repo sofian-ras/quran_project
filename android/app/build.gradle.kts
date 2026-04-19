@@ -1,7 +1,7 @@
 import java.util.Properties
 
 val keyProps = Properties()
-val keyPropsFile = rootProject.file("app/key.properties")
+val keyPropsFile = project.file("key.properties")
 if (keyPropsFile.exists()) keyPropsFile.inputStream().use { keyProps.load(it) }
 
 plugins {

@@ -24,15 +24,15 @@ Future<void> main() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // JustAudioBackground : lancé en arrière-plan — la registration de la
-  // plateforme est synchrone ; le service Android se connecte pendant le splash
-  // (bien avant que l'utilisateur touche un contrôle audio).
-  unawaited(JustAudioBackground.init(
+  // JustAudioBackground doit être prêt AVANT tout setAudioSource.
+  // Avec unawaited, le service n'était pas encore lié quand l'utilisateur
+  // tapait une sourate → échec silencieux dans loadPlaylistAndPlay.
+  await JustAudioBackground.init(
     androidNotificationChannelId: 'com.quran.app.audio',
     androidNotificationChannelName: 'Coran Audio',
     androidNotificationOngoing: false,
     androidStopForegroundOnPause: true,
-  ));
+  );
 
   // ThemeService doit être prêt avant runApp pour éviter le flash de thème.
   await ThemeService.init();

@@ -100,7 +100,6 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
   void initState() {
     super.initState();
     _audio.hasNavBar.value = false;
-    _audio.suppressGlobalPlayer.value = false;
     _pageCtrl = PageController();
     _pageCtrl.addListener(_onPageScroll);
     _search.addListener(_filter);
@@ -111,7 +110,6 @@ class _ReciterPickerScreenState extends State<ReciterPickerScreen> {
 
   @override
   void dispose() {
-    _audio.suppressGlobalPlayer.value = true;
     _audio.hasNavBar.value = true;
     _pageCtrl.removeListener(_onPageScroll);
     _pageCtrl.dispose();

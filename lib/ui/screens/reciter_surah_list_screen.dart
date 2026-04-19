@@ -104,12 +104,10 @@ class _ReciterSurahListScreenState extends State<ReciterSurahListScreen> {
   void initState() {
     super.initState();
     _loadDownloaded();
-    _audio.suppressGlobalPlayer.value = true;
   }
 
   @override
   void dispose() {
-    _audio.suppressGlobalPlayer.value = false;
     for (final n in _dlProgress.values) { n.dispose(); }
     super.dispose();
   }

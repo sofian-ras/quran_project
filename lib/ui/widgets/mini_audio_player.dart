@@ -680,7 +680,7 @@ class GlobalMiniPlayerOverlay extends StatelessWidget {
                   builder: (_, snapshot) {
                     final isActive = snapshot.data ?? false;
 
-                    if (isSuppressed || isFullOpen || !isActive) {
+                    if (isSuppressed || isFullOpen || !isActive || navBarVisible) {
                       return const SizedBox.shrink();
                     }
 
