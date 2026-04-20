@@ -215,6 +215,9 @@ class MiniPlayerService {
       if (ayah != null) {
         _curAyah             = ayah;
         currentAyahKey.value = '$_curSurah:$ayah';
+        // En mode sourate, garder _targetAyah synchronisé pour que la fin de sourate
+        // soit détectée correctement (_targetAyah == _endAyah → stop, pas d'avancement).
+        if (playMode.value == MiniPlayMode.surah) _targetAyah = ayah;
       } else if (_isRangePlay) {
         // ── Plage (selection) : avancer verset par verset, répéter la plage N fois ──
         // _targetAyah = verset réellement joué (pas _curAyah qui peut avoir dérivé
@@ -246,7 +249,16 @@ class MiniPlayerService {
         _repeatCount++;
         final limit = _repeatLimit;
         if (limit < 0 || _repeatCount < limit) {
-          _playCurrentSeekAyah(reciter);
+          if (playMode.value == MiniPlayMode.surah) {
+            // Répétition de la sourate entière : reprendre depuis le début de la plage.
+            _curAyah = _rangeStartAyah;
+            currentAyahKey.value = '$_curSurah:$_curAyah';
+            _targetAyah = _curAyah;
+            TimedSurahPlayer.instance.play(
+              reciter.timedSource!, _curSurah, _curAyah, toAyah: _endAyah);
+          } else {
+            _playCurrentSeekAyah(reciter);
+          }
         } else {
           _repeatCount         = 0;
           currentAyahKey.value = null;
@@ -400,7 +412,16 @@ class MiniPlayerService {
 
   void _launchSeekBased(QulReciter reciter) {
     _attachTimedProgressListener(reciter.timedSource!, _curSurah);
-    _playCurrentSeekAyah(reciter);
+    if (playMode.value == MiniPlayMode.surah) {
+      // Lecture continue : jouer toute la sourate en une passe pour éviter les
+      // re-seeks inter-versets (la marge de 400 ms de TimedSurahPlayer ferait
+      // entendre le début du verset suivant deux fois si on seekait à chaque fin).
+      _targetAyah = _curAyah;
+      TimedSurahPlayer.instance.play(
+        reciter.timedSource!, _curSurah, _curAyah, toAyah: _endAyah);
+    } else {
+      _playCurrentSeekAyah(reciter);
+    }
   }
 
   void _playCurrentSeekAyah(QulReciter reciter) {

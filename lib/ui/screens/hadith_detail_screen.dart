@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/hadith.dart';
 import '../../services/hadith_favorites_service.dart';
+import '../../services/hadith_notes_service.dart';
+import 'hadith_screen.dart' show HadithSettings;
 
 class HadithDetailScreen extends StatefulWidget {
   final Hadith hadith;
@@ -22,6 +25,7 @@ class _HadithDetailScreenState extends State<HadithDetailScreen> {
   void initState() {
     super.initState();
     _loadFavoriteState();
+    _explanationExpanded = widget.hadith.explanation.length < 300;
   }
 
   Future<void> _loadFavoriteState() async {
@@ -65,6 +69,16 @@ class _HadithDetailScreenState extends State<HadithDetailScreen> {
                 : null,
             actions: [
               IconButton(
+                tooltip: 'Partager',
+                icon: const Icon(Icons.share_rounded, size: 22),
+                onPressed: () {
+                  final h = widget.hadith;
+                  Share.share(
+                    '${h.arabic}\n\n${h.translation}\n\n— Hadith N°${h.id}',
+                  );
+                },
+              ),
+              IconButton(
                 icon: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
                   child: Icon(
@@ -86,25 +100,65 @@ class _HadithDetailScreenState extends State<HadithDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Hadith number badge ────────────────────────────────────
+                  // ── Badges + titre ────────────────────────────────────────
                   Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _gold.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _gold.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(
-                        'Hadith N° ${h.id}',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: _gold,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _gold.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: _gold.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            'Hadith N° ${h.id}',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: _gold,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (h.categoryName.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _gold.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: _gold.withValues(alpha: 0.25)),
+                            ),
+                            child: Text(
+                              h.categoryName,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: isDark
+                                    ? Colors.white60
+                                    : const Color(0xFF6B5A45),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
+
+                  if (h.title.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    Text(
+                      h.title,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFFE8D5B0)
+                            : const Color(0xFF4A3F30),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 24),
 
@@ -171,61 +225,68 @@ class _HadithDetailScreenState extends State<HadithDetailScreen> {
                   // ── Explanation (collapsible) ──────────────────────────────
                   if (h.explanation.isNotEmpty) ...[
                     const SizedBox(height: 24),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(8),
+                    GestureDetector(
                       onTap: () => setState(() => _explanationExpanded = !_explanationExpanded),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : const Color(0xFFF5F0E8),
+                          borderRadius: BorderRadius.circular(10),
+                          border: const Border(
+                            left: BorderSide(color: _gold, width: 3),
+                          ),
+                        ),
                         child: Row(
                           children: [
+                            Text(
+                              'Explication',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: _gold,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const Spacer(),
                             Icon(
                               _explanationExpanded
                                   ? Icons.keyboard_arrow_up_rounded
                                   : Icons.keyboard_arrow_down_rounded,
                               color: _gold,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Explication',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: _gold,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
-                              ),
+                              size: 20,
                             ),
                           ],
                         ),
                       ),
                     ),
-                    AnimatedCrossFade(
+                    AnimatedSize(
                       duration: const Duration(milliseconds: 250),
-                      crossFadeState: _explanationExpanded
-                          ? CrossFadeState.showSecond
-                          : CrossFadeState.showFirst,
-                      firstChild: const SizedBox.shrink(),
-                      secondChild: Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.04)
-                                : const Color(0xFFF5F0E8),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            h.explanation,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              height: 1.7,
-                              fontSize: 13,
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.7)
-                                  : const Color(0xFF555555),
-                            ),
-                          ),
-                        ),
-                      ),
+                      curve: Curves.easeInOut,
+                      child: _explanationExpanded
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.04)
+                                      : const Color(0xFFF5F0E8),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  h.explanation,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    height: 1.7,
+                                    fontSize: 13,
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.7)
+                                        : const Color(0xFF555555),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ],
                 ],

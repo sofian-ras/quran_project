@@ -100,17 +100,34 @@ class _HadithFavoriteCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (hadith.title.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+              if (hadith.title.isNotEmpty) ...[
+                Text(
+                  hadith.title,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: gold,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+              ],
+              if (hadith.categoryName.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: gold.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   child: Text(
-                    hadith.title,
-                    style: theme.textTheme.labelMedium?.copyWith(
+                    hadith.categoryName,
+                    style: TextStyle(
+                      fontSize: 10,
                       color: gold,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+              ],
               Text(
                 hadith.arabic,
                 textAlign: TextAlign.right,

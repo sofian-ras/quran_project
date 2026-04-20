@@ -18,6 +18,7 @@ class _HadithScreenState extends State<HadithScreen> {
   static const _gold = Color(0xFFC8A165);
 
   final _searchCtrl = TextEditingController();
+  final _searchFocusNode = FocusNode();
   Timer? _debounce;
 
   bool _loading = true;
@@ -40,6 +41,7 @@ class _HadithScreenState extends State<HadithScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchFocusNode.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -111,17 +113,19 @@ class _HadithScreenState extends State<HadithScreen> {
   }
 
   void _openHadith(Hadith h) {
+    _searchFocusNode.unfocus();
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => HadithDetailScreen(hadith: h)),
     );
   }
 
-  void _openCategory(String categoryId, String categoryName) {
+  void _openCategory(String categoryId, String categoryName, int count) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _HadithCategoryScreen(
           categoryId: categoryId,
           categoryName: categoryName,
+          count: count,
           favorites: _favorites,
           onToggleFavorite: (id) async {
             final isNow = await HadithFavoritesService.instance.toggle(id);
@@ -138,6 +142,17 @@ class _HadithScreenState extends State<HadithScreen> {
           },
         ),
       ),
+    );
+  }
+
+  void _showSettings(BuildContext context, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1C2333) : const Color(0xFFFAF7F2),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _HadithSettingsSheet(isDark: isDark, gold: _gold),
     );
   }
 
@@ -198,6 +213,12 @@ class _HadithScreenState extends State<HadithScreen> {
             pinned: true,
             backgroundColor: theme.scaffoldBackgroundColor,
             elevation: 0,
+            iconTheme: IconThemeData(
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+            actionsIconTheme: IconThemeData(
+              color: isDark ? Colors.white : Colors.black87,
+            ),
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
               onPressed: () => Navigator.of(context).pop(),
@@ -218,6 +239,11 @@ class _HadithScreenState extends State<HadithScreen> {
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const HadithFavoritesScreen()),
                 ),
+              ),
+              IconButton(
+                tooltip: 'Paramètres',
+                icon: const Icon(Icons.tune_rounded, size: 22),
+                onPressed: () => _showSettings(context, isDark),
               ),
               const SizedBox(width: 4),
             ],
@@ -240,9 +266,13 @@ class _HadithScreenState extends State<HadithScreen> {
                     ),
                     child: TextField(
                       controller: _searchCtrl,
+                      focusNode: _searchFocusNode,
                       onChanged: _onSearchChanged,
                       textAlignVertical: TextAlignVertical.center,
-                      style: theme.textTheme.bodyMedium,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87,
+                      ),
+                      cursorColor: _gold,
                       decoration: InputDecoration(
                         hintText: 'Rechercher un hadith…',
                         hintStyle: theme.textTheme.bodyMedium?.copyWith(
@@ -337,7 +367,7 @@ class _HadithScreenState extends State<HadithScreen> {
                   crossAxisCount: 2,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  childAspectRatio: 1.4,
+                  childAspectRatio: 1.1,
                 ),
                 delegate: SliverChildBuilderDelegate(
                   (context, i) {
@@ -351,6 +381,7 @@ class _HadithScreenState extends State<HadithScreen> {
                       onTap: () => _openCategory(
                         cat['category_id'] as String,
                         cat['category_name'] as String,
+                        cat['count'] as int,
                       ),
                     );
                   },
@@ -363,6 +394,24 @@ class _HadithScreenState extends State<HadithScreen> {
     );
   }
 }
+
+// ── Shared category icons map ──────────────────────────────────────────────────
+
+const _kCategoryIcons = {
+  'Actes rituels': Icons.mosque_rounded,
+  'Foi': Icons.star_rounded,
+  'Comportements': Icons.handshake_rounded,
+  'Purification': Icons.water_drop_rounded,
+  'Sciences': Icons.menu_book_rounded,
+  'Invocations': Icons.favorite_rounded,
+};
+
+IconData _iconForCategory(String name) =>
+    _kCategoryIcons.entries
+        .where((e) => name.toLowerCase().contains(e.key.toLowerCase()))
+        .map((e) => e.value)
+        .firstOrNull ??
+    Icons.auto_stories_rounded;
 
 // ── Category card ──────────────────────────────────────────────────────────────
 
@@ -383,22 +432,10 @@ class _CategoryCard extends StatelessWidget {
     required this.onTap,
   });
 
-  static const _icons = {
-    'Actes rituels': Icons.mosque_rounded,
-    'Foi': Icons.star_rounded,
-    'Comportements': Icons.handshake_rounded,
-    'Purification': Icons.water_drop_rounded,
-    'Sciences': Icons.menu_book_rounded,
-    'Invocations': Icons.favorite_rounded,
-  };
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final icon = _icons.entries
-        .where((e) => categoryName.toLowerCase().contains(e.key.toLowerCase()))
-        .map((e) => e.value)
-        .firstOrNull ?? Icons.auto_stories_rounded;
+    final icon = _iconForCategory(categoryName);
 
     return Material(
       color: Colors.transparent,
@@ -407,19 +444,31 @@ class _CategoryCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : const Color(0xFFFAF7F2),
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF2A2218), const Color(0xFF1C1810)]
+                  : [const Color(0xFFFFF8EE), const Color(0xFFFAF2E0)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: gold.withValues(alpha: isDark ? 0.15 : 0.2),
+              color: gold.withValues(alpha: isDark ? 0.2 : 0.25),
             ),
           ),
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+          padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: gold, size: 26),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: gold.withValues(alpha: 0.13),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: gold, size: 20),
+              ),
               const Spacer(),
               Text(
                 categoryName,
@@ -430,12 +479,22 @@ class _CategoryCard extends StatelessWidget {
                   fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                '$count hadiths',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: isDark ? Colors.white38 : Colors.black38,
-                ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text(
+                    '$count hadiths',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: isDark ? Colors.white38 : Colors.black38,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 14,
+                    color: gold.withValues(alpha: 0.6),
+                  ),
+                ],
               ),
             ],
           ),
@@ -450,12 +509,14 @@ class _CategoryCard extends StatelessWidget {
 class _HadithCategoryScreen extends StatefulWidget {
   final String categoryId;
   final String categoryName;
+  final int count;
   final Set<int> favorites;
   final Future<void> Function(int) onToggleFavorite;
 
   const _HadithCategoryScreen({
     required this.categoryId,
     required this.categoryName,
+    required this.count,
     required this.favorites,
     required this.onToggleFavorite,
   });
@@ -559,8 +620,67 @@ class _HadithCategoryScreenState extends State<_HadithCategoryScreen> {
               child: Center(child: CircularProgressIndicator(color: _gold)),
             )
           else ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isDark
+                          ? [const Color(0xFF2A2218), const Color(0xFF1C1810)]
+                          : [const Color(0xFFFFF8EE), const Color(0xFFFAF2E0)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _gold.withValues(alpha: isDark ? 0.2 : 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: _gold.withValues(alpha: 0.13),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _iconForCategory(widget.categoryName),
+                          color: _gold,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.categoryName,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${widget.count} hadiths',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: isDark ? Colors.white38 : Colors.black45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, i) {
@@ -684,6 +804,18 @@ class _HadithOfDayCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  if (hadith.title.isNotEmpty) ...[
+                    Text(
+                      hadith.title,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFFE8D5B0)
+                            : const Color(0xFF4A3F30),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   Text(
                     hadith.arabic,
                     textAlign: TextAlign.right,
@@ -763,87 +895,198 @@ class _HadithListTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+        child: IntrinsicHeight(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: gold.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  '${hadith.id}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: gold,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 10,
-                  ),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 3,
+              decoration: BoxDecoration(
+                color: gold.withValues(alpha: 0.5),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 11, 8, 11),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      hadith.arabic,
-                      textAlign: TextAlign.right,
-                      textDirection: TextDirection.rtl,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'Amiri',
-                        fontSize: 15,
-                        height: 1.6,
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.88)
-                            : const Color(0xFF1A1A1A),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                '#${hadith.id}',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: gold,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 10,
+                                ),
+                              ),
+                              if (hadith.title.isNotEmpty) ...[
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    hadith.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      color: isDark
+                                          ? const Color(0xFFE8D5B0)
+                                          : const Color(0xFF4A3F30),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            hadith.arabic,
+                            textAlign: TextAlign.right,
+                            textDirection: TextDirection.rtl,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontFamily: 'Amiri',
+                              fontSize: 15,
+                              height: 1.7,
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.88)
+                                  : const Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            hadith.translation,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              height: 1.5,
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.55)
+                                  : const Color(0xFF666666),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      hadith.translation,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        height: 1.5,
-                        fontSize: 12,
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.55)
-                            : const Color(0xFF666666),
+                    GestureDetector(
+                      onTap: onToggleFavorite,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 4, 0),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            isFavorite
+                                ? Icons.bookmark_rounded
+                                : Icons.bookmark_border_rounded,
+                            key: ValueKey(isFavorite),
+                            size: 18,
+                            color: isFavorite
+                                ? gold
+                                : (isDark ? Colors.white24 : Colors.black26),
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              GestureDetector(
-                onTap: onToggleFavorite,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 4, 0),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      isFavorite
-                          ? Icons.bookmark_rounded
-                          : Icons.bookmark_border_rounded,
-                      key: ValueKey(isFavorite),
-                      size: 18,
-                      color: isFavorite
-                          ? gold
-                          : (isDark ? Colors.white24 : Colors.black26),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
+          ],
           ),
         ),
       ),
     );
   }
+}
+
+// ── Settings sheet ─────────────────────────────────────────────────────────────
+
+class _HadithSettingsSheet extends StatefulWidget {
+  final bool isDark;
+  final Color gold;
+  const _HadithSettingsSheet({required this.isDark, required this.gold});
+
+  @override
+  State<_HadithSettingsSheet> createState() => _HadithSettingsSheetState();
+}
+
+class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
+  double _arabicFontSize = HadithSettings.arabicFontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = widget.isDark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.black12,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text('Paramètres',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 24),
+          Text('Taille du texte arabe',
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: isDark ? Colors.white54 : Colors.black45)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                'بسم الله',
+                style: TextStyle(
+                  fontFamily: 'Amiri',
+                  fontSize: _arabicFontSize,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.85)
+                      : const Color(0xFF1A1A1A),
+                ),
+              ),
+              const Spacer(),
+              Text('${_arabicFontSize.round()}',
+                  style: theme.textTheme.labelMedium?.copyWith(color: widget.gold)),
+            ],
+          ),
+          Slider(
+            value: _arabicFontSize,
+            min: 16, max: 32, divisions: 8,
+            activeColor: widget.gold,
+            inactiveColor: widget.gold.withValues(alpha: 0.2),
+            onChanged: (v) {
+              setState(() => _arabicFontSize = v);
+              HadithSettings.arabicFontSize = v;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Shared settings ────────────────────────────────────────────────────────────
+
+class HadithSettings {
+  static double arabicFontSize = 22;
 }
