@@ -53,6 +53,12 @@ class _HadithDetailScreenState extends State<HadithDetailScreen> {
             pinned: true,
             backgroundColor: theme.scaffoldBackgroundColor,
             elevation: 0,
+            iconTheme: IconThemeData(
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+            actionsIconTheme: IconThemeData(
+              color: isDark ? Colors.white : Colors.black87,
+            ),
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
               onPressed: () => Navigator.of(context).pop(),
@@ -163,8 +169,10 @@ class _HadithDetailScreenState extends State<HadithDetailScreen> {
                   const SizedBox(height: 24),
 
                   // ── Arabic text block ──────────────────────────────────────
-                  Container(
-                    padding: const EdgeInsets.all(24),
+                  ValueListenableBuilder<double>(
+                    valueListenable: HadithSettings.arabicFontSizeNotifier,
+                    builder: (context, fontSize, _) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                     decoration: BoxDecoration(
                       color: isDark
                           ? Colors.white.withValues(alpha: 0.05)
@@ -180,11 +188,13 @@ class _HadithDetailScreenState extends State<HadithDetailScreen> {
                       textDirection: TextDirection.rtl,
                       style: theme.textTheme.bodyLarge?.copyWith(
                         fontFamily: 'Amiri',
-                        fontSize: 22,
-                        height: 2.0,
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.bold,
+                        height: 1.8,
                         color: isDark ? Colors.white.withValues(alpha: 0.92) : const Color(0xFF1A1A1A),
                       ),
                     ),
+                  ),
                   ),
 
                   const SizedBox(height: 24),

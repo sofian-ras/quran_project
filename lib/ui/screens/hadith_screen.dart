@@ -242,7 +242,7 @@ class _HadithScreenState extends State<HadithScreen> {
               ),
               IconButton(
                 tooltip: 'Paramètres',
-                icon: const Icon(Icons.tune_rounded, size: 22),
+                icon: const Icon(Icons.format_size_rounded, size: 22),
                 onPressed: () => _showSettings(context, isDark),
               ),
               const SizedBox(width: 4),
@@ -1048,36 +1048,81 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
           Text('Paramètres',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 24),
-          Text('Taille du texte arabe',
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: isDark ? Colors.white54 : Colors.black45)),
-          const SizedBox(height: 8),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'بسم الله',
-                style: TextStyle(
-                  fontFamily: 'Amiri',
-                  fontSize: _arabicFontSize,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.85)
-                      : const Color(0xFF1A1A1A),
+              Text('Taille du texte arabe',
+                  style: theme.textTheme.labelMedium
+                      ?.copyWith(color: isDark ? Colors.white54 : Colors.black45)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: widget.gold.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_arabicFontSize.round()} px',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: widget.gold,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const Spacer(),
-              Text('${_arabicFontSize.round()}',
-                  style: theme.textTheme.labelMedium?.copyWith(color: widget.gold)),
             ],
           ),
-          Slider(
-            value: _arabicFontSize,
-            min: 16, max: 32, divisions: 8,
-            activeColor: widget.gold,
-            inactiveColor: widget.gold.withValues(alpha: 0.2),
-            onChanged: (v) {
-              setState(() => _arabicFontSize = v);
-              HadithSettings.arabicFontSize = v;
-            },
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : const Color(0xFFFAF7F2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: widget.gold.withValues(alpha: 0.25)),
+            ),
+            child: Text(
+              'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.rtl,
+              style: TextStyle(
+                fontFamily: 'Amiri',
+                fontSize: _arabicFontSize,
+                fontWeight: FontWeight.bold,
+                height: 1.8,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.85)
+                    : const Color(0xFF1A1A1A),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+            ),
+            child: Slider(
+              value: _arabicFontSize,
+              min: 16, max: 32, divisions: 8,
+              activeColor: widget.gold,
+              inactiveColor: widget.gold.withValues(alpha: 0.2),
+              onChanged: (v) {
+                setState(() => _arabicFontSize = v);
+                HadithSettings.arabicFontSize = v;
+              },
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('A', style: theme.textTheme.labelSmall?.copyWith(
+                color: isDark ? Colors.white38 : Colors.black26, fontSize: 12)),
+              Text('A', style: theme.textTheme.labelSmall?.copyWith(
+                color: isDark ? Colors.white38 : Colors.black26, fontSize: 18,
+                fontWeight: FontWeight.bold)),
+            ],
           ),
         ],
       ),
@@ -1088,5 +1133,7 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
 // ── Shared settings ────────────────────────────────────────────────────────────
 
 class HadithSettings {
-  static double arabicFontSize = 22;
+  static final ValueNotifier<double> arabicFontSizeNotifier = ValueNotifier(22);
+  static double get arabicFontSize => arabicFontSizeNotifier.value;
+  static set arabicFontSize(double v) => arabicFontSizeNotifier.value = v;
 }
