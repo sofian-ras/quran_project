@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dua_screen.dart';
 import 'hadith_screen.dart';
+import 'qibla_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
@@ -542,6 +543,12 @@ Future<void> _checkFirstLaunch() async {
                               if (f.label == 'Hadith') {
                                 Navigator.of(ctx).push(
                                   MaterialPageRoute(builder: (_) => const HadithScreen()),
+                                );
+                                return;
+                              }
+                              if (f.label == 'Qibla') {
+                                Navigator.of(ctx).push(
+                                  MaterialPageRoute(builder: (_) => const QiblaScreen()),
                                 );
                                 return;
                               }
