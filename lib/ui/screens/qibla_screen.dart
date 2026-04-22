@@ -4,13 +4,54 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _kMeccaLat = 21.4225;
 const _kMeccaLon = 39.8262;
-const _kGold  = Color(0xFFC8A165);
-const _kGreen = Color(0xFF1A6B2A);
-const _kBg    = Color(0xFF0D1B12);
-const _kCard  = Color(0xFF1A2E1F);
+
+// ── Thèmes ─────────────────────────────────────────────────────────────────────
+
+class _QiblaTheme {
+  final String name;
+  final Color  bg, card, accent, dialInner, northColor;
+  const _QiblaTheme({
+    required this.name,
+    required this.bg,
+    required this.card,
+    required this.accent,
+    required this.dialInner,
+    required this.northColor,
+  });
+}
+
+const _kThemes = [
+  _QiblaTheme(
+    name:       'Émeraude',
+    bg:         Color(0xFF0D1B12),
+    card:       Color(0xFF1A2E1F),
+    accent:     Color(0xFFC8A165),
+    dialInner:  Color(0xFF1E3A26),
+    northColor: Color(0xFFE57373),
+  ),
+  _QiblaTheme(
+    name:       'Nuit',
+    bg:         Color(0xFF0A0D1A),
+    card:       Color(0xFF141828),
+    accent:     Color(0xFF7EC8E3),
+    dialInner:  Color(0xFF1A2040),
+    northColor: Color(0xFF80CBC4),
+  ),
+  _QiblaTheme(
+    name:       'Désert',
+    bg:         Color(0xFF1A1209),
+    card:       Color(0xFF2A1E10),
+    accent:     Color(0xFFE8C07A),
+    dialInner:  Color(0xFF3A2710),
+    northColor: Color(0xFFFFAB40),
+  ),
+];
+
+// ── Écran principal ────────────────────────────────────────────────────────────
 
 class QiblaScreen extends StatefulWidget {
   const QiblaScreen({super.key});
@@ -22,15 +63,29 @@ class _QiblaScreenState extends State<QiblaScreen> {
   bool    _loadingGps = true;
   String? _gpsError;
   double? _qiblaBearing;
+  int     _themeIndex = 0;
+
+  _QiblaTheme get _theme => _kThemes[_themeIndex];
 
   @override
   void initState() {
     super.initState();
+    _loadTheme();
     _loadGps();
   }
 
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) setState(() => _themeIndex = (prefs.getInt('qibla_theme') ?? 0).clamp(0, _kThemes.length - 1));
+  }
+
+  Future<void> _saveTheme(int idx) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('qibla_theme', idx);
+  }
+
   Future<void> _loadGps() async {
-    setState(() { _loadingGps = true; _gpsError = null; });
+    setState(() { _loadingGps = true; _gpsError = null; _qiblaBearing = null; });
     try {
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
@@ -54,33 +109,120 @@ class _QiblaScreenState extends State<QiblaScreen> {
     return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
   }
 
+  void _selectTheme(int idx) {
+    setState(() => _themeIndex = idx);
+    _saveTheme(idx);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final t = _theme;
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: t.bg,
       appBar: AppBar(
-        backgroundColor: _kBg,
+        backgroundColor: t.bg,
         foregroundColor: Colors.white,
         title: const Text('Qibla', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
         centerTitle: true,
         elevation: 0,
+        actions: [
+          // Reset GPS
+          IconButton(
+            tooltip: 'Recalculer la position',
+            icon: Icon(Icons.my_location_rounded, color: t.accent),
+            onPressed: _loadingGps ? null : _loadGps,
+          ),
+          // Sélecteur de thème
+          IconButton(
+            tooltip: 'Thème',
+            icon: Icon(Icons.palette_outlined, color: t.accent),
+            onPressed: () => _showThemePicker(context),
+          ),
+        ],
       ),
       body: _buildBody(),
     );
   }
 
+  void _showThemePicker(BuildContext context) {
+    final t = _theme;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: t.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Thème', style: TextStyle(color: t.accent, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(_kThemes.length, (i) {
+                final th      = _kThemes[i];
+                final selected = i == _themeIndex;
+                return GestureDetector(
+                  onTap: () { _selectTheme(i); Navigator.pop(context); },
+                  child: Column(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 64, height: 64,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: th.bg,
+                          border: Border.all(
+                            color: selected ? th.accent : Colors.white24,
+                            width: selected ? 3 : 1.5,
+                          ),
+                          boxShadow: selected
+                              ? [BoxShadow(color: th.accent.withAlpha(120), blurRadius: 12)]
+                              : [],
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 28, height: 28,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: th.accent),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(th.name,
+                        style: TextStyle(
+                          color: selected ? th.accent : Colors.white54,
+                          fontSize: 12,
+                          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBody() {
-    if (_loadingGps) return const Center(child: CircularProgressIndicator(color: _kGold));
-    if (_gpsError != null) return _ErrorView(message: _gpsError!, onRetry: _loadGps);
-    return _QiblaCompass(qiblaBearing: _qiblaBearing!);
+    if (_loadingGps) return Center(child: CircularProgressIndicator(color: _theme.accent));
+    if (_gpsError != null) return _ErrorView(message: _gpsError!, onRetry: _loadGps, theme: _theme);
+    return _QiblaCompass(qiblaBearing: _qiblaBearing!, theme: _theme);
   }
 }
 
-// ── Boussole principale ────────────────────────────────────────────────────────
+// ── Boussole ───────────────────────────────────────────────────────────────────
 
 class _QiblaCompass extends StatefulWidget {
-  final double qiblaBearing;
-  const _QiblaCompass({required this.qiblaBearing});
+  final double      qiblaBearing;
+  final _QiblaTheme theme;
+  const _QiblaCompass({required this.qiblaBearing, required this.theme});
   @override
   State<_QiblaCompass> createState() => _QiblaCompassState();
 }
@@ -92,15 +234,12 @@ class _QiblaCompassState extends State<_QiblaCompass> {
   @override
   void initState() {
     super.initState();
-    // Vibration dans un listener séparé — jamais dans build()
     _vibrationSub = FlutterCompass.events?.listen((event) {
       final heading = event.heading;
       if (heading == null) return;
       final toQibla = ((widget.qiblaBearing - heading) % 360 + 360) % 360;
       final aligned = toQibla < 5 || toQibla > 355;
-      if (aligned && !_wasAligned) {
-        HapticFeedback.mediumImpact();
-      }
+      if (aligned && !_wasAligned) HapticFeedback.mediumImpact();
       _wasAligned = aligned;
     });
   }
@@ -113,88 +252,75 @@ class _QiblaCompassState extends State<_QiblaCompass> {
 
   @override
   Widget build(BuildContext context) {
+    final t        = widget.theme;
     final dialSize = MediaQuery.of(context).size.width * 0.82;
 
     return StreamBuilder<CompassEvent>(
       stream: FlutterCompass.events,
       builder: (context, snap) {
-        final heading  = snap.data?.heading;
-        final accuracy = snap.data?.accuracy; // degrés, null si indisponible
+        final heading      = snap.data?.heading;
+        final accuracy     = snap.data?.accuracy;
         final poorAccuracy = heading == null || (accuracy != null && accuracy > 45);
-
-        final dialAngle = heading != null ? -(heading * math.pi / 180) : 0.0;
-        final toQibla   = heading != null
+        final dialAngle    = heading != null ? -(heading * math.pi / 180) : 0.0;
+        final toQibla      = heading != null
             ? ((widget.qiblaBearing - heading) % 360 + 360) % 360
             : widget.qiblaBearing;
         final aligned = toQibla < 5 || toQibla > 355;
-
 
         return Column(
           children: [
             const SizedBox(height: 16),
 
-            // ── Compteurs temps réel ──────────────────────────────────────
+            // ── Compteurs ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _InfoTile(
-                    label: 'Cap',
-                    value: heading != null ? '${heading.toStringAsFixed(0)}°' : '--',
-                    icon: Icons.explore_outlined,
-                  ),
-                  _InfoTile(
-                    label: 'Qibla',
-                    value: '${widget.qiblaBearing.toStringAsFixed(0)}°',
-                    icon: Icons.mosque_rounded,
-                  ),
-                  _InfoTile(
-                    label: 'Reste',
-                    value: heading != null ? '${toQibla.toStringAsFixed(0)}°' : '--',
-                    icon: Icons.rotate_right_rounded,
-                  ),
+                  _InfoTile(label: 'Cap',   value: heading != null ? '${heading.toStringAsFixed(0)}°' : '--', icon: Icons.explore_outlined,   theme: t),
+                  _InfoTile(label: 'Qibla', value: '${widget.qiblaBearing.toStringAsFixed(0)}°',              icon: Icons.mosque_rounded,       theme: t),
+                  _InfoTile(label: 'Reste', value: heading != null ? '${toQibla.toStringAsFixed(0)}°' : '--', icon: Icons.rotate_right_rounded, theme: t),
                 ],
               ),
             ),
 
             const SizedBox(height: 24),
 
-            // ── Boussole ──────────────────────────────────────────────────
+            // ── Cadran ────────────────────────────────────────────────────
             Stack(
               alignment: Alignment.center,
               children: [
-                // Cadran rotatif (N toujours vers le Nord)
                 Transform.rotate(
                   angle: dialAngle,
                   child: _DialWidget(
-                    size: dialSize,
-                    qiblaBearing: widget.qiblaBearing,
-                    // Counter-rotation pour garder la Kaaba droite
-                    kaabaCounterAngle: -dialAngle,
+                    size:               dialSize,
+                    qiblaBearing:       widget.qiblaBearing,
+                    kaabaCounterAngle:  -dialAngle,
+                    theme:              t,
                   ),
                 ),
-                // Triangle indicateur fixe en haut
                 Positioned(
                   top: 0,
-                  child: CustomPaint(size: const Size(22, 16), painter: _IndicatorPainter()),
+                  child: CustomPaint(
+                    size: const Size(22, 16),
+                    painter: _IndicatorPainter(color: t.accent),
+                  ),
                 ),
-                // Centre
                 Container(
                   width: 10, height: 10,
-                  decoration: const BoxDecoration(shape: BoxShape.circle, color: _kGold),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: t.accent),
                 ),
               ],
             ),
 
             const SizedBox(height: 20),
 
-            // ── Calibration ou guidage ────────────────────────────────────
+            // ── Guidage / calibration ─────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: poorAccuracy
-                  ? const _CalibrationHint()
-                  : _GuidanceBanner(aligned: aligned),
+                  ? _CalibrationHint(theme: t)
+                  : _GuidanceBanner(aligned: aligned, theme: t),
             ),
           ],
         );
@@ -203,17 +329,14 @@ class _QiblaCompassState extends State<_QiblaCompass> {
   }
 }
 
-// ── Cadran ─────────────────────────────────────────────────────────────────────
+// ── Cadran rotatif ─────────────────────────────────────────────────────────────
 
 class _DialWidget extends StatelessWidget {
-  final double size;
-  final double qiblaBearing;
-  final double kaabaCounterAngle; // annule la rotation du cadran → icône toujours droite
-
+  final double size, qiblaBearing, kaabaCounterAngle;
+  final _QiblaTheme theme;
   const _DialWidget({
-    required this.size,
-    required this.qiblaBearing,
-    required this.kaabaCounterAngle,
+    required this.size, required this.qiblaBearing,
+    required this.kaabaCounterAngle, required this.theme,
   });
 
   @override
@@ -225,36 +348,17 @@ class _DialWidget extends StatelessWidget {
     final kaabaY   = -kaabaR * math.cos(qiblaRad);
 
     return SizedBox(
-      width: size,
-      height: size,
+      width: size, height: size,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Fond + graduations
-          CustomPaint(size: Size(size, size), painter: _DialPainter()),
-          // Points cardinaux
+          CustomPaint(size: Size(size, size), painter: _DialPainter(theme: theme)),
           ..._cardinals(r),
-          // Icône Kaaba counter-rotée pour rester droite
           Transform.translate(
             offset: Offset(kaabaX, kaabaY),
             child: Transform.rotate(
               angle: kaabaCounterAngle,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _kGold,
-                      boxShadow: [BoxShadow(color: _kGold.withAlpha(140), blurRadius: 12)],
-                    ),
-                    child: const Icon(Icons.mosque_rounded, color: Colors.black, size: 22),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text('Kaaba', style: TextStyle(color: _kGold, fontSize: 9, fontWeight: FontWeight.bold)),
-                ],
-              ),
+              child: Image.asset('assets/icon/kaaba.png', width: 44, height: 44, fit: BoxFit.contain),
             ),
           ),
         ],
@@ -274,7 +378,7 @@ class _DialWidget extends StatelessWidget {
         child: Text(
           labels[i],
           style: TextStyle(
-            color: labels[i] == 'N' ? Colors.red[300] : Colors.white70,
+            color: labels[i] == 'N' ? theme.northColor : Colors.white70,
             fontWeight: FontWeight.bold,
             fontSize: 15,
           ),
@@ -284,9 +388,12 @@ class _DialWidget extends StatelessWidget {
   }
 }
 
-// ── Dessin du cadran ───────────────────────────────────────────────────────────
+// ── Peinture du cadran ─────────────────────────────────────────────────────────
 
 class _DialPainter extends CustomPainter {
+  final _QiblaTheme theme;
+  const _DialPainter({required this.theme});
+
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width  / 2;
@@ -295,13 +402,13 @@ class _DialPainter extends CustomPainter {
 
     canvas.drawCircle(
       Offset(cx, cy), r,
-      Paint()..shader = const RadialGradient(
-        colors: [Color(0xFF1E3A26), _kBg],
+      Paint()..shader = RadialGradient(
+        colors: [theme.dialInner, theme.bg],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
 
     canvas.drawCircle(Offset(cx, cy), r - 1,
-      Paint()..color = _kGold.withAlpha(80)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+      Paint()..color = theme.accent.withAlpha(80)..style = PaintingStyle.stroke..strokeWidth = 1.5);
 
     final tickPaint = Paint()..style = PaintingStyle.stroke;
     for (int i = 0; i < 360; i += 5) {
@@ -310,23 +417,26 @@ class _DialPainter extends CustomPainter {
       final isMed = i % 15 == 0;
       final len   = isMaj ? 14.0 : (isMed ? 9.0 : 5.0);
       tickPaint
-        ..color       = isMaj ? _kGold.withAlpha(200) : Colors.white.withAlpha(isMed ? 100 : 50)
+        ..color       = isMaj ? theme.accent.withAlpha(200) : Colors.white.withAlpha(isMed ? 100 : 50)
         ..strokeWidth = isMaj ? 1.5 : 1.0;
-      final x1 = cx + (r - 2)         * math.sin(angle);
-      final y1 = cy - (r - 2)         * math.cos(angle);
-      final x2 = cx + (r - 2 - len)   * math.sin(angle);
-      final y2 = cy - (r - 2 - len)   * math.cos(angle);
+      final x1 = cx + (r - 2)       * math.sin(angle);
+      final y1 = cy - (r - 2)       * math.cos(angle);
+      final x2 = cx + (r - 2 - len) * math.sin(angle);
+      final y2 = cy - (r - 2 - len) * math.cos(angle);
       canvas.drawLine(Offset(x1, y1), Offset(x2, y2), tickPaint);
     }
   }
 
   @override
-  bool shouldRepaint(_DialPainter old) => false;
+  bool shouldRepaint(_DialPainter old) => old.theme != theme;
 }
 
-// ── Triangle indicateur fixe ───────────────────────────────────────────────────
+// ── Indicateur fixe ────────────────────────────────────────────────────────────
 
 class _IndicatorPainter extends CustomPainter {
+  final Color color;
+  const _IndicatorPainter({required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
     final path = Path()
@@ -334,16 +444,18 @@ class _IndicatorPainter extends CustomPainter {
       ..lineTo(0, 0)
       ..lineTo(size.width, 0)
       ..close();
-    canvas.drawPath(path, Paint()..color = _kGold..style = PaintingStyle.fill);
+    canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.fill);
   }
+
   @override
-  bool shouldRepaint(_IndicatorPainter old) => false;
+  bool shouldRepaint(_IndicatorPainter old) => old.color != color;
 }
 
 // ── Animation calibration en 8 ─────────────────────────────────────────────────
 
 class _CalibrationHint extends StatefulWidget {
-  const _CalibrationHint();
+  final _QiblaTheme theme;
+  const _CalibrationHint({required this.theme});
   @override
   State<_CalibrationHint> createState() => _CalibrationHintState();
 }
@@ -358,62 +470,48 @@ class _CalibrationHintState extends State<_CalibrationHint> with SingleTickerPro
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _ctrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
+    final t = widget.theme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kCard,
+        color: t.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kGold.withAlpha(60)),
+        border: Border.all(color: t.accent.withAlpha(60)),
       ),
       child: Column(
         children: [
-          const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: _kGold, size: 18),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Précision insuffisante — calibre le capteur',
-                  style: TextStyle(color: _kGold, fontWeight: FontWeight.w600, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
+          Row(children: [
+            Icon(Icons.warning_amber_rounded, color: t.accent, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Précision insuffisante — calibre le capteur',
+              style: TextStyle(color: t.accent, fontWeight: FontWeight.w600, fontSize: 13))),
+          ]),
           const SizedBox(height: 14),
-          // Téléphone animé en mouvement en 8
           AnimatedBuilder(
             animation: _ctrl,
             builder: (_, __) {
-              final t = _ctrl.value * 2 * math.pi;
-              // Lissajous figure-8 : x = sin(t), y = sin(2t)/2
-              final px = math.sin(t) * 44.0;
-              final py = math.sin(2 * t) * 22.0;
-              // Inclinaison légère selon le mouvement
-              final tilt = math.cos(t) * 0.3;
-
+              final angle = _ctrl.value * 2 * math.pi;
+              final px    = math.sin(angle)     * 44.0;
+              final py    = math.sin(2 * angle) * 22.0;
+              final tilt  = math.cos(angle)     * 0.3;
               return SizedBox(
                 height: 90,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Tracé du 8
                     CustomPaint(
                       size: const Size(140, 90),
-                      painter: _Figure8Painter(progress: _ctrl.value),
+                      painter: _Figure8Painter(progress: _ctrl.value, color: t.accent),
                     ),
-                    // Téléphone
                     Transform.translate(
                       offset: Offset(px, py),
                       child: Transform.rotate(
                         angle: tilt,
-                        child: const Icon(Icons.smartphone_rounded, color: _kGold, size: 34),
+                        child: Icon(Icons.smartphone_rounded, color: t.accent, size: 34),
                       ),
                     ),
                   ],
@@ -434,61 +532,49 @@ class _CalibrationHintState extends State<_CalibrationHint> with SingleTickerPro
 }
 
 class _Figure8Painter extends CustomPainter {
-  final double progress; // 0..1
-
-  const _Figure8Painter({required this.progress});
+  final double progress;
+  final Color  color;
+  const _Figure8Painter({required this.progress, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width  / 2;
     final cy = size.height / 2;
-    const rx = 44.0;
-    const ry = 22.0;
+    const rx = 44.0, ry = 22.0;
 
-    // Tracé complet du 8 (atténué)
     final bgPath = Path();
     for (int i = 0; i <= 100; i++) {
       final a = i / 100 * 2 * math.pi;
-      final x = cx + math.sin(a) * rx;
+      final x = cx + math.sin(a)     * rx;
       final y = cy + math.sin(2 * a) * ry;
       i == 0 ? bgPath.moveTo(x, y) : bgPath.lineTo(x, y);
     }
-    canvas.drawPath(
-      bgPath,
-      Paint()
-        ..color       = _kGold.withAlpha(35)
-        ..style       = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..strokeCap   = StrokeCap.round,
-    );
+    canvas.drawPath(bgPath, Paint()
+      ..color = color.withAlpha(35)..style = PaintingStyle.stroke
+      ..strokeWidth = 2..strokeCap = StrokeCap.round);
 
-    // Traînée lumineuse (dernier 30 % du tracé)
-    final trailPaint = Paint()
-      ..style       = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap   = StrokeCap.round;
-
-    const trailLen = 0.30;
     final trailPath = Path();
+    const trailLen = 0.30;
     bool started = false;
     for (int i = 0; i <= 60; i++) {
       final frac = i / 60.0;
       final a    = (progress - trailLen + frac * trailLen) * 2 * math.pi;
-      final x    = cx + math.sin(a) * rx;
+      final x    = cx + math.sin(a)     * rx;
       final y    = cy + math.sin(2 * a) * ry;
-      final alpha = (frac * 200).toInt().clamp(0, 200);
-      if (!started) { trailPath.moveTo(x, y); started = true; }
-      else           { trailPath.lineTo(x, y); }
-      trailPaint.color = _kGold.withAlpha(alpha);
-      // draw segment by segment for gradient effect
+      if (!started) {
+        trailPath.moveTo(x, y);
+        started = true;
+      } else {
+        trailPath.lineTo(x, y);
+      }
     }
-    // draw trail in one shot with max alpha
-    trailPaint.color = _kGold.withAlpha(180);
-    canvas.drawPath(trailPath, trailPaint);
+    canvas.drawPath(trailPath, Paint()
+      ..color = color.withAlpha(180)..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5..strokeCap = StrokeCap.round);
   }
 
   @override
-  bool shouldRepaint(_Figure8Painter old) => old.progress != progress;
+  bool shouldRepaint(_Figure8Painter old) => old.progress != progress || old.color != color;
 }
 
 // ── Tuile info ─────────────────────────────────────────────────────────────────
@@ -496,26 +582,25 @@ class _Figure8Painter extends CustomPainter {
 class _InfoTile extends StatelessWidget {
   final String label, value;
   final IconData icon;
-  const _InfoTile({required this.label, required this.value, required this.icon});
+  final _QiblaTheme theme;
+  const _InfoTile({required this.label, required this.value, required this.icon, required this.theme});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: _kCard,
+        color: theme.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kGold.withAlpha(40)),
+        border: Border.all(color: theme.accent.withAlpha(40)),
       ),
-      child: Column(
-        children: [
-          Icon(icon, color: _kGold, size: 16),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(color: _kGold, fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
-        ],
-      ),
+      child: Column(children: [
+        Icon(icon, color: theme.accent, size: 16),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(color: theme.accent, fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+      ]),
     );
   }
 }
@@ -524,7 +609,8 @@ class _InfoTile extends StatelessWidget {
 
 class _GuidanceBanner extends StatelessWidget {
   final bool aligned;
-  const _GuidanceBanner({required this.aligned});
+  final _QiblaTheme theme;
+  const _GuidanceBanner({required this.aligned, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -532,32 +618,29 @@ class _GuidanceBanner extends StatelessWidget {
       duration: const Duration(milliseconds: 400),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: aligned ? _kGreen.withAlpha(60) : _kCard,
+        color: aligned ? Colors.green.withAlpha(40) : theme.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: aligned ? Colors.greenAccent.withAlpha(150) : _kGold.withAlpha(40)),
+        border: Border.all(color: aligned ? Colors.greenAccent.withAlpha(150) : theme.accent.withAlpha(40)),
       ),
-      child: Row(
-        children: [
-          Icon(
-            aligned ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-            color: aligned ? Colors.greenAccent : _kGold,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              aligned
-                  ? 'Tu fais face à la Kaaba !'
-                  : 'Tourne le téléphone jusqu\'à ce que l\'icône Kaaba soit sous le triangle doré.',
-              style: TextStyle(
-                color: aligned ? Colors.greenAccent : Colors.white70,
-                fontSize: 13,
-                height: 1.4,
-              ),
+      child: Row(children: [
+        Icon(
+          aligned ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+          color: aligned ? Colors.greenAccent : theme.accent,
+          size: 20,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            aligned
+                ? 'Tu fais face à la Kaaba !'
+                : 'Tourne le téléphone jusqu\'à ce que l\'icône Kaaba soit sous le triangle doré.',
+            style: TextStyle(
+              color: aligned ? Colors.greenAccent : Colors.white70,
+              fontSize: 13, height: 1.4,
             ),
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }
@@ -567,7 +650,8 @@ class _GuidanceBanner extends StatelessWidget {
 class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-  const _ErrorView({required this.message, required this.onRetry});
+  final _QiblaTheme theme;
+  const _ErrorView({required this.message, required this.onRetry, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -578,16 +662,13 @@ class _ErrorView extends StatelessWidget {
         children: [
           const Icon(Icons.location_off_rounded, color: Colors.white38, size: 64),
           const SizedBox(height: 20),
-          Text(message,
-            style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
-            textAlign: TextAlign.center,
-          ),
+          Text(message, style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5), textAlign: TextAlign.center),
           const SizedBox(height: 28),
           ElevatedButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Réessayer'),
-            style: ElevatedButton.styleFrom(backgroundColor: _kGold, foregroundColor: Colors.black),
+            style: ElevatedButton.styleFrom(backgroundColor: theme.accent, foregroundColor: Colors.black),
           ),
         ],
       ),
