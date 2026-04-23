@@ -4,9 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification_service.dart';
+import '../../services/streak_service.dart';
 
-// ── Palette (cohérente avec settings_screen) ──────────────────────────────────
-const _kTeal  = Color(0xFF0E6B63);
+// ── Palette ───────────────────────────────────────────────────────────────────
+const _kTeal   = Color(0xFF0E6B63);
 const _kOrange = Color(0xFFF97316);
 
 class NotificationSettingsScreen extends StatefulWidget {
@@ -20,12 +21,20 @@ class NotificationSettingsScreen extends StatefulWidget {
 class _NotificationSettingsScreenState
     extends State<NotificationSettingsScreen>
     with WidgetsBindingObserver {
+  // ── État ─────────────────────────────────────────────────────────────────
   bool _dailyEnabled      = false;
   bool _prayersEnabled    = false;
+  bool _verseEnabled      = false;
+  bool _dhikrEnabled      = false;
+  bool _streakEnabled     = true;
   TimeOfDay _dailyTime    = const TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay _verseTime    = const TimeOfDay(hour: 7, minute: 0);
+  TimeOfDay _dhikrMorning = const TimeOfDay(hour: 7, minute: 30);
+  TimeOfDay _dhikrEvening = const TimeOfDay(hour: 21, minute: 0);
   bool _loading           = true;
   bool _exactAlarmGranted = true;
   bool _batteryOk         = true;
+  int  _currentStreak     = 0;
 
   @override
   void initState() {
@@ -40,7 +49,6 @@ class _NotificationSettingsScreenState
     super.dispose();
   }
 
-  // Re-vérifie le statut batterie quand l'user revient de Settings.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -52,24 +60,59 @@ class _NotificationSettingsScreenState
 
   Future<void> _load() async {
     await NotificationService.instance.init();
-    final dailyEnabled      = await NotificationService.instance.isDailyEnabled();
-    final prayersEnabled    = await NotificationService.instance.arePrayersEnabled();
-    final dailyTime         = await NotificationService.instance.getDailyTime();
-    final exactAlarmGranted = await NotificationService.instance.canScheduleExactNotifications();
-    final batteryOk         = await NotificationService.instance.isIgnoringBatteryOptimizations();
+    final svc = NotificationService.instance;
+    final results = await Future.wait([
+      svc.isDailyEnabled(),
+      svc.arePrayersEnabled(),
+      svc.isVerseEnabled(),
+      svc.isDhikrEnabled(),
+      svc.isStreakNotifEnabled(),
+      svc.canScheduleExactNotifications(),
+      svc.isIgnoringBatteryOptimizations(),
+    ]);
+    final times = await Future.wait([
+      svc.getDailyTime(),
+      svc.getVerseTime(),
+      svc.getDhikrMorningTime(),
+      svc.getDhikrEveningTime(),
+    ]);
     if (!mounted) return;
     setState(() {
-      _dailyEnabled      = dailyEnabled;
-      _prayersEnabled    = prayersEnabled;
-      _dailyTime         = dailyTime;
-      _exactAlarmGranted = exactAlarmGranted;
-      _batteryOk         = batteryOk;
+      _dailyEnabled      = results[0];
+      _prayersEnabled    = results[1];
+      _verseEnabled      = results[2];
+      _dhikrEnabled      = results[3];
+      _streakEnabled     = results[4];
+      _exactAlarmGranted = results[5];
+      _batteryOk         = results[6];
+      _dailyTime         = times[0];
+      _verseTime         = times[1];
+      _dhikrMorning      = times[2];
+      _dhikrEvening      = times[3];
+      _currentStreak     = StreakService.instance.streak;
       _loading           = false;
     });
   }
 
-  /// Affiche un dialog et ouvre les paramètres système si l'utilisateur accepte.
-  /// Retourne true si la permission est accordée après retour des paramètres.
+  // ── Permissions ───────────────────────────────────────────────────────────
+  Future<bool> _ensurePermissions() async {
+    if (!Platform.isAndroid) return true;
+    final granted = await NotificationService.instance.requestPermission();
+    if (!granted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Permission de notifications refusée.'),
+          action: SnackBarAction(
+            label: 'Paramètres',
+            onPressed: () => Geolocator.openAppSettings(),
+          ),
+        ),
+      );
+      return false;
+    }
+    return await _ensureExactAlarmPermission();
+  }
+
   Future<bool> _ensureExactAlarmPermission() async {
     if (_exactAlarmGranted) return true;
     if (!mounted) return false;
@@ -78,9 +121,8 @@ class _NotificationSettingsScreenState
       builder: (_) => AlertDialog(
         title: const Text('Alarmes et rappels'),
         content: const Text(
-          'Pour recevoir les notifications à l\'heure exacte de la prière, '
-          'activez "Alarmes et rappels" pour cette application dans les '
-          'paramètres système.',
+          'Pour recevoir les notifications à l\'heure exacte, '
+          'activez "Alarmes et rappels" pour cette application.',
         ),
         actions: [
           TextButton(
@@ -96,35 +138,18 @@ class _NotificationSettingsScreenState
     );
     if (shouldOpen == true) {
       await NotificationService.instance.requestExactAlarmPermission();
-      final granted = await NotificationService.instance.canScheduleExactNotifications();
+      final granted =
+          await NotificationService.instance.canScheduleExactNotifications();
       if (mounted) setState(() => _exactAlarmGranted = granted);
       return granted;
     }
-    // L'utilisateur a refusé — on continue en mode inexact (notifications moins précises).
     return true;
   }
 
-  // ── Rappel quotidien ──────────────────────────────────────────────────────
+  // ── Rappel de lecture ─────────────────────────────────────────────────────
   Future<void> _toggleDaily(bool value) async {
+    if (value && !await _ensurePermissions()) return;
     if (value) {
-      if (!Platform.isAndroid) {
-        setState(() => _dailyEnabled = true);
-        return;
-      }
-      final granted = await NotificationService.instance.requestPermission();
-      if (!granted && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Permission de notifications refusée.'),
-            action: SnackBarAction(
-              label: 'Paramètres',
-              onPressed: () => Geolocator.openAppSettings(),
-            ),
-          ),
-        );
-        return;
-      }
-      await _ensureExactAlarmPermission();
       await NotificationService.instance.scheduleDailyReminder(_dailyTime);
     } else {
       await NotificationService.instance.cancelDailyReminder();
@@ -133,15 +158,8 @@ class _NotificationSettingsScreenState
     setState(() => _dailyEnabled = value);
   }
 
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _dailyTime,
-      builder: (ctx, child) => MediaQuery(
-        data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
-      ),
-    );
+  Future<void> _pickDailyTime() async {
+    final picked = await _showTimePicker(_dailyTime);
     if (picked == null || !mounted) return;
     setState(() => _dailyTime = picked);
     if (_dailyEnabled) {
@@ -151,51 +169,16 @@ class _NotificationSettingsScreenState
 
   // ── Prières ───────────────────────────────────────────────────────────────
   Future<void> _togglePrayers(bool value) async {
+    if (value && !await _ensurePermissions()) return;
     if (value) {
-      if (!Platform.isAndroid) {
-        setState(() => _prayersEnabled = true);
-        return;
-      }
-      final granted = await NotificationService.instance.requestPermission();
-      if (!granted && mounted) {
-        await showDialog<void>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Permission requise'),
-            content: const Text(
-              'Les notifications sont désactivées pour cette application. '
-              'Activez-les dans les paramètres de votre téléphone.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Annuler'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Geolocator.openAppSettings();
-                },
-                child: const Text('Ouvrir les paramètres'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-      await _ensureExactAlarmPermission();
-      // Activer aussi l'adhan quand on active les alertes de prière.
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('adhan_enabled', true);
-
-      // Planifier depuis le cache (horaires du dernier fetch dans l'onglet Prières).
       final scheduled = await NotificationService.instance.scheduleFromCache();
       if (!scheduled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Ouvrez l\'onglet Prières pour charger les horaires, '
-              'puis revenez ici.',
+              'Ouvrez l\'onglet Prières pour charger les horaires.',
             ),
           ),
         );
@@ -206,6 +189,85 @@ class _NotificationSettingsScreenState
     if (!mounted) return;
     setState(() => _prayersEnabled = value);
   }
+
+  // ── Verset du jour ────────────────────────────────────────────────────────
+  Future<void> _toggleVerse(bool value) async {
+    if (value && !await _ensurePermissions()) return;
+    if (value) {
+      await NotificationService.instance.scheduleVerseNotification(_verseTime);
+    } else {
+      await NotificationService.instance.cancelVerseNotification();
+    }
+    if (!mounted) return;
+    setState(() => _verseEnabled = value);
+  }
+
+  Future<void> _pickVerseTime() async {
+    final picked = await _showTimePicker(_verseTime);
+    if (picked == null || !mounted) return;
+    setState(() => _verseTime = picked);
+    if (_verseEnabled) {
+      await NotificationService.instance.scheduleVerseNotification(picked);
+    }
+  }
+
+  // ── Dhikr ─────────────────────────────────────────────────────────────────
+  Future<void> _toggleDhikr(bool value) async {
+    if (value && !await _ensurePermissions()) return;
+    if (value) {
+      await NotificationService.instance.scheduleDhikrNotifications(
+        morning: _dhikrMorning,
+        evening: _dhikrEvening,
+      );
+    } else {
+      await NotificationService.instance.cancelDhikrNotifications();
+    }
+    if (!mounted) return;
+    setState(() => _dhikrEnabled = value);
+  }
+
+  Future<void> _pickDhikrMorning() async {
+    final picked = await _showTimePicker(_dhikrMorning);
+    if (picked == null || !mounted) return;
+    setState(() => _dhikrMorning = picked);
+    if (_dhikrEnabled) {
+      await NotificationService.instance.scheduleDhikrNotifications(
+        morning: picked, evening: _dhikrEvening,
+      );
+    }
+  }
+
+  Future<void> _pickDhikrEvening() async {
+    final picked = await _showTimePicker(_dhikrEvening);
+    if (picked == null || !mounted) return;
+    setState(() => _dhikrEvening = picked);
+    if (_dhikrEnabled) {
+      await NotificationService.instance.scheduleDhikrNotifications(
+        morning: _dhikrMorning, evening: picked,
+      );
+    }
+  }
+
+  // ── Streak ────────────────────────────────────────────────────────────────
+  Future<void> _toggleStreak(bool value) async {
+    await NotificationService.instance.setStreakNotifEnabled(value);
+    if (!mounted) return;
+    setState(() => _streakEnabled = value);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  Future<TimeOfDay?> _showTimePicker(TimeOfDay initial) =>
+      showTimePicker(
+        context: context,
+        initialTime: initial,
+        builder: (ctx, child) => MediaQuery(
+          data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        ),
+      );
+
+  String _fmt(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
@@ -262,145 +324,112 @@ class _NotificationSettingsScreenState
                     const SizedBox(height: 16),
                   ],
 
-                  // ── Rappel de lecture ─────────────────────────────────
+                  // ── Streak banner ─────────────────────────────────────
+                  if (_currentStreak > 0) ...[
+                    _StreakBanner(streak: _currentStreak, isDark: isDark),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ── 1. Rappel de lecture ──────────────────────────────
                   _SectionHeader('Rappel de lecture', txtS),
                   _Card(isDark: isDark, children: [
-
-                    // Toggle
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-                      child: Row(
-                        children: [
-                          const _IconBox(
-                              Icons.menu_book_rounded, _kOrange),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Rappel quotidien',
-                                    style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        color: txtP)),
-                                Text('Rappel pour lire le Coran chaque jour',
-                                    style:
-                                        TextStyle(fontSize: 12, color: txtS)),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: _dailyEnabled,
-                            onChanged: _toggleDaily,
-                            activeThumbColor: _kTeal,
-                            activeTrackColor:
-                                _kTeal.withValues(alpha: 0.5),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ],
-                      ),
+                    _ToggleRow(
+                      icon: Icons.menu_book_rounded,
+                      color: _kOrange,
+                      title: 'Rappel quotidien',
+                      subtitle: 'Ne rate jamais ta lecture du Coran',
+                      value: _dailyEnabled,
+                      onChanged: _toggleDaily,
+                      txtP: txtP, txtS: txtS,
                     ),
-
                     Divider(height: 1, indent: 60, color: div),
-
-                    // Heure
-                    InkWell(
-                      onTap: _dailyEnabled ? _pickTime : null,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        child: Row(
-                          children: [
-                            _IconBox(
-                              Icons.access_time_rounded,
-                              _dailyEnabled
-                                  ? const Color(0xFF0EA5E9)
-                                  : (isDark
-                                      ? Colors.white24
-                                      : Colors.black26),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Heure du rappel',
-                                      style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                          color: _dailyEnabled
-                                              ? txtP
-                                              : txtS)),
-                                  Text(
-                                    _dailyEnabled
-                                        ? _formatTime(_dailyTime)
-                                        : 'Activez le rappel d\'abord',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: _dailyEnabled
-                                            ? _kTeal
-                                            : txtS,
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (_dailyEnabled)
-                              Icon(Icons.chevron_right_rounded,
-                                  color: isDark
-                                      ? Colors.white24
-                                      : Colors.black26,
-                                  size: 20),
-                          ],
-                        ),
-                      ),
+                    _TimeRow(
+                      icon: Icons.access_time_rounded,
+                      color: const Color(0xFF0EA5E9),
+                      label: 'Heure du rappel',
+                      time: _fmt(_dailyTime),
+                      enabled: _dailyEnabled,
+                      onTap: _pickDailyTime,
+                      txtP: txtP, txtS: txtS, isDark: isDark,
                     ),
                   ]),
 
                   const SizedBox(height: 24),
 
-                  // ── Prières ───────────────────────────────────────────
+                  // ── 2. Verset du jour ─────────────────────────────────
+                  _SectionHeader('Verset du jour', txtS),
+                  _Card(isDark: isDark, children: [
+                    _ToggleRow(
+                      icon: Icons.auto_awesome_rounded,
+                      color: const Color(0xFFF59E0B),
+                      title: 'Verset inspirant',
+                      subtitle: 'Un verset du Coran chaque matin',
+                      value: _verseEnabled,
+                      onChanged: _toggleVerse,
+                      txtP: txtP, txtS: txtS,
+                    ),
+                    Divider(height: 1, indent: 60, color: div),
+                    _TimeRow(
+                      icon: Icons.wb_sunny_rounded,
+                      color: const Color(0xFFF59E0B),
+                      label: 'Heure d\'envoi',
+                      time: _fmt(_verseTime),
+                      enabled: _verseEnabled,
+                      onTap: _pickVerseTime,
+                      txtP: txtP, txtS: txtS, isDark: isDark,
+                    ),
+                  ]),
+
+                  const SizedBox(height: 24),
+
+                  // ── 3. Dhikr & Dua ────────────────────────────────────
+                  _SectionHeader('Dhikr & Doua', txtS),
+                  _Card(isDark: isDark, children: [
+                    _ToggleRow(
+                      icon: Icons.favorite_rounded,
+                      color: const Color(0xFF10B981),
+                      title: 'Rappels spirituels',
+                      subtitle: '2 rappels par jour (matin + soir)',
+                      value: _dhikrEnabled,
+                      onChanged: _toggleDhikr,
+                      txtP: txtP, txtS: txtS,
+                    ),
+                    Divider(height: 1, indent: 60, color: div),
+                    _TimeRow(
+                      icon: Icons.wb_sunny_outlined,
+                      color: const Color(0xFF10B981),
+                      label: 'Dhikr du matin',
+                      time: _fmt(_dhikrMorning),
+                      enabled: _dhikrEnabled,
+                      onTap: _pickDhikrMorning,
+                      txtP: txtP, txtS: txtS, isDark: isDark,
+                    ),
+                    Divider(height: 1, indent: 60, color: div),
+                    _TimeRow(
+                      icon: Icons.nights_stay_rounded,
+                      color: const Color(0xFF6366F1),
+                      label: 'Dhikr du soir',
+                      time: _fmt(_dhikrEvening),
+                      enabled: _dhikrEnabled,
+                      onTap: _pickDhikrEvening,
+                      txtP: txtP, txtS: txtS, isDark: isDark,
+                    ),
+                  ]),
+
+                  const SizedBox(height: 24),
+
+                  // ── 4. Prières ────────────────────────────────────────
                   _SectionHeader('Prières', txtS),
                   _Card(isDark: isDark, children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-                      child: Row(
-                        children: [
-                          const _IconBox(
-                              Icons.mosque_rounded,
-                              Color(0xFF7C3AED)),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Alertes de prière',
-                                    style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        color: txtP)),
-                                Text(
-                                    'Fajr, Dhuhr, Asr, Maghrib, Isha\n'
-                                    'Horaires calculés selon votre position',
-                                    style:
-                                        TextStyle(fontSize: 12, color: txtS)),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: _prayersEnabled,
-                            onChanged: _togglePrayers,
-                            activeThumbColor: _kTeal,
-                            activeTrackColor:
-                                _kTeal.withValues(alpha: 0.5),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ],
-                      ),
+                    _ToggleRow(
+                      icon: Icons.mosque_rounded,
+                      color: const Color(0xFF7C3AED),
+                      title: 'Alertes de prière',
+                      subtitle: 'Fajr · Dhuhr · Asr · Maghrib · Isha',
+                      value: _prayersEnabled,
+                      onChanged: _togglePrayers,
+                      txtP: txtP, txtS: txtS,
                     ),
-
                     if (_prayersEnabled) ...[
                       Divider(height: 1, indent: 60, color: div),
                       Padding(
@@ -413,11 +442,11 @@ class _NotificationSettingsScreenState
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Les notifications seront envoyées selon '
-                                'les horaires configurés dans Prières.',
+                                'Horaires selon l\'onglet Prières.',
                                 style: TextStyle(
-                                    fontSize: 12,
-                                    color: _kTeal.withValues(alpha: 0.8)),
+                                  fontSize: 12,
+                                  color: _kTeal.withValues(alpha: 0.8),
+                                ),
                               ),
                             ),
                           ],
@@ -428,7 +457,37 @@ class _NotificationSettingsScreenState
 
                   const SizedBox(height: 24),
 
-                  // ── Bouton test ───────────────────────────────────────
+                  // ── 5. Série de lecture ───────────────────────────────
+                  _SectionHeader('Série de lecture', txtS),
+                  _Card(isDark: isDark, children: [
+                    _ToggleRow(
+                      icon: Icons.local_fire_department_rounded,
+                      color: const Color(0xFFEF4444),
+                      title: 'Rappel de série',
+                      subtitle: 'Alerte si tu risques de briser ta série',
+                      value: _streakEnabled,
+                      onChanged: _toggleStreak,
+                      txtP: txtP, txtS: txtS,
+                    ),
+                    if (_streakEnabled && _currentStreak > 0) ...[
+                      Divider(height: 1, indent: 60, color: div),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(60, 10, 16, 12),
+                        child: Text(
+                          'Série actuelle : $_currentStreak jour${_currentStreak > 1 ? "s" : ""} 🔥',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.9),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ]),
+
+                  const SizedBox(height: 24),
+
+                  // ── Diagnostic ────────────────────────────────────────
                   _SectionHeader('Diagnostic', txtS),
                   _Card(isDark: isDark, children: [
                     InkWell(
@@ -471,7 +530,6 @@ class _NotificationSettingsScreenState
 
                   const SizedBox(height: 24),
 
-                  // ── Note bas de page ──────────────────────────────────
                   Center(
                     child: Text(
                       'Les notifications respectent le mode Ne pas déranger',
@@ -500,11 +558,50 @@ class _NotificationSettingsScreenState
       ),
     );
   }
+}
 
-  String _formatTime(TimeOfDay t) {
-    final h = t.hour.toString().padLeft(2, '0');
-    final m = t.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+// ── Streak banner ────────────────────────────────────────────────────────────
+class _StreakBanner extends StatelessWidget {
+  final int streak;
+  final bool isDark;
+  const _StreakBanner({required this.streak, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    const red = Color(0xFFEF4444);
+    final bg = isDark ? const Color(0xFF2D0808) : const Color(0xFFFFF0F0);
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: red.withValues(alpha: 0.4)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        children: [
+          const Text('🔥', style: TextStyle(fontSize: 28)),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$streak jour${streak > 1 ? "s" : ""} consécutif${streak > 1 ? "s" : ""}',
+                style: const TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w800, color: red,
+                ),
+              ),
+              Text(
+                'Continue comme ça, masha\'Allah !',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white60 : const Color(0xFF7F1D1D),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -522,7 +619,7 @@ class _BatteryWarningCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: amber.withValues(alpha: 0.5), width: 1),
+        border: Border.all(color: amber.withValues(alpha: 0.5)),
       ),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
@@ -537,15 +634,12 @@ class _BatteryWarningCard extends StatelessWidget {
                 const Text(
                   'Optimisation batterie active',
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: amber,
+                    fontSize: 13, fontWeight: FontWeight.w700, color: amber,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Realme peut bloquer les notifications en arrière-plan. '
-                  'Désactivez l\'optimisation batterie pour cette application.',
+                  'Peut bloquer les notifications en arrière-plan.',
                   style: TextStyle(
                     fontSize: 12,
                     color: isDark ? Colors.white70 : const Color(0xFF78350F),
@@ -557,9 +651,7 @@ class _BatteryWarningCard extends StatelessWidget {
                   child: const Text(
                     'Désactiver maintenant →',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: amber,
+                      fontSize: 12, fontWeight: FontWeight.w700, color: amber,
                     ),
                   ),
                 ),
@@ -572,7 +664,7 @@ class _BatteryWarningCard extends StatelessWidget {
   }
 }
 
-// ── Widgets partagés ──────────────────────────────────────────────────────────
+// ── Widgets réutilisables ─────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String label;
   final Color txtS;
@@ -584,10 +676,8 @@ class _SectionHeader extends StatelessWidget {
         child: Text(
           label.toUpperCase(),
           style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: txtS,
-            letterSpacing: 1.1,
+            fontSize: 11, fontWeight: FontWeight.w700,
+            color: txtS, letterSpacing: 1.1,
           ),
         ),
       );
@@ -601,9 +691,7 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF111827)
-              : const Color(0xFFF6F1EB),
+          color: isDark ? const Color(0xFF111827) : const Color(0xFFF6F1EB),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
@@ -627,12 +715,113 @@ class _IconBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(10),
-        ),
+        width: 36, height: 36,
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
         child: Icon(icon, color: Colors.white, size: 18),
+      );
+}
+
+class _ToggleRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color txtP;
+  final Color txtS;
+  const _ToggleRow({
+    required this.icon, required this.color,
+    required this.title, required this.subtitle,
+    required this.value, required this.onChanged,
+    required this.txtP, required this.txtS,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+        child: Row(
+          children: [
+            _IconBox(icon, color),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600, color: txtP)),
+                  Text(subtitle,
+                      style: TextStyle(fontSize: 12, color: txtS)),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: _kTeal,
+              activeTrackColor: _kTeal.withValues(alpha: 0.5),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      );
+}
+
+class _TimeRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String time;
+  final bool enabled;
+  final VoidCallback onTap;
+  final Color txtP;
+  final Color txtS;
+  final bool isDark;
+  const _TimeRow({
+    required this.icon, required this.color,
+    required this.label, required this.time,
+    required this.enabled, required this.onTap,
+    required this.txtP, required this.txtS, required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              _IconBox(
+                icon,
+                enabled ? color : (isDark ? Colors.white24 : Colors.black26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600,
+                          color: enabled ? txtP : txtS,
+                        )),
+                    Text(
+                      enabled ? time : 'Activez d\'abord',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: enabled ? _kTeal : txtS,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (enabled)
+                Icon(Icons.chevron_right_rounded,
+                    color: isDark ? Colors.white24 : Colors.black26, size: 20),
+            ],
+          ),
+        ),
       );
 }

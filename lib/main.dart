@@ -13,6 +13,10 @@ import 'services/navigation_service.dart';
 import 'services/notification_service.dart';
 import 'services/prayer_reschedule_worker.dart';
 import 'services/quran_translation_pack_service.dart';
+import 'services/streak_service.dart';
+import 'ui/screens/dua_screen.dart';
+import 'ui/screens/prayers_screen.dart';
+import 'ui/screens/translated_quran_screen.dart';
 
 
 
@@ -53,6 +57,28 @@ Future<void> main() async {
   QuranTranslationPackService.migrateLegacyToQulIfNeeded();
   // Re-planifie les notifications actives (one-shots expirés, nouvelles alarmes).
   unawaited(NotificationService.instance.scheduleOnStartup());
+  // Streak : met à jour la série de lecture et annule le rappel du jour.
+  unawaited(StreakService.instance.onAppOpen());
+
+  // Deep linking : naviguer vers le bon écran quand l'utilisateur tape une notification.
+  NotificationService.onNotificationTap = (payload) {
+    final nav = NavigationService.navigatorKey.currentState;
+    if (nav == null) return;
+    switch (payload) {
+      case 'reader':
+      case 'verse':
+        nav.push(MaterialPageRoute(
+          builder: (_) => const TranslatedQuranScreen(
+            preferOffline: true,
+            showReaderToggle: true,
+          ),
+        ));
+      case 'prayers':
+        nav.push(MaterialPageRoute(builder: (_) => const PrayersScreen()));
+      case 'dhikr':
+        nav.push(MaterialPageRoute(builder: (_) => const DuaScreen()));
+    }
+  };
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

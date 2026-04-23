@@ -1,22 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'notification_service.dart';
+import 'streak_service.dart';
 
 // ── Identifiants WorkManager ──────────────────────────────────────────────────
-/// Nom unique de la tâche périodique (clé WorkManager).
 const kRescheduleTaskUnique = 'prayer_reschedule_daily';
-
-/// Nom de la tâche passé au callback.
-const kRescheduleTaskName = 'prayer_reschedule';
+const kRescheduleTaskName   = 'prayer_reschedule';
 
 // ── Point d'entrée isolate WorkManager ───────────────────────────────────────
-/// Doit être une fonction top-level ; @pragma évite le tree-shaking en release.
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
@@ -24,17 +21,18 @@ void callbackDispatcher() {
       if (task == kRescheduleTaskName ||
           task == Workmanager.iOSBackgroundTask) {
         await _reschedulePrayers();
+        await _refreshDhikrNotifications();
+        await StreakService.checkAndNotify();
       }
       return true;
     } catch (e, st) {
-      debugPrint('[WorkManager] erreur re-planification prières : $e\n$st');
-      // Retourner false signale à WorkManager de re-tenter.
+      debugPrint('[WorkManager] erreur tâche de fond : $e\n$st');
       return false;
     }
   });
 }
 
-// ── Logique principale ────────────────────────────────────────────────────────
+// ── Re-planification prières ──────────────────────────────────────────────────
 Future<void> _reschedulePrayers() async {
   if (!Platform.isAndroid) return;
 
@@ -42,28 +40,42 @@ Future<void> _reschedulePrayers() async {
   final prayersEnabled = prefs.getBool('notif_prayers_enabled') ?? false;
   if (!prayersEnabled) return;
 
-  // Tenter un fetch frais des horaires du jour (requiert réseau).
   Map<String, String>? freshTimes;
   try {
     freshTimes = await _fetchTodayPrayerTimes(prefs);
   } catch (_) {
-    // Pas de réseau — on tombera sur le fallback cache.
+    // Pas de réseau — fallback cache.
   }
 
   if (freshTimes != null && freshTimes.isNotEmpty) {
-    // Mettre à jour le cache puis re-planifier.
     await NotificationService.instance.savePrayerTimesCache(freshTimes);
     await NotificationService.instance.scheduleFromStringTimes(freshTimes);
   } else {
-    // Fallback : cache du dernier fetch (peut être d'hier, décalage ~1 min max).
     await NotificationService.instance.scheduleFromCache();
   }
+}
+
+// ── Re-planification dhikrs (contenu aléatoire renouvelé chaque jour) ─────────
+Future<void> _refreshDhikrNotifications() async {
+  final prefs = await SharedPreferences.getInstance();
+  final dhikrEnabled = prefs.getBool('notif_dhikr_enabled') ?? false;
+  if (!dhikrEnabled) return;
+
+  final morningHour   = prefs.getInt('notif_dhikr_morning_hour')   ?? 7;
+  final morningMinute = prefs.getInt('notif_dhikr_morning_minute') ?? 30;
+  final eveningHour   = prefs.getInt('notif_dhikr_evening_hour')   ?? 21;
+  final eveningMinute = prefs.getInt('notif_dhikr_evening_minute') ?? 0;
+
+  await NotificationService.instance.scheduleDhikrNotifications(
+    morning: TimeOfDay(hour: morningHour, minute: morningMinute),
+    evening: TimeOfDay(hour: eveningHour, minute: eveningMinute),
+  );
 }
 
 // ── AlAdhan API ───────────────────────────────────────────────────────────────
 Future<Map<String, String>> _fetchTodayPrayerTimes(
     SharedPreferences prefs) async {
-  const defMethod  = '12';   // UOIF – France
+  const defMethod  = '12';
   const defCity    = 'Paris';
   const defCountry = 'France';
 
