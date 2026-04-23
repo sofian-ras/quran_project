@@ -14,7 +14,8 @@ const _kMeccaLon = 39.8262;
 class _QiblaTheme {
   final String name;
   final Color  bg, card, accent, dialInner, northColor;
-  final List<Color> bgGradient; // dégradé de fond visible
+  final Color  textPrimary, textSecondary; // adaptés clair/sombre
+  final List<Color> bgGradient;
   const _QiblaTheme({
     required this.name,
     required this.bg,
@@ -22,37 +23,48 @@ class _QiblaTheme {
     required this.accent,
     required this.dialInner,
     required this.northColor,
+    required this.textPrimary,
+    required this.textSecondary,
     required this.bgGradient,
   });
 }
 
 const _kThemes = [
+  // ── Classique : fond blanc cassé, accents verts et or ──────────────────────
   _QiblaTheme(
-    name:       'Émeraude',
-    bg:         Color(0xFF0A1A0F),
-    card:       Color(0xFF152A1A),
-    accent:     Color(0xFFC8A165),
-    dialInner:  Color(0xFF1E3A26),
-    northColor: Color(0xFFE57373),
-    bgGradient: [Color(0xFF0F2A18), Color(0xFF050E08)],
+    name:          'Classique',
+    bg:            Color(0xFFF5F2EA),
+    card:          Color(0xFFFFFFFF),
+    accent:        Color(0xFF2E7D32),
+    dialInner:     Color(0xFFE8F5E9),
+    northColor:    Color(0xFFC62828),
+    textPrimary:   Color(0xFF1A1A1A),
+    textSecondary: Color(0xFF757575),
+    bgGradient:    [Color(0xFFF0ECD8), Color(0xFFFAF8F0)],
   ),
+  // ── Ciel : fond bleu clair, accents bleu marine ────────────────────────────
   _QiblaTheme(
-    name:       'Nuit',
-    bg:         Color(0xFF07091C),
-    card:       Color(0xFF10153A),
-    accent:     Color(0xFF7EC8E3),
-    dialInner:  Color(0xFF141E50),
-    northColor: Color(0xFF80CBC4),
-    bgGradient: [Color(0xFF0D1440), Color(0xFF040610)],
+    name:          'Ciel',
+    bg:            Color(0xFFE8F4FD),
+    card:          Color(0xFFFFFFFF),
+    accent:        Color(0xFF1565C0),
+    dialInner:     Color(0xFFDCEEFA),
+    northColor:    Color(0xFFC62828),
+    textPrimary:   Color(0xFF0D2137),
+    textSecondary: Color(0xFF546E7A),
+    bgGradient:    [Color(0xFFBBDEFB), Color(0xFFE8F4FD)],
   ),
+  // ── Sable : fond beige chaud, accents terre cuite ──────────────────────────
   _QiblaTheme(
-    name:       'Désert',
-    bg:         Color(0xFF180E04),
-    card:       Color(0xFF2C1C0A),
-    accent:     Color(0xFFE8C07A),
-    dialInner:  Color(0xFF3D2510),
-    northColor: Color(0xFFFFAB40),
-    bgGradient: [Color(0xFF2E1A07), Color(0xFF0E0803)],
+    name:          'Sable',
+    bg:            Color(0xFFFFF8EC),
+    card:          Color(0xFFFFFFFF),
+    accent:        Color(0xFF8D5524),
+    dialInner:     Color(0xFFFFF3E0),
+    northColor:    Color(0xFFB71C1C),
+    textPrimary:   Color(0xFF3E2000),
+    textSecondary: Color(0xFF795548),
+    bgGradient:    [Color(0xFFFFE0B2), Color(0xFFFFF8EC)],
   ),
 ];
 
@@ -97,10 +109,12 @@ class _QiblaScreenState extends State<QiblaScreen> {
         return;
       }
       final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      if (mounted) setState(() {
-        _loadingGps   = false;
-        _qiblaBearing = _calcBearing(pos.latitude, pos.longitude);
-      });
+      if (mounted) {
+        setState(() {
+          _loadingGps   = false;
+          _qiblaBearing = _calcBearing(pos.latitude, pos.longitude);
+        });
+      }
     } catch (e) {
       if (mounted) setState(() { _loadingGps = false; _gpsError = 'Erreur GPS : $e'; });
     }
@@ -154,7 +168,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
                               end:   Alignment.bottomRight,
                               colors: th.bgGradient,
                             ),
-                            border: Border.all(color: sel ? th.accent : Colors.white24, width: sel ? 3 : 1.5),
+                            border: Border.all(color: sel ? th.accent : th.textSecondary.withAlpha(80), width: sel ? 3 : 1.5),
                             boxShadow: sel ? [BoxShadow(color: th.accent.withAlpha(120), blurRadius: 14)] : [],
                           ),
                           child: Center(
@@ -166,7 +180,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(th.name, style: TextStyle(
-                          color: sel ? th.accent : Colors.white54,
+                          color: sel ? th.accent : th.textSecondary,
                           fontSize: 12,
                           fontWeight: sel ? FontWeight.bold : FontWeight.normal,
                         )),
@@ -204,13 +218,13 @@ class _QiblaScreenState extends State<QiblaScreen> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                      color: Colors.white70,
+                      color: t.textSecondary,
                       onPressed: () => Navigator.of(context).pop(),
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Text('Qibla',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 18)),
+                        style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w600, fontSize: 18)),
                     ),
                     IconButton(
                       tooltip: 'Recalculer',
@@ -343,56 +357,58 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
         const SizedBox(height: 22),
 
         // ── Boussole + halo ───────────────────────────────────────────────
-        AnimatedBuilder(
-          animation: _glowAnim,
-          builder: (_, child) {
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                // Halo de lumière quand aligné
-                if (_glowAnim.value > 0)
-                  Opacity(
-                    opacity: _glowAnim.value,
-                    child: Container(
-                      width:  dialSize * (1.0 + _glowAnim.value * 0.25),
-                      height: dialSize * (1.0 + _glowAnim.value * 0.25),
+        // SizedBox fixe = pas de layout shift quand le halo pulse
+        SizedBox(
+          width:  dialSize * 1.28,
+          height: dialSize * 1.28,
+          child: AnimatedBuilder(
+            animation: _glowAnim,
+            builder: (_, child) {
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Halo sur le cadran
+                  if (_glowAnim.value > 0)
+                    Container(
+                      width:  dialSize * (1.0 + _glowAnim.value * 0.28),
+                      height: dialSize * (1.0 + _glowAnim.value * 0.28),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(colors: [
-                          t.accent.withAlpha((180 * _glowAnim.value).toInt()),
+                          t.accent.withAlpha((160 * _glowAnim.value).toInt()),
                           t.accent.withAlpha(0),
                         ]),
                       ),
                     ),
+                  child!,
+                ],
+              );
+            },
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Transform.rotate(
+                  angle: dialAngle,
+                  child: _DialWidget(
+                    size:              dialSize,
+                    qiblaBearing:      widget.qiblaBearing,
+                    kaabaCounterAngle: -dialAngle,
+                    theme:             t,
                   ),
-                child!,
+                ),
+                Positioned(
+                  top: 0,
+                  child: CustomPaint(
+                    size: const Size(22, 16),
+                    painter: _IndicatorPainter(color: t.accent),
+                  ),
+                ),
+                Container(
+                  width: 10, height: 10,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: t.accent),
+                ),
               ],
-            );
-          },
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Transform.rotate(
-                angle: dialAngle,
-                child: _DialWidget(
-                  size:              dialSize,
-                  qiblaBearing:      widget.qiblaBearing,
-                  kaabaCounterAngle: -dialAngle,
-                  theme:             t,
-                ),
-              ),
-              Positioned(
-                top: 0,
-                child: CustomPaint(
-                  size: const Size(22, 16),
-                  painter: _IndicatorPainter(color: t.accent),
-                ),
-              ),
-              Container(
-                width: 10, height: 10,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: t.accent),
-              ),
-            ],
+            ),
           ),
         ),
 
@@ -449,7 +465,7 @@ class _DialWidget extends StatelessWidget {
     return List.generate(4, (i) => Transform.translate(
       offset: Offset(lr * math.sin(angles[i]), -lr * math.cos(angles[i])),
       child: Text(labels[i], style: TextStyle(
-        color: labels[i] == 'N' ? theme.northColor : Colors.white70,
+        color: labels[i] == 'N' ? theme.northColor : theme.textSecondary,
         fontWeight: FontWeight.bold, fontSize: 15,
       )),
     ));
@@ -480,7 +496,7 @@ class _DialPainter extends CustomPainter {
       final isMed = i % 15 == 0;
       final len   = isMaj ? 14.0 : (isMed ? 9.0 : 5.0);
       tickPaint
-        ..color       = isMaj ? theme.accent.withAlpha(200) : Colors.white.withAlpha(isMed ? 100 : 50)
+        ..color       = isMaj ? theme.accent.withAlpha(200) : theme.textSecondary.withAlpha(isMed ? 100 : 50)
         ..strokeWidth = isMaj ? 1.5 : 1.0;
       canvas.drawLine(
         Offset(cx + (r - 2)       * math.sin(angle), cy - (r - 2)       * math.cos(angle)),
@@ -561,9 +577,9 @@ class _CalibrationHintState extends State<_CalibrationHint> with SingleTickerPro
           },
         ),
         const SizedBox(height: 10),
-        const Text('Tiens le téléphone à plat et trace\nun mouvement en 8 dans les airs.',
+        Text('Tiens le téléphone à plat et trace\nun mouvement en 8 dans les airs.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.4)),
+          style: TextStyle(color: widget.theme.textSecondary, fontSize: 12, height: 1.4)),
       ]),
     );
   }
@@ -618,7 +634,7 @@ class _InfoTile extends StatelessWidget {
       const SizedBox(height: 4),
       Text(value, style: TextStyle(color: theme.accent, fontWeight: FontWeight.bold, fontSize: 16)),
       const SizedBox(height: 2),
-      Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+      Text(label, style: TextStyle(color: theme.textSecondary, fontSize: 10)),
     ]),
   );
 }
@@ -643,7 +659,7 @@ class _GuidanceBanner extends StatelessWidget {
       const SizedBox(width: 12),
       Expanded(child: Text(
         aligned ? 'Tu fais face à la Kaaba !' : 'Tourne le téléphone jusqu\'à ce que l\'icône Kaaba soit sous le triangle doré.',
-        style: TextStyle(color: aligned ? Colors.greenAccent : Colors.white70, fontSize: 13, height: 1.4),
+        style: TextStyle(color: aligned ? Colors.green[700] : theme.textSecondary, fontSize: 13, height: 1.4),
       )),
     ]),
   );
@@ -659,15 +675,15 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(32),
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Icon(Icons.location_off_rounded, color: Colors.white38, size: 64),
+      Icon(Icons.location_off_rounded, color: theme.textSecondary, size: 64),
       const SizedBox(height: 20),
-      Text(message, style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5), textAlign: TextAlign.center),
+      Text(message, style: TextStyle(color: theme.textSecondary, fontSize: 15, height: 1.5), textAlign: TextAlign.center),
       const SizedBox(height: 28),
       ElevatedButton.icon(
         onPressed: onRetry,
         icon: const Icon(Icons.refresh_rounded),
         label: const Text('Réessayer'),
-        style: ElevatedButton.styleFrom(backgroundColor: theme.accent, foregroundColor: Colors.black),
+        style: ElevatedButton.styleFrom(backgroundColor: theme.accent, foregroundColor: Colors.white),
       ),
     ]),
   );
