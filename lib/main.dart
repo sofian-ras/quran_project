@@ -13,6 +13,7 @@ import 'services/navigation_service.dart';
 import 'services/notification_service.dart';
 import 'services/prayer_reschedule_worker.dart';
 import 'services/quran_translation_pack_service.dart';
+import 'services/home_widget_service.dart';
 import 'services/streak_service.dart';
 import 'ui/screens/dua_screen.dart';
 import 'ui/screens/prayers_screen.dart';
@@ -59,6 +60,8 @@ Future<void> main() async {
   unawaited(NotificationService.instance.scheduleOnStartup());
   // Streak : met à jour la série de lecture et annule le rappel du jour.
   unawaited(StreakService.instance.onAppOpen());
+  // Widgets écran d'accueil : init + rafraîchissement des données.
+  unawaited(HomeWidgetService.init().then((_) => HomeWidgetService.updateAll()));
 
   // Deep linking : naviguer vers le bon écran quand l'utilisateur tape une notification.
   NotificationService.onNotificationTap = (payload) {

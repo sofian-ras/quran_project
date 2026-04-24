@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_prayer_label">Prochaine prière</string>
+    <string name="widget_prayer_description">Affiche la prochaine prière et son heure</string>
+    <string name="widget_verse_label">Verset du jour</string>
+    <string name="widget_verse_description">Affiche un verset inspirant du Coran chaque jour</string>
+</resources>

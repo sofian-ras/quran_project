@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_verse"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:gravity="center_vertical">
+
+    <!-- Label "Verset du jour" -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_verse_label"
+        android:textColor="#C8A165"
+        android:textSize="11sp"
+        android:textAllCaps="true"
+        android:letterSpacing="0.08" />
+
+    <!-- Arabe -->
+    <TextView
+        android:id="@+id/tv_verse_arabic"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#FFFFFFFF"
+        android:textSize="17sp"
+        android:textDirection="rtl"
+        android:gravity="end"
+        android:layout_marginTop="8dp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <!-- Traduction française -->
+    <TextView
+        android:id="@+id/tv_verse_french"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#CCFFFFFF"
+        android:textSize="12sp"
+        android:layout_marginTop="6dp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-light" />
+
+    <!-- Référence -->
+    <TextView
+        android:id="@+id/tv_verse_reference"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#99C8A165"
+        android:textSize="11sp"
+        android:layout_marginTop="6dp" />
+
+</LinearLayout>

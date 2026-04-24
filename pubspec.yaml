@@ -38,6 +38,7 @@ dependencies:
   timezone: ^0.9.4
   workmanager: ^0.6.0
   flutter_compass: ^0.8.0
+  home_widget: ^0.6.0
 
 dev_dependencies:
   flutter_launcher_icons: 0.14.0

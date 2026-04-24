@@ -16,6 +16,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import '../../services/adhan_audio_service.dart';
 import '../../services/location_service.dart';
+import '../../services/home_widget_service.dart';
 import '../../services/notification_service.dart';
 import '../widgets/location_picker_dialog.dart';
 
@@ -236,11 +237,12 @@ class _PrayersScreenState extends State<PrayersScreen> {
         'Isha':    (timings['Isha']    ?? '').toString(),
       };
 
-      // Persist horaires et re-planifier les notifications de prière si activées.
+      // Persist horaires, re-planifier les notifications et mettre à jour le widget.
       NotificationService.instance.savePrayerTimesCache(times).then((_) async {
         if (await NotificationService.instance.arePrayersEnabled()) {
           await NotificationService.instance.scheduleFromStringTimes(times);
         }
+        await HomeWidgetService.updateAll();
       });
 
       return _PrayersData(
