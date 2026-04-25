@@ -25,7 +25,7 @@ class PrayerWidget : AppWidgetProvider() {
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int
         ) {
-            val prefs = context.getSharedPreferences("HomeWidgetPlugin", Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
 
             val prayerName    = prefs.getString("next_prayer_name",     "—") ?: "—"
             val prayerTime    = prefs.getString("next_prayer_time",     "—") ?: "—"

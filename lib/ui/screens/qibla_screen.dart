@@ -88,7 +88,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
   void initState() {
     super.initState();
     _loadTheme();
-    _loadGps();
+    _loadCachedBearingThenRefresh();
   }
 
   Future<void> _loadTheme() async {
@@ -99,16 +99,39 @@ class _QiblaScreenState extends State<QiblaScreen> {
   Future<void> _saveTheme(int idx) async =>
       (await SharedPreferences.getInstance()).setInt('qibla_theme', idx);
 
+  Future<void> _loadCachedBearingThenRefresh() async {
+    final prefs     = await SharedPreferences.getInstance();
+    final cachedLat = prefs.getDouble('qibla_last_lat');
+    final cachedLon = prefs.getDouble('qibla_last_lon');
+    if (cachedLat != null && cachedLon != null && mounted) {
+      setState(() {
+        _loadingGps   = false;
+        _qiblaBearing = _calcBearing(cachedLat, cachedLon);
+      });
+    }
+    _loadGps();
+  }
+
   Future<void> _loadGps() async {
-    setState(() { _loadingGps = true; _gpsError = null; _qiblaBearing = null; });
+    if (_qiblaBearing == null && mounted) {
+      setState(() { _loadingGps = true; _gpsError = null; });
+    }
     try {
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
-        if (mounted) setState(() { _loadingGps = false; _gpsError = 'Permission de localisation refusée.'; });
+        if (mounted) {
+          setState(() {
+            _loadingGps = false;
+            if (_qiblaBearing == null) _gpsError = 'Permission de localisation refusée.';
+          });
+        }
         return;
       }
       final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('qibla_last_lat', pos.latitude);
+      await prefs.setDouble('qibla_last_lon', pos.longitude);
       if (mounted) {
         setState(() {
           _loadingGps   = false;
@@ -116,7 +139,12 @@ class _QiblaScreenState extends State<QiblaScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _loadingGps = false; _gpsError = 'Erreur GPS : $e'; });
+      if (mounted) {
+        setState(() {
+          _loadingGps = false;
+          if (_qiblaBearing == null) _gpsError = 'Erreur GPS : $e';
+        });
+      }
     }
   }
 
@@ -270,6 +298,7 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
   double? _heading;
   double? _accuracy;
   StreamSubscription<CompassEvent>? _sub;
+  late final Widget _kaabaImage = Image.asset('assets/icon/kaaba.png', width: 44, height: 44, fit: BoxFit.contain);
 
   // État alignement
   bool _wasAligned = false;
@@ -297,21 +326,20 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
     final h = event.heading;
     if (!mounted) return;
 
+    // Throttle: skip if heading unchanged beyond 0.5°
+    if (h != null && _heading != null && (h - _heading!).abs() < 0.5) return;
+
+    final toQibla = h != null ? ((widget.qiblaBearing - h) % 360 + 360) % 360 : null;
+    final aligned = toQibla != null && (toQibla < 5 || toQibla > 355);
+
     setState(() {
       _heading  = h;
       _accuracy = event.accuracy;
+      _isAligned = aligned;
     });
 
-    if (h == null) return;
-    final toQibla = ((widget.qiblaBearing - h) % 360 + 360) % 360;
-    final aligned = toQibla < 5 || toQibla > 355;
-
-    setState(() => _isAligned = aligned);
-
     if (aligned && !_wasAligned) {
-      // Vibration
       HapticFeedback.vibrate();
-      // Lumière
       _glowCtrl.forward(from: 0);
     }
     _wasAligned = aligned;
@@ -326,10 +354,10 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
 
   @override
   Widget build(BuildContext context) {
-    final t        = widget.theme;
-    final dialSize = MediaQuery.of(context).size.width * 0.82;
-    final heading  = _heading;
-    final accuracy = _accuracy;
+    final t           = widget.theme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final heading     = _heading;
+    final accuracy    = _accuracy;
 
     final poorAccuracy = heading == null || (accuracy != null && accuracy > 45);
     final dialAngle    = heading != null ? -(heading * math.pi / 180) : 0.0;
@@ -337,7 +365,13 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
         ? ((widget.qiblaBearing - heading) % 360 + 360) % 360
         : widget.qiblaBearing;
 
-    return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double kFixedOverhead = 194.0;
+        final double maxFromHeight  = (constraints.maxHeight - kFixedOverhead) / 1.28;
+        final double dialSize       = math.min(screenWidth * 0.82, maxFromHeight).clamp(120.0, 400.0);
+
+        return Column(
       children: [
         const SizedBox(height: 12),
 
@@ -394,6 +428,7 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
                     qiblaBearing:      widget.qiblaBearing,
                     kaabaCounterAngle: -dialAngle,
                     theme:             t,
+                    kaabaWidget:       _kaabaImage,
                   ),
                 ),
                 Positioned(
@@ -422,6 +457,8 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
               : _GuidanceBanner(aligned: _isAligned, theme: t),
         ),
       ],
+        );
+      },
     );
   }
 }
@@ -431,7 +468,8 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
 class _DialWidget extends StatelessWidget {
   final double size, qiblaBearing, kaabaCounterAngle;
   final _QiblaTheme theme;
-  const _DialWidget({required this.size, required this.qiblaBearing, required this.kaabaCounterAngle, required this.theme});
+  final Widget kaabaWidget;
+  const _DialWidget({required this.size, required this.qiblaBearing, required this.kaabaCounterAngle, required this.theme, required this.kaabaWidget});
 
   @override
   Widget build(BuildContext context) {
@@ -450,7 +488,7 @@ class _DialWidget extends StatelessWidget {
             offset: Offset(kaabaR * math.sin(qiblaRad), -kaabaR * math.cos(qiblaRad)),
             child: Transform.rotate(
               angle: kaabaCounterAngle,
-              child: Image.asset('assets/icon/kaaba.png', width: 44, height: 44, fit: BoxFit.contain),
+              child: kaabaWidget,
             ),
           ),
         ],

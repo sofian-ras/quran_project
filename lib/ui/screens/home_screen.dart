@@ -534,24 +534,26 @@ Future<void> _checkFirstLaunch() async {
                             ],
                             onTap: (f) {
                               final ctx = NavigationService.navigatorKey.currentContext ?? context;
-                              if (f.label == 'Duʿa') {
-                                Navigator.of(ctx).push(
-                                  MaterialPageRoute(builder: (_) => const DuaScreen()),
-                                );
-                                return;
-                              }
-                              if (f.label == 'Hadith') {
-                                Navigator.of(ctx).push(
-                                  MaterialPageRoute(builder: (_) => const HadithScreen()),
-                                );
-                                return;
-                              }
-                              if (f.label == 'Qibla') {
-                                Navigator.of(ctx).push(
-                                  MaterialPageRoute(builder: (_) => const QiblaScreen()),
-                                );
-                                return;
-                              }
+                              Widget? dest;
+                              if (f.label == 'Duʿa')   dest = const DuaScreen();
+                              if (f.label == 'Hadith')  dest = const HadithScreen();
+                              if (f.label == 'Qibla')   dest = const QiblaScreen();
+                              if (dest == null) return;
+                              Navigator.of(ctx).push(PageRouteBuilder<void>(
+                                pageBuilder: (_, __, ___) => dest!,
+                                transitionDuration: const Duration(milliseconds: 380),
+                                reverseTransitionDuration: const Duration(milliseconds: 280),
+                                transitionsBuilder: (_, anim, __, child) => SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(1, 0),
+                                    end: Offset.zero,
+                                  ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+                                  child: FadeTransition(
+                                    opacity: CurvedAnimation(parent: anim, curve: Curves.easeIn),
+                                    child: child,
+                                  ),
+                                ),
+                              ));
                             },
                           ),
                           const SizedBox(height: vGap),
@@ -589,7 +591,8 @@ Future<void> _checkFirstLaunch() async {
                             },
                           ),
 
-                          SizedBox(height: 16 + MediaQuery.of(context).padding.bottom),
+                          // extendBody=true → padding.bottom ne contient pas la nav bar (~102px)
+                          SizedBox(height: 118 + MediaQuery.of(context).padding.bottom),
                         ],
                       ),
                     ),

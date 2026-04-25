@@ -22,7 +22,7 @@ class _HadithScreenState extends State<HadithScreen> {
   Timer? _debounce;
 
   bool _loading = true;
-  bool _importing = false;
+  bool _importing = true;
   String? _error;
 
   Hadith? _hadithOfDay;
@@ -35,7 +35,7 @@ class _HadithScreenState extends State<HadithScreen> {
   @override
   void initState() {
     super.initState();
-    _init();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   @override
@@ -48,7 +48,6 @@ class _HadithScreenState extends State<HadithScreen> {
 
   Future<void> _init() async {
     try {
-      setState(() => _importing = true);
       await HadithDb.instance.importFromAssetsIfNeeded();
       final results = await Future.wait([
         HadithDb.instance.getHadithOfDay(),
@@ -242,7 +241,7 @@ class _HadithScreenState extends State<HadithScreen> {
               ),
               IconButton(
                 tooltip: 'Paramètres',
-                icon: const Icon(Icons.format_size_rounded, size: 22),
+                icon: const Icon(Icons.settings_rounded, size: 22),
                 onPressed: () => _showSettings(context, isDark),
               ),
               const SizedBox(width: 4),

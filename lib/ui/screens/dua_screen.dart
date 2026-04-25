@@ -22,7 +22,7 @@ class _DuaScreenState extends State<DuaScreen> {
   @override
   void initState() {
     super.initState();
-    _init();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   @override

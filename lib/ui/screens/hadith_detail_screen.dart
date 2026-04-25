@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/hadith.dart';
 import '../../services/hadith_favorites_service.dart';
-import '../../services/hadith_notes_service.dart';
 import 'hadith_screen.dart' show HadithSettings;
 
 class HadithDetailScreen extends StatefulWidget {
@@ -172,7 +171,7 @@ class _HadithDetailScreenState extends State<HadithDetailScreen> {
                   ValueListenableBuilder<double>(
                     valueListenable: HadithSettings.arabicFontSizeNotifier,
                     builder: (context, fontSize, _) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
                     decoration: BoxDecoration(
                       color: isDark
                           ? Colors.white.withValues(alpha: 0.05)
