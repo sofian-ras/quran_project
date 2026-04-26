@@ -4,8 +4,6 @@ import 'dart:io';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'daily_verse_service.dart';
-
 class HomeWidgetService {
   HomeWidgetService._();
   static const _androidPackage = 'com.sofian.quran';
@@ -24,14 +22,11 @@ class HomeWidgetService {
     await HomeWidget.setAppGroupId(_androidPackage);
   }
 
-  /// Met à jour les deux widgets depuis le cache disponible.
+  /// Met à jour les widgets depuis le cache disponible.
   /// Appeler au démarrage et après chaque fetch des horaires.
   static Future<void> updateAll() async {
     if (!Platform.isAndroid) return;
-    await Future.wait([
-      _updatePrayerWidget(),
-      _updateVerseWidget(),
-    ]);
+    await _updatePrayerWidget();
   }
 
   // ── Widget Prière ─────────────────────────────────────────────────────────
@@ -97,18 +92,6 @@ class HomeWidgetService {
       HomeWidget.saveWidgetData<String>('next_prayer_countdown', countdown),
     ]);
     await HomeWidget.updateWidget(androidName: 'PrayerWidget');
-  }
-
-  // ── Widget Verset ─────────────────────────────────────────────────────────
-  static Future<void> _updateVerseWidget() async {
-    final verse = await DailyVerseService.instance.getDailyVerse();
-    await Future.wait([
-      HomeWidget.saveWidgetData<String>('verse_arabic',    verse.arabic),
-      HomeWidget.saveWidgetData<String>('verse_french',    verse.french),
-      HomeWidget.saveWidgetData<String>('verse_reference',
-          '${verse.surahName} • ${verse.surahNumber}:${verse.verseNumber}'),
-    ]);
-    await HomeWidget.updateWidget(androidName: 'VerseWidget');
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
