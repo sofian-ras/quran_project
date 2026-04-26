@@ -225,12 +225,14 @@ class _PrayersScreenState extends State<PrayersScreen> {
       final hijriLine  = (hijriDay.isNotEmpty && hijriMonth.isNotEmpty && hijriYear.isNotEmpty)
           ? '$hijriDay $hijriMonth $hijriYear AH'
           : '';
+      unawaited(HomeWidgetService.saveHijri(hijriLine));
 
       final city    = loc.city.isNotEmpty    ? loc.city    : (prefs.getString(_prefCity)    ?? _defCity).trim();
       final country = loc.country.isNotEmpty ? loc.country : (prefs.getString(_prefCountry) ?? _defCountry).trim();
 
       final times = {
         'Fajr':    (timings['Fajr']    ?? '').toString(),
+        'Sunrise': (timings['Sunrise'] ?? '').toString(),
         'Dhuhr':   (timings['Dhuhr']   ?? '').toString(),
         'Asr':     (timings['Asr']     ?? '').toString(),
         'Maghrib': (timings['Maghrib'] ?? '').toString(),

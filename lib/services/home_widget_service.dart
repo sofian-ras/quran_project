@@ -7,14 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class HomeWidgetService {
   HomeWidgetService._();
   static const _androidPackage = 'com.sofian.quran';
+  static const _kHijri = 'notif_last_hijri';
 
-  static final _arabicNames = {
-    'Fajr':    'الفجر',
-    'Dhuhr':   'الظهر',
-    'Asr':     'العصر',
-    'Maghrib': 'المغرب',
-    'Isha':    'العشاء',
-  };
+  static const _prayerKeys = ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
   /// À appeler au démarrage de l'app pour initialiser le package.
   static Future<void> init() async {
@@ -29,78 +24,75 @@ class HomeWidgetService {
     await _updatePrayerWidget();
   }
 
+  /// Sauvegarde la date hijri pour le widget (appelé depuis PrayersScreen).
+  static Future<void> saveHijri(String hijriLine) async {
+    if (!Platform.isAndroid) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kHijri, hijriLine);
+  }
+
   // ── Widget Prière ─────────────────────────────────────────────────────────
   static Future<void> _updatePrayerWidget() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('notif_last_prayer_times');
+    final raw   = prefs.getString('notif_last_prayer_times');
+    final hijri = prefs.getString(_kHijri) ?? '';
+
+    final Map<String, String> times;
     if (raw == null) {
-      await _savePrayerWidgetData(
-        name: '—', time: '—', arabic: '', countdown: '',
-      );
-      return;
+      times = {};
+    } else {
+      times = (json.decode(raw) as Map<String, dynamic>)
+          .map((k, v) => MapEntry(k, v.toString()));
     }
 
-    final Map<String, String> times = (json.decode(raw) as Map<String, dynamic>)
-        .map((k, v) => MapEntry(k, v.toString()));
+    final now    = DateTime.now();
+    final nowMin = now.hour * 60 + now.minute;
+    String activeName = '';
+    int?   activeTotalMin;
 
-    final now = DateTime.now();
-    String? nextName;
-    DateTime? nextDt;
-
-    for (final entry in times.entries) {
-      final parts = entry.value.split(':');
-      if (parts.length < 2) continue;
-      final h = int.tryParse(parts[0]);
-      final m = int.tryParse(parts[1]);
-      if (h == null || m == null) continue;
-      var dt = DateTime(now.year, now.month, now.day, h, m);
-      if (dt.isBefore(now)) dt = dt.add(const Duration(days: 1));
-      if (nextDt == null || dt.isBefore(nextDt)) {
-        nextDt = dt;
-        nextName = entry.key;
+    // La première prière (≠ Sunrise) dont l'heure > maintenant → active
+    for (final name in _prayerKeys) {
+      if (name == 'Sunrise') continue;
+      final t = _parseMinutes(times[name] ?? '');
+      if (t == null) continue;
+      // minutes normalisées pour "demain" si < now
+      final adjusted = t < nowMin ? t + 1440 : t;
+      if (activeTotalMin == null || adjusted < activeTotalMin) {
+        activeTotalMin = adjusted;
+        activeName = name;
       }
     }
 
-    if (nextName == null || nextDt == null) {
-      await _savePrayerWidgetData(name: '—', time: '—', arabic: '', countdown: '');
-      return;
+    final futures = <Future>[];
+    for (final name in _prayerKeys) {
+      final key     = 'pw_${name.toLowerCase()}';
+      final timeStr = _cleanTime(times[name] ?? '');
+      futures.add(HomeWidget.saveWidgetData<String>(key, timeStr));
     }
-
-    final diff = nextDt.difference(now);
-    final countdown = _formatCountdown(diff);
-    final timeStr =
-        '${nextDt.hour.toString().padLeft(2, '0')}:${nextDt.minute.toString().padLeft(2, '0')}';
-
-    await _savePrayerWidgetData(
-      name:      nextName,
-      time:      timeStr,
-      arabic:    _arabicNames[nextName] ?? '',
-      countdown: countdown,
-    );
-  }
-
-  static Future<void> _savePrayerWidgetData({
-    required String name,
-    required String time,
-    required String arabic,
-    required String countdown,
-  }) async {
-    await Future.wait([
-      HomeWidget.saveWidgetData<String>('next_prayer_name',     name),
-      HomeWidget.saveWidgetData<String>('next_prayer_time',     time),
-      HomeWidget.saveWidgetData<String>('next_prayer_arabic',   arabic),
-      HomeWidget.saveWidgetData<String>('next_prayer_countdown', countdown),
-    ]);
+    futures.add(HomeWidget.saveWidgetData<String>('pw_active', activeName));
+    futures.add(HomeWidget.saveWidgetData<String>('pw_hijri',  hijri));
+    await Future.wait(futures);
     await HomeWidget.updateWidget(androidName: 'PrayerWidget');
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  static String _formatCountdown(Duration d) {
-    if (d.isNegative) return '';
-    final h = d.inHours;
-    final m = d.inMinutes % 60;
-    if (h > 0) return 'dans ${h}h ${m.toString().padLeft(2, '0')}min';
-    if (m > 0) return 'dans ${m}min';
-    return 'maintenant';
+
+  /// Parse "HH:MM" or "HH:MM (TZ)" → minutes depuis minuit, null si invalide.
+  static int? _parseMinutes(String raw) {
+    final parts = raw.split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0].trim());
+    final m = int.tryParse(parts[1].trim().split(' ')[0]);
+    if (h == null || m == null) return null;
+    return h * 60 + m;
+  }
+
+  /// Retourne "HH:MM" depuis "HH:MM (TZ)" ou "—" si invalide.
+  static String _cleanTime(String raw) {
+    final min = _parseMinutes(raw);
+    if (min == null) return '—';
+    final h = min ~/ 60;
+    final m = min % 60;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 }
