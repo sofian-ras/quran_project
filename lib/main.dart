@@ -60,8 +60,11 @@ Future<void> main() async {
   unawaited(NotificationService.instance.scheduleOnStartup());
   // Streak : met à jour la série de lecture et annule le rappel du jour.
   unawaited(StreakService.instance.onAppOpen());
-  // Widgets écran d'accueil : init + rafraîchissement des données.
-  unawaited(HomeWidgetService.init().then((_) => HomeWidgetService.updateAll()));
+  // Widgets écran d'accueil : init + rafraîchissement différé (évite le jank IPC au démarrage).
+  unawaited(Future.delayed(const Duration(seconds: 5), () async {
+    await HomeWidgetService.init();
+    await HomeWidgetService.updateAll();
+  }));
 
   // Deep linking : naviguer vers le bon écran quand l'utilisateur tape une notification.
   NotificationService.onNotificationTap = (payload) {

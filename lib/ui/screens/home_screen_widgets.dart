@@ -889,13 +889,24 @@ class _RadioFeaturedSection extends StatefulWidget {
   State<_RadioFeaturedSection> createState() => _RadioFeaturedSectionState();
 }
 
-class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
+class _RadioFeaturedSectionState extends State<_RadioFeaturedSection>
+    with AutomaticKeepAliveClientMixin {
   late final Future<List<RadioStation>> _stationsFuture;
+  final ScrollController _hCtrl = ScrollController();
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
     _stationsFuture = _loadStations();
+  }
+
+  @override
+  void dispose() {
+    _hCtrl.dispose();
+    super.dispose();
   }
 
   Future<List<RadioStation>> _loadStations() async {
@@ -923,6 +934,7 @@ class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF111827);
 
@@ -990,22 +1002,24 @@ class _RadioFeaturedSectionState extends State<_RadioFeaturedSection> {
                       ),
                       if (chips.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: chips.map((s) {
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: _StationChip(
-                                  station: s,
-                                  isPlaying: current?.id == s.id,
-                                  isDark: isDark,
-                                  onTap: current?.id == s.id
-                                      ? _stopStation
-                                      : () => _playStation(s),
-                                ),
-                              );
-                            }).toList(),
+                        SizedBox(
+                          height: 34,
+                          child: ListView.separated(
+                            controller: _hCtrl,
+                            scrollDirection: Axis.horizontal,
+                            // Réduit les conflits "scroll vertical" vs "horizontal"
+                            dragStartBehavior: DragStartBehavior.start,
+                            physics: const ClampingScrollPhysics(),
+                            itemCount: chips.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 8),
+                            itemBuilder: (_, i) => _StationChip(
+                              station: chips[i],
+                              isPlaying: current?.id == chips[i].id,
+                              isDark: isDark,
+                              onTap: current?.id == chips[i].id
+                                  ? _stopStation
+                                  : () => _playStation(chips[i]),
+                            ),
                           ),
                         ),
                       ],

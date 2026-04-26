@@ -499,26 +499,23 @@ Future<void> _checkFirstLaunch() async {
                     sliver: SliverList(
                       delegate: SliverChildListDelegate(
                         [
-                          ValueListenableBuilder<bool>(
-                            valueListenable: _isUserScrollingNotifier,
-                            builder: (_, paused, __) => _HeaderWithEngagement(
-                              audio: _audio,
-                              onContinue: () {
-                                final lastSurah = _audio.currentPlayingSurahIdNotifier.value ?? 1;
-                                _audio.loadPlaylistAndPlay(lastSurah);
-                              },
-                              onLocationTap: _showLocationPicker,
-                              onSearchTap: () => Navigator.of(context).push(
-                                QuranSearchScreen.route(),
-                              ),
-                              prayerFuture: _prayerFuture,
-                              activeIndexFromTimes: _activeIndexFromTimes,
-                              reciters: _reciters,
-                              recitersLoading: _recitersLoading,
-                              onReciterTap: _onReciterSelected,
-                              getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
-                              pausePrayerTicker: paused,
+                          _HeaderWithEngagement(
+                            audio: _audio,
+                            onContinue: () {
+                              final lastSurah = _audio.currentPlayingSurahIdNotifier.value ?? 1;
+                              _audio.loadPlaylistAndPlay(lastSurah);
+                            },
+                            onLocationTap: _showLocationPicker,
+                            onSearchTap: () => Navigator.of(context).push(
+                              QuranSearchScreen.route(),
                             ),
+                            prayerFuture: _prayerFuture,
+                            activeIndexFromTimes: _activeIndexFromTimes,
+                            reciters: _reciters,
+                            recitersLoading: _recitersLoading,
+                            onReciterTap: _onReciterSelected,
+                            getReciterAsset: (name) => _reciterAssetsByName[name] ?? '',
+                            pausePrayerTicker: false,
                           ),
                           const SizedBox(height: vGap),
                           const YoutubeVideoCard(mode: QuranVideoMode.sufi),
