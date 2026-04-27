@@ -12,16 +12,118 @@ const _kDarkCard = Color(0xFF111B2E);
 const _kLightBg = Color(0xFFF2ECE5);
 const _kLightCard = Color(0xFFF6F1EB);
 
-// Palette de 8 dégradés foncés pour les cartes sans image
-const _kGradients = [
-  [Color(0xFF1A4731), Color(0xFF0D2B1D)],
-  [Color(0xFF2D1B4E), Color(0xFF1A0F2E)],
-  [Color(0xFF3D2314), Color(0xFF1F0E08)],
-  [Color(0xFF1A3A4A), Color(0xFF0D1F28)],
-  [Color(0xFF4A1A2D), Color(0xFF2A0D19)],
-  [Color(0xFF1A3D1A), Color(0xFF0D2010)],
-  [Color(0xFF3A3A1A), Color(0xFF1F1F08)],
-  [Color(0xFF1A2D4A), Color(0xFF0D1728)],
+// ─────────────────────────────────────────────
+//  MODÈLE THÈME
+// ─────────────────────────────────────────────
+class _DuaTheme {
+  final String id;
+  final String titleFr;
+  final String emoji;
+  final Color color;
+  final List<int> chapterIds;
+
+  const _DuaTheme({
+    required this.id,
+    required this.titleFr,
+    required this.emoji,
+    required this.color,
+    required this.chapterIds,
+  });
+}
+
+// 13 thèmes couvrant les 133 chapitres de Hisnul Muslim
+const _kThemes = <_DuaTheme>[
+  _DuaTheme(
+    id: 'matin',
+    titleFr: 'Matin',
+    emoji: '🌅',
+    color: Color(0xFF1A4731),
+    chapterIds: [2, 27],
+  ),
+  _DuaTheme(
+    id: 'soir',
+    titleFr: 'Soir & Sommeil',
+    emoji: '🌙',
+    color: Color(0xFF2D1B4E),
+    chapterIds: [28, 29, 30, 31],
+  ),
+  _DuaTheme(
+    id: 'priere',
+    titleFr: 'Prière',
+    emoji: '🕌',
+    color: Color(0xFF1A3A4A),
+    chapterIds: [9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 32, 33, 42],
+  ),
+  _DuaTheme(
+    id: 'anxiete',
+    titleFr: 'Anxiété & Difficultés',
+    emoji: '🤲',
+    color: Color(0xFF3D2314),
+    chapterIds: [34, 35, 36, 37, 38, 39, 40, 41, 43, 45, 46, 82],
+  ),
+  _DuaTheme(
+    id: 'famille',
+    titleFr: 'Mariage & Famille',
+    emoji: '❤️',
+    color: Color(0xFF4A1A2D),
+    chapterIds: [47, 48, 79, 80, 81],
+  ),
+  _DuaTheme(
+    id: 'maladie',
+    titleFr: 'Maladie & Mort',
+    emoji: '🌿',
+    color: Color(0xFF1A3D1A),
+    chapterIds: [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 124],
+  ),
+  _DuaTheme(
+    id: 'repas',
+    titleFr: 'Repas & Jeûne',
+    emoji: '🍽️',
+    color: Color(0xFF3A3A1A),
+    chapterIds: [68, 69, 70, 71, 72, 73, 74, 75, 76],
+  ),
+  _DuaTheme(
+    id: 'voyage',
+    titleFr: 'Voyage',
+    emoji: '✈️',
+    color: Color(0xFF1A2D4A),
+    chapterIds: [95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105],
+  ),
+  _DuaTheme(
+    id: 'hajj',
+    titleFr: 'Hajj & Omra',
+    emoji: '🕋',
+    color: Color(0xFF2A1A00),
+    chapterIds: [115, 116, 117, 118, 119, 120, 121],
+  ),
+  _DuaTheme(
+    id: 'purification',
+    titleFr: 'Purification & Quotidien',
+    emoji: '🚿',
+    color: Color(0xFF003A3A),
+    chapterIds: [3, 4, 5, 6, 7, 8, 11],
+  ),
+  _DuaTheme(
+    id: 'social',
+    titleFr: 'Relations & Vie sociale',
+    emoji: '👥',
+    color: Color(0xFF2A1A3A),
+    chapterIds: [77, 78, 83, 84, 85, 86, 87, 89, 90, 91, 92, 93, 94, 106, 108, 109, 112, 113, 114, 122, 123, 125, 126, 127],
+  ),
+  _DuaTheme(
+    id: 'meteo',
+    titleFr: 'Météo & Nature',
+    emoji: '🌦️',
+    color: Color(0xFF0A2A3A),
+    chapterIds: [61, 62, 63, 64, 65, 66, 67],
+  ),
+  _DuaTheme(
+    id: 'dhikr',
+    titleFr: 'Dhikr & Mérites',
+    emoji: '📿',
+    color: Color(0xFF2A2A00),
+    chapterIds: [1, 44, 88, 107, 110, 111, 128, 129, 130, 131, 132, 133],
+  ),
 ];
 
 // ─────────────────────────────────────────────
@@ -42,6 +144,7 @@ class _DuaScreenState extends State<DuaScreen> {
   String _query = '';
   List<Map<String, Object?>> _searchResults = [];
   Timer? _debounce;
+  final FocusNode _searchFocus = FocusNode();
 
   @override
   void initState() {
@@ -52,6 +155,7 @@ class _DuaScreenState extends State<DuaScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -94,6 +198,18 @@ class _DuaScreenState extends State<DuaScreen> {
         _loading = false;
       });
     }
+  }
+
+  int _duaCountForTheme(_DuaTheme theme) {
+    int total = 0;
+    for (final chId in theme.chapterIds) {
+      final cat = _cats.firstWhere(
+        (c) => c['id'] == 'c$chId',
+        orElse: () => {},
+      );
+      total += (cat['dua_count'] as int?) ?? 0;
+    }
+    return total;
   }
 
   void _onSearchChanged(String v) {
@@ -164,6 +280,7 @@ class _DuaScreenState extends State<DuaScreen> {
                   cardBg: cardBg,
                   stroke: stroke,
                   onChanged: _onSearchChanged,
+                  focusNode: _searchFocus,
                 ),
               ),
             ),
@@ -178,6 +295,7 @@ class _DuaScreenState extends State<DuaScreen> {
               stroke: stroke,
               muted: muted,
               textColor: textColor,
+              searchFocus: _searchFocus,
             )
           else ...[
             // Duʿa du jour
@@ -192,6 +310,7 @@ class _DuaScreenState extends State<DuaScreen> {
                     stroke: stroke,
                     muted: muted,
                     onOpenCategory: (catId, titleFr, duaCount) {
+                      _searchFocus.unfocus();
                       Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => DuaCategoryScreen(
                           categoryId: catId,
@@ -219,7 +338,7 @@ class _DuaScreenState extends State<DuaScreen> {
               ),
             ),
 
-            // Grille 2 colonnes
+            // Grille 2 colonnes des THÈMES
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               sliver: SliverGrid(
@@ -231,30 +350,20 @@ class _DuaScreenState extends State<DuaScreen> {
                 ),
                 delegate: SliverChildBuilderDelegate(
                   (context, i) {
-                    final cat = _cats[i];
-                    final id = cat['id'] as String;
-                    final chapterId = int.tryParse(id.replaceFirst('c', '')) ?? (i + 1);
-                    final titleFr = (cat['title_fr'] as String?)?.trim() ?? '';
-                    final titleEn = (cat['title_en'] as String?)?.trim() ?? '';
-                    final duaCount = (cat['dua_count'] as int?) ?? 0;
-                    final displayTitle = titleFr.isNotEmpty ? titleFr : titleEn;
-
-                    return _CategoryCard(
-                      chapterId: chapterId,
-                      title: displayTitle,
-                      duaCount: duaCount,
+                    final theme = _kThemes[i];
+                    final count = _duaCountForTheme(theme);
+                    return _ThemeCard(
+                      theme: theme,
+                      duaCount: count,
                       onTap: () {
+                        _searchFocus.unfocus();
                         Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => DuaCategoryScreen(
-                            categoryId: id,
-                            titleFr: displayTitle,
-                            duaCount: duaCount,
-                          ),
+                          builder: (_) => _DuaThemeScreen(theme: theme),
                         ));
                       },
                     );
                   },
-                  childCount: _cats.length,
+                  childCount: _kThemes.length,
                 ),
               ),
             ),
@@ -272,11 +381,13 @@ class _SearchBar extends StatelessWidget {
   final Color cardBg;
   final Color stroke;
   final ValueChanged<String> onChanged;
+  final FocusNode focusNode;
 
   const _SearchBar({
     required this.cardBg,
     required this.stroke,
     required this.onChanged,
+    required this.focusNode,
   });
 
   @override
@@ -289,6 +400,7 @@ class _SearchBar extends StatelessWidget {
         border: Border.all(color: stroke),
       ),
       child: TextField(
+        focusNode: focusNode,
         onChanged: onChanged,
         style: const TextStyle(fontSize: 14),
         decoration: const InputDecoration(
@@ -383,7 +495,9 @@ class _DuaOfDayBanner extends StatelessWidget {
                         Text(
                           ar,
                           textDirection: TextDirection.rtl,
+                          locale: const Locale('ar'),
                           style: const TextStyle(
+                            fontFamily: 'UthmanTahaNaskh',
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
                             height: 1.7,
@@ -436,17 +550,15 @@ class _DuaOfDayBanner extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  CARTE CATÉGORIE (GRILLE)
+//  CARTE THÈME (GRILLE)
 // ─────────────────────────────────────────────
-class _CategoryCard extends StatelessWidget {
-  final int chapterId;
-  final String title;
+class _ThemeCard extends StatelessWidget {
+  final _DuaTheme theme;
   final int duaCount;
   final VoidCallback onTap;
 
-  const _CategoryCard({
-    required this.chapterId,
-    required this.title,
+  const _ThemeCard({
+    required this.theme,
     required this.duaCount,
     required this.onTap,
   });
@@ -463,8 +575,19 @@ class _CategoryCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Fond : image ou dégradé
-              _CategoryBackground(chapterId: chapterId),
+              // Fond dégradé du thème
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      theme.color,
+                      Color.lerp(theme.color, Colors.black, 0.5)!,
+                    ],
+                  ),
+                ),
+              ),
 
               // Voile sombre bas
               const DecoratedBox(
@@ -472,19 +595,18 @@ class _CategoryCard extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xCC000000)],
-                    stops: [0.35, 1.0],
+                    colors: [Colors.transparent, Color(0xAA000000)],
+                    stops: [0.4, 1.0],
                   ),
                 ),
               ),
 
-              // Contenu
               Padding(
                 padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Badge nombre de duas (coin haut-droit)
+                    // Badge nombre de duas
                     Align(
                       alignment: Alignment.topRight,
                       child: Container(
@@ -503,10 +625,22 @@ class _CategoryCard extends StatelessWidget {
                         ),
                       ),
                     ),
+
                     const Spacer(),
+
+                    // Emoji centré
+                    Center(
+                      child: Text(
+                        theme.emoji,
+                        style: const TextStyle(fontSize: 36),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
                     // Titre
                     Text(
-                      title,
+                      theme.titleFr,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -514,7 +648,7 @@ class _CategoryCard extends StatelessWidget {
                         height: 1.3,
                         shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
                       ),
-                      maxLines: 3,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -523,36 +657,6 @@ class _CategoryCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-//  FOND CARTE : IMAGE ou DÉGRADÉ
-// ─────────────────────────────────────────────
-class _CategoryBackground extends StatelessWidget {
-  final int chapterId;
-
-  const _CategoryBackground({required this.chapterId});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _kGradients[chapterId % _kGradients.length];
-    return Image.asset(
-      'assets/images/dua_categories/chapter_$chapterId.jpg',
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (_, __, ___) => DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: colors,
-          ),
-        ),
-        child: const SizedBox.expand(),
       ),
     );
   }
@@ -568,6 +672,7 @@ class _SearchResultsSliver extends StatelessWidget {
   final Color stroke;
   final Color muted;
   final Color textColor;
+  final FocusNode searchFocus;
 
   const _SearchResultsSliver({
     required this.results,
@@ -576,6 +681,7 @@ class _SearchResultsSliver extends StatelessWidget {
     required this.stroke,
     required this.muted,
     required this.textColor,
+    required this.searchFocus,
   });
 
   @override
@@ -603,6 +709,7 @@ class _SearchResultsSliver extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: GestureDetector(
               onTap: () {
+                searchFocus.unfocus();
                 Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => DuaCategoryScreen(
                     categoryId: catId,
@@ -637,7 +744,12 @@ class _SearchResultsSliver extends StatelessWidget {
                       Text(
                         ar,
                         textDirection: TextDirection.rtl,
-                        style: const TextStyle(fontSize: 16, height: 1.6),
+                        locale: const Locale('ar'),
+                        style: const TextStyle(
+                          fontFamily: 'UthmanTahaNaskh',
+                          fontSize: 16,
+                          height: 1.6,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -656,6 +768,165 @@ class _SearchResultsSliver extends StatelessWidget {
           );
         },
         childCount: results.length,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  ÉCRAN THÈME — LISTE DES SOUS-CATÉGORIES
+// ─────────────────────────────────────────────
+class _DuaThemeScreen extends StatefulWidget {
+  final _DuaTheme theme;
+
+  const _DuaThemeScreen({required this.theme});
+
+  @override
+  State<_DuaThemeScreen> createState() => __DuaThemeScreenState();
+}
+
+class __DuaThemeScreenState extends State<_DuaThemeScreen> {
+  bool _loading = true;
+  List<Map<String, Object?>> _cats = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final ids = widget.theme.chapterIds.map((id) => 'c$id').toList();
+    final cats = await DuaDb.instance.getCategoriesByIds(ids);
+    if (!mounted) return;
+    setState(() {
+      _cats = cats;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? _kDarkBg : _kLightBg;
+    final cardBg = isDark ? _kDarkCard : _kLightCard;
+    final stroke = isDark ? Colors.white12 : Colors.black12;
+    final muted = isDark ? Colors.white54 : Colors.black45;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
+
+    return Scaffold(
+      backgroundColor: bg,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            backgroundColor: bg,
+            elevation: 0,
+            pinned: true,
+            iconTheme: IconThemeData(
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            ),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(widget.theme.emoji, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    widget.theme.titleFr,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: _kGreen,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_loading)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) {
+                  final cat = _cats[i];
+                  final id = (cat['id'] as String?) ?? '';
+                  final titleFr = (cat['title_fr'] as String?)?.trim() ?? '';
+                  final titleEn = (cat['title_en'] as String?)?.trim() ?? '';
+                  final duaCount = (cat['dua_count'] as int?) ?? 0;
+                  final displayTitle = titleFr.isNotEmpty ? titleFr : titleEn;
+
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => DuaCategoryScreen(
+                            categoryId: id,
+                            titleFr: displayTitle,
+                            duaCount: duaCount,
+                          ),
+                        ));
+                      },
+                      child: Container(
+                        margin: EdgeInsets.fromLTRB(16, i == 0 ? 8 : 0, 16, 10),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: stroke),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                displayTitle,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: textColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (duaCount > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: _kGreen.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '$duaCount',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: _kGreen,
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: muted,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                childCount: _cats.length,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -727,7 +998,13 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
     if (mounted) setState(() { _playingId = duaId; _audioLoading = true; });
 
     try {
-      await _audioPlayer!.setUrl(url);
+      await _audioPlayer!.setUrl(
+        url,
+        headers: const {
+          'User-Agent':
+              'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+        },
+      );
       _audioSub = _audioPlayer!.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
           if (mounted) setState(() => _playingId = null);
@@ -759,6 +1036,9 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
             backgroundColor: bg,
             elevation: 0,
             pinned: true,
+            iconTheme: IconThemeData(
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            ),
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -921,8 +1201,9 @@ class _DuaCard extends StatelessWidget {
               Text(
                 ar,
                 textDirection: TextDirection.rtl,
+                locale: const Locale('ar'),
                 style: const TextStyle(
-                  fontFamily: 'ScheherazadeNew',
+                  fontFamily: 'UthmanTahaNaskh',
                   fontSize: 22,
                   height: 1.85,
                 ),
@@ -1101,7 +1382,13 @@ class _InlineAudioButtonState extends State<_InlineAudioButton> {
     _player ??= AudioPlayer();
     if (mounted) setState(() => _loading = true);
     try {
-      await _player!.setUrl(widget.audioUrl);
+      await _player!.setUrl(
+        widget.audioUrl,
+        headers: const {
+          'User-Agent':
+              'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+        },
+      );
       await _player!.play();
       _player!.playerStateStream.listen((s) {
         if (s.processingState == ProcessingState.completed) {
