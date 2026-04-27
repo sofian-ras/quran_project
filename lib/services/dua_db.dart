@@ -16,45 +16,50 @@ class DuaDb {
     final path = join(await getDatabasesPath(), 'dua.db');
     _db = await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (d, v) async {
-        await d.execute('''
-          CREATE TABLE categories (
-            id TEXT PRIMARY KEY,
-            title_ar TEXT NOT NULL,
-            title_fr TEXT NOT NULL,
-            title_en TEXT NOT NULL,
-            order_index INTEGER NOT NULL
-          );
-        ''');
-
-        await d.execute('''
-          CREATE TABLE duas (
-            id TEXT PRIMARY KEY,
-            category_id TEXT NOT NULL,
-            title_ar TEXT NOT NULL,
-            title_fr TEXT NOT NULL,
-            title_en TEXT NOT NULL,
-            ar TEXT NOT NULL,
-            fr TEXT NOT NULL,
-            en TEXT NOT NULL,
-            repeat_count INTEGER NOT NULL,
-            source TEXT NOT NULL,
-            FOREIGN KEY(category_id) REFERENCES categories(id)
-          );
-        ''');
+        await _createTables(d);
       },
       onUpgrade: (d, oldV, newV) async {
-        if (oldV < 2) {
-          // Ajout colonnes EN (fallback), sans casser ton modèle actuel
-          await d.execute("ALTER TABLE categories ADD COLUMN title_en TEXT NOT NULL DEFAULT '';");
-          await d.execute("ALTER TABLE duas ADD COLUMN title_en TEXT NOT NULL DEFAULT '';");
-          await d.execute("ALTER TABLE duas ADD COLUMN en TEXT NOT NULL DEFAULT '';");
+        if (oldV < 3) {
+          await d.execute('DROP TABLE IF EXISTS duas');
+          await d.execute('DROP TABLE IF EXISTS categories');
+          await _createTables(d);
         }
       },
     );
 
     return _db!;
+  }
+
+  Future<void> _createTables(Database d) async {
+    await d.execute('''
+      CREATE TABLE categories (
+        id TEXT PRIMARY KEY,
+        title_fr TEXT NOT NULL,
+        title_en TEXT NOT NULL,
+        title_ar TEXT NOT NULL DEFAULT '',
+        order_index INTEGER NOT NULL,
+        dua_count INTEGER NOT NULL DEFAULT 0
+      );
+    ''');
+
+    await d.execute('''
+      CREATE TABLE duas (
+        id TEXT PRIMARY KEY,
+        category_id TEXT NOT NULL,
+        title_fr TEXT NOT NULL DEFAULT '',
+        ar TEXT NOT NULL DEFAULT '',
+        fr TEXT NOT NULL DEFAULT '',
+        en TEXT NOT NULL DEFAULT '',
+        phonetic TEXT NOT NULL DEFAULT '',
+        explanation TEXT NOT NULL DEFAULT '',
+        repeat_count INTEGER NOT NULL DEFAULT 1,
+        source TEXT NOT NULL DEFAULT '',
+        audio_url TEXT NOT NULL DEFAULT '',
+        FOREIGN KEY(category_id) REFERENCES categories(id)
+      );
+    ''');
   }
 
   Future<void> importFromAssetsIfEmpty() async {
@@ -67,58 +72,45 @@ class DuaDb {
 
     if (count > 0) return;
 
-    // IMPORTANT: fichier Hisn Al-Muslim (ar + en)
-    final raw0 = await rootBundle.loadString('assets/data/husn_en.json');
-
-    // Au cas où BOM (UTF-8) au début du fichier
-    final raw = raw0.startsWith('\uFEFF') ? raw0.substring(1) : raw0;
-
+    final raw0 = await rootBundle.loadString('assets/data/hisn_almuslim.json');
+    final raw = raw0.startsWith('﻿') ? raw0.substring(1) : raw0;
     final map = jsonDecode(raw) as Map<String, dynamic>;
-    final doors = (map['English'] as List).cast<Map<String, dynamic>>();
+    final chapters = (map['chapters'] as List).cast<Map<String, dynamic>>();
 
     await d.transaction((txn) async {
-      for (final door in doors) {
-        final catId = (door['ID']).toString();
-        final titleEn = (door['TITLE'] ?? '').toString();
-        final orderIndex = (door['ID'] is int) ? (door['ID'] as int) : 9999;
+      for (final chapter in chapters) {
+        final chapterId = chapter['id'] as int;
+        final catId = 'c$chapterId';
+        final titleFr = (chapter['title_fr'] as String?) ?? '';
+        final titleEn = (chapter['title_en'] as String?) ?? '';
+        final duas = (chapter['duas'] as List).cast<Map<String, dynamic>>();
 
-        // Category
         await txn.insert('categories', {
           'id': catId,
-          'title_ar': '',
-          'title_fr': '',
+          'title_fr': titleFr,
           'title_en': titleEn,
-          'order_index': orderIndex,
+          'title_ar': '',
+          'order_index': chapterId,
+          'dua_count': duas.length,
         });
 
-        // Items
-        final textList = (door['TEXT'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
-
-        for (final it in textList) {
-          final duaId = (it['ID']).toString();
-
-          final ar = (it['ARABIC_TEXT'] ?? '').toString();
-          final en = (it['TRANSLATED_TEXT'] ?? '').toString();
-          final repeat = (it['REPEAT'] is int) ? (it['REPEAT'] as int) : 1;
-
-          // Audio (si tu veux le garder quelque part)
-          final audio = (it['AUDIO'] ?? '').toString();
+        for (final dua in duas) {
+          final duaId = dua['id'] as int;
+          final audioObj = dua['audio'] as Map<String, dynamic>?;
+          final audioUrl = (audioObj?['arabic_recitation'] as String?) ?? '';
 
           await txn.insert('duas', {
-            'id': duaId,
+            'id': 'c${chapterId}_d$duaId',
             'category_id': catId,
-
-            // Pas de titre par dua dans ce dataset -> on laisse vide
-            'title_ar': '',
-            'title_fr': '',
-            'title_en': '',
-
-            'ar': ar,
-            'fr': '',      // futur: ta traduction FR
-            'en': en,      // fallback pour l’UI
-
-            'repeat_count': repeat,
-            'source': audio,
+            'title_fr': (dua['title_fr'] as String?) ?? '',
+            'ar': (dua['arabic'] as String?) ?? '',
+            'fr': (dua['french'] as String?) ?? '',
+            'en': (dua['english'] as String?) ?? '',
+            'phonetic': (dua['phonetic'] as String?) ?? '',
+            'explanation': (dua['explanation'] as String?) ?? '',
+            'repeat_count': (dua['repeat'] as int?) ?? 1,
+            'source': (dua['source'] as String?) ?? '',
+            'audio_url': audioUrl,
           });
         }
       }
@@ -145,13 +137,23 @@ class DuaDb {
       'duas',
       where: '''
         category_id = ?
-        AND (
-          ar LIKE ? OR fr LIKE ? OR en LIKE ?
-          OR title_ar LIKE ? OR title_fr LIKE ? OR title_en LIKE ?
-        )
+        AND (ar LIKE ? OR fr LIKE ? OR en LIKE ? OR phonetic LIKE ? OR title_fr LIKE ?)
       ''',
-      whereArgs: [categoryId, q, q, q, q, q, q],
+      whereArgs: [categoryId, q, q, q, q, q],
     );
+  }
+
+  Future<List<Map<String, Object?>>> searchDuas(String query) async {
+    if (query.trim().isEmpty) return [];
+    final d = await db;
+    final q = '%${query.trim()}%';
+    return d.rawQuery('''
+      SELECT d.*, c.title_fr as cat_title_fr, c.id as cat_id
+      FROM duas d
+      JOIN categories c ON c.id = d.category_id
+      WHERE d.ar LIKE ? OR d.fr LIKE ? OR d.phonetic LIKE ? OR d.title_fr LIKE ?
+      LIMIT 100
+    ''', [q, q, q, q]);
   }
 
   Future<void> reset() async {

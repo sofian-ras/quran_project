@@ -76,6 +76,7 @@ flutter:
     - assets/data/reciters_mapping.json
     - assets/data/reciters_bio.json
     - assets/images/
+    - assets/images/dua_categories/
     - assets/images/navbar/Quran_Kareem.svg
     - assets/images/Features/
     - assets/images/Programmes/
