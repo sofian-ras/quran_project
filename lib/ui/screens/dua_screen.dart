@@ -1,7 +1,13 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../services/dua_db.dart';
+
+const _kAudioUserAgent =
+    'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36';
 
 // ─────────────────────────────────────────────
 //  CONSTANTES COULEURS
@@ -18,14 +24,14 @@ const _kLightCard = Color(0xFFF6F1EB);
 class _DuaTheme {
   final String id;
   final String titleFr;
-  final String emoji;
+  final String imageAsset;
   final Color color;
   final List<int> chapterIds;
 
   const _DuaTheme({
     required this.id,
     required this.titleFr,
-    required this.emoji,
+    required this.imageAsset,
     required this.color,
     required this.chapterIds,
   });
@@ -36,91 +42,91 @@ const _kThemes = <_DuaTheme>[
   _DuaTheme(
     id: 'matin',
     titleFr: 'Matin',
-    emoji: '🌅',
+    imageAsset: 'assets/images/dua_categories/matin.webp',
     color: Color(0xFF1A4731),
     chapterIds: [2, 27],
   ),
   _DuaTheme(
     id: 'soir',
     titleFr: 'Soir & Sommeil',
-    emoji: '🌙',
+    imageAsset: 'assets/images/dua_categories/soir_sommeil.webp',
     color: Color(0xFF2D1B4E),
     chapterIds: [28, 29, 30, 31],
   ),
   _DuaTheme(
     id: 'priere',
     titleFr: 'Prière',
-    emoji: '🕌',
+    imageAsset: 'assets/images/dua_categories/priere.webp',
     color: Color(0xFF1A3A4A),
     chapterIds: [9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 32, 33, 42],
   ),
   _DuaTheme(
     id: 'anxiete',
     titleFr: 'Anxiété & Difficultés',
-    emoji: '🤲',
+    imageAsset: 'assets/images/dua_categories/anxiete.webp',
     color: Color(0xFF3D2314),
     chapterIds: [34, 35, 36, 37, 38, 39, 40, 41, 43, 45, 46, 82],
   ),
   _DuaTheme(
     id: 'famille',
     titleFr: 'Mariage & Famille',
-    emoji: '❤️',
+    imageAsset: 'assets/images/dua_categories/mariage_famille.webp',
     color: Color(0xFF4A1A2D),
     chapterIds: [47, 48, 79, 80, 81],
   ),
   _DuaTheme(
     id: 'maladie',
     titleFr: 'Maladie & Mort',
-    emoji: '🌿',
+    imageAsset: 'assets/images/dua_categories/maladie_mort.webp',
     color: Color(0xFF1A3D1A),
     chapterIds: [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 124],
   ),
   _DuaTheme(
     id: 'repas',
     titleFr: 'Repas & Jeûne',
-    emoji: '🍽️',
+    imageAsset: 'assets/images/dua_categories/repas_jeune.webp',
     color: Color(0xFF3A3A1A),
     chapterIds: [68, 69, 70, 71, 72, 73, 74, 75, 76],
   ),
   _DuaTheme(
     id: 'voyage',
     titleFr: 'Voyage',
-    emoji: '✈️',
+    imageAsset: 'assets/images/dua_categories/voyage.webp',
     color: Color(0xFF1A2D4A),
     chapterIds: [95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105],
   ),
   _DuaTheme(
     id: 'hajj',
     titleFr: 'Hajj & Omra',
-    emoji: '🕋',
+    imageAsset: 'assets/images/dua_categories/hajj_omra.webp',
     color: Color(0xFF2A1A00),
     chapterIds: [115, 116, 117, 118, 119, 120, 121],
   ),
   _DuaTheme(
     id: 'purification',
     titleFr: 'Purification & Quotidien',
-    emoji: '🚿',
+    imageAsset: 'assets/images/dua_categories/purification.webp',
     color: Color(0xFF003A3A),
     chapterIds: [3, 4, 5, 6, 7, 8, 11],
   ),
   _DuaTheme(
     id: 'social',
     titleFr: 'Relations & Vie sociale',
-    emoji: '👥',
+    imageAsset: 'assets/images/dua_categories/relations.webp',
     color: Color(0xFF2A1A3A),
     chapterIds: [77, 78, 83, 84, 85, 86, 87, 89, 90, 91, 92, 93, 94, 106, 108, 109, 112, 113, 114, 122, 123, 125, 126, 127],
   ),
   _DuaTheme(
     id: 'meteo',
     titleFr: 'Météo & Nature',
-    emoji: '🌦️',
+    imageAsset: 'assets/images/dua_categories/meteo_nature.webp',
     color: Color(0xFF0A2A3A),
     chapterIds: [61, 62, 63, 64, 65, 66, 67],
   ),
   _DuaTheme(
     id: 'dhikr',
     titleFr: 'Dhikr & Mérites',
-    emoji: '📿',
+    imageAsset: 'assets/images/dua_categories/dhikr.webp',
     color: Color(0xFF2A2A00),
     chapterIds: [1, 44, 88, 107, 110, 111, 128, 129, 130, 131, 132, 133],
   ),
@@ -497,7 +503,7 @@ class _DuaOfDayBanner extends StatelessWidget {
                           textDirection: TextDirection.rtl,
                           locale: const Locale('ar'),
                           style: const TextStyle(
-                            fontFamily: 'UthmanTahaNaskh',
+                            fontFamily: 'ScheherazadeNew',
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
                             height: 1.7,
@@ -575,17 +581,24 @@ class _ThemeCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Fond dégradé du thème
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.color,
-                      Color.lerp(theme.color, Colors.black, 0.5)!,
-                    ],
+              // Image de fond
+              Image.asset(
+                theme.imageAsset,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                errorBuilder: (_, __, ___) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        theme.color,
+                        Color.lerp(theme.color, Colors.black, 0.5)!,
+                      ],
+                    ),
                   ),
+                  child: const SizedBox.expand(),
                 ),
               ),
 
@@ -595,8 +608,8 @@ class _ThemeCard extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xAA000000)],
-                    stops: [0.4, 1.0],
+                    colors: [Colors.transparent, Color(0xCC000000)],
+                    stops: [0.35, 1.0],
                   ),
                 ),
               ),
@@ -628,25 +641,15 @@ class _ThemeCard extends StatelessWidget {
 
                     const Spacer(),
 
-                    // Emoji centré
-                    Center(
-                      child: Text(
-                        theme.emoji,
-                        style: const TextStyle(fontSize: 36),
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
                     // Titre
                     Text(
                       theme.titleFr,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                         height: 1.3,
-                        shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
+                        shadows: [Shadow(blurRadius: 6, color: Colors.black87)],
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -746,7 +749,7 @@ class _SearchResultsSliver extends StatelessWidget {
                         textDirection: TextDirection.rtl,
                         locale: const Locale('ar'),
                         style: const TextStyle(
-                          fontFamily: 'UthmanTahaNaskh',
+                          fontFamily: 'ScheherazadeNew',
                           fontSize: 16,
                           height: 1.6,
                         ),
@@ -825,24 +828,15 @@ class __DuaThemeScreenState extends State<_DuaThemeScreen> {
             iconTheme: IconThemeData(
               color: isDark ? Colors.white : const Color(0xFF1A1A1A),
             ),
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(widget.theme.emoji, style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    widget.theme.titleFr,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: _kGreen,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            title: Text(
+              widget.theme.titleFr,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: _kGreen,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
 
@@ -983,6 +977,21 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
     });
   }
 
+  Future<File> _downloadAudio(String duaId, String url) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/dua_$duaId.mp3');
+    if (await file.exists()) return file;
+    final response = await Dio().get<List<int>>(
+      url,
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: {'User-Agent': _kAudioUserAgent},
+      ),
+    );
+    await file.writeAsBytes(response.data!);
+    return file;
+  }
+
   Future<void> _toggleAudio(String duaId, String url) async {
     if (_playingId == duaId) {
       await _audioPlayer?.stop();
@@ -998,13 +1007,8 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
     if (mounted) setState(() { _playingId = duaId; _audioLoading = true; });
 
     try {
-      await _audioPlayer!.setUrl(
-        url,
-        headers: const {
-          'User-Agent':
-              'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-        },
-      );
+      final file = await _downloadAudio(duaId, url);
+      await _audioPlayer!.setFilePath(file.path);
       _audioSub = _audioPlayer!.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
           if (mounted) setState(() => _playingId = null);
@@ -1203,7 +1207,7 @@ class _DuaCard extends StatelessWidget {
                 textDirection: TextDirection.rtl,
                 locale: const Locale('ar'),
                 style: const TextStyle(
-                  fontFamily: 'UthmanTahaNaskh',
+                  fontFamily: 'ScheherazadeNew',
                   fontSize: 22,
                   height: 1.85,
                 ),
@@ -1382,13 +1386,20 @@ class _InlineAudioButtonState extends State<_InlineAudioButton> {
     _player ??= AudioPlayer();
     if (mounted) setState(() => _loading = true);
     try {
-      await _player!.setUrl(
-        widget.audioUrl,
-        headers: const {
-          'User-Agent':
-              'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-        },
-      );
+      final dir = await getTemporaryDirectory();
+      final safeId = widget.audioUrl.hashCode.abs();
+      final file = File('${dir.path}/dua_inline_$safeId.mp3');
+      if (!await file.exists()) {
+        final response = await Dio().get<List<int>>(
+          widget.audioUrl,
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: {'User-Agent': _kAudioUserAgent},
+          ),
+        );
+        await file.writeAsBytes(response.data!);
+      }
+      await _player!.setFilePath(file.path);
       await _player!.play();
       _player!.playerStateStream.listen((s) {
         if (s.processingState == ProcessingState.completed) {
