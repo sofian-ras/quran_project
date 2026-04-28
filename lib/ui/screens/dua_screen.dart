@@ -1247,6 +1247,7 @@ class _DuaCard extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 22,
                   height: 1.85,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
