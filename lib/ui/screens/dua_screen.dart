@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../services/dua_db.dart';
 
@@ -503,8 +504,7 @@ class _DuaOfDayBanner extends StatelessWidget {
                           textDirection: TextDirection.rtl,
                           locale: const Locale('ar'),
                           style: const TextStyle(
-                            fontFamily: 'ScheherazadeNew',
-                            fontSize: 20,
+                              fontSize: 20,
                             fontWeight: FontWeight.w700,
                             height: 1.7,
                           ),
@@ -749,7 +749,6 @@ class _SearchResultsSliver extends StatelessWidget {
                         textDirection: TextDirection.rtl,
                         locale: const Locale('ar'),
                         style: const TextStyle(
-                          fontFamily: 'ScheherazadeNew',
                           fontSize: 16,
                           height: 1.6,
                         ),
@@ -1008,7 +1007,12 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
 
     try {
       final file = await _downloadAudio(duaId, url);
-      await _audioPlayer!.setFilePath(file.path);
+      await _audioPlayer!.setAudioSource(
+        AudioSource.uri(
+          Uri.file(file.path),
+          tag: MediaItem(id: duaId, title: 'Duʿa'),
+        ),
+      );
       _audioSub = _audioPlayer!.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
           if (mounted) setState(() => _playingId = null);
@@ -1207,7 +1211,6 @@ class _DuaCard extends StatelessWidget {
                 textDirection: TextDirection.rtl,
                 locale: const Locale('ar'),
                 style: const TextStyle(
-                  fontFamily: 'ScheherazadeNew',
                   fontSize: 22,
                   height: 1.85,
                 ),
@@ -1399,7 +1402,12 @@ class _InlineAudioButtonState extends State<_InlineAudioButton> {
         );
         await file.writeAsBytes(response.data!);
       }
-      await _player!.setFilePath(file.path);
+      await _player!.setAudioSource(
+        AudioSource.uri(
+          Uri.file(file.path),
+          tag: const MediaItem(id: 'dua_inline', title: 'Duʿa'),
+        ),
+      );
       await _player!.play();
       _player!.playerStateStream.listen((s) {
         if (s.processingState == ProcessingState.completed) {
