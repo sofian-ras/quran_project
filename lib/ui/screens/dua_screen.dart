@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/dua_db.dart';
 
 const _kAudioUserAgent =
@@ -956,10 +959,32 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
   String? _playingId;
   bool _audioLoading = false;
 
+  Set<String> _favorites = {};
+  static const _prefsKey = 'dua_favorites';
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_prefsKey) ?? [];
+    if (mounted) setState(() => _favorites = list.toSet());
+  }
+
+  Future<void> _toggleFavorite(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      if (_favorites.contains(id)) {
+        _favorites.remove(id);
+      } else {
+        _favorites.add(id);
+      }
+    });
+    await prefs.setStringList(_prefsKey, _favorites.toList());
   }
 
   @override
@@ -1094,10 +1119,12 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
                       muted: muted,
                       isPlaying: _playingId == id,
                       isAudioLoading: _audioLoading && _playingId == id,
+                      isFavorite: _favorites.contains(id),
                       onToggleAudio: () {
                         final url = (dua['audio_url'] as String?)?.trim() ?? '';
                         if (url.isNotEmpty) _toggleAudio(id, url);
                       },
+                      onToggleFavorite: () => _toggleFavorite(id),
                     ),
                   );
                 },
@@ -1122,7 +1149,9 @@ class _DuaCard extends StatelessWidget {
   final Color muted;
   final bool isPlaying;
   final bool isAudioLoading;
+  final bool isFavorite;
   final VoidCallback onToggleAudio;
+  final VoidCallback onToggleFavorite;
 
   const _DuaCard({
     required this.dua,
@@ -1133,7 +1162,9 @@ class _DuaCard extends StatelessWidget {
     required this.muted,
     required this.isPlaying,
     required this.isAudioLoading,
+    required this.isFavorite,
     required this.onToggleAudio,
+    required this.onToggleFavorite,
   });
 
   @override
@@ -1258,17 +1289,67 @@ class _DuaCard extends StatelessWidget {
               _CollapsibleSource(source: source, muted: muted),
             ],
 
-            // Bouton audio
-            if (audioUrl.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              const Divider(height: 1),
-              const SizedBox(height: 8),
-              _AudioPlayButton(
-                isPlaying: isPlaying,
-                isLoading: isAudioLoading,
-                onTap: onToggleAudio,
-              ),
-            ],
+            // Barre d'actions : audio + copier + partager + favoris
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                if (audioUrl.isNotEmpty)
+                  _AudioPlayButton(
+                    isPlaying: isPlaying,
+                    isLoading: isAudioLoading,
+                    onTap: onToggleAudio,
+                  ),
+                const Spacer(),
+                _ActionIcon(
+                  icon: Icons.copy_rounded,
+                  color: muted,
+                  tooltip: 'Copier',
+                  onTap: () {
+                    final title = (dua['title_fr'] as String?)?.trim() ?? '';
+                    final parts = <String>[
+                      if (title.isNotEmpty) title,
+                      if (ar.isNotEmpty) ar,
+                      if (phonetic.isNotEmpty) phonetic,
+                      if (shown.isNotEmpty) shown,
+                      if (source.isNotEmpty) source,
+                    ];
+                    Clipboard.setData(ClipboardData(text: parts.join('\n\n')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Copié dans le presse-papiers'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 4),
+                _ActionIcon(
+                  icon: Icons.share_rounded,
+                  color: muted,
+                  tooltip: 'Partager',
+                  onTap: () {
+                    final title = (dua['title_fr'] as String?)?.trim() ?? '';
+                    final parts = <String>[
+                      if (title.isNotEmpty) title,
+                      if (ar.isNotEmpty) ar,
+                      if (phonetic.isNotEmpty) phonetic,
+                      if (shown.isNotEmpty) shown,
+                      if (source.isNotEmpty) source,
+                    ];
+                    Share.share(parts.join('\n\n'));
+                  },
+                ),
+                const SizedBox(width: 4),
+                _ActionIcon(
+                  icon: isFavorite ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                  color: isFavorite ? _kGreen : muted,
+                  tooltip: isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+                  onTap: onToggleFavorite,
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -1354,6 +1435,38 @@ class _AudioPlayButton extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  ICÔNE D'ACTION (copier / partager / favoris)
+// ─────────────────────────────────────────────
+class _ActionIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _ActionIcon({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 20, color: color),
+        ),
       ),
     );
   }
