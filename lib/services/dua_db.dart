@@ -16,12 +16,12 @@ class DuaDb {
     final path = join(await getDatabasesPath(), 'dua.db');
     _db = await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (d, v) async {
         await _createTables(d);
       },
       onUpgrade: (d, oldV, newV) async {
-        if (oldV < 4) {
+        if (oldV < 5) {
           await d.execute('DROP TABLE IF EXISTS duas');
           await d.execute('DROP TABLE IF EXISTS categories');
           await _createTables(d);
