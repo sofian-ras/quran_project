@@ -286,6 +286,7 @@ class _DuaScreenState extends State<DuaScreen> {
                 child: _SearchBar(
                   cardBg: cardBg,
                   stroke: stroke,
+                  textColor: textColor,
                   onChanged: _onSearchChanged,
                   focusNode: _searchFocus,
                 ),
@@ -387,12 +388,14 @@ class _DuaScreenState extends State<DuaScreen> {
 class _SearchBar extends StatelessWidget {
   final Color cardBg;
   final Color stroke;
+  final Color textColor;
   final ValueChanged<String> onChanged;
   final FocusNode focusNode;
 
   const _SearchBar({
     required this.cardBg,
     required this.stroke,
+    required this.textColor,
     required this.onChanged,
     required this.focusNode,
   });
@@ -409,13 +412,13 @@ class _SearchBar extends StatelessWidget {
       child: TextField(
         focusNode: focusNode,
         onChanged: onChanged,
-        style: const TextStyle(fontSize: 14),
-        decoration: const InputDecoration(
+        style: TextStyle(fontSize: 14, color: textColor),
+        decoration: InputDecoration(
           hintText: 'Rechercher une invocation…',
-          hintStyle: TextStyle(fontSize: 14),
-          prefixIcon: Icon(Icons.search, color: _kGreen, size: 20),
+          hintStyle: TextStyle(fontSize: 14, color: textColor.withValues(alpha: 0.45)),
+          prefixIcon: const Icon(Icons.search, color: _kGreen, size: 20),
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );
