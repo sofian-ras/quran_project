@@ -16,12 +16,12 @@ class DuaDb {
     final path = join(await getDatabasesPath(), 'dua.db');
     _db = await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (d, v) async {
         await _createTables(d);
       },
       onUpgrade: (d, oldV, newV) async {
-        if (oldV < 3) {
+        if (oldV < 4) {
           await d.execute('DROP TABLE IF EXISTS duas');
           await d.execute('DROP TABLE IF EXISTS categories');
           await _createTables(d);
@@ -129,7 +129,7 @@ class DuaDb {
     final d = await db;
 
     if (query.trim().isEmpty) {
-      return d.query('duas', where: 'category_id = ?', whereArgs: [categoryId]);
+      return d.query('duas', where: 'category_id = ?', whereArgs: [categoryId], orderBy: 'id ASC');
     }
 
     final q = '%${query.trim()}%';
