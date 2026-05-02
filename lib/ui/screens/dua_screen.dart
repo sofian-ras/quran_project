@@ -1110,21 +1110,40 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
                   final id = (dua['id'] as String?) ?? '$i';
                   return Padding(
                     padding: EdgeInsets.fromLTRB(12, i == 0 ? 8 : 0, 12, 10),
-                    child: _DuaCard(
-                      dua: dua,
-                      index: i,
-                      isDark: isDark,
-                      cardBg: cardBg,
-                      stroke: stroke,
-                      muted: muted,
-                      isPlaying: _playingId == id,
-                      isAudioLoading: _audioLoading && _playingId == id,
-                      isFavorite: _favorites.contains(id),
-                      onToggleAudio: () {
-                        final url = (dua['audio_url'] as String?)?.trim() ?? '';
-                        if (url.isNotEmpty) _toggleAudio(id, url);
+                    child: GestureDetector(
+                      onTap: () async {
+                        final nav = Navigator.of(context);
+                        _audioSub?.cancel();
+                        await _audioPlayer?.stop();
+                        if (!mounted) return;
+                        setState(() => _playingId = null);
+                        await nav.push(
+                          MaterialPageRoute(
+                            builder: (_) => _DuaDetailScreen(
+                              items: _items,
+                              initialIndex: i,
+                              categoryTitle: widget.titleFr,
+                            ),
+                          ),
+                        );
+                        await _loadFavorites();
                       },
-                      onToggleFavorite: () => _toggleFavorite(id),
+                      child: _DuaCard(
+                        dua: dua,
+                        index: i,
+                        isDark: isDark,
+                        cardBg: cardBg,
+                        stroke: stroke,
+                        muted: muted,
+                        isPlaying: _playingId == id,
+                        isAudioLoading: _audioLoading && _playingId == id,
+                        isFavorite: _favorites.contains(id),
+                        onToggleAudio: () {
+                          final url = (dua['audio_url'] as String?)?.trim() ?? '';
+                          if (url.isNotEmpty) _toggleAudio(id, url);
+                        },
+                        onToggleFavorite: () => _toggleFavorite(id),
+                      ),
                     ),
                   );
                 },
@@ -1485,6 +1504,380 @@ class _InlineAudioButton extends StatefulWidget {
   State<_InlineAudioButton> createState() => _InlineAudioButtonState();
 }
 
+// ─────────────────────────────────────────────
+//  ÉCRAN DÉTAIL DUʿA (plein écran + swipe)
+// ─────────────────────────────────────────────
+class _DuaDetailScreen extends StatefulWidget {
+  final List<Map<String, Object?>> items;
+  final int initialIndex;
+  final String categoryTitle;
+
+  const _DuaDetailScreen({
+    required this.items,
+    required this.initialIndex,
+    required this.categoryTitle,
+  });
+
+  @override
+  State<_DuaDetailScreen> createState() => _DuaDetailScreenState();
+}
+
+class _DuaDetailScreenState extends State<_DuaDetailScreen> {
+  late PageController _controller;
+  late int _currentIndex;
+
+  AudioPlayer? _audioPlayer;
+  StreamSubscription? _audioSub;
+  String? _playingId;
+  bool _audioLoading = false;
+
+  Set<String> _favorites = {};
+  static const _prefsKey = 'dua_favorites';
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+    _loadFavorites();
+  }
+
+  @override
+  void dispose() {
+    _audioSub?.cancel();
+    _audioPlayer?.stop();
+    _audioPlayer?.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_prefsKey) ?? [];
+    if (mounted) setState(() => _favorites = list.toSet());
+  }
+
+  Future<void> _toggleFavorite(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      if (_favorites.contains(id)) {
+        _favorites.remove(id);
+      } else {
+        _favorites.add(id);
+      }
+    });
+    await prefs.setStringList(_prefsKey, _favorites.toList());
+  }
+
+  Future<File> _downloadAudio(String duaId, String url) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/dua_v4_$duaId.mp3');
+    if (await file.exists()) return file;
+    final response = await Dio().get<List<int>>(
+      url,
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: {'User-Agent': _kAudioUserAgent},
+      ),
+    );
+    await file.writeAsBytes(response.data!);
+    return file;
+  }
+
+  Future<void> _toggleAudio(String duaId, String url) async {
+    if (_playingId == duaId) {
+      await _audioPlayer?.stop();
+      _audioSub?.cancel();
+      if (mounted) setState(() => _playingId = null);
+      return;
+    }
+    _audioSub?.cancel();
+    await _audioPlayer?.stop();
+    _audioPlayer ??= AudioPlayer();
+    if (mounted) setState(() { _playingId = duaId; _audioLoading = true; });
+    try {
+      final file = await _downloadAudio(duaId, url);
+      await _audioPlayer!.setAudioSource(
+        AudioSource.uri(
+          Uri.file(file.path),
+          tag: MediaItem(id: duaId, title: 'Duʿa'),
+        ),
+      );
+      _audioSub = _audioPlayer!.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          if (mounted) setState(() => _playingId = null);
+        }
+      });
+      await _audioPlayer!.play();
+    } catch (_) {
+      if (mounted) setState(() => _playingId = null);
+    }
+    if (mounted) setState(() => _audioLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? _kDarkBg : _kLightBg;
+    final muted = isDark ? Colors.white54 : Colors.black45;
+
+    final dua = widget.items[_currentIndex];
+    final id = (dua['id'] as String?) ?? '$_currentIndex';
+    final audioUrl = (dua['audio_url'] as String?)?.trim() ?? '';
+    final ar = (dua['ar'] as String?)?.trim() ?? '';
+    final fr = (dua['fr'] as String?)?.trim() ?? '';
+    final en = (dua['en'] as String?)?.trim() ?? '';
+    final phonetic = (dua['phonetic'] as String?)?.trim() ?? '';
+    final source = (dua['source'] as String?)?.trim() ?? '';
+    final shown = fr.isNotEmpty ? fr : en;
+
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: AppBar(
+        backgroundColor: bg,
+        elevation: 0,
+        iconTheme: IconThemeData(
+          color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.categoryTitle,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: _kGreen,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              '${_currentIndex + 1} / ${widget.items.length}',
+              style: TextStyle(fontSize: 11, color: muted),
+            ),
+          ],
+        ),
+      ),
+      body: PageView.builder(
+        controller: _controller,
+        itemCount: widget.items.length,
+        onPageChanged: (index) async {
+          _audioSub?.cancel();
+          await _audioPlayer?.stop();
+          if (mounted) setState(() { _playingId = null; _currentIndex = index; });
+        },
+        itemBuilder: (context, i) => _DuaDetailPage(
+          dua: widget.items[i],
+          index: i,
+          isDark: isDark,
+          muted: muted,
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? _kDarkCard : _kLightCard,
+          border: Border(
+            top: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                if (audioUrl.isNotEmpty)
+                  _AudioPlayButton(
+                    isPlaying: _playingId == id,
+                    isLoading: _audioLoading && _playingId == id,
+                    onTap: () => _toggleAudio(id, audioUrl),
+                  ),
+                const Spacer(),
+                _ActionIcon(
+                  icon: Icons.copy_rounded,
+                  color: muted,
+                  tooltip: 'Copier',
+                  onTap: () {
+                    final title = (dua['title_fr'] as String?)?.trim() ?? '';
+                    final parts = <String>[
+                      if (title.isNotEmpty) title,
+                      if (ar.isNotEmpty) ar,
+                      if (phonetic.isNotEmpty) phonetic,
+                      if (shown.isNotEmpty) shown,
+                      if (source.isNotEmpty) source,
+                    ];
+                    Clipboard.setData(ClipboardData(text: parts.join('\n\n')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Copié dans le presse-papiers'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 4),
+                _ActionIcon(
+                  icon: Icons.share_rounded,
+                  color: muted,
+                  tooltip: 'Partager',
+                  onTap: () {
+                    final title = (dua['title_fr'] as String?)?.trim() ?? '';
+                    final parts = <String>[
+                      if (title.isNotEmpty) title,
+                      if (ar.isNotEmpty) ar,
+                      if (phonetic.isNotEmpty) phonetic,
+                      if (shown.isNotEmpty) shown,
+                      if (source.isNotEmpty) source,
+                    ];
+                    Share.share(parts.join('\n\n'));
+                  },
+                ),
+                const SizedBox(width: 4),
+                _ActionIcon(
+                  icon: _favorites.contains(id)
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  color: _favorites.contains(id) ? _kGreen : muted,
+                  tooltip: _favorites.contains(id)
+                      ? 'Retirer des favoris'
+                      : 'Ajouter aux favoris',
+                  onTap: () => _toggleFavorite(id),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  PAGE CONTENU DUʿA (dans le PageView)
+// ─────────────────────────────────────────────
+class _DuaDetailPage extends StatelessWidget {
+  final Map<String, Object?> dua;
+  final int index;
+  final bool isDark;
+  final Color muted;
+
+  const _DuaDetailPage({
+    required this.dua,
+    required this.index,
+    required this.isDark,
+    required this.muted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = (dua['ar'] as String?)?.trim() ?? '';
+    final fr = (dua['fr'] as String?)?.trim() ?? '';
+    final en = (dua['en'] as String?)?.trim() ?? '';
+    final phonetic = (dua['phonetic'] as String?)?.trim() ?? '';
+    final source = (dua['source'] as String?)?.trim() ?? '';
+    final explanation = (dua['explanation'] as String?)?.trim() ?? '';
+    final repeat = (dua['repeat_count'] as int?) ?? 1;
+    final shown = fr.isNotEmpty ? fr : en;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                  color: _kGreen,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${index + 1}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (repeat > 1)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _kGreen.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '× $repeat',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _kGreen,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (ar.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Text(
+              ar,
+              textDirection: TextDirection.rtl,
+              locale: const Locale('ar'),
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 30,
+                height: 2.0,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+          if (phonetic.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              phonetic,
+              style: TextStyle(
+                fontSize: 15,
+                fontStyle: FontStyle.italic,
+                color: muted,
+                height: 1.6,
+              ),
+            ),
+          ],
+          if (shown.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(shown, style: const TextStyle(fontSize: 16, height: 1.6)),
+          ],
+          if (explanation.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              explanation,
+              style: TextStyle(fontSize: 14, color: muted, height: 1.5),
+            ),
+          ],
+          if (source.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Divider(color: isDark ? Colors.white12 : Colors.black12),
+            const SizedBox(height: 8),
+            Text(
+              source,
+              style: TextStyle(fontSize: 12, color: muted, height: 1.4),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  BOUTON AUDIO INLINE (bannière dua du jour)
+// ─────────────────────────────────────────────
 class _InlineAudioButtonState extends State<_InlineAudioButton> {
   AudioPlayer? _player;
   bool _playing = false;
