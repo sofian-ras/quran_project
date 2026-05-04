@@ -1641,24 +1641,9 @@
         },
         {
           "id": 17,
-          "title_fr": "Invocation en Français :",
-          "arabic": "",
-          "french": "J’agrée Allah comme Seigneur, l’Islam comme religion et Muhammad comme prophète.",
-          "phonetic": "",
-          "english": "",
-          "repeat": 1,
-          "source": "",
-          "explanation": "",
-          "audio": {
-            "arabic_recitation": "http://www.hisnmuslim.com/audio/ar/90.mp3",
-            "source": "hisnmuslim.com"
-          }
-        },
-        {
-          "id": 18,
-          "title_fr": "Invocation en arabe :",
+          "title_fr": "Invocation 15 (1 fois)",
           "arabic": "رَضِيتُ بِاللهِ رَبّاً وَ بِالإِسْلاَمِ دِيناً وَ بِمُحَمَّدٍ نَبِيّاً",
-          "french": "",
+          "french": "J’agrée Allah comme Seigneur, l’Islam comme religion et Muhammad comme prophète.",
           "phonetic": "",
           "english": "",
           "repeat": 1,
@@ -1738,7 +1723,7 @@
           "english": "",
           "repeat": 1,
           "source": "",
-          "explanation": "« Il n’y a aucune divinité [digne d’être adorée] en dehors d’Allah, Seul, sans associé. À Lui la royauté, à Lui la louange et Il est capable de toute chose.» (100 fois). Lâ ilâha illa-llâhu wahdahu lâ sharîka lah. Lahu-l-mulku wa lahu-l-hamd, wa huwa ‘alâ kulli shayin Qadîr. Les invocations du matin sont à prononcer entre la prière du matin (sobh) et le lever du soleil.",
+          "explanation": "Je demande pardon à Allah (100 fois)",
           "audio": {
             "arabic_recitation": "http://www.hisnmuslim.com/audio/ar/96.mp3",
             "source": "hisnmuslim.com"
@@ -1762,7 +1747,7 @@
           "english": "",
           "repeat": 1,
           "source": "",
-          "explanation": "Réciter les 3 dernières sourate du Coran, 3 fois chacune.",
+          "explanation": "Celui qui la récite avant de s'endormir bénéficiera de la protection d'Allah et Satan ne pourra s'approcher de lui jusqu'au matin.",
           "audio": {
             "arabic_recitation": "http://www.hisnmuslim.com/audio/ar/99.mp3",
             "source": "hisnmuslim.com"
@@ -1771,9 +1756,9 @@
         {
           "id": 2,
           "title_fr": "Sourate Al Ikhlas en français :",
-          "arabic": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ قُلْ هُوَ اللَّهُ أَحَدٌ {1} اللَّهُ الصَّمَدُ {2} لَمْ يَلِدْ وَلَمْ يُولَدْ {3} وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ {4}",
+          "arabic": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ هُوَ اللَّهُ أَحَدٌ {1} اللَّهُ الصَّمَدُ {2} لَمْ يَلِدْ وَلَمْ يُولَدْ {3} وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ {4}",
           "french": "Au nom d’Allah, le Tout Miséricordieux, le Très Miséricordieux Dis : « Il est Allah, Unique ۞ Allah Le Seul à être imploré pour ce que nous désirons ۞ Il n’a jamais engendré et n’a pas été engendré non plus ۞ Et nul n’est égal à Lui. »",
-          "phonetic": "Sourate Al-‘Ikhlâs (réciter 3 fois)",
+          "phonetic": "Sourate Al-’Ikhlâs (réciter 3 fois)",
           "english": "",
           "repeat": 1,
           "source": "",
@@ -1786,7 +1771,7 @@
         {
           "id": 3,
           "title_fr": "Sourate Al Falaq en français :",
-          "arabic": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ {1} مِن شَرِّ مَا خَلَقَ {2} وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ {3} وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ {4} وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ {5}",
+          "arabic": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ أَعُوذُ بِرَبِّ الْفَلَقِ {1} مِن شَرِّ مَا خَلَقَ {2} وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ {3} وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ {4} وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ {5}",
           "french": "Au nom d’Allah, le Tout Miséricordieux, le Très Miséricordieux Dis : « Je cherche protection auprès du Seigneur de l’aube naissante ۞ contre le mal des êtres qu’Il a créés ۞ contre le mal de l’obscurité quand elle s’approfondit ۞ contre le mal de celles qui soufflent (les sorcières) sur les nœuds ۞ et contre le mal de l’envieux quand il envie. »",
           "phonetic": "Sourate Al-Falaq (réciter 3 fois)",
           "english": "",
@@ -1801,7 +1786,7 @@
         {
           "id": 4,
           "title_fr": "Sourate An Nas en français :",
-          "arabic": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ قُلْ أَعُوذُ بِرَبِّ النَّاسِ {1} مَلِكِ النَّاسِ {2} إِلَهِ النَّاسِ {3} مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ {4} الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ {5} مِنَ الْجِنَّةِ وَالنَّاسِ {6}",
+          "arabic": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ أَعُوذُ بِرَبِّ النَّاسِ {1} مَلِكِ النَّاسِ {2} إِلَهِ النَّاسِ {3} مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ {4} الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ {5} مِنَ الْجِنَّةِ وَالنَّاسِ {6}",
           "french": "Au nom d’Allah, le Tout Miséricordieux, le Très Miséricordieux Dis : « Je cherche protection auprès du Seigneur des hommes ۞ Le Souverain des hommes ۞ Dieu des hommes ۞ contre le mal du mauvais conseiller, furtif ۞ qui souffle le mal dans les poitrines des hommes ۞ qu’il (le conseiller) soit un djinn, ou un être humain. »",
           "phonetic": "Sourate An-Nâs (réciter 3 fois)",
           "english": "",
@@ -2094,10 +2079,10 @@
         },
         {
           "id": 4,
-          "title_fr": "Invocation 2 : verset du Trône",
+          "title_fr": "Invocation 2 (3 fois)",
           "arabic": "(اللّهُـمَّ قِنـي عَذابَـكَ يَـوْمَ تَبْـعَثُ عِبـادَك . (ثلاثاً",
           "french": "Ô Seigneur ! Epargne-moi Ton châtiment le jour où Tu ressusciteras Tes esclaves. [trois fois]",
-          "phonetic": "Allah ! Nulle divinité autre que Lui, le Vivant qui veille éternellement à la bonne marche de toute chose. Ni somnolence ni sommeil ne Le saisissent. A Lui appartient tout ce qui est dans les cieux et sur la terre. Qui peut intercéder auprès de Lui sans Sa permission ? Il connaît leur passé et leur futur. Et ils ne savent de sa science que ce qu’Il veut. Son trône (Kursî) déborde les cieux et la terre dont la garde ne Lui coûte aucune peine. Et Il est le Très Haut, le Très Grand.",
+          "phonetic": "Allâhumma qinî ‘adhâbaka yawma tab’athu ‘ibâdak.",
           "english": "",
           "repeat": 1,
           "source": "Source : Rapporté par Abû Dâwûd (n° 5045) et At-Tirmidhî (n° 3398). Hadith authentique (sahih).",

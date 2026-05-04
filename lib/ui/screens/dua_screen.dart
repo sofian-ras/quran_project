@@ -1103,10 +1103,14 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
               child: Center(child: CircularProgressIndicator()),
             )
           else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) {
-                  final dua = _items[i];
+            SliverPadding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).padding.bottom,
+              ),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) {
+                    final dua = _items[i];
                   final id = (dua['id'] as String?) ?? '$i';
                   return Padding(
                     padding: EdgeInsets.fromLTRB(12, i == 0 ? 8 : 0, 12, 10),
@@ -1147,7 +1151,8 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
                     ),
                   );
                 },
-                childCount: _items.length,
+                  childCount: _items.length,
+                ),
               ),
             ),
         ],
