@@ -656,6 +656,17 @@ class NotificationService {
     return scheduleFromStringTimes(cached);
   }
 
+  Future<int> getEnabledCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    int count = 0;
+    if (prefs.getBool(_kDailyEnabled) == true) count++;
+    if (prefs.getBool(_kVerseEnabled) == true) count++;
+    if (prefs.getBool(_kPrayersEnabled) == true) count++;
+    if (prefs.getBool(_kDhikrEnabled) == true) count++;
+    if (prefs.getBool(_kStreakEnabled) == true) count++;
+    return count;
+  }
+
   // ── Re-planification au démarrage ─────────────────────────────────────────
   Future<void> scheduleOnStartup() async {
     await init();

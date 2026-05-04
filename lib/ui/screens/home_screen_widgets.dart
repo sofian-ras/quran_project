@@ -269,12 +269,7 @@ class _DribbbleHomeHeaderState extends State<_DribbbleHomeHeader> {
                         _RadioIconButton(
                           onTap: () => RadioBrowserScreen.show(context),
                         ),
-                        _NotificationBellButton(
-                          count: 3,
-                          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Notifications bientôt')),
-                          ),
-                        ),
+                        const _NotificationBellWithBadge(),
                       ],
                     ),
 
@@ -550,6 +545,41 @@ class _NotificationBellButtonState extends State<_NotificationBellButton>
             ),
         ],
       ),
+    );
+  }
+}
+
+class _NotificationBellWithBadge extends StatefulWidget {
+  const _NotificationBellWithBadge();
+
+  @override
+  State<_NotificationBellWithBadge> createState() => _NotificationBellWithBadgeState();
+}
+
+class _NotificationBellWithBadgeState extends State<_NotificationBellWithBadge> {
+  int _count = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCount();
+  }
+
+  Future<void> _loadCount() async {
+    final c = await NotificationService.instance.getEnabledCount();
+    if (mounted) setState(() => _count = c);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _NotificationBellButton(
+      count: _count,
+      onTap: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()),
+        );
+        _loadCount();
+      },
     );
   }
 }
