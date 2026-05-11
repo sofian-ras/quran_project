@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../services/audio_service.dart';
 import '../../services/quran_text_db.dart';
 import '../../services/revision_service.dart';
 import '../../theme/app_theme.dart';
+
+// ── Data classes (inchangés) ─────────────────────────────────────────────────
 
 enum QuestionType { next, prev, mixed }
 
@@ -37,6 +41,12 @@ class _Question {
   });
 }
 
+// ── Phase machine ────────────────────────────────────────────────────────────
+
+enum _Phase { intro, listening, thinking, answer, result }
+
+// ── Main widget ──────────────────────────────────────────────────────────────
+
 class RevisionSessionScreen extends StatefulWidget {
   final SessionConfig config;
 
@@ -48,36 +58,65 @@ class RevisionSessionScreen extends StatefulWidget {
 
 class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     with TickerProviderStateMixin {
-  late final AnimationController _answerAnimCtrl;
-  late final Animation<double> _answerFade;
-  late final Animation<Offset> _answerSlide;
-
+  // ── Data ─────────────────────────────────────────────────────────────────
   List<_Question> _questions = [];
   int _currentIndex = 0;
-  bool _showAnswer = false;
+  final List<bool> _results = [];
   bool _loading = true;
   String? _error;
 
-  final List<bool> _results = [];
+  // ── Phase ─────────────────────────────────────────────────────────────────
+  _Phase _phase = _Phase.intro;
+  bool _readyVisible = false;
 
-  bool get _isLastQuestion => _currentIndex >= _questions.length - 1;
-  bool get _sessionDone => _currentIndex >= _questions.length;
+  // ── Flash feedback ────────────────────────────────────────────────────────
+  Color _flashColor = Colors.transparent;
+  bool _showFlash = false;
+
+  // ── Animations ────────────────────────────────────────────────────────────
+  late final AnimationController _pulseCtrl;
+  late final AnimationController _answerSlideCtrl;
+  late final Animation<Offset> _answerSlideAnim;
+  late final Animation<double> _answerFadeAnim;
+
+  StreamSubscription<PlayerState>? _audioSub;
+  Timer? _readyTimer;
+
+  // ── Init / dispose ────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
-    _answerAnimCtrl = AnimationController(
+
+    _pulseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 1200),
     );
-    _answerFade = CurvedAnimation(parent: _answerAnimCtrl, curve: Curves.easeOut);
-    _answerSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3),
+
+    _answerSlideCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _answerSlideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.4),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _answerAnimCtrl, curve: Curves.easeOutCubic));
+    ).animate(CurvedAnimation(parent: _answerSlideCtrl, curve: Curves.easeOutCubic));
+    _answerFadeAnim = CurvedAnimation(parent: _answerSlideCtrl, curve: Curves.easeOut);
 
     _loadSession();
   }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    _answerSlideCtrl.dispose();
+    _audioSub?.cancel();
+    _readyTimer?.cancel();
+    AudioService.instance.stopAyah();
+    super.dispose();
+  }
+
+  // ── Loading ───────────────────────────────────────────────────────────────
 
   Future<void> _loadSession() async {
     setState(() { _loading = true; _error = null; });
@@ -97,9 +136,8 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
       }
 
       _questions = _buildQuestions(filtered, widget.config.questionType);
-      setState(() => _loading = false);
-      _playCurrentStimulus();
-    } catch (e) {
+      setState(() { _loading = false; _phase = _Phase.intro; });
+    } catch (_) {
       setState(() {
         _error = 'Erreur lors du chargement des versets.';
         _loading = false;
@@ -114,58 +152,103 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
           (type == QuestionType.mixed && i % 2 == 0);
       final bool isPrev = type == QuestionType.prev ||
           (type == QuestionType.mixed && i % 2 != 0);
-
       if (isNext) {
-        questions.add(_Question(
-          stimulus: verses[i],
-          answer: verses[i + 1],
-          isNext: true,
-        ));
-      } else if (isPrev && i + 1 < verses.length) {
-        questions.add(_Question(
-          stimulus: verses[i + 1],
-          answer: verses[i],
-          isNext: false,
-        ));
+        questions.add(_Question(stimulus: verses[i], answer: verses[i + 1], isNext: true));
+      } else if (isPrev) {
+        questions.add(_Question(stimulus: verses[i + 1], answer: verses[i], isNext: false));
       }
     }
     return questions;
   }
 
-  void _playCurrentStimulus() {
-    if (_currentIndex >= _questions.length) return;
-    final q = _questions[_currentIndex];
-    AudioService.instance.playAyah(q.stimulus.surah, q.stimulus.ayah);
+  // ── Phase transitions ─────────────────────────────────────────────────────
+
+  void _startSession() {
+    setState(() { _phase = _Phase.listening; _readyVisible = false; });
+    _enterListening();
   }
 
-  void _revealAnswer() {
-    setState(() => _showAnswer = true);
-    _answerAnimCtrl.forward(from: 0);
-    // Auto-play answer verse
+  void _enterListening() {
+    _pulseCtrl.repeat(reverse: true);
+    final q = _questions[_currentIndex];
+    AudioService.instance.playAyah(q.stimulus.surah, q.stimulus.ayah);
+
+    _readyTimer?.cancel();
+    _readyTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted && _phase == _Phase.listening) {
+        setState(() => _readyVisible = true);
+      }
+    });
+
+    _audioSub?.cancel();
+    _audioSub = AudioService.instance.ayahPlayerStateStream.listen((st) {
+      if (st.processingState == ProcessingState.completed &&
+          _phase == _Phase.listening &&
+          mounted) {
+        setState(() => _readyVisible = true);
+      }
+    });
+  }
+
+  void _goToThinking() {
+    _pulseCtrl.stop();
+    _pulseCtrl.value = 0;
+    setState(() => _phase = _Phase.thinking);
+  }
+
+  void _goToAnswer() {
+    setState(() => _phase = _Phase.answer);
+    _answerSlideCtrl.forward(from: 0);
     final q = _questions[_currentIndex];
     AudioService.instance.playAyah(q.answer.surah, q.answer.ayah);
   }
 
-  void _recordAndNext(bool knew) {
+  Future<void> _recordResult(bool knew) async {
     _results.add(knew);
-    if (_isLastQuestion) {
-      AudioService.instance.stopAyah();
+
+    // Flash feedback
+    if (mounted) {
       setState(() {
-        _currentIndex++;
-        _showAnswer = false;
+        _flashColor = knew ? AppColors.success : AppColors.error;
+        _showFlash = true;
       });
-    } else {
-      setState(() {
-        _currentIndex++;
-        _showAnswer = false;
-      });
-      _answerAnimCtrl.reset();
-      _playCurrentStimulus();
     }
+    await Future.delayed(const Duration(milliseconds: 250));
+    if (!mounted) return;
+    setState(() => _showFlash = false);
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
+    _advanceQuestion();
+  }
+
+  void _advanceQuestion() {
+    if (_currentIndex >= _questions.length - 1) {
+      _finishSession();
+      return;
+    }
+    _currentIndex++;
+    _answerSlideCtrl.reset();
+    setState(() { _phase = _Phase.listening; _readyVisible = false; });
+    _enterListening();
+  }
+
+  void _finishSession() {
+    AudioService.instance.stopAyah();
+    setState(() => _phase = _Phase.result);
+    _saveResult();
+  }
+
+  Future<void> _saveResult() async {
+    final correct = _results.where((r) => r).length;
+    await RevisionService.instance.recordSessionResult(
+      widget.config.surahId,
+      correctCount: correct,
+      totalCount: _questions.length,
+    );
   }
 
   Future<bool> _confirmExit() async {
-    if (_sessionDone || _questions.isEmpty) return true;
+    if (_phase == _Phase.result || _phase == _Phase.intro) return true;
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -187,44 +270,28 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     return result ?? false;
   }
 
-  @override
-  void dispose() {
-    _answerAnimCtrl.dispose();
-    AudioService.instance.stopAyah();
-    super.dispose();
-  }
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: AppColors.primaryDark,
+        body: const Center(child: CircularProgressIndicator(color: AppColors.accent)),
       );
     }
-
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Révision')),
+        backgroundColor: AppColors.primaryDark,
+        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(_error!, textAlign: TextAlign.center),
+            child: Text(_error!, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
           ),
         ),
       );
     }
-
-    if (_sessionDone) {
-      return _ResultsScreen(
-        config: widget.config,
-        results: _results,
-        total: _questions.length,
-      );
-    }
-
-    final q = _questions[_currentIndex];
-    final progress = (_currentIndex + 1) / _questions.length;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PopScope(
       canPop: false,
@@ -237,93 +304,42 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
         }
       },
       child: Scaffold(
-        backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
-          title: Text(
-            'Révision — ${widget.config.surahName}',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          centerTitle: true,
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: AppColors.border,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AppColors.primaryDark, AppColors.primary],
             ),
           ),
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
+          child: SafeArea(
+            child: Stack(
               children: [
-                const SizedBox(height: 12),
-                // Counter
-                Text(
-                  '${_currentIndex + 1} / ${_questions.length}',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Stimulus card
-                _VerseCard(
-                  verse: q.stimulus,
-                  label: 'Verset ${q.stimulus.ayah}',
-                  isDark: isDark,
-                  accentColor: AppColors.primaryAccent,
-                ),
-                const SizedBox(height: 12),
-                // Mini audio player
-                _MiniAudioPlayer(isDark: isDark),
-                const SizedBox(height: 16),
-                // Question label
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    q.isNext
-                        ? 'Quel est le verset suivant ?'
-                        : 'Quel est le verset précédent ?',
-                    style: TextStyle(
-                      color: isDark ? AppColors.accent : AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 350),
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.04),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+                      child: child,
                     ),
                   ),
+                  child: _buildCurrentPhaseContent(),
                 ),
-                const SizedBox(height: 16),
-                // Answer area
-                if (_showAnswer)
-                  FadeTransition(
-                    opacity: _answerFade,
-                    child: SlideTransition(
-                      position: _answerSlide,
-                      child: _VerseCard(
-                        verse: q.answer,
-                        label: 'Verset ${q.answer.ayah} — Réponse',
-                        isDark: isDark,
-                        accentColor: AppColors.success,
+                // Flash overlay
+                if (_showFlash)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: _showFlash ? 0.25 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Container(color: _flashColor),
                       ),
                     ),
                   ),
-                const Spacer(),
-                // Bottom buttons
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: _showAnswer
-                      ? _AnswerButtons(onResult: _recordAndNext)
-                      : _RevealButton(onPressed: _revealAnswer),
-                ),
               ],
             ),
           ),
@@ -331,100 +347,686 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
       ),
     );
   }
+
+  Widget _buildCurrentPhaseContent() {
+    return switch (_phase) {
+      _Phase.intro || _Phase.listening || _Phase.thinking || _Phase.answer =>
+        _phase == _Phase.intro
+            ? _IntroContent(
+                key: const ValueKey('intro'),
+                config: widget.config,
+                questionCount: _questions.length,
+                onStart: _startSession,
+              )
+            : _SessionContent(
+                key: ValueKey('session_${_currentIndex}_${_phase.name}'),
+                config: widget.config,
+                question: _questions[_currentIndex],
+                phase: _phase,
+                currentIndex: _currentIndex,
+                total: _questions.length,
+                readyVisible: _readyVisible,
+                pulseCtrl: _pulseCtrl,
+                answerSlideAnim: _answerSlideAnim,
+                answerFadeAnim: _answerFadeAnim,
+                onReady: _goToThinking,
+                onReveal: _goToAnswer,
+                onResult: _recordResult,
+                onExit: () async {
+                  final exit = await _confirmExit();
+                  if (exit && mounted) {
+                    AudioService.instance.stopAyah();
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+      _Phase.result => _ResultContent(
+          key: const ValueKey('result'),
+          config: widget.config,
+          results: _results,
+          total: _questions.length,
+          onFinish: () => Navigator.of(context).pop(),
+        ),
+    };
+  }
 }
 
-// ── Verse card ──────────────────────────────────────────────────────────────
+// ── Intro screen ─────────────────────────────────────────────────────────────
 
-class _VerseCard extends StatelessWidget {
-  final QVerse verse;
-  final String label;
-  final bool isDark;
-  final Color accentColor;
+class _IntroContent extends StatelessWidget {
+  final SessionConfig config;
+  final int questionCount;
+  final VoidCallback onStart;
 
-  const _VerseCard({
-    required this.verse,
-    required this.label,
-    required this.isDark,
-    required this.accentColor,
+  const _IntroContent({
+    super.key,
+    required this.config,
+    required this.questionCount,
+    required this.onStart,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E2D26) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withValues(alpha: 0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    final typeLabel = switch (config.questionType) {
+      QuestionType.next => 'Verset suivant',
+      QuestionType.prev => 'Verset précédent',
+      QuestionType.mixed => 'Mixte',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: accentColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
+          const Spacer(flex: 2),
+          // Arabic surah name
           Text(
-            verse.ar,
-            textAlign: TextAlign.right,
-            textDirection: TextDirection.rtl,
+            config.surahNameAr.isNotEmpty ? config.surahNameAr : config.surahName,
             style: const TextStyle(
               fontFamily: 'Hafs',
-              fontSize: 22,
-              height: 1.8,
+              fontSize: 42,
+              color: AppColors.accent,
+              height: 1.5,
             ),
+            textAlign: TextAlign.center,
           ),
-          if (verse.fr.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                verse.fr,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
+          const SizedBox(height: 16),
+          Text(
+            'Révision de ${config.surahName}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$questionCount questions · $typeLabel',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 14,
               ),
             ),
-          ],
+          ),
+          const Spacer(flex: 3),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: onStart,
+              icon: const Icon(Icons.play_arrow_rounded, size: 26),
+              label: const Text(
+                'Commencer la session',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: AppColors.primaryDark,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 4,
+                shadowColor: AppColors.accent.withValues(alpha: 0.4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
 }
 
-// ── Mini audio player ───────────────────────────────────────────────────────
+// ── Session content (listening / thinking / answer) ───────────────────────────
 
-class _MiniAudioPlayer extends StatelessWidget {
-  final bool isDark;
+class _SessionContent extends StatelessWidget {
+  final SessionConfig config;
+  final _Question question;
+  final _Phase phase;
+  final int currentIndex;
+  final int total;
+  final bool readyVisible;
+  final AnimationController pulseCtrl;
+  final Animation<Offset> answerSlideAnim;
+  final Animation<double> answerFadeAnim;
+  final VoidCallback onReady;
+  final VoidCallback onReveal;
+  final void Function(bool) onResult;
+  final VoidCallback onExit;
 
-  const _MiniAudioPlayer({required this.isDark});
+  const _SessionContent({
+    super.key,
+    required this.config,
+    required this.question,
+    required this.phase,
+    required this.currentIndex,
+    required this.total,
+    required this.readyVisible,
+    required this.pulseCtrl,
+    required this.answerSlideAnim,
+    required this.answerFadeAnim,
+    required this.onReady,
+    required this.onReveal,
+    required this.onResult,
+    required this.onExit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // ── Custom top bar ───────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: onExit,
+                icon: const Icon(Icons.close_rounded, color: Colors.white54),
+              ),
+              Expanded(
+                child: Text(
+                  '${config.surahName} · ${currentIndex + 1} / $total',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 48), // balance
+            ],
+          ),
+        ),
+        // ── Progress bar ──────────────────────────────────────────────────
+        LinearProgressIndicator(
+          value: (currentIndex + 1) / total,
+          backgroundColor: Colors.white.withValues(alpha: 0.1),
+          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
+          minHeight: 3,
+        ),
+        const SizedBox(height: 12),
+        // ── Phase dots ────────────────────────────────────────────────────
+        _PhaseIndicator(phase: phase),
+        const SizedBox(height: 16),
+        // ── Main content ──────────────────────────────────────────────────
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _PhaseBody(
+              question: question,
+              phase: phase,
+              readyVisible: readyVisible,
+              pulseCtrl: pulseCtrl,
+              answerSlideAnim: answerSlideAnim,
+              answerFadeAnim: answerFadeAnim,
+              onReady: onReady,
+              onReveal: onReveal,
+              onResult: onResult,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Phase indicator dots ──────────────────────────────────────────────────────
+
+class _PhaseIndicator extends StatelessWidget {
+  final _Phase phase;
+
+  const _PhaseIndicator({required this.phase});
+
+  @override
+  Widget build(BuildContext context) {
+    final listeningDone = phase.index > _Phase.listening.index;
+    final thinkingDone = phase.index > _Phase.thinking.index;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _PhaseDot(
+          icon: Icons.headphones_rounded,
+          label: 'Écoute',
+          active: phase == _Phase.listening,
+          done: listeningDone,
+        ),
+        _dotLine(listeningDone),
+        _PhaseDot(
+          icon: Icons.help_outline_rounded,
+          label: 'Question',
+          active: phase == _Phase.thinking,
+          done: thinkingDone,
+        ),
+        _dotLine(thinkingDone),
+        _PhaseDot(
+          icon: Icons.star_rounded,
+          label: 'Note',
+          active: phase == _Phase.answer,
+          done: false,
+        ),
+      ],
+    );
+  }
+
+  Widget _dotLine(bool done) => Container(
+        width: 28,
+        height: 2,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: done
+              ? AppColors.accent.withValues(alpha: 0.8)
+              : Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(1),
+        ),
+      );
+}
+
+class _PhaseDot extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final bool done;
+
+  const _PhaseDot({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.done,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active || done ? AppColors.accent : Colors.white.withValues(alpha: 0.3);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          width: active ? 36 : 28,
+          height: active ? 36 : 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: active
+                ? AppColors.accent
+                : done
+                    ? AppColors.accent.withValues(alpha: 0.3)
+                    : Colors.white.withValues(alpha: 0.08),
+            border: Border.all(
+              color: color,
+              width: active ? 0 : 1,
+            ),
+          ),
+          child: Icon(
+            done ? Icons.check_rounded : icon,
+            color: active ? AppColors.primaryDark : color,
+            size: active ? 18 : 14,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 9,
+            fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Phase body ────────────────────────────────────────────────────────────────
+
+class _PhaseBody extends StatelessWidget {
+  final _Question question;
+  final _Phase phase;
+  final bool readyVisible;
+  final AnimationController pulseCtrl;
+  final Animation<Offset> answerSlideAnim;
+  final Animation<double> answerFadeAnim;
+  final VoidCallback onReady;
+  final VoidCallback onReveal;
+  final void Function(bool) onResult;
+
+  const _PhaseBody({
+    required this.question,
+    required this.phase,
+    required this.readyVisible,
+    required this.pulseCtrl,
+    required this.answerSlideAnim,
+    required this.answerFadeAnim,
+    required this.onReady,
+    required this.onReveal,
+    required this.onResult,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // ── Stimulus card (always visible, changes size) ──────────────────
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOut,
+          child: phase == _Phase.listening
+              ? _GlassVerseCard(
+                  verse: question.stimulus,
+                  label: 'Verset ${question.stimulus.ayah}',
+                  pulseCtrl: pulseCtrl,
+                )
+              : _CompactVerseCard(verse: question.stimulus),
+        ),
+        const SizedBox(height: 14),
+
+        // ── Listening phase ───────────────────────────────────────────────
+        if (phase == _Phase.listening) ...[
+          _CompactAudioPlayer(),
+          const Spacer(),
+          AnimatedOpacity(
+            opacity: readyVisible ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 400),
+            child: _PrimaryButton(
+              label: 'Je suis prêt',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: readyVisible ? onReady : null,
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        // ── Thinking phase ────────────────────────────────────────────────
+        if (phase == _Phase.thinking) ...[
+          const SizedBox(height: 4),
+          // Question prompt
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.help_outline_rounded, color: AppColors.accent, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  question.isNext
+                      ? 'Quel est le verset suivant ?'
+                      : 'Quel est le verset précédent ?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Mystery card
+          Container(
+            width: double.infinity,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1), style: BorderStyle.solid),
+            ),
+            child: Center(
+              child: Text(
+                '• • •',
+                style: TextStyle(
+                  color: AppColors.accent.withValues(alpha: 0.6),
+                  fontSize: 28,
+                  letterSpacing: 8,
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          _PrimaryButton(
+            label: 'Voir la réponse',
+            icon: Icons.visibility_rounded,
+            onPressed: onReveal,
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        // ── Answer phase ──────────────────────────────────────────────────
+        if (phase == _Phase.answer) ...[
+          // Direction label
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                question.isNext ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                color: Colors.white.withValues(alpha: 0.4),
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                question.isNext ? 'Verset suivant' : 'Verset précédent',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Answer card animated
+          FadeTransition(
+            opacity: answerFadeAnim,
+            child: SlideTransition(
+              position: answerSlideAnim,
+              child: _GlassVerseCard(
+                verse: question.answer,
+                label: 'Verset ${question.answer.ayah}',
+                pulseCtrl: null,
+                accentColor: AppColors.success,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _CompactAudioPlayer(),
+          const Spacer(),
+          // Result buttons
+          Row(
+            children: [
+              Expanded(
+                child: _OutlineButton(
+                  label: 'Pas trouvé',
+                  icon: Icons.close_rounded,
+                  color: AppColors.error,
+                  onPressed: () => onResult(false),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _PrimaryButton(
+                  label: 'Trouvé !',
+                  icon: Icons.check_rounded,
+                  color: AppColors.success,
+                  onPressed: () => onResult(true),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
+      ],
+    );
+  }
+}
+
+// ── Glassmorphism verse card ──────────────────────────────────────────────────
+
+class _GlassVerseCard extends StatelessWidget {
+  final QVerse verse;
+  final String label;
+  final AnimationController? pulseCtrl;
+  final Color accentColor;
+
+  const _GlassVerseCard({
+    required this.verse,
+    required this.label,
+    required this.pulseCtrl,
+    this.accentColor = AppColors.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget card = ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: AnimatedBuilder(
+          animation: pulseCtrl ?? const AlwaysStoppedAnimation(0.5),
+          builder: (_, child) {
+            final pulse = pulseCtrl?.value ?? 0.5;
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: accentColor.withValues(alpha: 0.2 + pulse * 0.3),
+                  width: 1.0 + pulse * 0.5,
+                ),
+              ),
+              child: child,
+            );
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: accentColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                verse.ar,
+                textAlign: TextAlign.right,
+                textDirection: TextDirection.rtl,
+                style: const TextStyle(
+                  fontFamily: 'Hafs',
+                  fontSize: 24,
+                  color: Colors.white,
+                  height: 1.9,
+                ),
+              ),
+              if (verse.fr.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    verse.fr,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    return card;
+  }
+}
+
+// ── Compact stimulus card (for thinking/answer phases) ───────────────────────
+
+class _CompactVerseCard extends StatelessWidget {
+  final QVerse verse;
+
+  const _CompactVerseCard({required this.verse});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              'V${verse.ayah}',
+              style: const TextStyle(
+                color: AppColors.accent,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              verse.ar,
+              textAlign: TextAlign.right,
+              textDirection: TextDirection.rtl,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: 'Hafs',
+                fontSize: 17,
+                color: Colors.white,
+                height: 1.6,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Compact audio player ──────────────────────────────────────────────────────
+
+class _CompactAudioPlayer extends StatelessWidget {
+  const _CompactAudioPlayer();
 
   String _fmt(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -436,25 +1038,21 @@ class _MiniAudioPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final audio = AudioService.instance;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A2920) : AppColors.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: isDark ? 0.3 : 0.1),
-        ),
-      ),
-      child: StreamBuilder<PositionData>(
-        stream: audio.ayahPositionDataStream,
-        builder: (ctx, snap) {
-          final pos = snap.data?.position ?? Duration.zero;
-          final dur = snap.data?.duration ?? Duration.zero;
-          final sliderMax = dur.inMilliseconds > 0
-              ? dur.inMilliseconds.toDouble()
-              : 1.0;
+    return StreamBuilder<PositionData>(
+      stream: audio.ayahPositionDataStream,
+      builder: (ctx, snap) {
+        final pos = snap.data?.position ?? Duration.zero;
+        final dur = snap.data?.duration ?? Duration.zero;
+        final max = dur.inMilliseconds > 0 ? dur.inMilliseconds.toDouble() : 1.0;
 
-          return Row(
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Row(
             children: [
               ValueListenableBuilder<bool>(
                 valueListenable: audio.isAyahPlayingNotifier,
@@ -463,38 +1061,39 @@ class _MiniAudioPlayer extends StatelessWidget {
                   child: Container(
                     width: 38,
                     height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
+                    decoration: const BoxDecoration(
+                      color: AppColors.accent,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: Colors.white,
+                      color: AppColors.primaryDark,
                       size: 22,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
+                      data: SliderTheme.of(ctx).copyWith(
                         trackHeight: 3,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
                         activeTrackColor: AppColors.accent,
-                        inactiveTrackColor: AppColors.border,
+                        inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
                         thumbColor: AppColors.accent,
                         overlayColor: AppColors.accent.withValues(alpha: 0.2),
                       ),
                       child: Slider(
-                        value: pos.inMilliseconds.clamp(0, sliderMax.toInt()).toDouble(),
+                        value: pos.inMilliseconds.toDouble().clamp(0, max),
                         min: 0,
-                        max: sliderMax,
-                        onChanged: (v) => audio.seekAyah(Duration(milliseconds: v.toInt())),
+                        max: max,
+                        onChanged: (v) =>
+                            audio.seekAyah(Duration(milliseconds: v.toInt())),
                       ),
                     ),
                     Padding(
@@ -504,10 +1103,12 @@ class _MiniAudioPlayer extends StatelessWidget {
                         children: [
                           Text(_fmt(pos),
                               style: TextStyle(
-                                  fontSize: 10, color: AppColors.textSecondary)),
+                                  fontSize: 10,
+                                  color: Colors.white.withValues(alpha: 0.5))),
                           Text(_fmt(dur),
                               style: TextStyle(
-                                  fontSize: 10, color: AppColors.textSecondary)),
+                                  fontSize: 10,
+                                  color: Colors.white.withValues(alpha: 0.5))),
                         ],
                       ),
                     ),
@@ -515,270 +1116,197 @@ class _MiniAudioPlayer extends StatelessWidget {
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
-// ── Reveal button ────────────────────────────────────────────────────────────
+// ── Button helpers ────────────────────────────────────────────────────────────
 
-class _RevealButton extends StatelessWidget {
-  final VoidCallback onPressed;
+class _PrimaryButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final Color color;
 
-  const _RevealButton({required this.onPressed});
+  const _PrimaryButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.color = AppColors.accent,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
+      height: 54,
+      child: ElevatedButton.icon(
         onPressed: onPressed,
+        icon: Icon(icon, size: 20),
+        label: Text(label,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          elevation: 2,
-        ),
-        child: const Text(
-          'Voir la réponse',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          backgroundColor: color,
+          foregroundColor: color == AppColors.accent ? AppColors.primaryDark : Colors.white,
+          disabledBackgroundColor: color.withValues(alpha: 0.3),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 3,
+          shadowColor: color.withValues(alpha: 0.4),
         ),
       ),
     );
   }
 }
 
-// ── Answer buttons ────────────────────────────────────────────────────────────
+class _OutlineButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
 
-class _AnswerButtons extends StatelessWidget {
-  final void Function(bool knew) onResult;
-
-  const _AnswerButtons({required this.onResult});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: SizedBox(
-            height: 52,
-            child: OutlinedButton.icon(
-              onPressed: () => onResult(false),
-              icon: const Icon(Icons.close_rounded, color: AppColors.error),
-              label: const Text(
-                'Pas trouvé',
-                style: TextStyle(
-                  color: AppColors.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.error, width: 1.5),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: SizedBox(
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: () => onResult(true),
-              icon: const Icon(Icons.check_rounded),
-              label: const Text(
-                'Trouvé !',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                elevation: 2,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Results screen ────────────────────────────────────────────────────────────
-
-class _ResultsScreen extends StatefulWidget {
-  final SessionConfig config;
-  final List<bool> results;
-  final int total;
-
-  const _ResultsScreen({
-    required this.config,
-    required this.results,
-    required this.total,
+  const _OutlineButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
   });
 
   @override
-  State<_ResultsScreen> createState() => _ResultsScreenState();
-}
-
-class _ResultsScreenState extends State<_ResultsScreen> {
-  @override
-  void initState() {
-    super.initState();
-    _saveResult();
-  }
-
-  Future<void> _saveResult() async {
-    final correct = widget.results.where((r) => r).length;
-    await RevisionService.instance.recordSessionResult(
-      widget.config.surahId,
-      correctCount: correct,
-      totalCount: widget.total,
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 54,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, color: color, size: 20),
+        label: Text(label,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16)),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: color, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
     );
   }
+}
+
+// ── Result screen ─────────────────────────────────────────────────────────────
+
+class _ResultContent extends StatelessWidget {
+  final SessionConfig config;
+  final List<bool> results;
+  final int total;
+  final VoidCallback onFinish;
+
+  const _ResultContent({
+    super.key,
+    required this.config,
+    required this.results,
+    required this.total,
+    required this.onFinish,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final correct = widget.results.where((r) => r).length;
-    final total = widget.total;
+    final correct = results.where((r) => r).length;
     final score = total > 0 ? correct / total : 0.0;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    String nextMsg;
-    Color scoreColor;
-    if (score >= 0.8) {
-      nextMsg = 'Excellent ! Intervalle doublé.';
-      scoreColor = AppColors.success;
-    } else if (score >= 0.5) {
-      nextMsg = 'Bien ! Continue à réviser régulièrement.';
-      scoreColor = AppColors.warning;
-    } else {
-      nextMsg = 'Continue, tu progresses ! Révision demain.';
-      scoreColor = AppColors.error;
-    }
+    final (message, scoreColor) = score >= 0.8
+        ? ('Excellent travail !', AppColors.success)
+        : score >= 0.5
+            ? ('Continue comme ça !', AppColors.warning)
+            : ('Reviens demain !', AppColors.error);
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text('Résultats'),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Score circle
-              Container(
-                width: 130,
-                height: 130,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Spacer(flex: 2),
+          // Score circle
+          Container(
+            width: 140,
+            height: 140,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: scoreColor.withValues(alpha: 0.12),
+              border: Border.all(color: scoreColor, width: 3),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$correct / $total',
+                    style: TextStyle(
+                      color: scoreColor,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    'trouvés',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            message,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Session de ${config.surahName} terminée',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.6),
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 28),
+          // Dots per question
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: List.generate(
+              results.length,
+              (i) => Container(
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: scoreColor.withValues(alpha: 0.1),
-                  border: Border.all(color: scoreColor, width: 3),
+                  color: results[i]
+                      ? AppColors.success.withValues(alpha: 0.9)
+                      : AppColors.error.withValues(alpha: 0.7),
                 ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$correct / $total',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: scoreColor,
-                        ),
-                      ),
-                      Text(
-                        'trouvés',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
+                child: Icon(
+                  results[i] ? Icons.check_rounded : Icons.close_rounded,
+                  color: Colors.white,
+                  size: 13,
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                widget.config.surahName,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                nextMsg,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-              ),
-              const SizedBox(height: 32),
-              // Progress bar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: score,
-                  minHeight: 10,
-                  backgroundColor: AppColors.border,
-                  valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
-                ),
-              ),
-              const SizedBox(height: 48),
-              // Results detail
-              ...List.generate(
-                widget.results.length,
-                (i) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(
-                    children: [
-                      Icon(
-                        widget.results[i]
-                            ? Icons.check_circle_rounded
-                            : Icons.cancel_rounded,
-                        color: widget.results[i] ? AppColors.success : AppColors.error,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Question ${i + 1}',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () =>
-                      Navigator.of(context).popUntil((r) => r.isFirst || r.settings.name == '/revision'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text(
-                    'Terminer',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          const Spacer(flex: 3),
+          _PrimaryButton(
+            label: 'Terminer la session',
+            icon: Icons.check_circle_rounded,
+            onPressed: onFinish,
+          ),
+          const SizedBox(height: 32),
+        ],
       ),
     );
   }
