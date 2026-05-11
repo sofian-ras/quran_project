@@ -75,9 +75,8 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   _Phase _phase = _Phase.intro;
   bool _readyVisible = false;
 
-  // ── Flash feedback ────────────────────────────────────────────────────────
-  Color _flashColor = Colors.transparent;
-  bool _showFlash = false;
+  // ── Celebration feedback ──────────────────────────────────────────────────
+  bool _showCelebration = false;
 
   // ── Animations ────────────────────────────────────────────────────────────
   late final AnimationController _pulseCtrl;
@@ -235,18 +234,13 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
 
   Future<void> _recordResult(bool knew) async {
     _results.add(knew);
-
-    // Flash feedback
-    if (mounted) {
-      setState(() {
-        _flashColor = knew ? AppColors.success : AppColors.error;
-        _showFlash = true;
-      });
+    if (knew) {
+      if (mounted) setState(() => _showCelebration = true);
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      setState(() => _showCelebration = false);
+      await Future.delayed(const Duration(milliseconds: 150));
     }
-    await Future.delayed(const Duration(milliseconds: 250));
-    if (!mounted) return;
-    setState(() => _showFlash = false);
-    await Future.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
     _advanceQuestion();
   }
@@ -365,15 +359,11 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
                   ),
                   child: _buildCurrentPhaseContent(),
                 ),
-                // Flash overlay
-                if (_showFlash)
+                // Celebration overlay
+                if (_showCelebration)
                   Positioned.fill(
                     child: IgnorePointer(
-                      child: AnimatedOpacity(
-                        opacity: _showFlash ? 0.25 : 0.0,
-                        duration: const Duration(milliseconds: 200),
-                        child: Container(color: _flashColor),
-                      ),
+                      child: _CelebrationOverlay(visible: _showCelebration),
                     ),
                   ),
               ],
@@ -1400,6 +1390,77 @@ class _ResultContent extends StatelessWidget {
           ),
           const SizedBox(height: 32),
         ],
+      ),
+    );
+  }
+}
+
+// ── Celebration overlay ───────────────────────────────────────────────────────
+
+class _CelebrationOverlay extends StatelessWidget {
+  final bool visible;
+  const _CelebrationOverlay({required this.visible});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 250),
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.35),
+        child: Center(
+          child: AnimatedScale(
+            scale: visible ? 1.0 : 0.6,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.elasticOut,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 32),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: AppColors.success.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.thumb_up_alt_rounded,
+                        color: AppColors.success,
+                        size: 52,
+                      ),
+                      SizedBox(height: 14),
+                      Text(
+                        'Al Hamdoulillah',
+                        style: TextStyle(
+                          fontSize: 28,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Bien mémorisé !',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
