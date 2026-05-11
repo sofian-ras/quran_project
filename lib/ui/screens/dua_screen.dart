@@ -1885,11 +1885,13 @@ class _DuaDetailPage extends StatelessWidget {
 // ─────────────────────────────────────────────
 class _InlineAudioButtonState extends State<_InlineAudioButton> {
   AudioPlayer? _player;
+  StreamSubscription? _playerSub;
   bool _playing = false;
   bool _loading = false;
 
   @override
   void dispose() {
+    _playerSub?.cancel();
     _player?.stop();
     _player?.dispose();
     super.dispose();
@@ -1924,7 +1926,8 @@ class _InlineAudioButtonState extends State<_InlineAudioButton> {
         ),
       );
       await _player!.play();
-      _player!.playerStateStream.listen((s) {
+      await _playerSub?.cancel();
+      _playerSub = _player!.playerStateStream.listen((s) {
         if (s.processingState == ProcessingState.completed) {
           if (mounted) setState(() => _playing = false);
         }

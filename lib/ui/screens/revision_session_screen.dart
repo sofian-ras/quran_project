@@ -779,130 +779,136 @@ class _PhaseBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // ── Stimulus card (always visible, changes size) ──────────────────
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeInOut,
-          child: phase == _Phase.listening
-              ? _GlassVerseCard(
-                  verse: question.stimulus,
-                  label: 'Verset ${question.stimulus.ayah}',
-                  pulseCtrl: pulseCtrl,
-                )
-              : _CompactVerseCard(verse: question.stimulus),
+    // ── Scrollable content (cards) ────────────────────────────────────────
+    final cardContent = <Widget>[
+      AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+        child: phase == _Phase.listening
+            ? _GlassVerseCard(
+                verse: question.stimulus,
+                label: 'Verset ${question.stimulus.ayah}',
+                pulseCtrl: pulseCtrl,
+              )
+            : _CompactVerseCard(verse: question.stimulus),
+      ),
+      const SizedBox(height: 14),
+
+      if (phase == _Phase.listening)
+        _CompactAudioPlayer(verse: question.stimulus),
+
+      if (phase == _Phase.thinking) ...[
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          height: 80,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Center(
+            child: Text(
+              '• • •',
+              style: TextStyle(
+                color: AppColors.accent.withValues(alpha: 0.6),
+                fontSize: 28,
+                letterSpacing: 8,
+              ),
+            ),
+          ),
+        ),
+      ],
+
+      if (phase == _Phase.answer) ...[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              question.isNext ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+              color: Colors.white.withValues(alpha: 0.4),
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              question.isNext ? 'Verset suivant' : 'Verset précédent',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        FadeTransition(
+          opacity: answerFadeAnim,
+          child: SlideTransition(
+            position: answerSlideAnim,
+            child: _GlassVerseCard(
+              verse: question.answer,
+              label: 'Verset ${question.answer.ayah}',
+              pulseCtrl: null,
+              accentColor: AppColors.success,
+            ),
+          ),
         ),
         const SizedBox(height: 14),
+        _CompactAudioPlayer(verse: question.answer),
+      ],
+      const SizedBox(height: 16),
+    ];
 
-        // ── Listening phase ───────────────────────────────────────────────
-        if (phase == _Phase.listening) ...[
-          _CompactAudioPlayer(verse: question.stimulus),
-          const Spacer(),
-          AnimatedOpacity(
-            opacity: readyVisible ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 400),
+    // ── Fixed bottom button(s) ────────────────────────────────────────────
+    Widget? bottomAction;
+    if (phase == _Phase.listening) {
+      bottomAction = AnimatedOpacity(
+        opacity: readyVisible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 400),
+        child: _PrimaryButton(
+          label: 'Je suis prêt',
+          icon: Icons.arrow_forward_rounded,
+          onPressed: readyVisible ? onReady : null,
+        ),
+      );
+    } else if (phase == _Phase.thinking) {
+      bottomAction = _PrimaryButton(
+        label: 'Voir la réponse',
+        icon: Icons.visibility_rounded,
+        onPressed: onReveal,
+      );
+    } else if (phase == _Phase.answer) {
+      bottomAction = Row(
+        children: [
+          Expanded(
+            child: _OutlineButton(
+              label: 'Pas trouvé',
+              icon: Icons.close_rounded,
+              color: AppColors.error,
+              onPressed: () => onResult(false),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
             child: _PrimaryButton(
-              label: 'Je suis prêt',
-              icon: Icons.arrow_forward_rounded,
-              onPressed: readyVisible ? onReady : null,
+              label: 'Trouvé !',
+              icon: Icons.check_rounded,
+              color: AppColors.success,
+              onPressed: () => onResult(true),
             ),
           ),
-          const SizedBox(height: 20),
         ],
+      );
+    }
 
-        // ── Thinking phase ────────────────────────────────────────────────
-        if (phase == _Phase.thinking) ...[
-          const SizedBox(height: 4),
-          // Mystery card
-          Container(
-            width: double.infinity,
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1), style: BorderStyle.solid),
-            ),
-            child: Center(
-              child: Text(
-                '• • •',
-                style: TextStyle(
-                  color: AppColors.accent.withValues(alpha: 0.6),
-                  fontSize: 28,
-                  letterSpacing: 8,
-                ),
-              ),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: cardContent,
             ),
           ),
-          const Spacer(),
-          _PrimaryButton(
-            label: 'Voir la réponse',
-            icon: Icons.visibility_rounded,
-            onPressed: onReveal,
-          ),
-          const SizedBox(height: 20),
-        ],
-
-        // ── Answer phase ──────────────────────────────────────────────────
-        if (phase == _Phase.answer) ...[
-          // Direction label
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                question.isNext ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                color: Colors.white.withValues(alpha: 0.4),
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                question.isNext ? 'Verset suivant' : 'Verset précédent',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Answer card animated
-          FadeTransition(
-            opacity: answerFadeAnim,
-            child: SlideTransition(
-              position: answerSlideAnim,
-              child: _GlassVerseCard(
-                verse: question.answer,
-                label: 'Verset ${question.answer.ayah}',
-                pulseCtrl: null,
-                accentColor: AppColors.success,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          _CompactAudioPlayer(verse: question.answer),
-          const Spacer(),
-          // Result buttons
-          Row(
-            children: [
-              Expanded(
-                child: _OutlineButton(
-                  label: 'Pas trouvé',
-                  icon: Icons.close_rounded,
-                  color: AppColors.error,
-                  onPressed: () => onResult(false),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _PrimaryButton(
-                  label: 'Trouvé !',
-                  icon: Icons.check_rounded,
-                  color: AppColors.success,
-                  onPressed: () => onResult(true),
-                ),
-              ),
-            ],
-          ),
+        ),
+        if (bottomAction != null) ...[
+          bottomAction,
           const SizedBox(height: 20),
         ],
       ],

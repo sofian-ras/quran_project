@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:convert';
 import 'dart:ui';
 
@@ -23,23 +24,14 @@ class RevisionScreen extends StatefulWidget {
 
 class _RevisionScreenState extends State<RevisionScreen> {
   List<Map<String, dynamic>> _surahs = [];
-  List<Map<String, dynamic>> _filtered = [];
   List<RevisionEntry> _dueToday = [];
   Map<int, RevisionEntry> _tracked = {};
   bool _loading = true;
-  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadAll();
-    _searchCtrl.addListener(_filter);
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
   }
 
   Future<void> _loadAll() async {
@@ -48,174 +40,255 @@ class _RevisionScreenState extends State<RevisionScreen> {
       RevisionService.instance.getAll(),
     ]);
 
-    final list = results[0] as List<Map<String, dynamic>>;
+    final list    = results[0] as List<Map<String, dynamic>>;
     final entries = results[1] as List<RevisionEntry>;
-    final due = entries.where((e) => e.isDueToday).toList();
+    final due        = entries.where((e) => e.isDueToday).toList();
     final trackedMap = {for (final e in entries) e.surahId: e};
 
     if (mounted) {
       setState(() {
-        _surahs = list;
-        _filtered = list;
-        _dueToday = due;
-        _tracked = trackedMap;
-        _loading = false;
+        _surahs     = list;
+        _dueToday   = due;
+        _tracked    = trackedMap;
+        _loading    = false;
       });
     }
   }
 
   Future<List<Map<String, dynamic>>> _buildSurahList() async {
-    final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
+    final jsonStr  = await rootBundle.loadString('assets/data/quran_data.json');
     final quranData = json.decode(jsonStr) as List<dynamic>;
 
-    final Map<int, String> araNames = {};
     final Map<int, int> ayahCounts = {};
     for (final v in quranData) {
       final id = v['surah'] as int?;
       if (id == null) continue;
       ayahCounts[id] = (ayahCounts[id] ?? 0) + 1;
-      araNames[id] ??= v['sura_name']?.toString() ?? '';
     }
 
     return [
       for (int i = 1; i <= 114; i++)
         {
-          'id': i,
-          'nameFr': surahFr[i] ?? 'Sourate $i',
-          'nameAr': araNames[i] ?? '',
+          'id':        i,
+          'nameFr':    surahFr[i] ?? 'Sourate $i',
           'ayahCount': ayahCounts[i] ?? 0,
         }
     ];
   }
 
-  void _filter() {
-    final q = _searchCtrl.text.trim().toLowerCase();
-    setState(() {
-      _filtered = q.isEmpty
-          ? _surahs
-          : _surahs
-              .where((s) =>
-                  (s['nameFr'] as String).toLowerCase().contains(q) ||
-                  s['id'].toString() == q)
-              .toList();
-    });
+  void _confirmRemove(int surahId, String nameFr) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Supprimer $nameFr ?'),
+        content: const Text('Le suivi et l\'historique SRS seront supprimés.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await RevisionService.instance.removeSurah(surahId);
+              _loadAll();
+            },
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onSurahTap(Map<String, dynamic> surah) {
     RevisionService.instance.addSurah(
-      surahId: surah['id'] as int,
-      surahName: surah['nameFr'] as String,
-      surahNameAr: surah['nameAr'] as String,
-      ayahCount: surah['ayahCount'] as int,
+      surahId:    surah['id'] as int,
+      surahName:  surah['nameFr'] as String,
+      surahNameAr: '',
+      ayahCount:  surah['ayahCount'] as int,
     );
-    Navigator.of(context).push(_fadeRoute(RevisionConfigScreen(surah: surah)));
+    Navigator.of(context)
+        .push(_fadeRoute(RevisionConfigScreen(surah: surah)))
+        .then((_) => _loadAll());
   }
 
   @override
   Widget build(BuildContext context) {
-    final searching = _searchCtrl.text.isNotEmpty;
-
     return Scaffold(
       body: _GradientBg(
         child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Close button ───────────────────────────────────────────
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded, color: Colors.white54),
-                ),
-              ),
-              // ── Big question ───────────────────────────────────────────
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  'Quelle sourate veux-tu réviser ?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              // ── Search bar ─────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _GlassInput(
-                  controller: _searchCtrl,
-                  hint: 'Rechercher…',
-                  icon: Icons.search_rounded,
-                ),
-              ),
-              const SizedBox(height: 10),
-              // ── Dues aujourd'hui ───────────────────────────────────────
-              if (!searching && _dueToday.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 0, 8),
-                  child: Text(
-                    'À réviser aujourd\'hui',
-                    style: TextStyle(
-                      color: AppColors.accent,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  height: 88,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _dueToday.length,
-                    itemBuilder: (_, i) {
-                      final e = _dueToday[i];
-                      final surah = {
-                        'id': e.surahId,
-                        'nameFr': e.surahName,
-                        'nameAr': e.surahNameAr,
-                        'ayahCount': e.ayahCount,
-                      };
-                      return _DueTodayCard(
-                        entry: e,
-                        onTap: () => _onSurahTap(surah),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 6),
-              ],
-              // ── List ──────────────────────────────────────────────────
-              Expanded(
-                child: _loading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: AppColors.accent))
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                        itemCount: _filtered.length,
-                        itemBuilder: (_, i) => _SurahTile(
-                          surah: _filtered[i],
-                          entry: _tracked[_filtered[i]['id'] as int],
-                          onTap: () => _onSurahTap(_filtered[i]),
-                        ),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+              : CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    // ── Header ────────────────────────────────────────────
+                    SliverToBoxAdapter(
+                      child: _RevisionHeader(
+                        dueToday: _dueToday,
+                        tracked: _tracked,
+                        onTap: _onSurahTap,
+                        onLongPress: _confirmRemove,
                       ),
-              ),
-            ],
-          ),
+                    ),
+                    // ── Surah list ────────────────────────────────────────
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                      sliver: SliverList.builder(
+                        itemCount: _surahs.length,
+                        itemBuilder: (_, i) {
+                          final surah = _surahs[i];
+                          final entry = _tracked[surah['id'] as int];
+                          return _SurahTile(
+                            surah: surah,
+                            entry: entry,
+                            onTap: () => _onSurahTap(surah),
+                            onLongPress: entry != null
+                                ? () => _confirmRemove(entry.surahId, entry.surahName)
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
   }
 }
 
+// ── Header widget (scrolls with list) ────────────────────────────────────────
+
+class _RevisionHeader extends StatelessWidget {
+  final List<RevisionEntry> dueToday;
+  final Map<int, RevisionEntry> tracked;
+  final void Function(Map<String, dynamic>) onTap;
+  final void Function(int, String) onLongPress;
+
+  const _RevisionHeader({
+    required this.dueToday,
+    required this.tracked,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Close
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded, color: Colors.white54),
+          ),
+          // Title
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+            child: Text(
+              'Révision',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                height: 1.1,
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
+            child: Text(
+              'Choisissez une sourate à réviser',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 15,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── À réviser aujourd'hui ──────────────────────────────────────
+          if (dueToday.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 0, 12),
+              child: Text(
+                'À réviser aujourd\'hui',
+                style: TextStyle(
+                  color: AppColors.accent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 96,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: dueToday.length,
+                itemBuilder: (_, i) {
+                  final e = dueToday[i];
+                  final surah = {
+                    'id': e.surahId,
+                    'nameFr': e.surahName,
+                    'ayahCount': e.ayahCount,
+                  };
+                  return _DueTodayCard(
+                    entry: e,
+                    onTap: () => onTap(surah),
+                    onLongPress: () => onLongPress(e.surahId, e.surahName),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Divider(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      height: 1,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'Toutes les sourates',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-//  ÉCRAN 2 : Configurer la session (full screen)
+//  ÉCRAN 2 : Configurer la session
 // ─────────────────────────────────────────────────────────────────────────────
 
 class RevisionConfigScreen extends StatefulWidget {
@@ -246,16 +319,17 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
   void initState() {
     super.initState();
     _fromAyah = 1;
-    _toAyah = _totalAyahs;
+    _toAyah   = _totalAyahs;
   }
 
   void _launch() {
+    final id = widget.surah['id'] as int;
     final config = SessionConfig(
-      surahId: widget.surah['id'] as int,
-      surahName: widget.surah['nameFr'] as String,
-      surahNameAr: widget.surah['nameAr'] as String,
-      fromAyah: _fromAyah,
-      toAyah: _toAyah,
+      surahId:     id,
+      surahName:   widget.surah['nameFr'] as String,
+      surahNameAr: '',
+      fromAyah:    _fromAyah,
+      toAyah:      _toAyah,
       questionType: _questionType,
     );
     Navigator.of(context).push(_fadeRoute(RevisionSessionScreen(config: config)));
@@ -263,17 +337,17 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final total = _totalAyahs;
-    final nameFr = widget.surah['nameFr'] as String;
-    final nameAr = widget.surah['nameAr'] as String;
-    final questionCount = (_toAyah - _fromAyah).clamp(0, total);
+    final id           = widget.surah['id'] as int;
+    final total        = _totalAyahs;
+    final nameFr       = widget.surah['nameFr'] as String;
+    final questionCount = (_toAyah - _fromAyah + 1).clamp(0, total);
 
     return Scaffold(
       body: _GradientBg(
         child: SafeArea(
           child: Column(
             children: [
-              // ── Back button ────────────────────────────────────────────
+              // ── Back ──────────────────────────────────────────────────
               Align(
                 alignment: Alignment.centerLeft,
                 child: IconButton(
@@ -282,7 +356,7 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              // ── Big question ────────────────────────────────────────────
+              // ── Title ─────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
@@ -296,25 +370,22 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
-              // Arabic name
-              Text(
-                nameAr,
-                style: const TextStyle(
-                  fontFamily: 'Hafs',
-                  fontSize: 28,
-                  color: AppColors.accent,
-                ),
+              const SizedBox(height: 12),
+              // ── SVG Arabic name ────────────────────────────────────────
+              SvgPicture.asset(
+                'assets/images/Translated_Quran/surah_svg/$id.svg',
+                height: 42,
+                colorFilter: const ColorFilter.mode(AppColors.accent, BlendMode.srcIn),
               ),
               const Spacer(flex: 1),
-              // ── Config card ─────────────────────────────────────────────
+              // ── Config card ────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: _GlassCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Verse range
+                      // Verse range header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -327,8 +398,7 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.accent.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(10),
@@ -352,8 +422,7 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                           inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
                           thumbColor: AppColors.accent,
                           overlayColor: AppColors.accent.withValues(alpha: 0.2),
-                          rangeThumbShape:
-                              const RoundRangeSliderThumbShape(enabledThumbRadius: 10),
+                          rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 10),
                         ),
                         child: RangeSlider(
                           values: RangeValues(_fromAyah.toDouble(), _toAyah.toDouble()),
@@ -365,13 +434,12 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                             if (v.end - v.start < 1) return;
                             setState(() {
                               _fromAyah = v.start.round();
-                              _toAyah = v.end.round();
+                              _toAyah   = v.end.round();
                             });
                           },
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Question type label
                       Text(
                         'Type de question',
                         style: TextStyle(
@@ -385,8 +453,8 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                         children: QuestionType.values.map((t) {
                           final selected = _questionType == t;
                           final label = switch (t) {
-                            QuestionType.next => 'Suivant',
-                            QuestionType.prev => 'Précédent',
+                            QuestionType.next  => 'Suivant',
+                            QuestionType.prev  => 'Précédent',
                             QuestionType.mixed => 'Mixte',
                           };
                           return Expanded(
@@ -445,8 +513,7 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                       backgroundColor: AppColors.accent,
                       foregroundColor: AppColors.primaryDark,
                       disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.25),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       elevation: 6,
                       shadowColor: AppColors.accent.withValues(alpha: 0.5),
                     ),
@@ -468,7 +535,6 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
 
 class _GradientBg extends StatelessWidget {
   final Widget child;
-
   const _GradientBg({required this.child});
 
   @override
@@ -488,7 +554,6 @@ class _GradientBg extends StatelessWidget {
 
 class _GlassCard extends StatelessWidget {
   final Widget child;
-
   const _GlassCard({required this.child});
 
   @override
@@ -511,47 +576,6 @@ class _GlassCard extends StatelessWidget {
   }
 }
 
-class _GlassInput extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final IconData icon;
-
-  const _GlassInput({
-    required this.controller,
-    required this.hint,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.13)),
-          ),
-          child: TextField(
-            controller: controller,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.38)),
-              prefixIcon:
-                  Icon(icon, color: Colors.white.withValues(alpha: 0.45)),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ── SRS color helper ──────────────────────────────────────────────────────────
 
 Color _srsColor(String status) => switch (status) {
@@ -566,42 +590,45 @@ Color _srsColor(String status) => switch (status) {
 class _DueTodayCard extends StatelessWidget {
   final RevisionEntry entry;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
-  const _DueTodayCard({required this.entry, required this.onTap});
+  const _DueTodayCard({required this.entry, required this.onTap, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
     final color = _srsColor(entry.status);
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
-        width: 140,
-        margin: const EdgeInsets.only(right: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        width: 148,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
+          color: color.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 1.2),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // Status dot + name
             Row(
               children: [
                 Container(
-                  width: 8,
-                  height: 8,
+                  width: 7,
+                  height: 7,
                   decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 7),
                 Expanded(
                   child: Text(
                     entry.surahName,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -609,14 +636,14 @@ class _DueTodayCard extends StatelessWidget {
                 ),
               ],
             ),
-            Text(
-              entry.surahNameAr,
-              style: TextStyle(
-                fontFamily: 'Hafs',
-                fontSize: 16,
-                color: color,
+            // SVG Arabic name
+            Align(
+              alignment: Alignment.centerRight,
+              child: SvgPicture.asset(
+                'assets/images/Translated_Quran/surah_svg/${entry.surahId}.svg',
+                height: 22,
+                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
               ),
-              textAlign: TextAlign.right,
             ),
           ],
         ),
@@ -631,49 +658,58 @@ class _SurahTile extends StatelessWidget {
   final Map<String, dynamic> surah;
   final RevisionEntry? entry;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
-  const _SurahTile({required this.surah, required this.onTap, this.entry});
+  const _SurahTile({
+    required this.surah,
+    required this.onTap,
+    this.entry,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final id = surah['id'] as int;
-    final nameFr = surah['nameFr'] as String;
-    final nameAr = surah['nameAr'] as String;
+    final id        = surah['id'] as int;
+    final nameFr    = surah['nameFr'] as String;
     final ayahCount = surah['ayahCount'] as int;
-    final dotColor = entry != null ? _srsColor(entry!.status) : null;
+    final dotColor  = entry != null ? _srsColor(entry!.status) : null;
+    final svgColor  = dotColor ?? AppColors.accent.withValues(alpha: 0.55);
 
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(14),
+          color: Colors.white.withValues(alpha: dotColor != null ? 0.08 : 0.05),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: dotColor != null
-                ? dotColor.withValues(alpha: 0.25)
-                : Colors.white.withValues(alpha: 0.08),
+                ? dotColor.withValues(alpha: 0.28)
+                : Colors.white.withValues(alpha: 0.07),
           ),
         ),
         child: Row(
           children: [
+            // Number circle + SRS dot
             Stack(
+              clipBehavior: Clip.none,
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.15),
+                    color: AppColors.accent.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
                   ),
                   child: Center(
                     child: Text(
                       '$id',
                       style: const TextStyle(
                         color: AppColors.accent,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         fontSize: 13,
                       ),
                     ),
@@ -681,11 +717,11 @@ class _SurahTile extends StatelessWidget {
                 ),
                 if (dotColor != null)
                   Positioned(
-                    right: 0,
-                    top: 0,
+                    right: -1,
+                    top: -1,
                     child: Container(
-                      width: 10,
-                      height: 10,
+                      width: 11,
+                      height: 11,
                       decoration: BoxDecoration(
                         color: dotColor,
                         shape: BoxShape.circle,
@@ -696,28 +732,42 @@ class _SurahTile extends StatelessWidget {
               ],
             ),
             const SizedBox(width: 14),
+            // French name + count
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(nameFr,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15)),
-                  Text('$ayahCount versets',
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.4),
-                          fontSize: 12)),
+                  Text(
+                    nameFr,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$ayahCount versets',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.38),
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Text(nameAr,
-                style: const TextStyle(
-                    fontFamily: 'Hafs', fontSize: 18, color: AppColors.accent)),
-            const SizedBox(width: 8),
-            Icon(Icons.arrow_forward_ios_rounded,
-                size: 13, color: Colors.white.withValues(alpha: 0.25)),
+            // SVG Arabic name
+            SvgPicture.asset(
+              'assets/images/Translated_Quran/surah_svg/$id.svg',
+              height: 26,
+              colorFilter: ColorFilter.mode(svgColor, BlendMode.srcIn),
+            ),
+            const SizedBox(width: 10),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: Colors.white.withValues(alpha: 0.2),
+            ),
           ],
         ),
       ),

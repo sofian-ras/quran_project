@@ -829,7 +829,7 @@ class _RecitersSectionState extends State<_RecitersSection> {
                   visualDensity: VisualDensity.compact,
                 ),
                 child: const Text(
-                  'See all',
+                  'Tout voir',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                 ),
               ),

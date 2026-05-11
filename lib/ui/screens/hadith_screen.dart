@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/hadith.dart';
 import '../../services/hadith_db.dart';
 import '../../services/hadith_favorites_service.dart';
@@ -1028,6 +1029,18 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
   double _arabicFontSize = HadithSettings.arabicFontSize;
 
   @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((p) {
+      final saved = p.getDouble('hadith_arabic_font_size');
+      if (saved != null && mounted) {
+        setState(() => _arabicFontSize = saved);
+        HadithSettings.arabicFontSize = saved;
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = widget.isDark;
@@ -1113,6 +1126,7 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
               onChanged: (v) {
                 setState(() => _arabicFontSize = v);
                 HadithSettings.arabicFontSize = v;
+                SharedPreferences.getInstance().then((p) => p.setDouble('hadith_arabic_font_size', v));
               },
             ),
           ),

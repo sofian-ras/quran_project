@@ -548,6 +548,12 @@ Future<void> _checkFirstLaunch() async {
                               if (f.label == 'Hadith')   dest = const HadithScreen();
                               if (f.label == 'Qibla')    dest = const QiblaScreen();
                               if (f.label == 'Révision') dest = const RevisionScreen();
+                              if (f.label == 'Adhkar') {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(content: Text('Bientôt disponible'), duration: Duration(seconds: 2)),
+                                );
+                                return;
+                              }
                               if (dest == null) return;
                               Navigator.of(ctx).push(PageRouteBuilder<void>(
                                 pageBuilder: (_, __, ___) => dest!,
