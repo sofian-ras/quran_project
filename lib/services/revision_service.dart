@@ -14,7 +14,11 @@ class RevisionService {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
     if (raw == null || raw.isEmpty) return _cache = [];
-    _cache = RevisionEntry.listFromJson(raw);
+    try {
+      _cache = RevisionEntry.listFromJson(raw);
+    } catch (_) {
+      _cache = [];
+    }
     return _cache!;
   }
 

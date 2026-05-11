@@ -60,12 +60,16 @@ class RevisionSessionScreen extends StatefulWidget {
 
 class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     with TickerProviderStateMixin {
+  // ── JSON cache (partagé entre instances) ──────────────────────────────────
+  static List<dynamic>? _quranDataCache;
+
   // ── Data ─────────────────────────────────────────────────────────────────
   List<_Question> _questions = [];
   int _currentIndex = 0;
   final List<bool> _results = [];
   bool _loading = true;
   String? _error;
+  DateTime? _nextReviewDate;
 
   // ── Phase ─────────────────────────────────────────────────────────────────
   _Phase _phase = _Phase.intro;
@@ -123,8 +127,10 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   Future<void> _loadSession() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
-      final raw = json.decode(jsonStr) as List<dynamic>;
+      _quranDataCache ??= json.decode(
+        await rootBundle.loadString('assets/data/quran_data.json'),
+      ) as List<dynamic>;
+      final raw = _quranDataCache!;
 
       final verses = raw
           .where((v) {
@@ -196,6 +202,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   }
 
   void _enterListening() {
+    AudioService.instance.stopAyah();
     _pulseCtrl.repeat(reverse: true);
 
     _readyTimer?.cancel();
@@ -246,7 +253,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
 
   void _advanceQuestion() {
     if (_currentIndex >= _questions.length - 1) {
-      _finishSession();
+      unawaited(_finishSession());
       return;
     }
     _currentIndex++;
@@ -255,10 +262,10 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     _enterListening();
   }
 
-  void _finishSession() {
+  Future<void> _finishSession() async {
     AudioService.instance.stopAyah();
     setState(() => _phase = _Phase.result);
-    _saveResult();
+    await _saveResult();
   }
 
   Future<void> _saveResult() async {
@@ -268,6 +275,12 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
       correctCount: correct,
       totalCount: _questions.length,
     );
+    if (!mounted) return;
+    final all = await RevisionService.instance.getAll();
+    final entry = all.where((e) => e.surahId == widget.config.surahId).firstOrNull;
+    if (mounted && entry?.nextReview != null) {
+      setState(() => _nextReviewDate = entry!.nextReview);
+    }
   }
 
   Future<bool> _confirmExit() async {
@@ -408,6 +421,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
           config: widget.config,
           results: _results,
           total: _questions.length,
+          nextReviewDate: _nextReviewDate,
           onFinish: () => Navigator.of(context).pop(),
         ),
     };
@@ -1243,6 +1257,7 @@ class _ResultContent extends StatelessWidget {
   final SessionConfig config;
   final List<bool> results;
   final int total;
+  final DateTime? nextReviewDate;
   final VoidCallback onFinish;
 
   const _ResultContent({
@@ -1250,8 +1265,16 @@ class _ResultContent extends StatelessWidget {
     required this.config,
     required this.results,
     required this.total,
+    this.nextReviewDate,
     required this.onFinish,
   });
+
+  static String _nextReviewLabel(DateTime date) {
+    final days = date.difference(DateTime.now()).inDays;
+    if (days <= 0) return 'Prochaine révision : aujourd\'hui';
+    if (days == 1) return 'Prochaine révision : demain';
+    return 'Prochaine révision dans $days jours';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1319,6 +1342,25 @@ class _ResultContent extends StatelessWidget {
               fontSize: 14,
             ),
           ),
+          if (nextReviewDate != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+              ),
+              child: Text(
+                _nextReviewLabel(nextReviewDate!),
+                style: const TextStyle(
+                  color: AppColors.accent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 28),
           // Dots per question
           Wrap(

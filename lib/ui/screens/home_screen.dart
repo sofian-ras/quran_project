@@ -30,6 +30,7 @@ import 'quran_search_screen.dart';
 import '../../services/radio_service.dart';
 import '../../models/radio_station.dart';
 import '../../services/announcements_service.dart';
+import '../../services/revision_service.dart';
 import 'notifications_screen.dart';
 part 'home_screen_widgets.dart';
 
@@ -72,21 +73,23 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
   bool _serversLoading = false;
 
   late Future<PrayerHeaderData> _prayerFuture;
+  int _revisionDueCount = 0;
 
 
-  
+
 
 @override
 void initState() {
   super.initState();
-  
+
   // Vérifie si c'est la première fois
   _checkFirstLaunch();
-  
+
   _prayerFuture = _loadPrayerHeader();
   _loadFavorites();
   _loadReciters();
   _loadReciterServersIfNeeded();
+  _loadRevisionDueCount();
 
   _scrollCtrl.addListener(() {
     final shouldBeGreen = _scrollCtrl.offset > 4;
@@ -128,6 +131,11 @@ Future<void> _checkFirstLaunch() async {
     final favs = await FavoritesService.instance.getFavorites();
     if (!mounted) return;
     _favoriteIdsNotifier.value = favs;
+  }
+
+  Future<void> _loadRevisionDueCount() async {
+    final due = await RevisionService.instance.getDueToday();
+    if (mounted) setState(() => _revisionDueCount = due.length);
   }
 
   Future<void> _loadReciters() async {
@@ -532,6 +540,7 @@ Future<void> _checkFirstLaunch() async {
                               _FeatureChipData(label: 'Adhkar', imagePath: 'assets/images/Features/adhkar.webp'),
                               _FeatureChipData(label: 'Révision', imagePath: 'assets/images/Features/bookmarks.webp'),
                             ],
+                            badgeCounts: {'Révision': _revisionDueCount},
                             onTap: (f) {
                               final ctx = NavigationService.navigatorKey.currentContext ?? context;
                               Widget? dest;
@@ -554,7 +563,7 @@ Future<void> _checkFirstLaunch() async {
                                     child: child,
                                   ),
                                 ),
-                              ));
+                              )).then((_) => _loadRevisionDueCount());
                             },
                           ),
                           const SizedBox(height: vGap),

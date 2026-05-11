@@ -1496,10 +1496,12 @@ class _FeatureChipData {
 class _ExploreFeaturesSection extends StatelessWidget {
   final List<_FeatureChipData> features;
   final void Function(_FeatureChipData) onTap;
+  final Map<String, int> badgeCounts;
 
   const _ExploreFeaturesSection({
     required this.features,
     required this.onTap,
+    this.badgeCounts = const {},
   });
 
 
@@ -1554,15 +1556,42 @@ class _ExploreFeaturesSection extends StatelessWidget {
                       const Color(0xFFE7FFF7),
                     ];
 
+                    final badgeCount = badgeCounts[f.label] ?? 0;
                     return SizedBox(
                       width: 180,
                       height: 112,
-                      child: _FeatureSquareItem(
-                        label: f.label,
-                        imagePath: f.imagePath,
-                        onTap: () => onTap(f),
-                        isDark: isDark,
-                        bgColor: pastel[i % pastel.length],
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          _FeatureSquareItem(
+                            label: f.label,
+                            imagePath: f.imagePath,
+                            onTap: () => onTap(f),
+                            isDark: isDark,
+                            bgColor: pastel[i % pastel.length],
+                          ),
+                          if (badgeCount > 0)
+                            Positioned(
+                              top: 6,
+                              right: 6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE74C3C),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.white, width: 1.5),
+                                ),
+                                child: Text(
+                                  badgeCount > 9 ? '9+' : '$badgeCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     );
                   },

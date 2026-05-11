@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:ui';
 
 import '../../data/surah_name.dart';
+import '../../models/revision_entry.dart';
 import '../../services/revision_service.dart';
 import '../../services/tafsir_service.dart';
 import '../../theme/app_theme.dart';
@@ -23,13 +24,15 @@ class RevisionScreen extends StatefulWidget {
 class _RevisionScreenState extends State<RevisionScreen> {
   List<Map<String, dynamic>> _surahs = [];
   List<Map<String, dynamic>> _filtered = [];
+  List<RevisionEntry> _dueToday = [];
+  Map<int, RevisionEntry> _tracked = {};
   bool _loading = true;
   final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadSurahs();
+    _loadAll();
     _searchCtrl.addListener(_filter);
   }
 
@@ -39,7 +42,29 @@ class _RevisionScreenState extends State<RevisionScreen> {
     super.dispose();
   }
 
-  Future<void> _loadSurahs() async {
+  Future<void> _loadAll() async {
+    final results = await Future.wait([
+      _buildSurahList(),
+      RevisionService.instance.getAll(),
+    ]);
+
+    final list = results[0] as List<Map<String, dynamic>>;
+    final entries = results[1] as List<RevisionEntry>;
+    final due = entries.where((e) => e.isDueToday).toList();
+    final trackedMap = {for (final e in entries) e.surahId: e};
+
+    if (mounted) {
+      setState(() {
+        _surahs = list;
+        _filtered = list;
+        _dueToday = due;
+        _tracked = trackedMap;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _buildSurahList() async {
     final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
     final quranData = json.decode(jsonStr) as List<dynamic>;
 
@@ -52,23 +77,15 @@ class _RevisionScreenState extends State<RevisionScreen> {
       araNames[id] ??= v['sura_name']?.toString() ?? '';
     }
 
-    final list = <Map<String, dynamic>>[];
-    for (int i = 1; i <= 114; i++) {
-      list.add({
-        'id': i,
-        'nameFr': surahFr[i] ?? 'Sourate $i',
-        'nameAr': araNames[i] ?? '',
-        'ayahCount': ayahCounts[i] ?? 0,
-      });
-    }
-
-    if (mounted) {
-      setState(() {
-        _surahs = list;
-        _filtered = list;
-        _loading = false;
-      });
-    }
+    return [
+      for (int i = 1; i <= 114; i++)
+        {
+          'id': i,
+          'nameFr': surahFr[i] ?? 'Sourate $i',
+          'nameAr': araNames[i] ?? '',
+          'ayahCount': ayahCounts[i] ?? 0,
+        }
+    ];
   }
 
   void _filter() {
@@ -85,7 +102,6 @@ class _RevisionScreenState extends State<RevisionScreen> {
   }
 
   void _onSurahTap(Map<String, dynamic> surah) {
-    // SRS tracking silencieux
     RevisionService.instance.addSurah(
       surahId: surah['id'] as int,
       surahName: surah['nameFr'] as String,
@@ -97,10 +113,13 @@ class _RevisionScreenState extends State<RevisionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final searching = _searchCtrl.text.isNotEmpty;
+
     return Scaffold(
       body: _GradientBg(
         child: SafeArea(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Close button ───────────────────────────────────────────
               Align(
@@ -135,6 +154,43 @@ class _RevisionScreenState extends State<RevisionScreen> {
                 ),
               ),
               const SizedBox(height: 10),
+              // ── Dues aujourd'hui ───────────────────────────────────────
+              if (!searching && _dueToday.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 0, 8),
+                  child: Text(
+                    'À réviser aujourd\'hui',
+                    style: TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 88,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _dueToday.length,
+                    itemBuilder: (_, i) {
+                      final e = _dueToday[i];
+                      final surah = {
+                        'id': e.surahId,
+                        'nameFr': e.surahName,
+                        'nameAr': e.surahNameAr,
+                        'ayahCount': e.ayahCount,
+                      };
+                      return _DueTodayCard(
+                        entry: e,
+                        onTap: () => _onSurahTap(surah),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
               // ── List ──────────────────────────────────────────────────
               Expanded(
                 child: _loading
@@ -145,6 +201,7 @@ class _RevisionScreenState extends State<RevisionScreen> {
                         itemCount: _filtered.length,
                         itemBuilder: (_, i) => _SurahTile(
                           surah: _filtered[i],
+                          entry: _tracked[_filtered[i]['id'] as int],
                           onTap: () => _onSurahTap(_filtered[i]),
                         ),
                       ),
@@ -495,11 +552,87 @@ class _GlassInput extends StatelessWidget {
   }
 }
 
-class _SurahTile extends StatelessWidget {
-  final Map<String, dynamic> surah;
+// ── SRS color helper ──────────────────────────────────────────────────────────
+
+Color _srsColor(String status) => switch (status) {
+      'review'   => AppColors.success,
+      'learning' => AppColors.warning,
+      'lapsed'   => AppColors.error,
+      _          => Colors.white,
+    };
+
+// ── Due-today card (horizontal scroll) ───────────────────────────────────────
+
+class _DueTodayCard extends StatelessWidget {
+  final RevisionEntry entry;
   final VoidCallback onTap;
 
-  const _SurahTile({required this.surah, required this.onTap});
+  const _DueTodayCard({required this.entry, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _srsColor(entry.status);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    entry.surahName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              entry.surahNameAr,
+              style: TextStyle(
+                fontFamily: 'Hafs',
+                fontSize: 16,
+                color: color,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Surah list tile ───────────────────────────────────────────────────────────
+
+class _SurahTile extends StatelessWidget {
+  final Map<String, dynamic> surah;
+  final RevisionEntry? entry;
+  final VoidCallback onTap;
+
+  const _SurahTile({required this.surah, required this.onTap, this.entry});
 
   @override
   Widget build(BuildContext context) {
@@ -507,6 +640,7 @@ class _SurahTile extends StatelessWidget {
     final nameFr = surah['nameFr'] as String;
     final nameAr = surah['nameAr'] as String;
     final ayahCount = surah['ayahCount'] as int;
+    final dotColor = entry != null ? _srsColor(entry!.status) : null;
 
     return GestureDetector(
       onTap: onTap,
@@ -516,29 +650,50 @@ class _SurahTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(
+            color: dotColor != null
+                ? dotColor.withValues(alpha: 0.25)
+                : Colors.white.withValues(alpha: 0.08),
+          ),
         ),
         child: Row(
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.accent.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-                border:
-                    Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-              ),
-              child: Center(
-                child: Text(
-                  '$id',
-                  style: const TextStyle(
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
+            Stack(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$id',
+                      style: const TextStyle(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                if (dotColor != null)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: dotColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.primaryDark, width: 1.5),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 14),
             Expanded(
