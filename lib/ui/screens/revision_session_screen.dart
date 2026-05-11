@@ -239,7 +239,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
       await Future.delayed(const Duration(milliseconds: 900));
       if (!mounted) return;
       setState(() => _showCelebration = false);
-      await Future.delayed(const Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 220));
     }
     if (!mounted) return;
     _advanceQuestion();
@@ -360,12 +360,9 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
                   child: _buildCurrentPhaseContent(),
                 ),
                 // Celebration overlay
-                if (_showCelebration)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: _CelebrationOverlay(visible: _showCelebration),
-                    ),
-                  ),
+                Positioned.fill(
+                  child: _CelebrationOverlay(visible: _showCelebration),
+                ),
               ],
             ),
           ),
@@ -1397,66 +1394,111 @@ class _ResultContent extends StatelessWidget {
 
 // ── Celebration overlay ───────────────────────────────────────────────────────
 
-class _CelebrationOverlay extends StatelessWidget {
+class _CelebrationOverlay extends StatefulWidget {
   final bool visible;
   const _CelebrationOverlay({required this.visible});
 
   @override
+  State<_CelebrationOverlay> createState() => _CelebrationOverlayState();
+}
+
+class _CelebrationOverlayState extends State<_CelebrationOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _swingCtrl;
+  late Animation<double> _swing;
+  late Animation<double> _textFade;
+  late Animation<Offset> _textSlide;
+
+  @override
+  void initState() {
+    super.initState();
+    _swingCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 680),
+    );
+    _swing = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -0.30), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -0.30, end: 0.30), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 0.30, end: -0.18), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -0.18, end: 0.10), weight: 1.5),
+      TweenSequenceItem(tween: Tween(begin: 0.10, end: 0.0), weight: 1),
+    ]).animate(_swingCtrl);
+    final textCurve = CurvedAnimation(
+      parent: _swingCtrl,
+      curve: const Interval(0.10, 0.55, curve: Curves.easeOut),
+    );
+    _textFade  = textCurve;
+    _textSlide = Tween<Offset>(begin: const Offset(0, 0.18), end: Offset.zero)
+        .animate(textCurve);
+    if (widget.visible) _swingCtrl.forward();
+  }
+
+  @override
+  void didUpdateWidget(_CelebrationOverlay old) {
+    super.didUpdateWidget(old);
+    if (widget.visible && !old.visible) _swingCtrl.forward(from: 0.0);
+  }
+
+  @override
+  void dispose() {
+    _swingCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedOpacity(
-      opacity: visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 250),
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.35),
-        child: Center(
-          child: AnimatedScale(
-            scale: visible ? 1.0 : 0.6,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.elasticOut,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 32),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: AppColors.success.withValues(alpha: 0.4),
-                      width: 1.5,
+      opacity: widget.visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 200),
+      child: IgnorePointer(
+        ignoring: !widget.visible,
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.62),
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _swingCtrl,
+              builder: (_, __) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Transform.rotate(
+                    angle: _swing.value,
+                    child: const Icon(
+                      Icons.thumb_up_alt_rounded,
+                      color: AppColors.success,
+                      size: 64,
                     ),
                   ),
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.thumb_up_alt_rounded,
-                        color: AppColors.success,
-                        size: 52,
+                  const SizedBox(height: 22),
+                  FadeTransition(
+                    opacity: _textFade,
+                    child: SlideTransition(
+                      position: _textSlide,
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Al Hamdoulillah',
+                            style: TextStyle(
+                              fontSize: 30,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Bien mémorisé !',
+                            style: TextStyle(
+                              color: AppColors.success,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 14),
-                      Text(
-                        'Al Hamdoulillah',
-                        style: TextStyle(
-                          fontSize: 28,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Text(
-                        'Bien mémorisé !',
-                        style: TextStyle(
-                          color: AppColors.success,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
