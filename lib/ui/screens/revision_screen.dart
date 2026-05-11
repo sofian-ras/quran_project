@@ -142,27 +142,18 @@ class _RevisionScreenState extends State<RevisionScreen>
               : CustomScrollView(
                   physics: const BouncingScrollPhysics(),
                   slivers: [
-                    // ── Pinned collapsible header ─────────────────────────
+                    // ── Collapsible header (scrolls away) ────────────────
                     SliverAppBar(
                       backgroundColor: Colors.transparent,
                       surfaceTintColor: Colors.transparent,
                       shadowColor: Colors.transparent,
                       elevation: 0,
                       expandedHeight: 170,
-                      pinned: true,
+                      pinned: false,
+                      floating: false,
                       stretch: true,
                       automaticallyImplyLeading: false,
                       flexibleSpace: FlexibleSpaceBar(
-                        centerTitle: true,
-                        titlePadding: const EdgeInsets.only(bottom: 14),
-                        title: const Text(
-                          'Révision',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 22,
-                          ),
-                        ),
                         background: Stack(
                           children: [
                             // Close button top-left
