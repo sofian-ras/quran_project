@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dua_screen.dart';
 import 'hadith_screen.dart';
 import 'qibla_screen.dart';
+import 'revision_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
@@ -529,14 +530,15 @@ Future<void> _checkFirstLaunch() async {
                               _FeatureChipData(label: 'Hadith', imagePath: 'assets/images/Features/hadith.webp'),
                               _FeatureChipData(label: 'Qibla', imagePath: 'assets/images/Features/qibla.webp'),
                               _FeatureChipData(label: 'Adhkar', imagePath: 'assets/images/Features/adhkar.webp'),
-                              _FeatureChipData(label: 'Bookmarks', imagePath: 'assets/images/Features/bookmarks.webp'),
+                              _FeatureChipData(label: 'Révision', imagePath: 'assets/images/Features/bookmarks.webp'),
                             ],
                             onTap: (f) {
                               final ctx = NavigationService.navigatorKey.currentContext ?? context;
                               Widget? dest;
-                              if (f.label == 'Duʿa')   dest = const DuaScreen();
-                              if (f.label == 'Hadith')  dest = const HadithScreen();
-                              if (f.label == 'Qibla')   dest = const QiblaScreen();
+                              if (f.label == 'Duʿa')     dest = const DuaScreen();
+                              if (f.label == 'Hadith')   dest = const HadithScreen();
+                              if (f.label == 'Qibla')    dest = const QiblaScreen();
+                              if (f.label == 'Révision') dest = const RevisionScreen();
                               if (dest == null) return;
                               Navigator.of(ctx).push(PageRouteBuilder<void>(
                                 pageBuilder: (_, __, ___) => dest!,
