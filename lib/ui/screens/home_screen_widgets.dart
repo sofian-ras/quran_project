@@ -566,7 +566,7 @@ class _NotificationBellWithBadgeState extends State<_NotificationBellWithBadge> 
   }
 
   Future<void> _loadCount() async {
-    final c = await NotificationService.instance.getEnabledCount();
+    final c = await AnnouncementsService.instance.getUnreadCount();
     if (mounted) setState(() => _count = c);
   }
 
@@ -576,7 +576,7 @@ class _NotificationBellWithBadgeState extends State<_NotificationBellWithBadge> 
       count: _count,
       onTap: () async {
         await Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()),
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
         );
         _loadCount();
       },
