@@ -22,16 +22,35 @@ class RevisionScreen extends StatefulWidget {
   State<RevisionScreen> createState() => _RevisionScreenState();
 }
 
-class _RevisionScreenState extends State<RevisionScreen> {
+class _RevisionScreenState extends State<RevisionScreen>
+    with TickerProviderStateMixin {
   List<Map<String, dynamic>> _surahs = [];
   List<RevisionEntry> _dueToday = [];
   Map<int, RevisionEntry> _tracked = {};
   bool _loading = true;
 
+  late AnimationController _staggerCtrl;
+  late AnimationController _orbCtrl;
+
   @override
   void initState() {
     super.initState();
+    _staggerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _orbCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat(reverse: true);
     _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _staggerCtrl.dispose();
+    _orbCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAll() async {
@@ -52,6 +71,7 @@ class _RevisionScreenState extends State<RevisionScreen> {
         _tracked    = trackedMap;
         _loading    = false;
       });
+      _staggerCtrl.forward();
     }
   }
 
@@ -102,10 +122,10 @@ class _RevisionScreenState extends State<RevisionScreen> {
 
   void _onSurahTap(Map<String, dynamic> surah) {
     RevisionService.instance.addSurah(
-      surahId:    surah['id'] as int,
-      surahName:  surah['nameFr'] as String,
+      surahId:     surah['id'] as int,
+      surahName:   surah['nameFr'] as String,
       surahNameAr: '',
-      ayahCount:  surah['ayahCount'] as int,
+      ayahCount:   surah['ayahCount'] as int,
     );
     Navigator.of(context)
         .push(_fadeRoute(RevisionConfigScreen(surah: surah)))
@@ -122,30 +142,105 @@ class _RevisionScreenState extends State<RevisionScreen> {
               : CustomScrollView(
                   physics: const BouncingScrollPhysics(),
                   slivers: [
-                    // ── Header ────────────────────────────────────────────
-                    SliverToBoxAdapter(
-                      child: _RevisionHeader(
-                        dueToday: _dueToday,
-                        tracked: _tracked,
-                        onTap: _onSurahTap,
-                        onLongPress: _confirmRemove,
+                    // ── Pinned collapsible header ─────────────────────────
+                    SliverAppBar(
+                      backgroundColor: Colors.transparent,
+                      surfaceTintColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      elevation: 0,
+                      expandedHeight: 170,
+                      pinned: true,
+                      stretch: true,
+                      automaticallyImplyLeading: false,
+                      flexibleSpace: FlexibleSpaceBar(
+                        centerTitle: true,
+                        titlePadding: const EdgeInsets.only(bottom: 14),
+                        title: const Text(
+                          'Révision',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                          ),
+                        ),
+                        background: Stack(
+                          children: [
+                            // Close button top-left
+                            Positioned(
+                              top: 0,
+                              left: 4,
+                              child: IconButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                              ),
+                            ),
+                            // Animated breathing orb top-right
+                            Positioned(
+                              right: -30,
+                              top: -30,
+                              child: AnimatedBuilder(
+                                animation: _orbCtrl,
+                                builder: (_, __) => Opacity(
+                                  opacity: 0.10 + _orbCtrl.value * 0.14,
+                                  child: Container(
+                                    width: 200,
+                                    height: 200,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: AppColors.accent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // Subtitle centered at bottom of expanded area
+                            const Positioned(
+                              bottom: 38,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: Text(
+                                  'Choisissez une sourate à réviser',
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                    // ── À réviser aujourd'hui ─────────────────────────────
+                    if (_dueToday.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _DueTodaySection(
+                          dueToday: _dueToday,
+                          onTap: _onSurahTap,
+                          onLongPress: _confirmRemove,
+                        ),
+                      ),
                     // ── Surah list ────────────────────────────────────────
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
                       sliver: SliverList.builder(
                         itemCount: _surahs.length,
                         itemBuilder: (_, i) {
                           final surah = _surahs[i];
                           final entry = _tracked[surah['id'] as int];
-                          return _SurahTile(
-                            surah: surah,
-                            entry: entry,
-                            onTap: () => _onSurahTap(surah),
-                            onLongPress: entry != null
-                                ? () => _confirmRemove(entry.surahId, entry.surahName)
-                                : null,
+                          return _AnimatedTile(
+                            index: i,
+                            ctrl: _staggerCtrl,
+                            child: _SurahTile(
+                              surah: surah,
+                              entry: entry,
+                              onTap: () => _onSurahTap(surah),
+                              onLongPress: entry != null
+                                  ? () => _confirmRemove(entry.surahId, entry.surahName)
+                                  : null,
+                            ),
                           );
                         },
                       ),
@@ -158,17 +253,15 @@ class _RevisionScreenState extends State<RevisionScreen> {
   }
 }
 
-// ── Header widget (scrolls with list) ────────────────────────────────────────
+// ── Due-today section ─────────────────────────────────────────────────────────
 
-class _RevisionHeader extends StatelessWidget {
+class _DueTodaySection extends StatelessWidget {
   final List<RevisionEntry> dueToday;
-  final Map<int, RevisionEntry> tracked;
   final void Function(Map<String, dynamic>) onTap;
   final void Function(int, String) onLongPress;
 
-  const _RevisionHeader({
+  const _DueTodaySection({
     required this.dueToday,
-    required this.tracked,
     required this.onTap,
     required this.onLongPress,
   });
@@ -176,113 +269,97 @@ class _RevisionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 20),
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Close
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close_rounded, color: Colors.white54),
-          ),
-          // Title
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+            padding: EdgeInsets.fromLTRB(16, 0, 0, 12),
             child: Text(
-              'Révision',
+              'À réviser aujourd\'hui',
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                height: 1.1,
+                color: AppColors.accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
               ),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
-            child: Text(
-              'Choisissez une sourate à réviser',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-              ),
+          SizedBox(
+            height: 96,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: dueToday.length,
+              itemBuilder: (_, i) {
+                final e = dueToday[i];
+                final surah = {
+                  'id': e.surahId,
+                  'nameFr': e.surahName,
+                  'ayahCount': e.ayahCount,
+                };
+                return _DueTodayCard(
+                  entry: e,
+                  onTap: () => onTap(surah),
+                  onLongPress: () => onLongPress(e.surahId, e.surahName),
+                );
+              },
             ),
           ),
           const SizedBox(height: 24),
-
-          // ── À réviser aujourd'hui ──────────────────────────────────────
-          if (dueToday.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 0, 12),
-              child: Text(
-                'À réviser aujourd\'hui',
-                style: TextStyle(
-                  color: AppColors.accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
                 ),
-              ),
-            ),
-            SizedBox(
-              height: 96,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: dueToday.length,
-                itemBuilder: (_, i) {
-                  final e = dueToday[i];
-                  final surah = {
-                    'id': e.surahId,
-                    'nameFr': e.surahName,
-                    'ayahCount': e.ayahCount,
-                  };
-                  return _DueTodayCard(
-                    entry: e,
-                    onTap: () => onTap(surah),
-                    onLongPress: () => onLongPress(e.surahId, e.surahName),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Divider(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      height: 1,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'Toutes les sourates',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.6,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      'Toutes les sourates',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Divider(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      height: 1,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                Expanded(
+                  child: Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-          ],
+          ),
+          const SizedBox(height: 8),
         ],
       ),
+    );
+  }
+}
+
+// ── Stagger animation wrapper ─────────────────────────────────────────────────
+
+class _AnimatedTile extends StatelessWidget {
+  final int index;
+  final AnimationController ctrl;
+  final Widget child;
+
+  const _AnimatedTile({required this.index, required this.ctrl, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final delay = (index * 0.04).clamp(0.0, 0.65);
+    final end   = (delay + 0.30).clamp(0.0, 1.0);
+    final curve = Interval(delay, end, curve: Curves.easeOutCubic);
+    final fade  = CurvedAnimation(parent: ctrl, curve: curve);
+    final slide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+        .animate(CurvedAnimation(parent: ctrl, curve: curve));
+    return FadeTransition(
+      opacity: fade,
+      child: SlideTransition(position: slide, child: child),
     );
   }
 }
@@ -325,11 +402,11 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
   void _launch() {
     final id = widget.surah['id'] as int;
     final config = SessionConfig(
-      surahId:     id,
-      surahName:   widget.surah['nameFr'] as String,
-      surahNameAr: '',
-      fromAyah:    _fromAyah,
-      toAyah:      _toAyah,
+      surahId:      id,
+      surahName:    widget.surah['nameFr'] as String,
+      surahNameAr:  '',
+      fromAyah:     _fromAyah,
+      toAyah:       _toAyah,
       questionType: _questionType,
     );
     Navigator.of(context).push(_fadeRoute(RevisionSessionScreen(config: config)));
@@ -587,7 +664,7 @@ Color _srsColor(String status) => switch (status) {
 
 // ── Due-today card (horizontal scroll) ───────────────────────────────────────
 
-class _DueTodayCard extends StatelessWidget {
+class _DueTodayCard extends StatefulWidget {
   final RevisionEntry entry;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
@@ -595,57 +672,68 @@ class _DueTodayCard extends StatelessWidget {
   const _DueTodayCard({required this.entry, required this.onTap, this.onLongPress});
 
   @override
+  State<_DueTodayCard> createState() => _DueTodayCardState();
+}
+
+class _DueTodayCardState extends State<_DueTodayCard> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    final color = _srsColor(entry.status);
+    final color = _srsColor(widget.entry.status);
     return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
-        width: 148,
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.3), width: 1.2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Status dot + name
-            Row(
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    entry.surahName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+      onTapDown:   (_) => setState(() => _pressed = true),
+      onTapUp:     (_) { setState(() => _pressed = false); widget.onTap(); },
+      onTapCancel: ()  => setState(() => _pressed = false),
+      onLongPress: widget.onLongPress,
+      child: AnimatedScale(
+        scale: _pressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          width: 148,
+          margin: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.3), width: 1.2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                   ),
-                ),
-              ],
-            ),
-            // SVG Arabic name
-            Align(
-              alignment: Alignment.centerRight,
-              child: SvgPicture.asset(
-                'assets/images/Translated_Quran/surah_svg/${entry.surahId}.svg',
-                height: 22,
-                colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      widget.entry.surahName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: SvgPicture.asset(
+                  'assets/images/Translated_Quran/surah_svg/${widget.entry.surahId}.svg',
+                  height: 22,
+                  colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -654,7 +742,7 @@ class _DueTodayCard extends StatelessWidget {
 
 // ── Surah list tile ───────────────────────────────────────────────────────────
 
-class _SurahTile extends StatelessWidget {
+class _SurahTile extends StatefulWidget {
   final Map<String, dynamic> surah;
   final RevisionEntry? entry;
   final VoidCallback onTap;
@@ -668,107 +756,120 @@ class _SurahTile extends StatelessWidget {
   });
 
   @override
+  State<_SurahTile> createState() => _SurahTileState();
+}
+
+class _SurahTileState extends State<_SurahTile> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    final id        = surah['id'] as int;
-    final nameFr    = surah['nameFr'] as String;
-    final ayahCount = surah['ayahCount'] as int;
-    final dotColor  = entry != null ? _srsColor(entry!.status) : null;
+    final id        = widget.surah['id'] as int;
+    final nameFr    = widget.surah['nameFr'] as String;
+    final ayahCount = widget.surah['ayahCount'] as int;
+    final dotColor  = widget.entry != null ? _srsColor(widget.entry!.status) : null;
     final svgColor  = dotColor ?? AppColors.accent.withValues(alpha: 0.55);
 
     return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: dotColor != null ? 0.08 : 0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: dotColor != null
-                ? dotColor.withValues(alpha: 0.28)
-                : Colors.white.withValues(alpha: 0.07),
-          ),
-        ),
-        child: Row(
-          children: [
-            // Number circle + SRS dot
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$id',
-                      style: const TextStyle(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-                if (dotColor != null)
-                  Positioned(
-                    right: -1,
-                    top: -1,
-                    child: Container(
-                      width: 11,
-                      height: 11,
-                      decoration: BoxDecoration(
-                        color: dotColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primaryDark, width: 1.5),
-                      ),
-                    ),
-                  ),
-              ],
+      onTapDown:   (_) => setState(() => _pressed = true),
+      onTapUp:     (_) { setState(() => _pressed = false); widget.onTap(); },
+      onTapCancel: ()  => setState(() => _pressed = false),
+      onLongPress: widget.onLongPress,
+      child: AnimatedScale(
+        scale: _pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: dotColor != null ? 0.08 : 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: dotColor != null
+                  ? dotColor.withValues(alpha: 0.28)
+                  : Colors.white.withValues(alpha: 0.07),
             ),
-            const SizedBox(width: 14),
-            // French name + count
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: Row(
+            children: [
+              // Number circle + SRS dot
+              Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  Text(
-                    nameFr,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$id',
+                        style: const TextStyle(
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$ayahCount versets',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.38),
-                      fontSize: 12,
+                  if (dotColor != null)
+                    Positioned(
+                      right: -1,
+                      top: -1,
+                      child: Container(
+                        width: 11,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: dotColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.primaryDark, width: 1.5),
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
-            ),
-            // SVG Arabic name
-            SvgPicture.asset(
-              'assets/images/Translated_Quran/surah_svg/$id.svg',
-              height: 26,
-              colorFilter: ColorFilter.mode(svgColor, BlendMode.srcIn),
-            ),
-            const SizedBox(width: 10),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 18,
-              color: Colors.white.withValues(alpha: 0.2),
-            ),
-          ],
+              const SizedBox(width: 14),
+              // French name + ayah count
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nameFr,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$ayahCount versets',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.38),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // SVG Arabic name
+              SvgPicture.asset(
+                'assets/images/Translated_Quran/surah_svg/$id.svg',
+                height: 26,
+                colorFilter: ColorFilter.mode(svgColor, BlendMode.srcIn),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: Colors.white.withValues(alpha: 0.2),
+              ),
+            ],
+          ),
         ),
       ),
     );
