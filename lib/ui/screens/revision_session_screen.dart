@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../services/audio_service.dart';
-import '../../services/quran_text_db.dart';
+import '../../services/quran_text_db.dart' show QVerse;
 import '../../services/revision_service.dart';
 import '../../theme/app_theme.dart';
 
@@ -121,13 +123,38 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   Future<void> _loadSession() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final verses = await QuranTextDb.instance.getSurah(widget.config.surahId);
-      final filtered = verses
-          .where((v) => v.ayah >= widget.config.fromAyah && v.ayah <= widget.config.toAyah)
+      final jsonStr = await rootBundle.loadString('assets/data/quran_data.json');
+      final raw = json.decode(jsonStr) as List<dynamic>;
+
+      final verses = raw
+          .where((v) {
+            final s = v['surah'];
+            final a = v['ayah'];
+            if (s == null || a == null) return false;
+            final surah = s is int ? s : int.tryParse(s.toString()) ?? -1;
+            final ayah  = a is int ? a : int.tryParse(a.toString()) ?? -1;
+            return surah == widget.config.surahId &&
+                ayah >= widget.config.fromAyah &&
+                ayah <= widget.config.toAyah;
+          })
+          .map((v) {
+            final ayah = (v['ayah'] is int ? v['ayah'] : int.parse(v['ayah'].toString())) as int;
+            final rawAr = (v['hafs'] ?? v['ar'] ?? '').toString();
+            // Strip Quran verse-end ornament glyphs (Arabic Presentation Forms U+FB50–U+FDFF)
+            final cleanAr = rawAr.replaceAll(RegExp(r'\s*[ﭐ-﷿]+\s*$'), '').trim();
+            return QVerse(
+              verseKey: '${widget.config.surahId}:$ayah',
+              surah: widget.config.surahId,
+              ayah: ayah,
+              ar: cleanAr,
+              fr: (v['fr'] ?? '').toString(),
+              tafsir: null,
+            );
+          })
           .toList()
         ..sort((a, b) => a.ayah.compareTo(b.ayah));
 
-      if (filtered.length < 2) {
+      if (verses.length < 2) {
         setState(() {
           _error = 'Sélectionnez au moins 2 versets pour démarrer une session.';
           _loading = false;
@@ -135,7 +162,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
         return;
       }
 
-      _questions = _buildQuestions(filtered, widget.config.questionType);
+      _questions = _buildQuestions(verses, widget.config.questionType)..shuffle();
       setState(() { _loading = false; _phase = _Phase.intro; });
     } catch (_) {
       setState(() {
@@ -170,8 +197,6 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
 
   void _enterListening() {
     _pulseCtrl.repeat(reverse: true);
-    final q = _questions[_currentIndex];
-    AudioService.instance.playAyah(q.stimulus.surah, q.stimulus.ayah);
 
     _readyTimer?.cancel();
     _readyTimer = Timer(const Duration(milliseconds: 1500), () {
@@ -199,8 +224,6 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   void _goToAnswer() {
     setState(() => _phase = _Phase.answer);
     _answerSlideCtrl.forward(from: 0);
-    final q = _questions[_currentIndex];
-    AudioService.instance.playAyah(q.answer.surah, q.answer.ayah);
   }
 
   Future<void> _recordResult(bool knew) async {
@@ -516,6 +539,17 @@ class _SessionContent extends StatelessWidget {
     required this.onExit,
   });
 
+  static String _phaseHeading(_Phase phase, _Question question) {
+    return switch (phase) {
+      _Phase.listening => 'Écoute attentivement ce verset',
+      _Phase.thinking => question.isNext
+          ? 'Quel est le verset suivant ?'
+          : 'Quel est le verset précédent ?',
+      _Phase.answer => 'Avais-tu trouvé ?',
+      _ => '',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -554,7 +588,26 @@ class _SessionContent extends StatelessWidget {
         const SizedBox(height: 12),
         // ── Phase dots ────────────────────────────────────────────────────
         _PhaseIndicator(phase: phase),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
+        // ── Big centered phase question ───────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: Text(
+              _phaseHeading(phase, question),
+              key: ValueKey('heading_${phase.name}'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
         // ── Main content ──────────────────────────────────────────────────
         Expanded(
           child: Padding(
@@ -730,7 +783,7 @@ class _PhaseBody extends StatelessWidget {
 
         // ── Listening phase ───────────────────────────────────────────────
         if (phase == _Phase.listening) ...[
-          _CompactAudioPlayer(),
+          _CompactAudioPlayer(verse: question.stimulus),
           const Spacer(),
           AnimatedOpacity(
             opacity: readyVisible ? 1.0 : 0.0,
@@ -747,33 +800,6 @@ class _PhaseBody extends StatelessWidget {
         // ── Thinking phase ────────────────────────────────────────────────
         if (phase == _Phase.thinking) ...[
           const SizedBox(height: 4),
-          // Question prompt
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.help_outline_rounded, color: AppColors.accent, size: 20),
-                const SizedBox(width: 10),
-                Text(
-                  question.isNext
-                      ? 'Quel est le verset suivant ?'
-                      : 'Quel est le verset précédent ?',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
           // Mystery card
           Container(
             width: double.infinity,
@@ -839,7 +865,7 @@ class _PhaseBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          _CompactAudioPlayer(),
+          _CompactAudioPlayer(verse: question.answer),
           const Spacer(),
           // Result buttons
           Row(
@@ -1026,12 +1052,24 @@ class _CompactVerseCard extends StatelessWidget {
 // ── Compact audio player ──────────────────────────────────────────────────────
 
 class _CompactAudioPlayer extends StatelessWidget {
-  const _CompactAudioPlayer();
+  final QVerse verse;
+
+  const _CompactAudioPlayer({required this.verse});
 
   String _fmt(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+
+  void _onPlayTap() {
+    final audio = AudioService.instance;
+    final key = '${verse.surah}:${verse.ayah}';
+    if (audio.currentAyahKeyNotifier.value == key) {
+      audio.toggleAyahPlayPause();
+    } else {
+      audio.playAyah(verse.surah, verse.ayah);
+    }
   }
 
   @override
@@ -1056,21 +1094,28 @@ class _CompactAudioPlayer extends StatelessWidget {
             children: [
               ValueListenableBuilder<bool>(
                 valueListenable: audio.isAyahPlayingNotifier,
-                builder: (_, playing, __) => GestureDetector(
-                  onTap: audio.toggleAyahPlayPause,
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: const BoxDecoration(
-                      color: AppColors.accent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: AppColors.primaryDark,
-                      size: 22,
-                    ),
-                  ),
+                builder: (_, playing, __) => ValueListenableBuilder<String?>(
+                  valueListenable: audio.currentAyahKeyNotifier,
+                  builder: (_, key, __) {
+                    final isThisVerse = key == '${verse.surah}:${verse.ayah}';
+                    final showPause = playing && isThisVerse;
+                    return GestureDetector(
+                      onTap: _onPlayTap,
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: const BoxDecoration(
+                          color: AppColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          color: AppColors.primaryDark,
+                          size: 22,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 12),
