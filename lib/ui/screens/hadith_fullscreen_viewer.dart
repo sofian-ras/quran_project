@@ -185,7 +185,25 @@ class _HadithFullscreenViewerState extends State<HadithFullscreenViewer> {
                             color: isDark ? Colors.white : Colors.black87,
                           ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            transitionBuilder: (child, anim) =>
+                                FadeTransition(opacity: anim, child: child),
+                            child: Text(
+                              key: ValueKey(currentHadith?.categoryName ?? ''),
+                              currentHadith?.categoryName ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
                           transitionBuilder: (child, anim) =>
@@ -211,49 +229,6 @@ class _HadithFullscreenViewerState extends State<HadithFullscreenViewer> {
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // ── Left chevron ──────────────────────────────────────────────
-          Positioned(
-            left: 4,
-            top: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: Center(
-                child: AnimatedOpacity(
-                  opacity:
-                      _controlsVisible && _currentIndex > 0 ? 0.45 : 0.0,
-                  duration: const Duration(milliseconds: 250),
-                  child: Icon(
-                    Icons.chevron_left_rounded,
-                    size: 38,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // ── Right chevron ─────────────────────────────────────────────
-          Positioned(
-            right: 4,
-            top: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: Center(
-                child: AnimatedOpacity(
-                  opacity: _controlsVisible && _currentIndex < total - 1
-                      ? 0.45
-                      : 0.0,
-                  duration: const Duration(milliseconds: 250),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    size: 38,
-                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
               ),
