@@ -273,6 +273,9 @@ class _DuaScreenState extends State<DuaScreen> {
             elevation: 0,
             floating: true,
             snap: true,
+            iconTheme: IconThemeData(
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            ),
             title: const Text(
               'Invocations',
               style: TextStyle(
@@ -615,7 +618,7 @@ class _ThemeCard extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [Colors.transparent, Color(0xCC000000)],
-                    stops: [0.35, 1.0],
+                    stops: [0.6, 1.0],
                   ),
                 ),
               ),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show pi;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -239,11 +240,6 @@ class _HadithScreenState extends State<HadithScreen>
             ),
             actions: [
               IconButton(
-                tooltip: 'Hadith aléatoire',
-                icon: const Icon(Icons.shuffle_rounded, size: 22),
-                onPressed: _openRandom,
-              ),
-              IconButton(
                 tooltip: 'Mes favoris',
                 icon: const Icon(Icons.bookmark_rounded, size: 22),
                 onPressed: () => Navigator.of(context).push(
@@ -263,6 +259,17 @@ class _HadithScreenState extends State<HadithScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Random hadith button
+                if (!_searching)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _RandomHadithButton(
+                      isDark: isDark,
+                      gold: _gold,
+                      onTap: _openRandom,
+                    ),
+                  ),
+
                 // Search bar
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -377,7 +384,7 @@ class _HadithScreenState extends State<HadithScreen>
                   crossAxisCount: 2,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  childAspectRatio: 1.1,
+                  childAspectRatio: 0.85,
                 ),
                 delegate: SliverChildBuilderDelegate(
                   (context, i) {
@@ -432,6 +439,16 @@ const _kCategoryIcons = {
   'Invocations': Icons.favorite_rounded,
 };
 
+const _kCategoryImages = {
+  'La jurisprudence et son fondement': 'assets/images/hadith_categorie/jurisprudence.webp',
+  'Les vertus et les convenances': 'assets/images/hadith_categorie/vertus.webp',
+  'Le dogme': 'assets/images/hadith_categorie/dogme.webp',
+  'La biographie et l\'histoire': 'assets/images/hadith_categorie/biographie.webp',
+  'Le Noble Coran et ses sciences': 'assets/images/hadith_categorie/coran_sciences.webp',
+  'La prédication et la police religieuse': 'assets/images/hadith_categorie/predication.webp',
+  'Le hadith et ses sciences': 'assets/images/hadith_categorie/hadith_sciences.webp',
+};
+
 IconData _iconForCategory(String name) =>
     _kCategoryIcons.entries
         .where((e) => name.toLowerCase().contains(e.key.toLowerCase()))
@@ -461,69 +478,89 @@ class _CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final icon = _iconForCategory(categoryName);
+    final imagePath = _kCategoryImages[categoryName];
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [const Color(0xFF2A2218), const Color(0xFF1C1810)]
-                  : [const Color(0xFFFFF8EE), const Color(0xFFFAF2E0)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: gold.withValues(alpha: isDark ? 0.2 : 0.25),
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Container(
-                width: 38,
-                height: 38,
+              // Image de fond
+              if (imagePath != null)
+                Image.asset(
+                  imagePath,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildFallback(),
+                )
+              else
+                _buildFallback(),
+
+              // Gradient pour lisibilité du texte
+              DecoratedBox(
                 decoration: BoxDecoration(
-                  color: gold.withValues(alpha: 0.13),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: gold, size: 20),
-              ),
-              const Spacer(),
-              Text(
-                categoryName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.72),
+                    ],
+                    stops: const [0.55, 1.0],
+                  ),
                 ),
               ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Text(
-                    '$count hadiths',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: isDark ? Colors.white38 : Colors.black38,
+
+              // Texte en bas
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      categoryName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: Colors.white,
+                        height: 1.3,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 14,
-                    color: gold.withValues(alpha: 0.6),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      '$count hadiths',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: Colors.white60,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFallback() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF2A2218), const Color(0xFF1C1810)]
+              : [const Color(0xFFFFF8EE), const Color(0xFFFAF2E0)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
     );
@@ -770,7 +807,7 @@ class _HadithCategoryScreenState extends State<_HadithCategoryScreen> {
 
 // ── Hadith du jour card ────────────────────────────────────────────────────────
 
-class _HadithOfDayCard extends StatelessWidget {
+class _HadithOfDayCard extends StatefulWidget {
   final Hadith hadith;
   final bool isFavorite;
   final bool isDark;
@@ -788,7 +825,38 @@ class _HadithOfDayCard extends StatelessWidget {
   });
 
   @override
+  State<_HadithOfDayCard> createState() => _HadithOfDayCardState();
+}
+
+class _HadithOfDayCardState extends State<_HadithOfDayCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _arrowCtrl;
+  late final Animation<double> _arrowAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _arrowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _arrowAnim = Tween<double>(begin: 0, end: 5).animate(
+      CurvedAnimation(parent: _arrowCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _arrowCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hadith = widget.hadith;
+    final isFavorite = widget.isFavorite;
+    final isDark = widget.isDark;
+    final gold = widget.gold;
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -796,7 +864,7 @@ class _HadithOfDayCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
+          onTap: widget.onTap,
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -832,7 +900,7 @@ class _HadithOfDayCard extends StatelessWidget {
                       ),
                       const Spacer(),
                       GestureDetector(
-                        onTap: onToggleFavorite,
+                        onTap: widget.onToggleFavorite,
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
                           child: Icon(
@@ -895,12 +963,26 @@ class _HadithOfDayCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: Text(
-                      'Lire la suite →',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: gold,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Lire la suite',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: gold,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        AnimatedBuilder(
+                          animation: _arrowAnim,
+                          builder: (_, child) => Transform.translate(
+                            offset: Offset(_arrowAnim.value, 0),
+                            child: child,
+                          ),
+                          child: Icon(Icons.arrow_forward_rounded, size: 13, color: gold),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1184,6 +1266,123 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Random hadith button ───────────────────────────────────────────────────────
+
+class _RandomHadithButton extends StatefulWidget {
+  final bool isDark;
+  final Color gold;
+  final VoidCallback onTap;
+
+  const _RandomHadithButton({
+    required this.isDark,
+    required this.gold,
+    required this.onTap,
+  });
+
+  @override
+  State<_RandomHadithButton> createState() => _RandomHadithButtonState();
+}
+
+class _RandomHadithButtonState extends State<_RandomHadithButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rotateCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotateCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _rotateCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = widget.isDark;
+    final gold = widget.gold;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF2A2218), const Color(0xFF1C1810)]
+                  : [const Color(0xFFFFF8EE), const Color(0xFFFAF2E0)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: gold.withValues(alpha: 0.25)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: gold.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: AnimatedBuilder(
+                    animation: _rotateCtrl,
+                    builder: (_, child) => Transform.rotate(
+                      angle: _rotateCtrl.value * 2 * pi,
+                      child: child,
+                    ),
+                    child: Icon(Icons.shuffle_rounded, color: gold, size: 20),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Hadith aléatoire',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFFE8D5B0)
+                            : const Color(0xFF4A3F30),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Découvrir un hadith surprise',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: gold.withValues(alpha: 0.7),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
