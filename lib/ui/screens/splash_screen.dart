@@ -5,9 +5,8 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'bottom_nav_shell.dart';
 
-const _kBgCenter = Color(0xFF25D366);
-const _kBgEdge   = Color(0xFF1AAF58);
-const _kGold     = Color(0xFFD4AF77);
+const _kBeige = Color(0xFFF2ECE5);
+const _kGold  = Color(0xFFD4AF77);
 
 const _kSurahNames = {
   1:   'الفاتحة',
@@ -63,7 +62,9 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController   _ctrl;
   late final Animation<double>     _logoFade;
-  late final Animation<double>     _logoReveal;
+  late final Animation<double>     _logoSlide;
+  late final Animation<double>     _textSlide;
+  late final Animation<double>     _textFade;
   late final List<_ParticleConfig> _particles;
 
   @override
@@ -80,14 +81,28 @@ class _SplashScreenState extends State<SplashScreen>
     _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.0, 0.25, curve: Curves.easeOut),
+        curve: const Interval(0.0, 0.33, curve: Curves.easeOut),
       ),
     );
 
-    _logoReveal = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _logoSlide = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.17, 1.0, curve: Curves.easeInOut),
+        curve: const Interval(0.33, 1.0, curve: Curves.easeInOut),
+      ),
+    );
+
+    _textSlide = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.33, 1.0, curve: Curves.easeInOut),
+      ),
+    );
+
+    _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.33, 0.65, curve: Curves.easeOut),
       ),
     );
 
@@ -139,10 +154,10 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final size      = MediaQuery.sizeOf(context);
-    final logoWidth = size.width * 0.70;
+    final logoWidth = size.width * 0.50;
 
     return Scaffold(
-      backgroundColor: _kBgEdge,
+      backgroundColor: _kBeige,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -158,7 +173,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
 
-          // Layer 3 — halo + logo centré
+          // Layer 3 — halo + logo + titre animés
           Center(
             child: Stack(
               alignment: Alignment.center,
@@ -166,20 +181,46 @@ class _SplashScreenState extends State<SplashScreen>
                 _PulsingHalo(logoWidth: logoWidth),
                 AnimatedBuilder(
                   animation: _ctrl,
-                  builder: (_, __) => FadeTransition(
-                    opacity: _logoFade,
-                    child: ClipRect(
-                      clipper: _RevealClipper(_logoReveal.value),
-                      child: SvgPicture.asset(
-                        'assets/images/navbar/Quran_Kareem.svg',
-                        width: logoWidth,
-                        colorFilter: const ColorFilter.mode(
-                          Colors.white,
-                          BlendMode.srcIn,
+                  builder: (_, __) {
+                    final logoOffset = -_logoSlide.value * logoWidth * 0.35;
+                    final textOffset =  logoWidth * 0.55 * (1.0 - _textSlide.value) + logoWidth * 0.30;
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // "Quran App" sort de derrière le logo vers la droite
+                        Transform.translate(
+                          offset: Offset(textOffset, 0),
+                          child: Opacity(
+                            opacity: _textFade.value,
+                            child: const Text(
+                              'Quran App',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w600,
+                                color: _kGold,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
+                        // Logo glisse vers la gauche
+                        Transform.translate(
+                          offset: Offset(logoOffset, 0),
+                          child: FadeTransition(
+                            opacity: _logoFade,
+                            child: SvgPicture.asset(
+                              'assets/images/navbar/Quran_Kareem.svg',
+                              width: logoWidth,
+                              colorFilter: const ColorFilter.mode(
+                                _kGold,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -209,31 +250,10 @@ class _SplashBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.center,
-          radius: 1.1,
-          colors: [_kBgCenter, _kBgEdge],
-        ),
-      ),
+      decoration: BoxDecoration(color: _kBeige),
       child: SizedBox.expand(),
     );
   }
-}
-
-// ── Reveal clipper (droite → gauche) ─────────────────────────────────────────
-
-class _RevealClipper extends CustomClipper<Rect> {
-  final double progress;
-  const _RevealClipper(this.progress);
-
-  @override
-  Rect getClip(Size size) => Rect.fromLTRB(
-    size.width * (1.0 - progress), 0, size.width, size.height,
-  );
-
-  @override
-  bool shouldReclip(_RevealClipper old) => old.progress != progress;
 }
 
 // ── Halo pulsant ─────────────────────────────────────────────────────────────
@@ -474,7 +494,7 @@ class _FloatingSurahTextState extends State<_FloatingSurahText>
               style: TextStyle(
                 fontFamily: 'ScheherazadeNew',
                 fontSize: widget.config.fontSize,
-                color: Colors.white,
+                color: _kGold,
                 fontWeight: FontWeight.w300,
               ),
             ),
