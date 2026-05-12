@@ -8,9 +8,11 @@ import 'dart:ui';
 import '../../data/surah_name.dart';
 import '../../models/revision_entry.dart';
 import '../../services/revision_service.dart';
+import '../../services/revision_stats_service.dart';
 import '../../services/tafsir_service.dart';
 import '../../theme/app_theme.dart';
 import 'revision_session_screen.dart';
+import 'revision_stats_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ÉCRAN 1 : Choisir une sourate
@@ -44,6 +46,8 @@ class _RevisionScreenState extends State<RevisionScreen>
   ];
   int _accentIndex = 0;
   Color get _accent => _palette[_accentIndex];
+
+  RevisionStats? _stats;
 
   @override
   void initState() {
@@ -93,6 +97,9 @@ class _RevisionScreenState extends State<RevisionScreen>
       });
       _staggerCtrl.forward();
     }
+
+    final stats = await RevisionStatsService.instance.getStats(allEntries: entries);
+    if (mounted) setState(() => _stats = stats);
   }
 
   Future<List<Map<String, dynamic>>> _buildSurahList() async {
@@ -308,6 +315,20 @@ class _RevisionScreenState extends State<RevisionScreen>
                         ),
                       ),
                     ),
+                    // ── Carte objectif du jour ───────────────────────────
+                    if (_stats != null)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                          child: _DailyStatsCard(
+                            stats: _stats!,
+                            accent: _accent,
+                            onTap: () => Navigator.of(context)
+                                .push(_fadeRoute(RevisionStatsScreen(accentColor: _accent)))
+                                .then((_) => _loadAll()),
+                          ),
+                        ),
+                      ),
                     // ── À réviser aujourd'hui ─────────────────────────────
                     if (_dueToday.isNotEmpty)
                       SliverToBoxAdapter(
@@ -975,6 +996,115 @@ class _SurahTileState extends State<_SurahTile> {
                 Icons.chevron_right_rounded,
                 size: 18,
                 color: Colors.white.withValues(alpha: 0.2),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Daily stats card ──────────────────────────────────────────────────────────
+
+class _DailyStatsCard extends StatefulWidget {
+  final RevisionStats stats;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _DailyStatsCard({
+    required this.stats,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  State<_DailyStatsCard> createState() => _DailyStatsCardState();
+}
+
+class _DailyStatsCardState extends State<_DailyStatsCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final s   = widget.stats;
+    final pct = (s.masteryPercent * 100).round();
+
+    return GestureDetector(
+      onTapDown:   (_) => setState(() => _pressed = true),
+      onTapUp:     (_) { setState(() => _pressed = false); widget.onTap(); },
+      onTapCancel: ()  => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: _GlassCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top row: streak + mastery
+              Row(
+                children: [
+                  Text(
+                    '🔥 ${s.streak} jour${s.streak > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '⭐ $pct% maîtrisé',
+                    style: TextStyle(
+                      color: widget.accent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Progress bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: s.goalProgress,
+                  minHeight: 5,
+                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    s.goalMet ? AppColors.success : widget.accent,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Label
+              Row(
+                children: [
+                  Text(
+                    '${s.todayAyahs} / ${s.dailyGoal} versets aujourd\'hui',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (s.goalMet) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      'Objectif atteint !',
+                      style: TextStyle(
+                        color: AppColors.success,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),

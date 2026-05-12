@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import '../../services/audio_service.dart';
 import '../../services/quran_text_db.dart' show QVerse;
 import '../../services/revision_service.dart';
+import '../../services/revision_stats_service.dart';
 import '../../theme/app_theme.dart';
 
 // ── Data classes (inchangés) ─────────────────────────────────────────────────
@@ -269,6 +270,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
       correctCount: correct,
       totalCount: _questions.length,
     );
+    await RevisionStatsService.instance.recordSession(_results.length);
     if (!mounted) return;
     final all = await RevisionService.instance.getAll();
     final entry = all.where((e) => e.surahId == widget.config.surahId).firstOrNull;
