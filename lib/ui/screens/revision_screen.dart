@@ -322,7 +322,7 @@ class _RevisionScreenState extends State<RevisionScreen>
                                 right: 4,
                                 child: IconButton(
                                   onPressed: _showThemePicker,
-                                  icon: Icon(Icons.tune_rounded, color: _theme.accent),
+                                  icon: Icon(Icons.palette_rounded, color: _theme.accent),
                                 ),
                               ),
                             ],
