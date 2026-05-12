@@ -249,10 +249,20 @@ class _RevisionScreenState extends State<RevisionScreen>
                         flexibleSpace: FlexibleSpaceBar(
                           background: Stack(
                             children: [
-                              // Arch decoration
+                              // Vignette : bords fondent vers la couleur de fond
                               Positioned.fill(
-                                child: CustomPaint(
-                                  painter: _ArchPainter(color: _theme.accent),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: RadialGradient(
+                                      center: Alignment.center,
+                                      radius: 1.1,
+                                      colors: [
+                                        Colors.transparent,
+                                        _theme.bgTop.withValues(alpha: 0.75),
+                                      ],
+                                      stops: const [0.30, 1.0],
+                                    ),
+                                  ),
                                 ),
                               ),
                               // Title + hadith
@@ -270,6 +280,15 @@ class _RevisionScreenState extends State<RevisionScreen>
                                       ),
                                     ),
                                     const SizedBox(height: 10),
+                                    Text(
+                                      'Le Messager d\'Allah ﷺ :',
+                                      style: TextStyle(
+                                        color: _theme.textHint,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 36),
                                       child: Text(
@@ -281,14 +300,6 @@ class _RevisionScreenState extends State<RevisionScreen>
                                           fontStyle: FontStyle.italic,
                                           height: 1.55,
                                         ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      '— Rapporté par Al-Boukhari',
-                                      style: TextStyle(
-                                        color: _theme.textHint,
-                                        fontSize: 10,
                                       ),
                                     ),
                                   ],
@@ -1132,47 +1143,6 @@ class _DailyStatsCardState extends State<_DailyStatsCard> {
       ),
     );
   }
-}
-
-// ── Arch decoration painter ───────────────────────────────────────────────────
-
-class _ArchPainter extends CustomPainter {
-  final Color color;
-  const _ArchPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round;
-
-    final cx     = size.width / 2;
-    final w      = size.width * 0.74;
-    final lx     = cx - w / 2;
-    final rx     = cx + w / 2;
-    final top    = size.height * 0.06;
-    final bottom = size.height + 16.0;
-    final ctrlY  = bottom - (bottom - top) * 0.42;
-
-    paint.color = color.withValues(alpha: 0.16);
-    final outer = Path()
-      ..moveTo(lx, bottom)
-      ..cubicTo(lx, ctrlY, cx - 18, top, cx, top)
-      ..cubicTo(cx + 18, top, rx, ctrlY, rx, bottom);
-    canvas.drawPath(outer, paint);
-
-    const d = 14.0;
-    paint.color = color.withValues(alpha: 0.09);
-    final inner = Path()
-      ..moveTo(lx + d, bottom)
-      ..cubicTo(lx + d, ctrlY, cx - 12, top + d * 1.4, cx, top + d * 1.4)
-      ..cubicTo(cx + 12, top + d * 1.4, rx - d, ctrlY, rx - d, bottom);
-    canvas.drawPath(inner, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ArchPainter old) => old.color != color;
 }
 
 // ── Transition helper ─────────────────────────────────────────────────────────
