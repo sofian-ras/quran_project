@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -1294,7 +1295,7 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
 
 // ── Random hadith button ───────────────────────────────────────────────────────
 
-class _RandomHadithButton extends StatelessWidget {
+class _RandomHadithButton extends StatefulWidget {
   final bool isDark;
   final Color gold;
   final VoidCallback onTap;
@@ -1306,14 +1307,68 @@ class _RandomHadithButton extends StatelessWidget {
   });
 
   @override
+  State<_RandomHadithButton> createState() => _RandomHadithButtonState();
+}
+
+class _RandomHadithButtonState extends State<_RandomHadithButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _floatCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _floatCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _floatCtrl.dispose();
+    super.dispose();
+  }
+
+  Widget _buildQ(double phase, double left, double fontSize) {
+    final angle = (_floatCtrl.value + phase) * 2 * math.pi;
+    final dy = math.sin(angle) * 5.0;
+    final opacity = (0.25 + 0.55 * (math.sin(angle + math.pi / 3) * 0.5 + 0.5))
+        .clamp(0.0, 1.0);
+    return Positioned(
+      left: left,
+      top: 0,
+      bottom: 0,
+      child: Center(
+        child: Transform.translate(
+          offset: Offset(0, dy),
+          child: Opacity(
+            opacity: opacity,
+            child: Text(
+              '?',
+              style: TextStyle(
+                color: widget.gold,
+                fontSize: fontSize,
+                fontWeight: FontWeight.w900,
+                height: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = widget.isDark;
+    final gold = widget.gold;
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Ink(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -1364,7 +1419,22 @@ class _RandomHadithButton extends StatelessWidget {
                     ),
                   ],
                 ),
-                const Spacer(),
+                // Points d'interrogation flottants
+                Expanded(
+                  child: AnimatedBuilder(
+                    animation: _floatCtrl,
+                    builder: (_, __) => SizedBox(
+                      height: 38,
+                      child: Stack(
+                        children: [
+                          _buildQ(0.00, 8,  11),
+                          _buildQ(0.28, 24, 16),
+                          _buildQ(0.56, 42, 10),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 14,

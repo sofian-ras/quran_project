@@ -269,10 +269,13 @@ class _DuaScreenState extends State<DuaScreen> {
         slivers: [
           // ── App bar + barre de recherche ──
           SliverAppBar(
-            backgroundColor: bg,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
-            floating: true,
-            snap: true,
+            expandedHeight: 210,
+            pinned: true,
+            floating: false,
+            stretch: true,
             iconTheme: IconThemeData(
               color: isDark ? Colors.white : const Color(0xFF1A1A1A),
             ),
@@ -285,6 +288,83 @@ class _DuaScreenState extends State<DuaScreen> {
               ),
             ),
             centerTitle: true,
+            flexibleSpace: FlexibleSpaceBar(
+              collapseMode: CollapseMode.pin,
+              background: Stack(
+                children: [
+                  // Fond dégradé vert
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: isDark
+                              ? [const Color(0xFF0D1A10), _kDarkBg]
+                              : [const Color(0xFFDEEBDF), _kLightBg],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Halo radial
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 0.9,
+                          colors: [
+                            _kGreen.withValues(alpha: isDark ? 0.30 : 0.18),
+                            _kGreen.withValues(alpha: isDark ? 0.08 : 0.05),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.55, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Titre + verset
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Invocations',
+                          style: TextStyle(
+                            color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'ادْعُونِي أَسْتَجِبْ لَكُمْ',
+                          style: const TextStyle(
+                            color: _kGreen,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 36),
+                          child: Text(
+                            '« Invoquez-Moi, Je vous répondrai. »  — Ghafir : 60',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: isDark ? Colors.white54 : Colors.black45,
+                              fontSize: 11.5,
+                              fontStyle: FontStyle.italic,
+                              height: 1.55,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(60),
               child: Padding(
