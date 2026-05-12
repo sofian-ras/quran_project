@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:math' show pi;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/hadith.dart';
 import '../../services/hadith_db.dart';
@@ -379,13 +379,7 @@ class _HadithScreenState extends State<HadithScreen>
           else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.85,
-                ),
+              sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, i) {
                     final cat = _categories[i];
@@ -404,7 +398,7 @@ class _HadithScreenState extends State<HadithScreen>
                           ),
                         );
                       },
-                      child: _CategoryCard(
+                      child: _CategoryListTile(
                         categoryId: cat['category_id'] as String,
                         categoryName: cat['category_name'] as String,
                         count: cat['count'] as int,
@@ -449,6 +443,16 @@ const _kCategoryImages = {
   'Le hadith et ses sciences': 'assets/images/hadith_categorie/hadith_sciences.webp',
 };
 
+const _kCategoryDescriptions = {
+  'La jurisprudence et son fondement': 'Les règles du culte, des transactions et de la vie quotidienne selon la Sunna.',
+  'Les vertus et les convenances': 'Les bonnes mœurs, la politesse islamique et les actes méritoires.',
+  'Le dogme': 'Les fondements de la foi, les attributs divins et les piliers de l\'Islam.',
+  'La biographie et l\'histoire': 'La vie du Prophète ﷺ, ses Compagnons et les grands événements de l\'Islam.',
+  'Le Noble Coran et ses sciences': 'Les mérites de la récitation, les règles du tajwid et l\'exégèse coranique.',
+  'La prédication et la police religieuse': 'L\'appel à l\'Islam, le commandement du bien et l\'interdiction du mal.',
+  'Le hadith et ses sciences': 'La méthode des savants pour authentifier et transmettre les paroles prophétiques.',
+};
+
 IconData _iconForCategory(String name) =>
     _kCategoryIcons.entries
         .where((e) => name.toLowerCase().contains(e.key.toLowerCase()))
@@ -456,9 +460,9 @@ IconData _iconForCategory(String name) =>
         .firstOrNull ??
     Icons.auto_stories_rounded;
 
-// ── Category card ──────────────────────────────────────────────────────────────
+// ── Category list tile ─────────────────────────────────────────────────────────
 
-class _CategoryCard extends StatelessWidget {
+class _CategoryListTile extends StatelessWidget {
   final String categoryId;
   final String categoryName;
   final int count;
@@ -466,7 +470,7 @@ class _CategoryCard extends StatelessWidget {
   final Color gold;
   final VoidCallback onTap;
 
-  const _CategoryCard({
+  const _CategoryListTile({
     required this.categoryId,
     required this.categoryName,
     required this.count,
@@ -479,74 +483,91 @@ class _CategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final imagePath = _kCategoryImages[categoryName];
+    final description = _kCategoryDescriptions[categoryName];
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Image de fond
-              if (imagePath != null)
-                Image.asset(
-                  imagePath,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildFallback(),
-                )
-              else
-                _buildFallback(),
-
-              // Gradient pour lisibilité du texte
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.72),
-                    ],
-                    stops: const [0.55, 1.0],
+        child: Column(
+          children: [
+            SizedBox(
+              height: 130,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Image à gauche — 140px de large
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 140,
+                      child: imagePath != null
+                          ? Image.asset(
+                              imagePath,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _buildFallback(),
+                            )
+                          : _buildFallback(),
+                    ),
                   ),
-                ),
-              ),
-
-              // Texte en bas
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 12,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      categoryName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: Colors.white,
-                        height: 1.3,
-                      ),
+                  const SizedBox(width: 14),
+                  // Texte à droite
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          categoryName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: isDark ? const Color(0xFFE8D5B0) : const Color(0xFF2A1F0E),
+                            height: 1.3,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '$count hadiths',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: gold,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (description != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            description,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 11,
+                              height: 1.45,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$count hadiths',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: Colors.white60,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 12,
+                    color: isDark ? Colors.white24 : Colors.black26,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            Divider(
+              height: 24,
+              thickness: 0.5,
+              color: isDark ? Colors.white12 : Colors.black12,
+            ),
+          ],
         ),
       ),
     );
@@ -1273,7 +1294,7 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
 
 // ── Random hadith button ───────────────────────────────────────────────────────
 
-class _RandomHadithButton extends StatefulWidget {
+class _RandomHadithButton extends StatelessWidget {
   final bool isDark;
   final Color gold;
   final VoidCallback onTap;
@@ -1285,39 +1306,14 @@ class _RandomHadithButton extends StatefulWidget {
   });
 
   @override
-  State<_RandomHadithButton> createState() => _RandomHadithButtonState();
-}
-
-class _RandomHadithButtonState extends State<_RandomHadithButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _rotateCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotateCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _rotateCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = widget.isDark;
-    final gold = widget.gold;
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: widget.onTap,
+        onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -1341,13 +1337,8 @@ class _RandomHadithButtonState extends State<_RandomHadithButton>
                     color: gold.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: AnimatedBuilder(
-                    animation: _rotateCtrl,
-                    builder: (_, child) => Transform.rotate(
-                      angle: _rotateCtrl.value * 2 * pi,
-                      child: child,
-                    ),
-                    child: Icon(Icons.shuffle_rounded, color: gold, size: 20),
+                  child: Center(
+                    child: FaIcon(FontAwesomeIcons.feather, color: gold, size: 18),
                   ),
                 ),
                 const SizedBox(width: 12),
