@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 
@@ -62,11 +63,7 @@ class _RevisionStatsScreenState extends State<RevisionStatsScreen> {
                   children: [
                     Text(
                       '$draft versets / jour',
-                      style: TextStyle(
-                        color: _a,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: TextStyle(color: _a, fontSize: 22, fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
@@ -138,134 +135,160 @@ class _RevisionStatsScreenState extends State<RevisionStatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Back ──────────────────────────────────────────────────────
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(Icons.arrow_back_rounded, color: _p.iconMuted),
-                padding: EdgeInsets.zero,
-              ),
+            // ── Header : retour + badge streak ───────────────────────────
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.arrow_back_rounded, color: _p.iconMuted),
+                  padding: EdgeInsets.zero,
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _p.cardBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _p.cardBorder),
+                  ),
+                  child: Text(
+                    '🔥 ${s.streak} jour${s.streak > 1 ? 's' : ''}',
+                    style: TextStyle(color: _p.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-            // ── Streak ────────────────────────────────────────────────────
-            Center(
-              child: Column(
+            // ── Objectif du jour ──────────────────────────────────────────
+            _GlassCard(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text('🔥', style: TextStyle(fontSize: 52)),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${s.streak}',
-                    style: TextStyle(
-                      color: _p.textPrimary,
-                      fontSize: 72,
-                      fontWeight: FontWeight.w900,
-                      height: 1.0,
+                  // Cercle de progression
+                  SizedBox(
+                    width: 90,
+                    height: 90,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 90,
+                          height: 90,
+                          child: CircularProgressIndicator(
+                            value: s.goalProgress,
+                            strokeWidth: 8,
+                            backgroundColor: _p.cardBorder,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              s.goalMet ? AppColors.success : _a,
+                            ),
+                            strokeCap: StrokeCap.round,
+                          ),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${s.todayAyahs}',
+                              style: TextStyle(
+                                color: s.goalMet ? AppColors.success : _p.textPrimary,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                height: 1.0,
+                              ),
+                            ),
+                            Text(
+                              '/${s.dailyGoal}',
+                              style: TextStyle(color: _p.textSecondary, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    s.streak == 1 ? 'jour consécutif' : 'jours consécutifs',
-                    style: TextStyle(color: _p.textSecondary, fontSize: 15),
+                  const SizedBox(width: 16),
+                  // Infos à droite
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Objectif du jour',
+                              style: TextStyle(color: _p.textPrimary, fontSize: 14, fontWeight: FontWeight.w700),
+                            ),
+                            if (s.goalMet) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Text(
+                                  'Atteint ✓',
+                                  style: TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: s.goalProgress,
+                            minHeight: 5,
+                            backgroundColor: _p.cardBorder,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              s.goalMet ? AppColors.success : _a,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        if (!s.goalMet)
+                          Text(
+                            '${s.dailyGoal - s.todayAyahs} verset${s.dailyGoal - s.todayAyahs > 1 ? 's' : ''} restant${s.dailyGoal - s.todayAyahs > 1 ? 's' : ''}',
+                            style: TextStyle(color: _a, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        const SizedBox(height: 4),
+                        GestureDetector(
+                          onTap: _showGoalPicker,
+                          child: Text(
+                            'Modifier l\'objectif →',
+                            style: TextStyle(color: _a, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 14),
 
-            // ── Objectif du jour ──────────────────────────────────────────
+            // ── Activité 7 jours ──────────────────────────────────────────
             _GlassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Objectif du jour',
-                        style: TextStyle(color: _p.textPrimary, fontSize: 15, fontWeight: FontWeight.w700),
-                      ),
-                      if (s.goalMet)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'Atteint ✓',
-                            style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Center(
-                    child: SizedBox(
-                      width: 110,
-                      height: 110,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 110,
-                            height: 110,
-                            child: CircularProgressIndicator(
-                              value: s.goalProgress,
-                              strokeWidth: 9,
-                              backgroundColor: _p.cardBorder,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                s.goalMet ? AppColors.success : _a,
-                              ),
-                              strokeCap: StrokeCap.round,
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${s.todayAyahs}',
-                                style: TextStyle(
-                                  color: s.goalMet ? AppColors.success : _p.textPrimary,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.0,
-                                ),
-                              ),
-                              Text(
-                                '/ ${s.dailyGoal}',
-                                style: TextStyle(color: _p.textSecondary, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Center(
-                    child: Text(
-                      'versets aujourd\'hui',
-                      style: TextStyle(color: _p.textSecondary, fontSize: 13),
-                    ),
+                  Text(
+                    'Activité — 7 derniers jours',
+                    style: TextStyle(color: _p.textPrimary, fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 16),
-                  Center(
-                    child: TextButton(
-                      onPressed: _showGoalPicker,
-                      child: Text(
-                        'Modifier l\'objectif →',
-                        style: TextStyle(color: _a, fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                    ),
+                  SizedBox(
+                    height: 100,
+                    child: _WeekChart(days: s.last7Days),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // ── Maîtrise ──────────────────────────────────────────────────
+            // ── Maîtrise globale ──────────────────────────────────────────
             _GlassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,7 +298,7 @@ class _RevisionStatsScreenState extends State<RevisionStatsScreen> {
                     children: [
                       Text(
                         'Maîtrise globale',
-                        style: TextStyle(color: _p.textPrimary, fontSize: 15, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: _p.textPrimary, fontSize: 14, fontWeight: FontWeight.w700),
                       ),
                       Text(
                         '$pct%',
@@ -283,7 +306,7 @@ class _RevisionStatsScreenState extends State<RevisionStatsScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
@@ -298,20 +321,20 @@ class _RevisionStatsScreenState extends State<RevisionStatsScreen> {
                     '${s.totalTracked} sourate${s.totalTracked > 1 ? 's' : ''} suivie${s.totalTracked > 1 ? 's' : ''}',
                     style: TextStyle(color: _p.textHint, fontSize: 12),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       _StatusChip(color: AppColors.success, label: 'Maîtrisées', count: s.masteredCount),
                       const SizedBox(width: 8),
-                      _StatusChip(color: AppColors.warning, label: 'En cours', count: s.learningCount),
+                      _StatusChip(color: AppColors.warning, label: 'En cours',   count: s.learningCount),
                       const SizedBox(width: 8),
-                      _StatusChip(color: AppColors.error, label: 'À revoir', count: s.lapsedCount),
+                      _StatusChip(color: AppColors.error,   label: 'À revoir',   count: s.lapsedCount),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // ── Tout temps ────────────────────────────────────────────────
             Row(
@@ -325,6 +348,67 @@ class _RevisionStatsScreenState extends State<RevisionStatsScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Week chart ────────────────────────────────────────────────────────────────
+
+class _WeekChart extends StatelessWidget {
+  final List<DayEntry> days;
+  const _WeekChart({required this.days});
+
+  static const _barMaxH = 64.0;
+  static const _dayLabels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+  static String _dateStr(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
+    final maxAyahs = days.fold(0, (m, d) => max(m, d.ayahs));
+    final todayStr = _dateStr(DateTime.now());
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: days.map((d) {
+        final isToday  = _dateStr(d.date) == todayStr;
+        final frac     = maxAyahs == 0 ? 0.0 : d.ayahs / maxAyahs;
+        final barH     = d.ayahs == 0 ? 4.0 : max(8.0, frac * _barMaxH);
+        final dayLabel = _dayLabels[d.date.weekday - 1];
+
+        return Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (isToday && d.ayahs > 0)
+                Text(
+                  '${d.ayahs}',
+                  style: TextStyle(fontSize: 9, color: p.accent, fontWeight: FontWeight.w700),
+                ),
+              const SizedBox(height: 2),
+              Container(
+                height: barH,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: p.accent.withValues(alpha: isToday ? 1.0 : (d.ayahs == 0 ? 0.15 : 0.4)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                dayLabel,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isToday ? p.accent : p.textHint,
+                  fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }

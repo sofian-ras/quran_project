@@ -1,7 +1,14 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/revision_entry.dart';
 
 // ── Model ─────────────────────────────────────────────────────────────────────
+
+class DayEntry {
+  final DateTime date;
+  final int ayahs;
+  const DayEntry({required this.date, required this.ayahs});
+}
 
 class RevisionStats {
   final int dailyGoal;
@@ -13,6 +20,7 @@ class RevisionStats {
   final int masteredCount;  // status == 'review'
   final int learningCount;  // status == 'learning'
   final int lapsedCount;    // status == 'lapsed'
+  final Map<String, int> dailyHistory;
 
   const RevisionStats({
     required this.dailyGoal,
@@ -24,6 +32,7 @@ class RevisionStats {
     required this.masteredCount,
     required this.learningCount,
     required this.lapsedCount,
+    required this.dailyHistory,
   });
 
   double get masteryPercent =>
@@ -33,6 +42,16 @@ class RevisionStats {
       dailyGoal == 0 ? 1.0 : (todayAyahs / dailyGoal).clamp(0.0, 1.0);
 
   bool get goalMet => todayAyahs >= dailyGoal;
+
+  List<DayEntry> get last7Days {
+    final now = DateTime.now();
+    return List.generate(7, (i) {
+      final d = now.subtract(Duration(days: 6 - i));
+      final key =
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      return DayEntry(date: d, ayahs: dailyHistory[key] ?? 0);
+    });
+  }
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -41,13 +60,14 @@ class RevisionStatsService {
   RevisionStatsService._();
   static final instance = RevisionStatsService._();
 
-  static const _kGoal         = 'revision_daily_goal';
-  static const _kStreak       = 'revision_streak';
-  static const _kLastActive   = 'revision_last_active';
+  static const _kGoal          = 'revision_daily_goal';
+  static const _kStreak        = 'revision_streak';
+  static const _kLastActive    = 'revision_last_active';
   static const _kTodayAyahs   = 'revision_today_ayahs';
   static const _kTodayDate    = 'revision_today_date';
   static const _kAllSessions  = 'revision_all_time_sessions';
   static const _kAllAyahs     = 'revision_all_time_ayahs';
+  static const _kDailyHistory = 'revision_daily_history';
 
   String _dateStr(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -69,6 +89,10 @@ class RevisionStatsService {
     final learning = allEntries.where((e) => e.status == 'learning').length;
     final lapsed   = allEntries.where((e) => e.status == 'lapsed').length;
 
+    final rawHistory = p.getString(_kDailyHistory) ?? '{}';
+    final dailyHistory = Map<String, int>.from(
+        (json.decode(rawHistory) as Map).map((k, v) => MapEntry(k as String, v as int)));
+
     return RevisionStats(
       dailyGoal:        p.getInt(_kGoal) ?? 10,
       todayAyahs:       p.getInt(_kTodayAyahs) ?? 0,
@@ -79,6 +103,7 @@ class RevisionStatsService {
       masteredCount:    mastered,
       learningCount:    learning,
       lapsedCount:      lapsed,
+      dailyHistory:     dailyHistory,
     );
   }
 
@@ -109,6 +134,19 @@ class RevisionStatsService {
 
     // Today's ayahs
     await p.setInt(_kTodayAyahs, (p.getInt(_kTodayAyahs) ?? 0) + ayahsReviewed);
+
+    // Daily history
+    final raw = p.getString(_kDailyHistory) ?? '{}';
+    final history = Map<String, int>.from(
+        (json.decode(raw) as Map).map((k, v) => MapEntry(k as String, v as int)));
+    history[today] = (history[today] ?? 0) + ayahsReviewed;
+    if (history.length > 30) {
+      final sorted = history.keys.toList()..sort();
+      for (final k in sorted.take(history.length - 30)) {
+        history.remove(k);
+      }
+    }
+    await p.setString(_kDailyHistory, json.encode(history));
 
     // All-time
     await p.setInt(_kAllSessions, (p.getInt(_kAllSessions) ?? 0) + 1);
