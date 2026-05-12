@@ -20,12 +20,22 @@ class Hadith {
   factory Hadith.fromMap(Map<String, Object?> map, {String lang = 'fr'}) {
     return Hadith(
       id: (map['hadith_id'] ?? map['id']) as int,
-      arabic: (map['arabic'] as String?) ?? '',
-      translation: (map['translation'] as String?) ?? '',
-      title: (map['title'] as String?) ?? '',
-      explanation: (map['explanation'] as String?) ?? '',
+      arabic: _normalize((map['arabic'] as String?) ?? ''),
+      translation: _normalize((map['translation'] as String?) ?? ''),
+      title: _normalize((map['title'] as String?) ?? ''),
+      explanation: _normalize((map['explanation'] as String?) ?? ''),
       categoryId: (map['category_id'] as String?) ?? '',
       categoryName: (map['category_name'] as String?) ?? '',
     );
+  }
+
+  // Replaces all forms of the salawat formula with the Unicode ligature ﷺ
+  static String _normalize(String text) {
+    if (text.isEmpty) return text;
+    return text
+        .replaceAll('صلى الله عليه وسلم', 'ﷺ')
+        .replaceAll('صلى الله عليه و سلم', 'ﷺ')
+        .replaceAll('صلى الله عليه وآله وسلم', 'ﷺ')
+        .replaceAll('صلي الله عليه وسلم', 'ﷺ');
   }
 }
