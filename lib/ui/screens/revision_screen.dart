@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:ui';
 
@@ -32,6 +33,18 @@ class _RevisionScreenState extends State<RevisionScreen>
   late AnimationController _staggerCtrl;
   late AnimationController _orbCtrl;
 
+  // ── Accent palette ────────────────────────────────────────────────────────
+  static const List<Color> _palette = [
+    Color(0xFFD4AF77), // Or (défaut)
+    Color(0xFF4DB87A), // Émeraude
+    Color(0xFF5BA3D5), // Saphir
+    Color(0xFF9B7FC4), // Améthyste
+    Color(0xFFD47B7B), // Rose
+    Color(0xFFE0935A), // Cuivre
+  ];
+  int _accentIndex = 0;
+  Color get _accent => _palette[_accentIndex];
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +57,7 @@ class _RevisionScreenState extends State<RevisionScreen>
       duration: const Duration(milliseconds: 2800),
     )..repeat(reverse: true);
     _loadAll();
+    _loadAccent();
   }
 
   @override
@@ -51,6 +65,12 @@ class _RevisionScreenState extends State<RevisionScreen>
     _staggerCtrl.dispose();
     _orbCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAccent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idx = prefs.getInt('revision_accent_index') ?? 0;
+    if (mounted) setState(() => _accentIndex = idx.clamp(0, _palette.length - 1));
   }
 
   Future<void> _loadAll() async {
@@ -128,8 +148,73 @@ class _RevisionScreenState extends State<RevisionScreen>
       ayahCount:   surah['ayahCount'] as int,
     );
     Navigator.of(context)
-        .push(_fadeRoute(RevisionConfigScreen(surah: surah)))
+        .push(_fadeRoute(RevisionConfigScreen(surah: surah, accentColor: _accent)))
         .then((_) => _loadAll());
+  }
+
+  void _showThemePicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.primaryDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 44),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Couleur d\'accent',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(_palette.length, (i) {
+                final sel = i == _accentIndex;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() => _accentIndex = i);
+                    SharedPreferences.getInstance()
+                        .then((p) => p.setInt('revision_accent_index', i));
+                    Navigator.pop(context);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: _palette[i],
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: sel ? Colors.white : Colors.transparent,
+                        width: 2.5,
+                      ),
+                      boxShadow: sel
+                          ? [
+                              BoxShadow(
+                                color: _palette[i].withValues(alpha: 0.55),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              )
+                            ]
+                          : null,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -138,17 +223,17 @@ class _RevisionScreenState extends State<RevisionScreen>
       body: _GradientBg(
         child: SafeArea(
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+              ? Center(child: CircularProgressIndicator(color: _accent))
               : CustomScrollView(
                   physics: const BouncingScrollPhysics(),
                   slivers: [
-                    // ── Collapsible header (scrolls away) ────────────────
+                    // ── Decorative header (scrolls away) ─────────────────
                     SliverAppBar(
                       backgroundColor: Colors.transparent,
                       surfaceTintColor: Colors.transparent,
                       shadowColor: Colors.transparent,
                       elevation: 0,
-                      expandedHeight: 170,
+                      expandedHeight: 200,
                       pinned: false,
                       floating: false,
                       stretch: true,
@@ -156,15 +241,6 @@ class _RevisionScreenState extends State<RevisionScreen>
                       flexibleSpace: FlexibleSpaceBar(
                         background: Stack(
                           children: [
-                            // Close button top-left
-                            Positioned(
-                              top: 0,
-                              left: 4,
-                              child: IconButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                icon: const Icon(Icons.close_rounded, color: Colors.white54),
-                              ),
-                            ),
                             // Animated breathing orb top-right
                             Positioned(
                               right: -30,
@@ -176,28 +252,56 @@ class _RevisionScreenState extends State<RevisionScreen>
                                   child: Container(
                                     width: 200,
                                     height: 200,
-                                    decoration: const BoxDecoration(
+                                    decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: AppColors.accent,
+                                      color: _accent,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            // Subtitle centered at bottom of expanded area
-                            const Positioned(
-                              bottom: 38,
-                              left: 0,
-                              right: 0,
-                              child: Center(
-                                child: Text(
-                                  'Choisissez une sourate à réviser',
-                                  style: TextStyle(
-                                    color: Colors.white54,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w400,
+                            // Title + subtitle centered
+                            Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'Révision',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1.1,
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Choisissez une sourate à réviser',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.55),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Close button top-left
+                            Positioned(
+                              top: 0,
+                              left: 4,
+                              child: IconButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                              ),
+                            ),
+                            // Theme picker button top-right
+                            Positioned(
+                              top: 0,
+                              right: 4,
+                              child: IconButton(
+                                onPressed: _showThemePicker,
+                                icon: Icon(Icons.tune_rounded, color: _accent),
                               ),
                             ),
                           ],
@@ -209,6 +313,7 @@ class _RevisionScreenState extends State<RevisionScreen>
                       SliverToBoxAdapter(
                         child: _DueTodaySection(
                           dueToday: _dueToday,
+                          accent: _accent,
                           onTap: _onSurahTap,
                           onLongPress: _confirmRemove,
                         ),
@@ -227,6 +332,7 @@ class _RevisionScreenState extends State<RevisionScreen>
                             child: _SurahTile(
                               surah: surah,
                               entry: entry,
+                              accent: _accent,
                               onTap: () => _onSurahTap(surah),
                               onLongPress: entry != null
                                   ? () => _confirmRemove(entry.surahId, entry.surahName)
@@ -248,11 +354,13 @@ class _RevisionScreenState extends State<RevisionScreen>
 
 class _DueTodaySection extends StatelessWidget {
   final List<RevisionEntry> dueToday;
+  final Color accent;
   final void Function(Map<String, dynamic>) onTap;
   final void Function(int, String) onLongPress;
 
   const _DueTodaySection({
     required this.dueToday,
+    required this.accent,
     required this.onTap,
     required this.onLongPress,
   });
@@ -264,12 +372,12 @@ class _DueTodaySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 0, 12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 0, 12),
             child: Text(
               'À réviser aujourd\'hui',
               style: TextStyle(
-                color: AppColors.accent,
+                color: accent,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.8,
@@ -361,8 +469,13 @@ class _AnimatedTile extends StatelessWidget {
 
 class RevisionConfigScreen extends StatefulWidget {
   final Map<String, dynamic> surah;
+  final Color accentColor;
 
-  const RevisionConfigScreen({super.key, required this.surah});
+  const RevisionConfigScreen({
+    super.key,
+    required this.surah,
+    required this.accentColor,
+  });
 
   @override
   State<RevisionConfigScreen> createState() => _RevisionConfigScreenState();
@@ -372,6 +485,8 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
   late int _fromAyah;
   late int _toAyah;
   QuestionType _questionType = QuestionType.next;
+
+  Color get _a => widget.accentColor;
 
   int get _totalAyahs {
     final count = widget.surah['ayahCount'] as int;
@@ -443,7 +558,7 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
               SvgPicture.asset(
                 'assets/images/Translated_Quran/surah_svg/$id.svg',
                 height: 42,
-                colorFilter: const ColorFilter.mode(AppColors.accent, BlendMode.srcIn),
+                colorFilter: ColorFilter.mode(_a, BlendMode.srcIn),
               ),
               const Spacer(flex: 1),
               // ── Config card ────────────────────────────────────────────
@@ -468,13 +583,13 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppColors.accent.withValues(alpha: 0.2),
+                              color: _a.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               '$questionCount question${questionCount > 1 ? 's' : ''}',
-                              style: const TextStyle(
-                                color: AppColors.accent,
+                              style: TextStyle(
+                                color: _a,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
                               ),
@@ -486,10 +601,10 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                       SliderTheme(
                         data: SliderTheme.of(context).copyWith(
                           trackHeight: 4,
-                          activeTrackColor: AppColors.accent,
+                          activeTrackColor: _a,
                           inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
-                          thumbColor: AppColors.accent,
-                          overlayColor: AppColors.accent.withValues(alpha: 0.2),
+                          thumbColor: _a,
+                          overlayColor: _a.withValues(alpha: 0.2),
                           rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 10),
                         ),
                         child: RangeSlider(
@@ -534,12 +649,12 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                                 padding: const EdgeInsets.symmetric(vertical: 11),
                                 decoration: BoxDecoration(
                                   color: selected
-                                      ? AppColors.accent
+                                      ? _a
                                       : Colors.white.withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
                                     color: selected
-                                        ? AppColors.accent
+                                        ? _a
                                         : Colors.white.withValues(alpha: 0.12),
                                   ),
                                 ),
@@ -578,12 +693,12 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accent,
+                      backgroundColor: _a,
                       foregroundColor: AppColors.primaryDark,
-                      disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.25),
+                      disabledBackgroundColor: _a.withValues(alpha: 0.25),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       elevation: 6,
-                      shadowColor: AppColors.accent.withValues(alpha: 0.5),
+                      shadowColor: _a.withValues(alpha: 0.5),
                     ),
                   ),
                 ),
@@ -736,11 +851,13 @@ class _DueTodayCardState extends State<_DueTodayCard> {
 class _SurahTile extends StatefulWidget {
   final Map<String, dynamic> surah;
   final RevisionEntry? entry;
+  final Color accent;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
   const _SurahTile({
     required this.surah,
+    required this.accent,
     required this.onTap,
     this.entry,
     this.onLongPress,
@@ -759,7 +876,7 @@ class _SurahTileState extends State<_SurahTile> {
     final nameFr    = widget.surah['nameFr'] as String;
     final ayahCount = widget.surah['ayahCount'] as int;
     final dotColor  = widget.entry != null ? _srsColor(widget.entry!.status) : null;
-    final svgColor  = dotColor ?? AppColors.accent.withValues(alpha: 0.55);
+    final svgColor  = dotColor ?? widget.accent.withValues(alpha: 0.55);
 
     return GestureDetector(
       onTapDown:   (_) => setState(() => _pressed = true),
@@ -791,15 +908,15 @@ class _SurahTileState extends State<_SurahTile> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.12),
+                      color: widget.accent.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
+                      border: Border.all(color: widget.accent.withValues(alpha: 0.25)),
                     ),
                     child: Center(
                       child: Text(
                         '$id',
-                        style: const TextStyle(
-                          color: AppColors.accent,
+                        style: TextStyle(
+                          color: widget.accent,
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
                         ),
