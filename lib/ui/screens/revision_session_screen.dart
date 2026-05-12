@@ -9,8 +9,9 @@ import '../../services/quran_text_db.dart' show QVerse;
 import '../../services/revision_service.dart';
 import '../../services/revision_stats_service.dart';
 import '../../theme/app_theme.dart';
+import 'revision_palette.dart';
 
-// ── Data classes (inchangés) ─────────────────────────────────────────────────
+// ── Data classes ──────────────────────────────────────────────────────────────
 
 enum QuestionType { next, prev, mixed }
 
@@ -44,16 +45,17 @@ class _Question {
   });
 }
 
-// ── Phase machine ────────────────────────────────────────────────────────────
+// ── Phase machine ─────────────────────────────────────────────────────────────
 
 enum _Phase { intro, listening, thinking, answer, result }
 
-// ── Main widget ──────────────────────────────────────────────────────────────
+// ── Main widget ───────────────────────────────────────────────────────────────
 
 class RevisionSessionScreen extends StatefulWidget {
   final SessionConfig config;
+  final RevisionPalette palette;
 
-  const RevisionSessionScreen({super.key, required this.config});
+  const RevisionSessionScreen({super.key, required this.config, required this.palette});
 
   @override
   State<RevisionSessionScreen> createState() => _RevisionSessionScreenState();
@@ -61,10 +63,8 @@ class RevisionSessionScreen extends StatefulWidget {
 
 class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     with TickerProviderStateMixin {
-  // ── JSON cache (partagé entre instances) ──────────────────────────────────
   static List<dynamic>? _quranDataCache;
 
-  // ── Data ─────────────────────────────────────────────────────────────────
   List<_Question> _questions = [];
   int _currentIndex = 0;
   final List<bool> _results = [];
@@ -72,14 +72,10 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   String? _error;
   DateTime? _nextReviewDate;
 
-  // ── Phase ─────────────────────────────────────────────────────────────────
   _Phase _phase = _Phase.intro;
   bool _readyVisible = false;
-
-  // ── Celebration feedback ──────────────────────────────────────────────────
   bool _showCelebration = false;
 
-  // ── Animations ────────────────────────────────────────────────────────────
   late final AnimationController _pulseCtrl;
   late final AnimationController _answerSlideCtrl;
   late final Animation<Offset> _answerSlideAnim;
@@ -87,8 +83,6 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
 
   StreamSubscription<PlayerState>? _audioSub;
   Timer? _readyTimer;
-
-  // ── Init / dispose ────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -122,8 +116,6 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     super.dispose();
   }
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-
   Future<void> _loadSession() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -146,7 +138,6 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
           .map((v) {
             final ayah = (v['ayah'] is int ? v['ayah'] : int.parse(v['ayah'].toString())) as int;
             final rawAr = (v['hafs'] ?? v['ar'] ?? '').toString();
-            // Strip Quran verse-end ornament glyphs (Arabic Presentation Forms U+FB50–U+FDFF)
             final cleanAr = rawAr.replaceAll(RegExp(r'\s*[ﭐ-﷿]+\s*$'), '').trim();
             return QVerse(
               verseKey: '${widget.config.surahId}:$ayah',
@@ -193,8 +184,6 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     }
     return questions;
   }
-
-  // ── Phase transitions ─────────────────────────────────────────────────────
 
   void _startSession() {
     setState(() { _phase = _Phase.listening; _readyVisible = false; });
@@ -302,24 +291,29 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     return result ?? false;
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: AppColors.primaryDark,
-        body: const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+        backgroundColor: widget.palette.bgBottom,
+        body: Center(child: CircularProgressIndicator(color: widget.palette.accent)),
       );
     }
     if (_error != null) {
       return Scaffold(
-        backgroundColor: AppColors.primaryDark,
-        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white),
+        backgroundColor: widget.palette.bgBottom,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: widget.palette.textPrimary,
+        ),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(_error!, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
+            child: Text(
+              _error!,
+              style: TextStyle(color: widget.palette.textPrimary),
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       );
@@ -335,37 +329,39 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
           Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [AppColors.primaryDark, AppColors.primary],
+      child: RevisionThemeScope(
+        palette: widget.palette,
+        child: Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [widget.palette.bgTop, widget.palette.bgBottom],
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Stack(
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 350),
-                  transitionBuilder: (child, anim) => FadeTransition(
-                    opacity: anim,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.04),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
-                      child: child,
+            child: SafeArea(
+              child: Stack(
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    transitionBuilder: (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.04),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+                        child: child,
+                      ),
                     ),
+                    child: _buildCurrentPhaseContent(),
                   ),
-                  child: _buildCurrentPhaseContent(),
-                ),
-                // Celebration overlay
-                Positioned.fill(
-                  child: _CelebrationOverlay(visible: _showCelebration),
-                ),
-              ],
+                  Positioned.fill(
+                    child: _CelebrationOverlay(visible: _showCelebration),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -417,7 +413,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   }
 }
 
-// ── Intro screen ─────────────────────────────────────────────────────────────
+// ── Intro screen ──────────────────────────────────────────────────────────────
 
 class _IntroContent extends StatelessWidget {
   final SessionConfig config;
@@ -433,6 +429,7 @@ class _IntroContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
     final typeLabel = switch (config.questionType) {
       QuestionType.next => 'Verset suivant',
       QuestionType.prev => 'Verset précédent',
@@ -445,13 +442,12 @@ class _IntroContent extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Spacer(flex: 2),
-          // Arabic surah name
           Text(
             config.surahNameAr.isNotEmpty ? config.surahNameAr : config.surahName,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Hafs',
               fontSize: 42,
-              color: AppColors.accent,
+              color: p.accent,
               height: 1.5,
             ),
             textAlign: TextAlign.center,
@@ -459,26 +455,19 @@ class _IntroContent extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Révision de ${config.surahName}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(color: p.textPrimary, fontSize: 22, fontWeight: FontWeight.w700),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
+              color: p.cardBg,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               '$questionCount questions · $typeLabel',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.8),
-                fontSize: 14,
-              ),
+              style: TextStyle(color: p.textSecondary, fontSize: 14),
             ),
           ),
           const Spacer(flex: 3),
@@ -493,11 +482,11 @@ class _IntroContent extends StatelessWidget {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: AppColors.primaryDark,
+                backgroundColor: p.accent,
+                foregroundColor: p.buttonFg,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 elevation: 4,
-                shadowColor: AppColors.accent.withValues(alpha: 0.4),
+                shadowColor: p.accent.withValues(alpha: 0.4),
               ),
             ),
           ),
@@ -555,44 +544,39 @@ class _SessionContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
     return Column(
       children: [
-        // ── Custom top bar ───────────────────────────────────────────────
+        // ── Top bar ───────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
             children: [
               IconButton(
                 onPressed: onExit,
-                icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                icon: Icon(Icons.close_rounded, color: p.iconMuted),
               ),
               Expanded(
                 child: Text(
                   '${config.surahName} · ${currentIndex + 1} / $total',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
                 ),
               ),
-              const SizedBox(width: 48), // balance
+              const SizedBox(width: 48),
             ],
           ),
         ),
         // ── Progress bar ──────────────────────────────────────────────────
         LinearProgressIndicator(
           value: (currentIndex + 1) / total,
-          backgroundColor: Colors.white.withValues(alpha: 0.1),
-          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
+          backgroundColor: p.cardBg,
+          valueColor: AlwaysStoppedAnimation<Color>(p.accent),
           minHeight: 3,
         ),
         const SizedBox(height: 12),
-        // ── Phase dots ────────────────────────────────────────────────────
         _PhaseIndicator(phase: phase),
         const SizedBox(height: 20),
-        // ── Big centered phase question ───────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: AnimatedSwitcher(
@@ -601,17 +585,11 @@ class _SessionContent extends StatelessWidget {
               _phaseHeading(phase, question),
               key: ValueKey('heading_${phase.name}'),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                height: 1.3,
-              ),
+              style: TextStyle(color: p.textPrimary, fontSize: 22, fontWeight: FontWeight.w800, height: 1.3),
             ),
           ),
         ),
         const SizedBox(height: 18),
-        // ── Main content ──────────────────────────────────────────────────
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -637,49 +615,32 @@ class _SessionContent extends StatelessWidget {
 
 class _PhaseIndicator extends StatelessWidget {
   final _Phase phase;
-
   const _PhaseIndicator({required this.phase});
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
     final listeningDone = phase.index > _Phase.listening.index;
-    final thinkingDone = phase.index > _Phase.thinking.index;
+    final thinkingDone  = phase.index > _Phase.thinking.index;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _PhaseDot(
-          icon: Icons.headphones_rounded,
-          label: 'Écoute',
-          active: phase == _Phase.listening,
-          done: listeningDone,
-        ),
-        _dotLine(listeningDone),
-        _PhaseDot(
-          icon: Icons.help_outline_rounded,
-          label: 'Question',
-          active: phase == _Phase.thinking,
-          done: thinkingDone,
-        ),
-        _dotLine(thinkingDone),
-        _PhaseDot(
-          icon: Icons.star_rounded,
-          label: 'Note',
-          active: phase == _Phase.answer,
-          done: false,
-        ),
+        _PhaseDot(icon: Icons.headphones_rounded, label: 'Écoute',   active: phase == _Phase.listening, done: listeningDone),
+        _dotLine(listeningDone, p),
+        _PhaseDot(icon: Icons.help_outline_rounded, label: 'Question', active: phase == _Phase.thinking,  done: thinkingDone),
+        _dotLine(thinkingDone, p),
+        _PhaseDot(icon: Icons.star_rounded,         label: 'Note',     active: phase == _Phase.answer,    done: false),
       ],
     );
   }
 
-  Widget _dotLine(bool done) => Container(
+  Widget _dotLine(bool done, RevisionPalette p) => Container(
         width: 28,
         height: 2,
         margin: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
-          color: done
-              ? AppColors.accent.withValues(alpha: 0.8)
-              : Colors.white.withValues(alpha: 0.15),
+          color: done ? p.accent.withValues(alpha: 0.8) : p.cardBorder,
           borderRadius: BorderRadius.circular(1),
         ),
       );
@@ -700,7 +661,8 @@ class _PhaseDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active || done ? AppColors.accent : Colors.white.withValues(alpha: 0.3);
+    final p     = RevisionThemeScope.of(context);
+    final color = active || done ? p.accent : p.iconMuted;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -712,18 +674,15 @@ class _PhaseDot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: active
-                ? AppColors.accent
+                ? p.accent
                 : done
-                    ? AppColors.accent.withValues(alpha: 0.3)
-                    : Colors.white.withValues(alpha: 0.08),
-            border: Border.all(
-              color: color,
-              width: active ? 0 : 1,
-            ),
+                    ? p.accent.withValues(alpha: 0.3)
+                    : p.cardBg,
+            border: Border.all(color: color, width: active ? 0 : 1),
           ),
           child: Icon(
             done ? Icons.check_rounded : icon,
-            color: active ? AppColors.primaryDark : color,
+            color: active ? p.buttonFg : color,
             size: active ? 18 : 14,
           ),
         ),
@@ -768,7 +727,8 @@ class _PhaseBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ── Scrollable content (cards) ────────────────────────────────────────
+    final p = RevisionThemeScope.of(context);
+
     final cardContent = <Widget>[
       AnimatedContainer(
         duration: const Duration(milliseconds: 350),
@@ -778,6 +738,7 @@ class _PhaseBody extends StatelessWidget {
                 verse: question.stimulus,
                 label: 'Verset ${question.stimulus.ayah}',
                 pulseCtrl: pulseCtrl,
+                accentColor: p.accent,
               )
             : _CompactVerseCard(verse: question.stimulus),
       ),
@@ -792,15 +753,15 @@ class _PhaseBody extends StatelessWidget {
           width: double.infinity,
           height: 80,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: p.cardBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: p.cardBorder),
           ),
           child: Center(
             child: Text(
               '• • •',
               style: TextStyle(
-                color: AppColors.accent.withValues(alpha: 0.6),
+                color: p.accent.withValues(alpha: 0.6),
                 fontSize: 28,
                 letterSpacing: 8,
               ),
@@ -815,13 +776,13 @@ class _PhaseBody extends StatelessWidget {
           children: [
             Icon(
               question.isNext ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-              color: Colors.white.withValues(alpha: 0.4),
+              color: p.iconMuted,
               size: 16,
             ),
             const SizedBox(width: 6),
             Text(
               question.isNext ? 'Verset suivant' : 'Verset précédent',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+              style: TextStyle(color: p.textSecondary, fontSize: 12),
             ),
           ],
         ),
@@ -844,7 +805,6 @@ class _PhaseBody extends StatelessWidget {
       const SizedBox(height: 16),
     ];
 
-    // ── Fixed bottom button(s) ────────────────────────────────────────────
     Widget? bottomAction;
     if (phase == _Phase.listening) {
       bottomAction = AnimatedOpacity(
@@ -917,12 +877,13 @@ class _GlassVerseCard extends StatelessWidget {
     required this.verse,
     required this.label,
     required this.pulseCtrl,
-    this.accentColor = AppColors.accent,
+    required this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget card = ClipRRect(
+    final p = RevisionThemeScope.of(context);
+    return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -934,7 +895,7 @@ class _GlassVerseCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.10),
+                color: p.cardBg,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: accentColor.withValues(alpha: 0.2 + pulse * 0.3),
@@ -957,11 +918,7 @@ class _GlassVerseCard extends StatelessWidget {
                   ),
                   child: Text(
                     label,
-                    style: TextStyle(
-                      color: accentColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -970,26 +927,22 @@ class _GlassVerseCard extends StatelessWidget {
                 verse.ar,
                 textAlign: TextAlign.right,
                 textDirection: TextDirection.rtl,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Hafs',
                   fontSize: 24,
-                  color: Colors.white,
+                  color: p.textPrimary,
                   height: 1.9,
                 ),
               ),
               if (verse.fr.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+                Divider(color: p.cardBorder, height: 1),
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     verse.fr,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.65),
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
+                    style: TextStyle(color: p.textSecondary, fontSize: 13, height: 1.5),
                   ),
                 ),
               ],
@@ -998,42 +951,37 @@ class _GlassVerseCard extends StatelessWidget {
         ),
       ),
     );
-    return card;
   }
 }
 
-// ── Compact stimulus card (for thinking/answer phases) ───────────────────────
+// ── Compact stimulus card ─────────────────────────────────────────────────────
 
 class _CompactVerseCard extends StatelessWidget {
   final QVerse verse;
-
   const _CompactVerseCard({required this.verse});
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: p.cardBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: p.cardBorder),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.2),
+              color: p.accent.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
               'V${verse.ayah}',
-              style: const TextStyle(
-                color: AppColors.accent,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(color: p.accent, fontSize: 10, fontWeight: FontWeight.w700),
             ),
           ),
           const SizedBox(width: 10),
@@ -1044,12 +992,7 @@ class _CompactVerseCard extends StatelessWidget {
               textDirection: TextDirection.rtl,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'Hafs',
-                fontSize: 17,
-                color: Colors.white,
-                height: 1.6,
-              ),
+              style: TextStyle(fontFamily: 'Hafs', fontSize: 17, color: p.textPrimary, height: 1.6),
             ),
           ),
         ],
@@ -1062,7 +1005,6 @@ class _CompactVerseCard extends StatelessWidget {
 
 class _CompactAudioPlayer extends StatelessWidget {
   final QVerse verse;
-
   const _CompactAudioPlayer({required this.verse});
 
   String _fmt(Duration d) {
@@ -1088,6 +1030,7 @@ class _CompactAudioPlayer extends StatelessWidget {
     return StreamBuilder<PositionData>(
       stream: audio.ayahPositionDataStream,
       builder: (ctx, snap) {
+        final p   = RevisionThemeScope.of(ctx);
         final pos = snap.data?.position ?? Duration.zero;
         final dur = snap.data?.duration ?? Duration.zero;
         final max = dur.inMilliseconds > 0 ? dur.inMilliseconds.toDouble() : 1.0;
@@ -1095,9 +1038,9 @@ class _CompactAudioPlayer extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.07),
+            color: p.cardBg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: p.cardBorder),
           ),
           child: Row(
             children: [
@@ -1107,19 +1050,16 @@ class _CompactAudioPlayer extends StatelessWidget {
                   valueListenable: audio.currentAyahKeyNotifier,
                   builder: (_, key, __) {
                     final isThisVerse = key == '${verse.surah}:${verse.ayah}';
-                    final showPause = playing && isThisVerse;
+                    final showPause   = playing && isThisVerse;
                     return GestureDetector(
                       onTap: _onPlayTap,
                       child: Container(
                         width: 38,
                         height: 38,
-                        decoration: const BoxDecoration(
-                          color: AppColors.accent,
-                          shape: BoxShape.circle,
-                        ),
+                        decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
                         child: Icon(
                           showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                          color: AppColors.primaryDark,
+                          color: p.buttonFg,
                           size: 22,
                         ),
                       ),
@@ -1137,10 +1077,10 @@ class _CompactAudioPlayer extends StatelessWidget {
                         trackHeight: 3,
                         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
                         overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-                        activeTrackColor: AppColors.accent,
-                        inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
-                        thumbColor: AppColors.accent,
-                        overlayColor: AppColors.accent.withValues(alpha: 0.2),
+                        activeTrackColor: p.accent,
+                        inactiveTrackColor: p.cardBorder,
+                        thumbColor: p.accent,
+                        overlayColor: p.accent.withValues(alpha: 0.2),
                       ),
                       child: Slider(
                         value: pos.inMilliseconds.toDouble().clamp(0, max),
@@ -1155,14 +1095,8 @@ class _CompactAudioPlayer extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(_fmt(pos),
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.white.withValues(alpha: 0.5))),
-                          Text(_fmt(dur),
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.white.withValues(alpha: 0.5))),
+                          Text(_fmt(pos), style: TextStyle(fontSize: 10, color: p.textSecondary)),
+                          Text(_fmt(dur), style: TextStyle(fontSize: 10, color: p.textSecondary)),
                         ],
                       ),
                     ),
@@ -1183,32 +1117,34 @@ class _PrimaryButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback? onPressed;
-  final Color color;
+  final Color? color; // null = use theme accent
 
   const _PrimaryButton({
     required this.label,
     required this.icon,
     required this.onPressed,
-    this.color = AppColors.accent,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
+    final effectiveColor = color ?? p.accent;
+    final fgColor        = color == null ? p.buttonFg : Colors.white;
     return SizedBox(
       width: double.infinity,
       height: 54,
       child: ElevatedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon, size: 20),
-        label: Text(label,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        label: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: color == AppColors.accent ? AppColors.primaryDark : Colors.white,
-          disabledBackgroundColor: color.withValues(alpha: 0.3),
+          backgroundColor: effectiveColor,
+          foregroundColor: fgColor,
+          disabledBackgroundColor: effectiveColor.withValues(alpha: 0.3),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 3,
-          shadowColor: color.withValues(alpha: 0.4),
+          shadowColor: effectiveColor.withValues(alpha: 0.4),
         ),
       ),
     );
@@ -1235,8 +1171,7 @@ class _OutlineButton extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon, color: color, size: 20),
-        label: Text(label,
-            style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16)),
+        label: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16)),
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: color, width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1246,7 +1181,7 @@ class _OutlineButton extends StatelessWidget {
   }
 }
 
-// ── Result screen ─────────────────────────────────────────────────────────────
+// ── Result screen ──────────────────────────────────────────────────────────────
 
 class _ResultContent extends StatelessWidget {
   final SessionConfig config;
@@ -1273,8 +1208,9 @@ class _ResultContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p       = RevisionThemeScope.of(context);
     final correct = results.where((r) => r).length;
-    final score = total > 0 ? correct / total : 0.0;
+    final score   = total > 0 ? correct / total : 0.0;
 
     final (message, scoreColor) = score >= 0.8
         ? ('Excellent travail !', AppColors.success)
@@ -1288,7 +1224,6 @@ class _ResultContent extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Spacer(flex: 2),
-          // Score circle
           Container(
             width: 140,
             height: 140,
@@ -1303,61 +1238,36 @@ class _ResultContent extends StatelessWidget {
                 children: [
                   Text(
                     '$correct / $total',
-                    style: TextStyle(
-                      color: scoreColor,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(color: scoreColor, fontSize: 30, fontWeight: FontWeight.w800),
                   ),
-                  Text(
-                    'trouvés',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 12,
-                    ),
-                  ),
+                  Text('trouvés', style: TextStyle(color: p.textSecondary, fontSize: 12)),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            message,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Text(message, style: TextStyle(color: p.textPrimary, fontSize: 22, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Text(
             'Session de ${config.surahName} terminée',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 14,
-            ),
+            style: TextStyle(color: p.textSecondary, fontSize: 14),
           ),
           if (nextReviewDate != null) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                color: AppColors.accent.withValues(alpha: 0.12),
+                color: p.accent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                border: Border.all(color: p.accent.withValues(alpha: 0.3)),
               ),
               child: Text(
                 _nextReviewLabel(nextReviewDate!),
-                style: const TextStyle(
-                  color: AppColors.accent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(color: p.accent, fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
           ],
           const SizedBox(height: 28),
-          // Dots per question
           Wrap(
             spacing: 6,
             runSpacing: 6,

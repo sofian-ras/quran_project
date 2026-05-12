@@ -11,6 +11,7 @@ import '../../services/revision_service.dart';
 import '../../services/revision_stats_service.dart';
 import '../../services/tafsir_service.dart';
 import '../../theme/app_theme.dart';
+import 'revision_palette.dart';
 import 'revision_session_screen.dart';
 import 'revision_stats_screen.dart';
 
@@ -35,17 +36,17 @@ class _RevisionScreenState extends State<RevisionScreen>
   late AnimationController _staggerCtrl;
   late AnimationController _orbCtrl;
 
-  // ── Accent palette ────────────────────────────────────────────────────────
-  static const List<Color> _palette = [
-    Color(0xFFD4AF77), // Or (défaut)
-    Color(0xFF4DB87A), // Émeraude
-    Color(0xFF5BA3D5), // Saphir
-    Color(0xFF9B7FC4), // Améthyste
-    Color(0xFFD47B7B), // Rose
-    Color(0xFFE0935A), // Cuivre
+  // ── Thèmes (3 sombres + 3 clairs) ────────────────────────────────────────
+  static const List<RevisionPalette> _themes = [
+    RevisionPalette(accent: Color(0xFFD4AF77), bgTop: Color(0xFF1A1206), bgBottom: Color(0xFF261B0C), isDark: true),
+    RevisionPalette(accent: Color(0xFF4DB87A), bgTop: Color(0xFF0A1A10), bgBottom: Color(0xFF122B1A), isDark: true),
+    RevisionPalette(accent: Color(0xFF5BA3D5), bgTop: Color(0xFF080F1F), bgBottom: Color(0xFF0E1A32), isDark: true),
+    RevisionPalette(accent: Color(0xFFC17A3A), bgTop: Color(0xFFF5EDD8), bgBottom: Color(0xFFEDE0C4), isDark: false),
+    RevisionPalette(accent: Color(0xFF2B5F8E), bgTop: Color(0xFFD6E8F5), bgBottom: Color(0xFFC2D9EE), isDark: false),
+    RevisionPalette(accent: Color(0xFF2A7A4A), bgTop: Color(0xFFD6EDE0), bgBottom: Color(0xFFC2E0CE), isDark: false),
   ];
-  int _accentIndex = 0;
-  Color get _accent => _palette[_accentIndex];
+  int _themeIndex = 0;
+  RevisionPalette get _theme => _themes[_themeIndex];
 
   RevisionStats? _stats;
 
@@ -74,7 +75,7 @@ class _RevisionScreenState extends State<RevisionScreen>
   Future<void> _loadAccent() async {
     final prefs = await SharedPreferences.getInstance();
     final idx = prefs.getInt('revision_accent_index') ?? 0;
-    if (mounted) setState(() => _accentIndex = idx.clamp(0, _palette.length - 1));
+    if (mounted) setState(() => _themeIndex = idx.clamp(0, _themes.length - 1));
   }
 
   Future<void> _loadAll() async {
@@ -155,70 +156,74 @@ class _RevisionScreenState extends State<RevisionScreen>
       ayahCount:   surah['ayahCount'] as int,
     );
     Navigator.of(context)
-        .push(_fadeRoute(RevisionConfigScreen(surah: surah, accentColor: _accent)))
+        .push(_fadeRoute(RevisionConfigScreen(surah: surah, palette: _theme, stats: _stats)))
         .then((_) => _loadAll());
   }
 
   void _showThemePicker() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.primaryDark,
+      backgroundColor: _theme.bgBottom,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 44),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Couleur d\'accent',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+      builder: (_) => RevisionThemeScope(
+        palette: _theme,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 44),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Thème',
+                style: TextStyle(
+                  color: _theme.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(_palette.length, (i) {
-                final sel = i == _accentIndex;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() => _accentIndex = i);
-                    SharedPreferences.getInstance()
-                        .then((p) => p.setInt('revision_accent_index', i));
-                    Navigator.pop(context);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: _palette[i],
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: sel ? Colors.white : Colors.transparent,
-                        width: 2.5,
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(_themes.length, (i) {
+                  final sel = i == _themeIndex;
+                  final t = _themes[i];
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _themeIndex = i);
+                      SharedPreferences.getInstance()
+                          .then((p) => p.setInt('revision_accent_index', i));
+                      Navigator.pop(context);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: t.accent,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: sel ? _theme.textPrimary : Colors.transparent,
+                          width: 2.5,
+                        ),
+                        boxShadow: sel
+                            ? [
+                                BoxShadow(
+                                  color: t.accent.withValues(alpha: 0.55),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                )
+                              ]
+                            : null,
                       ),
-                      boxShadow: sel
-                          ? [
-                              BoxShadow(
-                                color: _palette[i].withValues(alpha: 0.55),
-                                blurRadius: 10,
-                                spreadRadius: 2,
-                              )
-                            ]
-                          : null,
                     ),
-                  ),
-                );
-              }),
-            ),
-            const SizedBox(height: 8),
-          ],
+                  );
+                }),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -226,145 +231,145 @@ class _RevisionScreenState extends State<RevisionScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _GradientBg(
-        child: SafeArea(
-          child: _loading
-              ? Center(child: CircularProgressIndicator(color: _accent))
-              : CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    // ── Decorative header (scrolls away) ─────────────────
-                    SliverAppBar(
-                      backgroundColor: Colors.transparent,
-                      surfaceTintColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      elevation: 0,
-                      expandedHeight: 200,
-                      pinned: false,
-                      floating: false,
-                      stretch: true,
-                      automaticallyImplyLeading: false,
-                      flexibleSpace: FlexibleSpaceBar(
-                        background: Stack(
-                          children: [
-                            // Animated breathing orb top-right
-                            Positioned(
-                              right: -30,
-                              top: -30,
-                              child: AnimatedBuilder(
-                                animation: _orbCtrl,
-                                builder: (_, __) => Opacity(
-                                  opacity: 0.10 + _orbCtrl.value * 0.14,
-                                  child: Container(
-                                    width: 200,
-                                    height: 200,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: _accent,
+    return RevisionThemeScope(
+      palette: _theme,
+      child: Scaffold(
+        body: _GradientBg(
+          child: SafeArea(
+            child: _loading
+                ? Center(child: CircularProgressIndicator(color: _theme.accent))
+                : CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      // ── Decorative header (scrolls away) ─────────────────
+                      SliverAppBar(
+                        backgroundColor: Colors.transparent,
+                        surfaceTintColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        elevation: 0,
+                        expandedHeight: 200,
+                        pinned: false,
+                        floating: false,
+                        stretch: true,
+                        automaticallyImplyLeading: false,
+                        flexibleSpace: FlexibleSpaceBar(
+                          background: Stack(
+                            children: [
+                              // Animated breathing orb
+                              Positioned(
+                                right: -30,
+                                top: -30,
+                                child: AnimatedBuilder(
+                                  animation: _orbCtrl,
+                                  builder: (_, __) => Opacity(
+                                    opacity: 0.10 + _orbCtrl.value * 0.14,
+                                    child: Container(
+                                      width: 200,
+                                      height: 200,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: _theme.accent,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            // Title + subtitle centered
-                            Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text(
-                                    'Révision',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 34,
-                                      fontWeight: FontWeight.w900,
-                                      height: 1.1,
+                              // Title + subtitle
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Révision',
+                                      style: TextStyle(
+                                        color: _theme.textPrimary,
+                                        fontSize: 34,
+                                        fontWeight: FontWeight.w900,
+                                        height: 1.1,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Choisissez une sourate à réviser',
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.55),
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w400,
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Choisissez une sourate à réviser',
+                                      style: TextStyle(
+                                        color: _theme.textSecondary,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w400,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            // Close button top-left
-                            Positioned(
-                              top: 0,
-                              left: 4,
-                              child: IconButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                              // Close button
+                              Positioned(
+                                top: 0,
+                                left: 4,
+                                child: IconButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  icon: Icon(Icons.close_rounded, color: _theme.iconMuted),
+                                ),
                               ),
-                            ),
-                            // Theme picker button top-right
-                            Positioned(
-                              top: 0,
-                              right: 4,
-                              child: IconButton(
-                                onPressed: _showThemePicker,
-                                icon: Icon(Icons.tune_rounded, color: _accent),
+                              // Theme picker button
+                              Positioned(
+                                top: 0,
+                                right: 4,
+                                child: IconButton(
+                                  onPressed: _showThemePicker,
+                                  icon: Icon(Icons.tune_rounded, color: _theme.accent),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // ── Carte objectif du jour ───────────────────────────
-                    if (_stats != null)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                          child: _DailyStatsCard(
-                            stats: _stats!,
-                            accent: _accent,
-                            onTap: () => Navigator.of(context)
-                                .push(_fadeRoute(RevisionStatsScreen(accentColor: _accent)))
-                                .then((_) => _loadAll()),
+                            ],
                           ),
                         ),
                       ),
-                    // ── À réviser aujourd'hui ─────────────────────────────
-                    if (_dueToday.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: _DueTodaySection(
-                          dueToday: _dueToday,
-                          accent: _accent,
-                          onTap: _onSurahTap,
-                          onLongPress: _confirmRemove,
+                      // ── Carte objectif du jour ───────────────────────────
+                      if (_stats != null)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                            child: _DailyStatsCard(
+                              stats: _stats!,
+                              onTap: () => Navigator.of(context)
+                                  .push(_fadeRoute(RevisionStatsScreen(palette: _theme)))
+                                  .then((_) => _loadAll()),
+                            ),
+                          ),
+                        ),
+                      // ── À réviser aujourd'hui ─────────────────────────────
+                      if (_dueToday.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: _DueTodaySection(
+                            dueToday: _dueToday,
+                            onTap: _onSurahTap,
+                            onLongPress: _confirmRemove,
+                          ),
+                        ),
+                      // ── Surah list ────────────────────────────────────────
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                        sliver: SliverList.builder(
+                          itemCount: _surahs.length,
+                          itemBuilder: (_, i) {
+                            final surah = _surahs[i];
+                            final entry = _tracked[surah['id'] as int];
+                            return _AnimatedTile(
+                              index: i,
+                              ctrl: _staggerCtrl,
+                              child: _SurahTile(
+                                surah: surah,
+                                entry: entry,
+                                onTap: () => _onSurahTap(surah),
+                                onLongPress: entry != null
+                                    ? () => _confirmRemove(entry.surahId, entry.surahName)
+                                    : null,
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    // ── Surah list ────────────────────────────────────────
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                      sliver: SliverList.builder(
-                        itemCount: _surahs.length,
-                        itemBuilder: (_, i) {
-                          final surah = _surahs[i];
-                          final entry = _tracked[surah['id'] as int];
-                          return _AnimatedTile(
-                            index: i,
-                            ctrl: _staggerCtrl,
-                            child: _SurahTile(
-                              surah: surah,
-                              entry: entry,
-                              accent: _accent,
-                              onTap: () => _onSurahTap(surah),
-                              onLongPress: entry != null
-                                  ? () => _confirmRemove(entry.surahId, entry.surahName)
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+          ),
         ),
       ),
     );
@@ -375,19 +380,18 @@ class _RevisionScreenState extends State<RevisionScreen>
 
 class _DueTodaySection extends StatelessWidget {
   final List<RevisionEntry> dueToday;
-  final Color accent;
   final void Function(Map<String, dynamic>) onTap;
   final void Function(int, String) onLongPress;
 
   const _DueTodaySection({
     required this.dueToday,
-    required this.accent,
     required this.onTap,
     required this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 16, 8, 0),
       child: Column(
@@ -398,7 +402,7 @@ class _DueTodaySection extends StatelessWidget {
             child: Text(
               'À réviser aujourd\'hui',
               style: TextStyle(
-                color: accent,
+                color: p.accent,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.8,
@@ -432,24 +436,20 @@ class _DueTodaySection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Expanded(
-                  child: Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
-                ),
+                Expanded(child: Divider(color: p.cardBorder, height: 1)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
                     'Toutes les sourates',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.35),
+                      color: p.textHint,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.6,
                     ),
                   ),
                 ),
-                Expanded(
-                  child: Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
-                ),
+                Expanded(child: Divider(color: p.cardBorder, height: 1)),
               ],
             ),
           ),
@@ -490,12 +490,14 @@ class _AnimatedTile extends StatelessWidget {
 
 class RevisionConfigScreen extends StatefulWidget {
   final Map<String, dynamic> surah;
-  final Color accentColor;
+  final RevisionPalette palette;
+  final RevisionStats? stats;
 
   const RevisionConfigScreen({
     super.key,
     required this.surah,
-    required this.accentColor,
+    required this.palette,
+    this.stats,
   });
 
   @override
@@ -507,7 +509,8 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
   late int _toAyah;
   QuestionType _questionType = QuestionType.next;
 
-  Color get _a => widget.accentColor;
+  RevisionPalette get _p => widget.palette;
+  Color get _a => _p.accent;
 
   int get _totalAyahs {
     final count = widget.surah['ayahCount'] as int;
@@ -523,7 +526,13 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
   void initState() {
     super.initState();
     _fromAyah = 1;
-    _toAyah   = _totalAyahs;
+    final stats = widget.stats;
+    if (stats != null && !stats.goalMet) {
+      final remaining = (stats.dailyGoal - stats.todayAyahs).clamp(1, _totalAyahs);
+      _toAyah = remaining;
+    } else {
+      _toAyah = _totalAyahs;
+    }
   }
 
   void _launch() {
@@ -536,7 +545,7 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
       toAyah:       _toAyah,
       questionType: _questionType,
     );
-    Navigator.of(context).push(_fadeRoute(RevisionSessionScreen(config: config)));
+    Navigator.of(context).push(_fadeRoute(RevisionSessionScreen(config: config, palette: widget.palette)));
   }
 
   @override
@@ -545,187 +554,231 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
     final total        = _totalAyahs;
     final nameFr       = widget.surah['nameFr'] as String;
     final questionCount = (_toAyah - _fromAyah + 1).clamp(0, total);
+    final stats         = widget.stats;
+    final remaining     = stats != null ? (stats.dailyGoal - stats.todayAyahs).clamp(0, total) : 0;
 
-    return Scaffold(
-      body: _GradientBg(
-        child: SafeArea(
-          child: Column(
-            children: [
-              // ── Back ──────────────────────────────────────────────────
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.arrow_back_rounded, color: Colors.white54),
-                ),
-              ),
-              const SizedBox(height: 8),
-              // ── Title ─────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  'Comment veux-tu réviser\n$nameFr ?',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
+    return RevisionThemeScope(
+      palette: widget.palette,
+      child: Scaffold(
+        body: _GradientBg(
+          child: SafeArea(
+            child: Column(
+              children: [
+                // ── Back ──────────────────────────────────────────────────
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(Icons.arrow_back_rounded, color: _p.iconMuted),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              // ── SVG Arabic name ────────────────────────────────────────
-              SvgPicture.asset(
-                'assets/images/Translated_Quran/surah_svg/$id.svg',
-                height: 42,
-                colorFilter: ColorFilter.mode(_a, BlendMode.srcIn),
-              ),
-              const Spacer(flex: 1),
-              // ── Config card ────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Verse range header
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Versets $_fromAyah → $_toAyah',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _a.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '$questionCount question${questionCount > 1 ? 's' : ''}',
-                              style: TextStyle(
-                                color: _a,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                const SizedBox(height: 8),
+                // ── Title ─────────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Comment veux-tu réviser\n$nameFr ?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _p.textPrimary,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // ── SVG Arabic name ────────────────────────────────────────
+                SvgPicture.asset(
+                  'assets/images/Translated_Quran/surah_svg/$id.svg',
+                  height: 42,
+                  colorFilter: ColorFilter.mode(_a, BlendMode.srcIn),
+                ),
+                const Spacer(flex: 1),
+                // ── Config card ────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: _GlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Objective indicator
+                        if (stats != null) ...[
+                          Row(
+                            children: [
+                              Text(
+                                'Objectif du jour',
+                                style: TextStyle(color: _p.textSecondary, fontSize: 12),
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 4,
-                          activeTrackColor: _a,
-                          inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
-                          thumbColor: _a,
-                          overlayColor: _a.withValues(alpha: 0.2),
-                          rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 10),
-                        ),
-                        child: RangeSlider(
-                          values: RangeValues(_fromAyah.toDouble(), _toAyah.toDouble()),
-                          min: 1,
-                          max: total.toDouble(),
-                          divisions: total > 1 ? total - 1 : 1,
-                          labels: RangeLabels('$_fromAyah', '$_toAyah'),
-                          onChanged: (v) {
-                            if (v.end - v.start < 1) return;
-                            setState(() {
-                              _fromAyah = v.start.round();
-                              _toAyah   = v.end.round();
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Type de question',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.55),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: QuestionType.values.map((t) {
-                          final selected = _questionType == t;
-                          final label = switch (t) {
-                            QuestionType.next  => 'Suivant',
-                            QuestionType.prev  => 'Précédent',
-                            QuestionType.mixed => 'Mixte',
-                          };
-                          return Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() => _questionType = t),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                margin: const EdgeInsets.symmetric(horizontal: 3),
-                                padding: const EdgeInsets.symmetric(vertical: 11),
-                                decoration: BoxDecoration(
-                                  color: selected
-                                      ? _a
-                                      : Colors.white.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: selected
-                                        ? _a
-                                        : Colors.white.withValues(alpha: 0.12),
-                                  ),
-                                ),
-                                child: Text(
-                                  label,
-                                  textAlign: TextAlign.center,
+                              const Spacer(),
+                              if (stats.goalMet)
+                                Text(
+                                  'Atteint ✓',
                                   style: TextStyle(
-                                    color: selected
-                                        ? AppColors.primaryDark
-                                        : Colors.white.withValues(alpha: 0.75),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
+                                    color: AppColors.success,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                )
+                              else
+                                Text(
+                                  '$remaining verset${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}',
+                                  style: TextStyle(color: _a, fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        // Verse range header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Versets $_fromAyah → $_toAyah',
+                              style: TextStyle(
+                                color: _p.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                if (stats != null && !stats.goalMet && questionCount != remaining)
+                                  GestureDetector(
+                                    onTap: () => setState(() {
+                                      _fromAyah = 1;
+                                      _toAyah = remaining.clamp(1, total);
+                                    }),
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: Text(
+                                        '← objectif',
+                                        style: TextStyle(color: _a, fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: _a.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '$questionCount question${questionCount > 1 ? 's' : ''}',
+                                    style: TextStyle(
+                                      color: _a,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 4,
+                            activeTrackColor: _a,
+                            inactiveTrackColor: _p.cardBorder,
+                            thumbColor: _a,
+                            overlayColor: _a.withValues(alpha: 0.2),
+                            rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 10),
+                          ),
+                          child: RangeSlider(
+                            values: RangeValues(_fromAyah.toDouble(), _toAyah.toDouble()),
+                            min: 1,
+                            max: total.toDouble(),
+                            divisions: total > 1 ? total - 1 : 1,
+                            labels: RangeLabels('$_fromAyah', '$_toAyah'),
+                            onChanged: (v) {
+                              if (v.end - v.start < 1) return;
+                              setState(() {
+                                _fromAyah = v.start.round();
+                                _toAyah   = v.end.round();
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Type de question',
+                          style: TextStyle(
+                            color: _p.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: QuestionType.values.map((t) {
+                            final selected = _questionType == t;
+                            final label = switch (t) {
+                              QuestionType.next  => 'Suivant',
+                              QuestionType.prev  => 'Précédent',
+                              QuestionType.mixed => 'Mixte',
+                            };
+                            return Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _questionType = t),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  padding: const EdgeInsets.symmetric(vertical: 11),
+                                  decoration: BoxDecoration(
+                                    color: selected ? _a : _p.cardBg,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: selected ? _a : _p.cardBorder,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    label,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: selected ? _p.buttonFg : _p.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(flex: 2),
+                // ── Start button ───────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 58,
+                    child: ElevatedButton.icon(
+                      onPressed: questionCount >= 1 ? _launch : null,
+                      icon: const Icon(Icons.play_arrow_rounded, size: 26),
+                      label: const Text(
+                        'Commencer',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const Spacer(flex: 2),
-              // ── Start button ───────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 58,
-                  child: ElevatedButton.icon(
-                    onPressed: questionCount >= 1 ? _launch : null,
-                    icon: const Icon(Icons.play_arrow_rounded, size: 26),
-                    label: const Text(
-                      'Commencer',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _a,
-                      foregroundColor: AppColors.primaryDark,
-                      disabledBackgroundColor: _a.withValues(alpha: 0.25),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                      elevation: 6,
-                      shadowColor: _a.withValues(alpha: 0.5),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _a,
+                        foregroundColor: _p.buttonFg,
+                        disabledBackgroundColor: _a.withValues(alpha: 0.25),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        elevation: 6,
+                        shadowColor: _a.withValues(alpha: 0.5),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-            ],
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         ),
       ),
@@ -743,12 +796,13 @@ class _GradientBg extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [AppColors.primaryDark, AppColors.primary],
+          colors: [p.bgTop, p.bgBottom],
         ),
       ),
       child: child,
@@ -762,6 +816,7 @@ class _GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
@@ -769,9 +824,9 @@ class _GlassCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.07),
+            color: p.cardBg,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            border: Border.all(color: p.cardBorder),
           ),
           child: child,
         ),
@@ -786,7 +841,7 @@ Color _srsColor(String status) => switch (status) {
       'review'   => AppColors.success,
       'learning' => AppColors.warning,
       'lapsed'   => AppColors.error,
-      _          => Colors.white,
+      _          => AppColors.success,
     };
 
 // ── Due-today card (horizontal scroll) ───────────────────────────────────────
@@ -807,6 +862,7 @@ class _DueTodayCardState extends State<_DueTodayCard> {
 
   @override
   Widget build(BuildContext context) {
+    final p = RevisionThemeScope.of(context);
     final color = _srsColor(widget.entry.status);
     return GestureDetector(
       onTapDown:   (_) => setState(() => _pressed = true),
@@ -840,8 +896,8 @@ class _DueTodayCardState extends State<_DueTodayCard> {
                   Expanded(
                     child: Text(
                       widget.entry.surahName,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: p.textPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -872,13 +928,11 @@ class _DueTodayCardState extends State<_DueTodayCard> {
 class _SurahTile extends StatefulWidget {
   final Map<String, dynamic> surah;
   final RevisionEntry? entry;
-  final Color accent;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
   const _SurahTile({
     required this.surah,
-    required this.accent,
     required this.onTap,
     this.entry,
     this.onLongPress,
@@ -893,11 +947,12 @@ class _SurahTileState extends State<_SurahTile> {
 
   @override
   Widget build(BuildContext context) {
+    final p         = RevisionThemeScope.of(context);
     final id        = widget.surah['id'] as int;
     final nameFr    = widget.surah['nameFr'] as String;
     final ayahCount = widget.surah['ayahCount'] as int;
     final dotColor  = widget.entry != null ? _srsColor(widget.entry!.status) : null;
-    final svgColor  = dotColor ?? widget.accent.withValues(alpha: 0.55);
+    final svgColor  = dotColor ?? p.accent.withValues(alpha: 0.55);
 
     return GestureDetector(
       onTapDown:   (_) => setState(() => _pressed = true),
@@ -911,12 +966,12 @@ class _SurahTileState extends State<_SurahTile> {
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: dotColor != null ? 0.08 : 0.05),
+            color: p.cardBg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: dotColor != null
                   ? dotColor.withValues(alpha: 0.28)
-                  : Colors.white.withValues(alpha: 0.07),
+                  : p.cardBorder,
             ),
           ),
           child: Row(
@@ -929,15 +984,15 @@ class _SurahTileState extends State<_SurahTile> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: widget.accent.withValues(alpha: 0.12),
+                      color: p.accent.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
-                      border: Border.all(color: widget.accent.withValues(alpha: 0.25)),
+                      border: Border.all(color: p.accent.withValues(alpha: 0.25)),
                     ),
                     child: Center(
                       child: Text(
                         '$id',
                         style: TextStyle(
-                          color: widget.accent,
+                          color: p.accent,
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
                         ),
@@ -954,7 +1009,7 @@ class _SurahTileState extends State<_SurahTile> {
                         decoration: BoxDecoration(
                           color: dotColor,
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.primaryDark, width: 1.5),
+                          border: Border.all(color: p.bgBottom, width: 1.5),
                         ),
                       ),
                     ),
@@ -968,8 +1023,8 @@ class _SurahTileState extends State<_SurahTile> {
                   children: [
                     Text(
                       nameFr,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: p.textPrimary,
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
                       ),
@@ -977,10 +1032,7 @@ class _SurahTileState extends State<_SurahTile> {
                     const SizedBox(height: 2),
                     Text(
                       '$ayahCount versets',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.38),
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: p.textHint, fontSize: 12),
                     ),
                   ],
                 ),
@@ -995,7 +1047,7 @@ class _SurahTileState extends State<_SurahTile> {
               Icon(
                 Icons.chevron_right_rounded,
                 size: 18,
-                color: Colors.white.withValues(alpha: 0.2),
+                color: p.textHint,
               ),
             ],
           ),
@@ -1009,14 +1061,9 @@ class _SurahTileState extends State<_SurahTile> {
 
 class _DailyStatsCard extends StatefulWidget {
   final RevisionStats stats;
-  final Color accent;
   final VoidCallback onTap;
 
-  const _DailyStatsCard({
-    required this.stats,
-    required this.accent,
-    required this.onTap,
-  });
+  const _DailyStatsCard({required this.stats, required this.onTap});
 
   @override
   State<_DailyStatsCard> createState() => _DailyStatsCardState();
@@ -1027,6 +1074,7 @@ class _DailyStatsCardState extends State<_DailyStatsCard> {
 
   @override
   Widget build(BuildContext context) {
+    final p   = RevisionThemeScope.of(context);
     final s   = widget.stats;
     final pct = (s.masteryPercent * 100).round();
 
@@ -1041,67 +1089,45 @@ class _DailyStatsCardState extends State<_DailyStatsCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top row: streak + mastery
               Row(
                 children: [
                   Text(
                     '🔥 ${s.streak} jour${s.streak > 1 ? 's' : ''}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(color: p.textPrimary, fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
                   Text(
                     '⭐ $pct% maîtrisé',
-                    style: TextStyle(
-                      color: widget.accent,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(color: p.accent, fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 4),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 16,
-                    color: Colors.white.withValues(alpha: 0.3),
-                  ),
+                  Icon(Icons.chevron_right_rounded, size: 16, color: p.textHint),
                 ],
               ),
               const SizedBox(height: 12),
-              // Progress bar
               ClipRRect(
                 borderRadius: BorderRadius.circular(3),
                 child: LinearProgressIndicator(
                   value: s.goalProgress,
                   minHeight: 5,
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  backgroundColor: p.cardBorder,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    s.goalMet ? AppColors.success : widget.accent,
+                    s.goalMet ? AppColors.success : p.accent,
                   ),
                 ),
               ),
               const SizedBox(height: 8),
-              // Label
               Row(
                 children: [
                   Text(
                     '${s.todayAyahs} / ${s.dailyGoal} versets aujourd\'hui',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: p.textSecondary, fontSize: 12),
                   ),
                   if (s.goalMet) ...[
                     const SizedBox(width: 8),
                     Text(
                       'Objectif atteint !',
-                      style: TextStyle(
-                        color: AppColors.success,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ],
