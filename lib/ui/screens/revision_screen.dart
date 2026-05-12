@@ -249,18 +249,20 @@ class _RevisionScreenState extends State<RevisionScreen>
                         flexibleSpace: FlexibleSpaceBar(
                           background: Stack(
                             children: [
-                              // Vignette : bords fondent vers la couleur de fond
+                              // Halo soleil au centre
                               Positioned.fill(
                                 child: DecoratedBox(
                                   decoration: BoxDecoration(
                                     gradient: RadialGradient(
                                       center: Alignment.center,
-                                      radius: 1.1,
+                                      radius: 0.88,
                                       colors: [
+                                        Colors.white.withValues(alpha: _theme.isDark ? 0.30 : 0.55),
+                                        Colors.white.withValues(alpha: _theme.isDark ? 0.10 : 0.20),
+                                        Colors.white.withValues(alpha: _theme.isDark ? 0.03 : 0.06),
                                         Colors.transparent,
-                                        _theme.bgTop.withValues(alpha: 0.75),
                                       ],
-                                      stops: const [0.30, 1.0],
+                                      stops: const [0.0, 0.45, 0.72, 1.0],
                                     ),
                                   ),
                                 ),
