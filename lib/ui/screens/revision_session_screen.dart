@@ -576,7 +576,7 @@ class _SessionContent extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _PhaseIndicator(phase: phase),
-        const SizedBox(height: 20),
+        const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: AnimatedSwitcher(
@@ -585,11 +585,11 @@ class _SessionContent extends StatelessWidget {
               _phaseHeading(phase, question),
               key: ValueKey('heading_${phase.name}'),
               textAlign: TextAlign.center,
-              style: TextStyle(color: p.textPrimary, fontSize: 22, fontWeight: FontWeight.w800, height: 1.3),
+              style: TextStyle(color: p.textSecondary, fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 10),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -744,9 +744,6 @@ class _PhaseBody extends StatelessWidget {
       ),
       const SizedBox(height: 14),
 
-      if (phase == _Phase.listening)
-        _CompactAudioPlayer(verse: question.stimulus),
-
       if (phase == _Phase.thinking) ...[
         const SizedBox(height: 4),
         Container(
@@ -800,7 +797,7 @@ class _PhaseBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        _CompactAudioPlayer(verse: question.answer),
+        Center(child: _PlayPauseButton(verse: question.answer)),
       ],
       const SizedBox(height: 16),
     ];
@@ -856,6 +853,12 @@ class _PhaseBody extends StatelessWidget {
             ),
           ),
         ),
+        // Play button for listening phase — static, centré
+        if (phase == _Phase.listening) ...[
+          const SizedBox(height: 12),
+          Center(child: _PlayPauseButton(verse: question.stimulus)),
+          const SizedBox(height: 12),
+        ],
         if (bottomAction != null) ...[
           bottomAction,
           const SizedBox(height: 20),
@@ -1001,19 +1004,13 @@ class _CompactVerseCard extends StatelessWidget {
   }
 }
 
-// ── Compact audio player ──────────────────────────────────────────────────────
+// ── Play / pause button ───────────────────────────────────────────────────────
 
-class _CompactAudioPlayer extends StatelessWidget {
+class _PlayPauseButton extends StatelessWidget {
   final QVerse verse;
-  const _CompactAudioPlayer({required this.verse});
+  const _PlayPauseButton({required this.verse});
 
-  String _fmt(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  void _onPlayTap() {
+  void _onTap() {
     final audio = AudioService.instance;
     final key = '${verse.surah}:${verse.ayah}';
     if (audio.currentAyahKeyNotifier.value == key) {
@@ -1025,88 +1022,41 @@ class _CompactAudioPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p     = RevisionThemeScope.of(context);
     final audio = AudioService.instance;
 
-    return StreamBuilder<PositionData>(
-      stream: audio.ayahPositionDataStream,
-      builder: (ctx, snap) {
-        final p   = RevisionThemeScope.of(ctx);
-        final pos = snap.data?.position ?? Duration.zero;
-        final dur = snap.data?.duration ?? Duration.zero;
-        final max = dur.inMilliseconds > 0 ? dur.inMilliseconds.toDouble() : 1.0;
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: p.cardBg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: p.cardBorder),
-          ),
-          child: Row(
-            children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: audio.isAyahPlayingNotifier,
-                builder: (_, playing, __) => ValueListenableBuilder<String?>(
-                  valueListenable: audio.currentAyahKeyNotifier,
-                  builder: (_, key, __) {
-                    final isThisVerse = key == '${verse.surah}:${verse.ayah}';
-                    final showPause   = playing && isThisVerse;
-                    return GestureDetector(
-                      onTap: _onPlayTap,
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
-                        child: Icon(
-                          showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                          color: p.buttonFg,
-                          size: 22,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: audio.isAyahPlayingNotifier,
+      builder: (_, playing, __) => ValueListenableBuilder<String?>(
+        valueListenable: audio.currentAyahKeyNotifier,
+        builder: (_, key, __) {
+          final isThisVerse = key == '${verse.surah}:${verse.ayah}';
+          final showPause   = playing && isThisVerse;
+          return GestureDetector(
+            onTap: _onTap,
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: p.accent,
+                boxShadow: [
+                  BoxShadow(
+                    color: p.accent.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SliderTheme(
-                      data: SliderTheme.of(ctx).copyWith(
-                        trackHeight: 3,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-                        activeTrackColor: p.accent,
-                        inactiveTrackColor: p.cardBorder,
-                        thumbColor: p.accent,
-                        overlayColor: p.accent.withValues(alpha: 0.2),
-                      ),
-                      child: Slider(
-                        value: pos.inMilliseconds.toDouble().clamp(0, max),
-                        min: 0,
-                        max: max,
-                        onChanged: (v) =>
-                            audio.seekAyah(Duration(milliseconds: v.toInt())),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(_fmt(pos), style: TextStyle(fontSize: 10, color: p.textSecondary)),
-                          Text(_fmt(dur), style: TextStyle(fontSize: 10, color: p.textSecondary)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              child: Icon(
+                showPause ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: p.buttonFg,
+                size: 34,
               ),
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 }
