@@ -47,11 +47,11 @@ dev_dependencies:
   flutter_lints: ^3.0.0 # Version standard stable
 
 flutter_native_splash:
-  color: "#25D366"
-  color_dark: "#25D366"
+  color: "#F2ECE5"
+  color_dark: "#F2ECE5"
   android_12:
-    icon_background_color: "#25D366"
-    icon_background_color_dark: "#25D366"
+    icon_background_color: "#F2ECE5"
+    icon_background_color_dark: "#F2ECE5"
   web: false
   ios: false
 
