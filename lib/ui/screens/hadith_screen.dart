@@ -7,6 +7,7 @@ import '../../services/hadith_db.dart';
 import '../../services/hadith_favorites_service.dart';
 import 'hadith_detail_screen.dart';
 import 'hadith_favorites_screen.dart';
+import 'hadith_fullscreen_viewer.dart';
 
 class HadithScreen extends StatefulWidget {
   const HadithScreen({super.key});
@@ -15,7 +16,8 @@ class HadithScreen extends StatefulWidget {
   State<HadithScreen> createState() => _HadithScreenState();
 }
 
-class _HadithScreenState extends State<HadithScreen> {
+class _HadithScreenState extends State<HadithScreen>
+    with TickerProviderStateMixin {
   static const _gold = Color(0xFFC8A165);
 
   final _searchCtrl = TextEditingController();
@@ -33,14 +35,21 @@ class _HadithScreenState extends State<HadithScreen> {
 
   Set<int> _favorites = {};
 
+  late final AnimationController _gridAnimCtrl;
+
   @override
   void initState() {
     super.initState();
+    _gridAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   @override
   void dispose() {
+    _gridAnimCtrl.dispose();
     _searchCtrl.dispose();
     _searchFocusNode.dispose();
     _debounce?.cancel();
@@ -63,6 +72,7 @@ class _HadithScreenState extends State<HadithScreen> {
         _importing = false;
         _loading = false;
       });
+      _gridAnimCtrl.forward();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -372,16 +382,32 @@ class _HadithScreenState extends State<HadithScreen> {
                 delegate: SliverChildBuilderDelegate(
                   (context, i) {
                     final cat = _categories[i];
-                    return _CategoryCard(
-                      categoryId: cat['category_id'] as String,
-                      categoryName: cat['category_name'] as String,
-                      count: cat['count'] as int,
-                      isDark: isDark,
-                      gold: _gold,
-                      onTap: () => _openCategory(
-                        cat['category_id'] as String,
-                        cat['category_name'] as String,
-                        cat['count'] as int,
+                    final delay = (i * 0.07).clamp(0.0, 0.65);
+                    final end = (delay + 0.3).clamp(0.3, 1.0);
+                    final interval = Interval(delay, end, curve: Curves.easeOut);
+                    return AnimatedBuilder(
+                      animation: _gridAnimCtrl,
+                      builder: (context, child) {
+                        final t = interval.transform(_gridAnimCtrl.value);
+                        return Opacity(
+                          opacity: t,
+                          child: Transform.translate(
+                            offset: Offset(0, 18 * (1 - t)),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _CategoryCard(
+                        categoryId: cat['category_id'] as String,
+                        categoryName: cat['category_name'] as String,
+                        count: cat['count'] as int,
+                        isDark: isDark,
+                        gold: _gold,
+                        onTap: () => _openCategory(
+                          cat['category_id'] as String,
+                          cat['category_name'] as String,
+                          cat['count'] as int,
+                        ),
                       ),
                     );
                   },
@@ -691,17 +717,35 @@ class _HadithCategoryScreenState extends State<_HadithCategoryScreen> {
                       final h = _hadiths[i];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: _HadithListTile(
-                          hadith: h,
-                          isFavorite: _favorites.contains(h.id),
-                          isDark: isDark,
-                          gold: _gold,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => HadithDetailScreen(hadith: h),
+                        child: TweenAnimationBuilder<double>(
+                          duration: const Duration(milliseconds: 350),
+                          tween: Tween(begin: 0.0, end: 1.0),
+                          curve: Curves.easeOut,
+                          builder: (context, value, child) => Opacity(
+                            opacity: value,
+                            child: Transform.translate(
+                              offset: Offset(0, 14 * (1 - value)),
+                              child: child,
                             ),
                           ),
-                          onToggleFavorite: () => _toggleFavorite(h.id),
+                          child: _HadithListTile(
+                            hadith: h,
+                            isFavorite: _favorites.contains(h.id),
+                            isDark: isDark,
+                            gold: _gold,
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => HadithFullscreenViewer(
+                                  initialHadiths: _hadiths,
+                                  initialIndex: i,
+                                  totalCount: widget.count,
+                                  categoryId: widget.categoryId,
+                                  initialFavorites: _favorites,
+                                ),
+                              ),
+                            ),
+                            onToggleFavorite: () => _toggleFavorite(h.id),
+                          ),
                         ),
                       );
                     }
