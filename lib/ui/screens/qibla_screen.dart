@@ -367,7 +367,8 @@ class _QiblaCompassState extends State<_QiblaCompass> with TickerProviderStateMi
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        const double kFixedOverhead = 194.0;
+        // CalibrationHint (~200px) is much taller than GuidanceBanner (~60px)
+        final double kFixedOverhead = poorAccuracy ? 336.0 : 194.0;
         final double maxFromHeight  = (constraints.maxHeight - kFixedOverhead) / 1.28;
         final double dialSize       = math.min(screenWidth * 0.82, maxFromHeight).clamp(120.0, 400.0);
 
