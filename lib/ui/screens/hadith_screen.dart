@@ -807,7 +807,6 @@ class _HadithOfDayCard extends StatelessWidget {
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: gold.withValues(alpha: 0.3)),
             ),
             child: Padding(
               padding: const EdgeInsets.all(20),
