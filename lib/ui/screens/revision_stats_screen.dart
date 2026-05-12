@@ -241,9 +241,12 @@ class _RevisionStatsScreenState extends State<RevisionStatsScreen>
                       children: [
                         Row(
                           children: [
-                            Text(
-                              'Objectif du jour',
-                              style: TextStyle(color: _p.textPrimary, fontSize: 14, fontWeight: FontWeight.w700),
+                            Flexible(
+                              child: Text(
+                                'Objectif du jour',
+                                style: TextStyle(color: _p.textPrimary, fontSize: 14, fontWeight: FontWeight.w700),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                             if (s.goalMet) ...[
                               const SizedBox(width: 8),

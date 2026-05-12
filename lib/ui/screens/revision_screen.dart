@@ -551,6 +551,7 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
       fromAyah:     _fromAyah,
       toAyah:       _toAyah,
       questionType: _questionType,
+      dailyGoal:    widget.stats?.dailyGoal ?? 10,
     );
     Navigator.of(context).push(_fadeRoute(RevisionSessionScreen(config: config, palette: widget.palette)));
   }
@@ -640,12 +641,14 @@ class _RevisionConfigScreenState extends State<RevisionConfigScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Versets $_fromAyah → $_toAyah',
-                              style: TextStyle(
-                                color: _p.textPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
+                            Flexible(
+                              child: Text(
+                                'Versets $_fromAyah → $_toAyah',
+                                style: TextStyle(
+                                  color: _p.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
                               ),
                             ),
                             Row(

@@ -22,6 +22,7 @@ class SessionConfig {
   final int fromAyah;
   final int toAyah;
   final QuestionType questionType;
+  final int dailyGoal;
 
   const SessionConfig({
     required this.surahId,
@@ -30,6 +31,7 @@ class SessionConfig {
     required this.fromAyah,
     required this.toAyah,
     this.questionType = QuestionType.next,
+    this.dailyGoal = 10,
   });
 }
 
@@ -232,7 +234,50 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
       await Future.delayed(const Duration(milliseconds: 220));
     }
     if (!mounted) return;
+
+    // Objectif quotidien atteint au milieu d'une plage plus grande
+    final goal = widget.config.dailyGoal;
+    if (_results.length == goal && _currentIndex < _questions.length - 1) {
+      final shouldContinue = await _showGoalReachedDialog(goal);
+      if (!mounted) return;
+      if (!shouldContinue) {
+        unawaited(_finishSession());
+        return;
+      }
+    }
+
     _advanceQuestion();
+  }
+
+  Future<bool> _showGoalReachedDialog(int goal) async {
+    final p = widget.palette;
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: p.cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Objectif atteint !',
+          style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          'Tu as révisé $goal versets, ton objectif du jour est accompli.\nTu peux t\'arrêter ici ou continuer.',
+          style: TextStyle(color: p.textSecondary, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Terminer', style: TextStyle(color: p.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Continuer', style: TextStyle(color: p.accent, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   void _advanceQuestion() {

@@ -71,27 +71,29 @@ class AudioService {
 
     // Vitesse lecture verset
     _ayahPlayer.setSpeed(ayahSpeedNotifier.value);
-    ayahSpeedNotifier.addListener(() {
-      _ayahPlayer.setSpeed(ayahSpeedNotifier.value);
-    });
+    _ayahSpeedListener = () => _ayahPlayer.setSpeed(ayahSpeedNotifier.value);
+    ayahSpeedNotifier.addListener(_ayahSpeedListener);
 
     // ── Bridge TimedSurahPlayer → notifiers AudioService ────────────────────
-    // isPlayingNotifier : synchronise isAyahPlayingNotifier quand seek-based actif
-    TimedSurahPlayer.instance.isPlayingNotifier.addListener(() {
+    _timedIsPlayingListener = () {
       if (_timedSurah == null) return;
       isAyahPlayingNotifier.value = TimedSurahPlayer.instance.isPlayingNotifier.value;
-    });
-    // currentAyahNotifier : met à jour currentAyahKeyNotifier verset par verset
-    TimedSurahPlayer.instance.currentAyahNotifier.addListener(() {
+    };
+    TimedSurahPlayer.instance.isPlayingNotifier.addListener(_timedIsPlayingListener);
+
+    _timedCurrentAyahListener = () {
       if (_timedSurah == null) return;
       final ayah = TimedSurahPlayer.instance.currentAyahNotifier.value;
       if (ayah != null) {
         currentAyahKeyNotifier.value = '$_timedSurah:$ayah';
       }
-      // ayah == null (fin de plage / auto-pause) : on ne réinitialise pas la clé
-      // pour que la barre reste visible ; isAyahPlayingNotifier devient false via le bridge ci-dessus.
-    });
+    };
+    TimedSurahPlayer.instance.currentAyahNotifier.addListener(_timedCurrentAyahListener);
   }
+
+  late final VoidCallback _ayahSpeedListener;
+  late final VoidCallback _timedIsPlayingListener;
+  late final VoidCallback _timedCurrentAyahListener;
 
   static final AudioService instance = AudioService._();
 
@@ -823,6 +825,10 @@ class AudioService {
 
     await _ayahSeqSub?.cancel();
     _ayahSeqSub = null;
+
+    ayahSpeedNotifier.removeListener(_ayahSpeedListener);
+    TimedSurahPlayer.instance.isPlayingNotifier.removeListener(_timedIsPlayingListener);
+    TimedSurahPlayer.instance.currentAyahNotifier.removeListener(_timedCurrentAyahListener);
 
     await _player.dispose();
     await _ayahPlayer.dispose();
