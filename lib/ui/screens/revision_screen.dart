@@ -34,7 +34,6 @@ class _RevisionScreenState extends State<RevisionScreen>
   bool _loading = true;
 
   late AnimationController _staggerCtrl;
-  late AnimationController _orbCtrl;
 
   // ── Thèmes (3 sombres + 3 clairs) ────────────────────────────────────────
   static const List<RevisionPalette> _themes = [
@@ -57,10 +56,6 @@ class _RevisionScreenState extends State<RevisionScreen>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-    _orbCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    )..repeat(reverse: true);
     _loadAll();
     _loadAccent();
   }
@@ -68,7 +63,6 @@ class _RevisionScreenState extends State<RevisionScreen>
   @override
   void dispose() {
     _staggerCtrl.dispose();
-    _orbCtrl.dispose();
     super.dispose();
   }
 
@@ -247,7 +241,7 @@ class _RevisionScreenState extends State<RevisionScreen>
                         surfaceTintColor: Colors.transparent,
                         shadowColor: Colors.transparent,
                         elevation: 0,
-                        expandedHeight: 200,
+                        expandedHeight: 240,
                         pinned: false,
                         floating: false,
                         stretch: true,
@@ -255,26 +249,13 @@ class _RevisionScreenState extends State<RevisionScreen>
                         flexibleSpace: FlexibleSpaceBar(
                           background: Stack(
                             children: [
-                              // Animated breathing orb
-                              Positioned(
-                                right: -30,
-                                top: -30,
-                                child: AnimatedBuilder(
-                                  animation: _orbCtrl,
-                                  builder: (_, __) => Opacity(
-                                    opacity: 0.10 + _orbCtrl.value * 0.14,
-                                    child: Container(
-                                      width: 200,
-                                      height: 200,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: _theme.accent,
-                                      ),
-                                    ),
-                                  ),
+                              // Arch decoration
+                              Positioned.fill(
+                                child: CustomPaint(
+                                  painter: _ArchPainter(color: _theme.accent),
                                 ),
                               ),
-                              // Title + subtitle
+                              // Title + hadith
                               Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -283,18 +264,31 @@ class _RevisionScreenState extends State<RevisionScreen>
                                       'Révision',
                                       style: TextStyle(
                                         color: _theme.textPrimary,
-                                        fontSize: 34,
+                                        fontSize: 26,
                                         fontWeight: FontWeight.w900,
                                         height: 1.1,
                                       ),
                                     ),
                                     const SizedBox(height: 10),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 36),
+                                      child: Text(
+                                        '« Révisez ce Coran, car par Celui qui détient mon âme dans Sa main, il s\'échappe plus rapidement que les chameaux attachés. »',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: _theme.textSecondary,
+                                          fontSize: 11.5,
+                                          fontStyle: FontStyle.italic,
+                                          height: 1.55,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
                                     Text(
-                                      'Choisissez une sourate à réviser',
+                                      '— Rapporté par Al-Boukhari',
                                       style: TextStyle(
-                                        color: _theme.textSecondary,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w400,
+                                        color: _theme.textHint,
+                                        fontSize: 10,
                                       ),
                                     ),
                                   ],
@@ -1138,6 +1132,47 @@ class _DailyStatsCardState extends State<_DailyStatsCard> {
       ),
     );
   }
+}
+
+// ── Arch decoration painter ───────────────────────────────────────────────────
+
+class _ArchPainter extends CustomPainter {
+  final Color color;
+  const _ArchPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+
+    final cx     = size.width / 2;
+    final w      = size.width * 0.74;
+    final lx     = cx - w / 2;
+    final rx     = cx + w / 2;
+    final top    = size.height * 0.06;
+    final bottom = size.height + 16.0;
+    final ctrlY  = bottom - (bottom - top) * 0.42;
+
+    paint.color = color.withValues(alpha: 0.16);
+    final outer = Path()
+      ..moveTo(lx, bottom)
+      ..cubicTo(lx, ctrlY, cx - 18, top, cx, top)
+      ..cubicTo(cx + 18, top, rx, ctrlY, rx, bottom);
+    canvas.drawPath(outer, paint);
+
+    const d = 14.0;
+    paint.color = color.withValues(alpha: 0.09);
+    final inner = Path()
+      ..moveTo(lx + d, bottom)
+      ..cubicTo(lx + d, ctrlY, cx - 12, top + d * 1.4, cx, top + d * 1.4)
+      ..cubicTo(cx + 12, top + d * 1.4, rx - d, ctrlY, rx - d, bottom);
+    canvas.drawPath(inner, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArchPainter old) => old.color != color;
 }
 
 // ── Transition helper ─────────────────────────────────────────────────────────
