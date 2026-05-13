@@ -8,8 +8,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/dua_db.dart';
+import '../../services/dua_favorites_service.dart';
 
 const _kAudioUserAgent =
     'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36';
@@ -173,11 +173,18 @@ class _DuaScreenState extends State<DuaScreen> {
   Timer? _debounce;
   final FocusNode _searchFocus = FocusNode();
   final TextEditingController _searchCtrl = TextEditingController();
+  Set<String> _duaFavIds = {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
+    _loadDuaFavIds();
+  }
+
+  Future<void> _loadDuaFavIds() async {
+    final ids = await DuaFavoritesService.instance.getAll();
+    if (mounted) setState(() => _duaFavIds = Set.from(ids));
   }
 
   @override
@@ -389,6 +396,29 @@ class _DuaScreenState extends State<DuaScreen> {
                             Icons.arrow_back_ios_new_rounded,
                             size: 20,
                             color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      // Bouton favoris (haut droite)
+                      Positioned(
+                        top: 0,
+                        right: 4,
+                        child: IconButton(
+                          tooltip: 'Mes favoris',
+                          onPressed: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const DuaFavoritesScreen(),
+                              ),
+                            );
+                            _loadDuaFavIds();
+                          },
+                          icon: Icon(
+                            _duaFavIds.isNotEmpty
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            size: 22,
+                            color: _kGreen,
                           ),
                         ),
                       ),
@@ -1282,7 +1312,6 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
   bool _audioLoading = false;
 
   Set<String> _favorites = {};
-  static const _prefsKey = 'dua_favorites';
 
   @override
   void initState() {
@@ -1292,21 +1321,19 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_prefsKey) ?? [];
-    if (mounted) setState(() => _favorites = list.toSet());
+    final ids = await DuaFavoritesService.instance.getAll();
+    if (mounted) setState(() => _favorites = Set.from(ids));
   }
 
   Future<void> _toggleFavorite(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      if (_favorites.contains(id)) {
-        _favorites.remove(id);
-      } else {
-        _favorites.add(id);
-      }
+    final isNow = await DuaFavoritesService.instance.toggle(id);
+    if (mounted) setState(() {
+      if (isNow) {
+      _favorites.add(id);
+    } else {
+      _favorites.remove(id);
+    }
     });
-    await prefs.setStringList(_prefsKey, _favorites.toList());
   }
 
   @override
@@ -1877,7 +1904,6 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
   bool _audioLoading = false;
 
   Set<String> _favorites = {};
-  static const _prefsKey = 'dua_favorites';
 
   @override
   void initState() {
@@ -1897,21 +1923,19 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
   }
 
   Future<void> _loadFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_prefsKey) ?? [];
-    if (mounted) setState(() => _favorites = list.toSet());
+    final ids = await DuaFavoritesService.instance.getAll();
+    if (mounted) setState(() => _favorites = Set.from(ids));
   }
 
   Future<void> _toggleFavorite(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      if (_favorites.contains(id)) {
-        _favorites.remove(id);
-      } else {
-        _favorites.add(id);
-      }
+    final isNow = await DuaFavoritesService.instance.toggle(id);
+    if (mounted) setState(() {
+      if (isNow) {
+      _favorites.add(id);
+    } else {
+      _favorites.remove(id);
+    }
     });
-    await prefs.setStringList(_prefsKey, _favorites.toList());
   }
 
   Future<File> _downloadAudio(String duaId, String url) async {
@@ -2309,6 +2333,252 @@ class _InlineAudioButtonState extends State<_InlineAudioButton> {
         _playing ? Icons.stop_rounded : Icons.play_circle_outline_rounded,
         color: _kGreen,
         size: 28,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  ÉCRAN FAVORIS DUʿA
+// ─────────────────────────────────────────────
+class DuaFavoritesScreen extends StatefulWidget {
+  const DuaFavoritesScreen({super.key});
+
+  @override
+  State<DuaFavoritesScreen> createState() => _DuaFavoritesScreenState();
+}
+
+class _DuaFavoritesScreenState extends State<DuaFavoritesScreen> {
+  List<Map<String, Object?>> _duas = [];
+  bool _loading = true;
+  final Map<String, int> _versions = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final ids = (await DuaFavoritesService.instance.getAll()).toList();
+    final duas = await DuaDb.instance.getDuasByIds(ids);
+    if (mounted) setState(() { _duas = duas; _loading = false; });
+  }
+
+  void _removeFavorite(Map<String, Object?> dua, int index) {
+    final id = (dua['id'] as String?) ?? '';
+    if (id.isEmpty) return;
+
+    setState(() => _duas.removeAt(index));
+    DuaFavoritesService.instance.remove(id);
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Invocation retirée des favoris'),
+        duration: const Duration(seconds: 4),
+        backgroundColor: const Color(0xFF2A2A2A),
+        action: SnackBarAction(
+          label: 'Annuler',
+          textColor: _kGreen,
+          onPressed: () {
+            DuaFavoritesService.instance.add(id);
+            if (mounted) {
+              setState(() {
+                _versions[id] = (_versions[id] ?? 0) + 1;
+                _duas.insert(index, dua);
+              });
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+      },
+      child: Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
+      appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
+        iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black87),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () {
+            ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+            Navigator.of(context).pop();
+          },
+        ),
+        title: Text(
+          'Invocations sauvegardées',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF0D1A10), _kDarkBg]
+                : [const Color(0xFFDEEBDF), _kLightBg],
+          ),
+        ),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _duas.isEmpty
+                ? _DuaFavEmptyState(isDark: isDark)
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _duas.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final dua = _duas[i];
+                      final id = (dua['id'] as String?) ?? '$i';
+                      final catTitle = (dua['cat_title_fr'] as String?)?.trim() ?? '';
+                      final ar = (dua['ar'] as String?)?.trim() ?? '';
+                      final fr = (dua['fr'] as String?)?.trim() ?? '';
+                      final en = (dua['en'] as String?)?.trim() ?? '';
+                      final shown = fr.isNotEmpty ? fr : en;
+                      return Dismissible(
+                        key: ValueKey('${id}_${_versions[id] ?? 0}'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.delete_outline_rounded,
+                              color: Colors.redAccent, size: 36),
+                        ),
+                        onDismissed: (_) => _removeFavorite(dua, i),
+                        child: Material(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : const Color(0xFFFAF7F2),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => _DuaDetailScreen(
+                                    items: _duas,
+                                    initialIndex: i,
+                                    categoryTitle: 'Invocations sauvegardées',
+                                  ),
+                                ),
+                              );
+                              _load();
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (catTitle.isNotEmpty) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: _kGreen.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        catTitle,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: _kGreen,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  if (ar.isNotEmpty) ...[
+                                    Text(
+                                      ar,
+                                      textAlign: TextAlign.right,
+                                      textDirection: TextDirection.rtl,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'Amiri',
+                                        fontSize: 18,
+                                        height: 1.8,
+                                        color: isDark
+                                            ? Colors.white.withValues(alpha: 0.9)
+                                            : const Color(0xFF1A1A1A),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  if (shown.isNotEmpty)
+                                    Text(
+                                      shown,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        height: 1.5,
+                                        color: isDark
+                                            ? Colors.white.withValues(alpha: 0.6)
+                                            : const Color(0xFF666666),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+      ),
+      ),
+    );
+  }
+}
+
+class _DuaFavEmptyState extends StatelessWidget {
+  final bool isDark;
+  const _DuaFavEmptyState({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.favorite_border_rounded,
+            size: 64,
+            color: _kGreen.withValues(alpha: isDark ? 0.4 : 0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Aucune invocation sauvegardée',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: isDark ? Colors.white38 : Colors.black38,
+            ),
+          ),
+        ],
       ),
     );
   }

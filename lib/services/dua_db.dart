@@ -166,6 +166,16 @@ class DuaDb {
     );
   }
 
+  Future<List<Map<String, Object?>>> getDuasByIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    final d = await db;
+    final placeholders = ids.map((_) => '?').join(',');
+    return d.rawQuery(
+      'SELECT d.*, c.title_fr as cat_title_fr FROM duas d JOIN categories c ON c.id = d.category_id WHERE d.id IN ($placeholders)',
+      ids,
+    );
+  }
+
   Future<void> reset() async {
     final path = join(await getDatabasesPath(), 'dua.db');
     await deleteDatabase(path);
