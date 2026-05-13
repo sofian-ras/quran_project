@@ -224,7 +224,10 @@ class _HadithScreenState extends State<HadithScreen>
           SliverAppBar(
             pinned: true,
             backgroundColor: theme.scaffoldBackgroundColor,
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
+            expandedHeight: 260,
+            stretch: true,
             iconTheme: IconThemeData(
               color: isDark ? Colors.white : Colors.black87,
             ),
@@ -234,10 +237,6 @@ class _HadithScreenState extends State<HadithScreen>
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
               onPressed: () => Navigator.of(context).pop(),
-            ),
-            title: Text(
-              'Hadiths',
-              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
             actions: [
               IconButton(
@@ -254,6 +253,98 @@ class _HadithScreenState extends State<HadithScreen>
               ),
               const SizedBox(width: 4),
             ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(60),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: _AnimatedHadithSearchBar(
+                  controller: _searchCtrl,
+                  focusNode: _searchFocusNode,
+                  onChanged: _onSearchChanged,
+                  isDark: isDark,
+                ),
+              ),
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              centerTitle: true,
+              expandedTitleScale: 1.0,
+              titlePadding: const EdgeInsets.only(bottom: 70),
+              title: Text(
+                'Hadiths',
+                style: TextStyle(
+                  color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 22,
+                ),
+              ),
+              collapseMode: CollapseMode.pin,
+              background: Stack(
+                children: [
+                  // Fond dégradé doré
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: isDark
+                              ? [const Color(0xFF1A1206), const Color(0xFF261B0C)]
+                              : [const Color(0xFFF5EDD8), const Color(0xFFEDE0C4)],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Halo radial doré
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 0.9,
+                          colors: [
+                            _gold.withValues(alpha: isDark ? 0.30 : 0.18),
+                            _gold.withValues(alpha: isDark ? 0.08 : 0.05),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.55, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Citation centrée dans le flexible space
+                  Positioned(
+                    top: 78,
+                    left: 36,
+                    right: 36,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: _gold,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '« Les actes ne valent que par les intentions. »  — Bukhari & Muslim',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: isDark ? Colors.white54 : Colors.black45,
+                            fontSize: 11.5,
+                            fontStyle: FontStyle.italic,
+                            height: 1.55,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
 
           SliverToBoxAdapter(
@@ -270,52 +361,6 @@ class _HadithScreenState extends State<HadithScreen>
                       onTap: _openRandom,
                     ),
                   ),
-
-                // Search bar
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.07)
-                          : const Color(0xFFF2EDE6),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: TextField(
-                      controller: _searchCtrl,
-                      focusNode: _searchFocusNode,
-                      onChanged: _onSearchChanged,
-                      textAlignVertical: TextAlignVertical.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87,
-                      ),
-                      cursorColor: _gold,
-                      decoration: InputDecoration(
-                        hintText: 'Rechercher un hadith…',
-                        hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                          color: isDark ? Colors.white38 : Colors.black38,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search_rounded,
-                          size: 20,
-                          color: isDark ? Colors.white38 : Colors.black38,
-                        ),
-                        suffixIcon: _searchCtrl.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18),
-                                onPressed: () {
-                                  _searchCtrl.clear();
-                                  _onSearchChanged('');
-                                },
-                              )
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
-                ),
 
                 if (_searching) ...[
                   Padding(
@@ -1444,6 +1489,255 @@ class _RandomHadithButtonState extends State<_RandomHadithButton>
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Barre de recherche animée ───────────────────────────────────────────────────
+
+class _AnimatedHadithSearchBar extends StatefulWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final bool isDark;
+
+  const _AnimatedHadithSearchBar({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.isDark,
+  });
+
+  @override
+  State<_AnimatedHadithSearchBar> createState() =>
+      _AnimatedHadithSearchBarState();
+}
+
+class _AnimatedHadithSearchBarState extends State<_AnimatedHadithSearchBar> {
+  static const _gold = _HadithScreenState._gold;
+
+  static const _hints = [
+    'le pèlerinage',
+    'la prière du soir',
+    'le jeûne du ramadan',
+    'la patience dans l\'épreuve',
+    'les droits du voisin',
+    'la miséricorde de Dieu',
+    'l\'intention sincère',
+    'la zakât',
+    'le pardon des péchés',
+    'la mort et l\'au-delà',
+    'la générosité',
+    'l\'humilité du croyant',
+    'la purification',
+    'les bonnes mœurs',
+    'la famille',
+  ];
+
+  String _typed = '';
+  bool _erasing = false;
+  int _hintIndex = 0;
+  Timer? _timer;
+  final _rng = math.Random();
+
+  @override
+  void initState() {
+    super.initState();
+    // Petite pause initiale avant de commencer
+    _timer = Timer(const Duration(milliseconds: 800), _scheduleNext);
+  }
+
+  String get _currentHint => _hints[_hintIndex % _hints.length];
+
+  void _scheduleNext() {
+    if (!mounted || widget.controller.text.isNotEmpty) return;
+
+    if (!_erasing) {
+      if (_typed.length < _currentHint.length) {
+        // Vitesse variable : 55-140ms de base
+        int delay = 55 + _rng.nextInt(85);
+        // Légère pause après un espace (rythme naturel inter-mot)
+        if (_typed.isNotEmpty && _typed[_typed.length - 1] == ' ') {
+          delay += 60 + _rng.nextInt(60);
+        }
+        // Rare pause "de réflexion" (1 chance sur 9)
+        if (_rng.nextInt(9) == 0) delay += 180 + _rng.nextInt(220);
+
+        _timer = Timer(Duration(milliseconds: delay), () {
+          if (!mounted || widget.controller.text.isNotEmpty) return;
+          setState(() => _typed += _currentHint[_typed.length]);
+          _scheduleNext();
+        });
+      } else {
+        // Lecture du texte tapé avant d'effacer : 1.8–2.8s
+        _timer = Timer(Duration(milliseconds: 1800 + _rng.nextInt(1000)), () {
+          if (!mounted || widget.controller.text.isNotEmpty) return;
+          setState(() => _erasing = true);
+          _scheduleNext();
+        });
+      }
+    } else {
+      if (_typed.isNotEmpty) {
+        // Effacement plus rapide que la frappe : 35–60ms
+        _timer = Timer(Duration(milliseconds: 35 + _rng.nextInt(25)), () {
+          if (!mounted || widget.controller.text.isNotEmpty) return;
+          setState(() => _typed = _typed.substring(0, _typed.length - 1));
+          _scheduleNext();
+        });
+      } else {
+        // Pause entre deux exemples : 500–900ms
+        _timer = Timer(Duration(milliseconds: 500 + _rng.nextInt(400)), () {
+          if (!mounted || widget.controller.text.isNotEmpty) return;
+          setState(() {
+            _hintIndex = (_hintIndex + 1) % _hints.length;
+            _erasing = false;
+          });
+          _scheduleNext();
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(width: 12),
+          const Icon(Icons.search_rounded, color: _gold, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                // Hint frappe animée (caché dès qu'il y a du texte)
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: widget.controller,
+                  builder: (_, val, __) {
+                    if (val.text.isNotEmpty) return const SizedBox.shrink();
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _typed,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                          ),
+                        ),
+                        // Curseur clignotant
+                        if (!_erasing || _typed.isEmpty)
+                          _BlinkingCursor(isDark: isDark),
+                      ],
+                    );
+                  },
+                ),
+                // TextField vraiment transparent
+                Material(
+                  color: Colors.transparent,
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: widget.focusNode,
+                    onChanged: widget.onChanged,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    ),
+                    cursorColor: _gold,
+                    decoration: const InputDecoration(
+                      hintText: '',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      filled: false,
+                      contentPadding: EdgeInsets.only(bottom: 2),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Bouton clear
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: widget.controller,
+            builder: (_, val, __) {
+              if (val.text.isEmpty) return const SizedBox(width: 12);
+              return IconButton(
+                icon: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: isDark ? Colors.white54 : Colors.black45,
+                ),
+                onPressed: () {
+                  widget.controller.clear();
+                  widget.onChanged('');
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 44),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BlinkingCursor extends StatefulWidget {
+  final bool isDark;
+  const _BlinkingCursor({required this.isDark});
+
+  @override
+  State<_BlinkingCursor> createState() => _BlinkingCursorState();
+}
+
+class _BlinkingCursorState extends State<_BlinkingCursor>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 530),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _ctrl,
+      child: Container(
+        width: 1.5,
+        height: 16,
+        margin: const EdgeInsets.only(left: 1),
+        color: widget.isDark ? Colors.white70 : Colors.black54,
       ),
     );
   }

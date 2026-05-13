@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -155,6 +156,7 @@ class _DuaScreenState extends State<DuaScreen> {
   List<Map<String, Object?>> _searchResults = [];
   Timer? _debounce;
   final FocusNode _searchFocus = FocusNode();
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -166,6 +168,7 @@ class _DuaScreenState extends State<DuaScreen> {
   void dispose() {
     _debounce?.cancel();
     _searchFocus.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -269,7 +272,7 @@ class _DuaScreenState extends State<DuaScreen> {
         slivers: [
           // ── App bar + barre de recherche ──
           SliverAppBar(
-            backgroundColor: Colors.transparent,
+            backgroundColor: bg,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
             expandedHeight: 210,
@@ -279,16 +282,18 @@ class _DuaScreenState extends State<DuaScreen> {
             iconTheme: IconThemeData(
               color: isDark ? Colors.white : const Color(0xFF1A1A1A),
             ),
-            title: const Text(
-              'Invocations',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: _kGreen,
-                fontSize: 20,
-              ),
-            ),
-            centerTitle: true,
             flexibleSpace: FlexibleSpaceBar(
+              centerTitle: true,
+              expandedTitleScale: 1.0,
+              titlePadding: const EdgeInsets.only(bottom: 72),
+              title: const Text(
+                'Invocations',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: _kGreen,
+                  fontSize: 18,
+                ),
+              ),
               collapseMode: CollapseMode.pin,
               background: Stack(
                 children: [
@@ -323,43 +328,37 @@ class _DuaScreenState extends State<DuaScreen> {
                       ),
                     ),
                   ),
-                  // Titre + verset
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Invocations',
-                          style: TextStyle(
-                            color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'ادْعُونِي أَسْتَجِبْ لَكُمْ',
-                          style: TextStyle(
-                            color: _kGreen,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 36),
-                          child: Text(
-                            '« Invoquez-Moi, Je vous répondrai. »  — Ghafir : 60',
-                            textAlign: TextAlign.center,
+                  // Verset
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 44),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'ادْعُونِي أَسْتَجِبْ لَكُمْ',
                             style: TextStyle(
-                              color: isDark ? Colors.white54 : Colors.black45,
-                              fontSize: 11.5,
-                              fontStyle: FontStyle.italic,
-                              height: 1.55,
+                              color: _kGreen,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 6),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 36),
+                            child: Text(
+                              '« Invoquez-Moi, Je vous répondrai. »  — Ghafir : 60',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: isDark ? Colors.white54 : Colors.black45,
+                                fontSize: 11.5,
+                                fontStyle: FontStyle.italic,
+                                height: 1.55,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -369,12 +368,11 @@ class _DuaScreenState extends State<DuaScreen> {
               preferredSize: const Size.fromHeight(60),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: _SearchBar(
-                  cardBg: cardBg,
-                  stroke: stroke,
-                  textColor: textColor,
-                  onChanged: _onSearchChanged,
+                child: _AnimatedDuaSearchBar(
+                  controller: _searchCtrl,
                   focusNode: _searchFocus,
+                  onChanged: _onSearchChanged,
+                  isDark: isDark,
                 ),
               ),
             ),
@@ -471,41 +469,233 @@ class _DuaScreenState extends State<DuaScreen> {
 // ─────────────────────────────────────────────
 //  BARRE DE RECHERCHE
 // ─────────────────────────────────────────────
-class _SearchBar extends StatelessWidget {
-  final Color cardBg;
-  final Color stroke;
-  final Color textColor;
-  final ValueChanged<String> onChanged;
+class _AnimatedDuaSearchBar extends StatefulWidget {
+  final TextEditingController controller;
   final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final bool isDark;
 
-  const _SearchBar({
-    required this.cardBg,
-    required this.stroke,
-    required this.textColor,
-    required this.onChanged,
+  const _AnimatedDuaSearchBar({
+    required this.controller,
     required this.focusNode,
+    required this.onChanged,
+    required this.isDark,
   });
 
   @override
+  State<_AnimatedDuaSearchBar> createState() => _AnimatedDuaSearchBarState();
+}
+
+class _AnimatedDuaSearchBarState extends State<_AnimatedDuaSearchBar> {
+  static const _hints = [
+    'invocation du matin',
+    'protection contre le mal',
+    'après la prière',
+    'avant de dormir',
+    'en période d\'épreuve',
+    'demander le pardon',
+    'pour ses parents',
+    'entrée dans la mosquée',
+    'avant de manger',
+    'quand il pleut',
+    'pour la guérison',
+    'le voyage',
+    'gratitude envers Dieu',
+    'supplication du vendredi',
+    'pour un enfant',
+  ];
+
+  String _typed = '';
+  bool _erasing = false;
+  int _hintIndex = 0;
+  Timer? _timer;
+  final _rng = math.Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(milliseconds: 800), _scheduleNext);
+  }
+
+  String get _currentHint => _hints[_hintIndex % _hints.length];
+
+  void _scheduleNext() {
+    if (!mounted || widget.controller.text.isNotEmpty) return;
+
+    if (!_erasing) {
+      if (_typed.length < _currentHint.length) {
+        int delay = 55 + _rng.nextInt(85);
+        if (_typed.isNotEmpty && _typed[_typed.length - 1] == ' ') {
+          delay += 60 + _rng.nextInt(60);
+        }
+        if (_rng.nextInt(9) == 0) delay += 180 + _rng.nextInt(220);
+
+        _timer = Timer(Duration(milliseconds: delay), () {
+          if (!mounted || widget.controller.text.isNotEmpty) return;
+          setState(() => _typed += _currentHint[_typed.length]);
+          _scheduleNext();
+        });
+      } else {
+        _timer = Timer(Duration(milliseconds: 1800 + _rng.nextInt(1000)), () {
+          if (!mounted || widget.controller.text.isNotEmpty) return;
+          setState(() => _erasing = true);
+          _scheduleNext();
+        });
+      }
+    } else {
+      if (_typed.isNotEmpty) {
+        _timer = Timer(Duration(milliseconds: 35 + _rng.nextInt(25)), () {
+          if (!mounted || widget.controller.text.isNotEmpty) return;
+          setState(() => _typed = _typed.substring(0, _typed.length - 1));
+          _scheduleNext();
+        });
+      } else {
+        _timer = Timer(Duration(milliseconds: 500 + _rng.nextInt(400)), () {
+          if (!mounted || widget.controller.text.isNotEmpty) return;
+          setState(() {
+            _hintIndex = (_hintIndex + 1) % _hints.length;
+            _erasing = false;
+          });
+          _scheduleNext();
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     return Container(
-      height: 46,
+      height: 44,
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: stroke),
-      ),
-      child: TextField(
-        focusNode: focusNode,
-        onChanged: onChanged,
-        style: TextStyle(fontSize: 14, color: textColor),
-        decoration: InputDecoration(
-          hintText: 'Rechercher une invocation…',
-          hintStyle: TextStyle(fontSize: 14, color: textColor.withValues(alpha: 0.45)),
-          prefixIcon: const Icon(Icons.search, color: _kGreen, size: 20),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08),
+          width: 0.8,
         ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(width: 12),
+          const Icon(Icons.search_rounded, color: _kGreen, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: widget.controller,
+                  builder: (_, val, __) {
+                    if (val.text.isNotEmpty) return const SizedBox.shrink();
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _typed,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                          ),
+                        ),
+                        if (!_erasing || _typed.isEmpty)
+                          _DuaBlinkingCursor(isDark: isDark),
+                      ],
+                    );
+                  },
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: widget.focusNode,
+                    onChanged: widget.onChanged,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    ),
+                    cursorColor: _kGreen,
+                    decoration: const InputDecoration(
+                      hintText: '',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      filled: false,
+                      contentPadding: EdgeInsets.only(bottom: 2),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: widget.controller,
+            builder: (_, val, __) {
+              if (val.text.isEmpty) return const SizedBox(width: 12);
+              return IconButton(
+                icon: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: isDark ? Colors.white54 : Colors.black45,
+                ),
+                onPressed: () {
+                  widget.controller.clear();
+                  widget.onChanged('');
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DuaBlinkingCursor extends StatefulWidget {
+  final bool isDark;
+  const _DuaBlinkingCursor({required this.isDark});
+
+  @override
+  State<_DuaBlinkingCursor> createState() => _DuaBlinkingCursorState();
+}
+
+class _DuaBlinkingCursorState extends State<_DuaBlinkingCursor>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 530),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _ctrl,
+      child: Container(
+        width: 1.5,
+        height: 16,
+        color: _kGreen,
       ),
     );
   }
