@@ -337,9 +337,9 @@ class _DuaScreenState extends State<DuaScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Text(
+                        const Text(
                           'ادْعُونِي أَسْتَجِبْ لَكُمْ',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: _kGreen,
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
