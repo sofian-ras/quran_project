@@ -37,6 +37,7 @@ class _HadithFavoritesScreenState extends State<HadithFavoritesScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: theme.scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         foregroundColor: isDark ? Colors.white : Colors.black87,
         iconTheme: IconThemeData(
@@ -46,7 +47,14 @@ class _HadithFavoritesScreenState extends State<HadithFavoritesScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('Hadiths sauvegardés'),
+        title: Text(
+          'Hadiths sauvegardés',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -174,9 +182,9 @@ class _EmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.bookmark_border_rounded,
+            Icons.favorite_border_rounded,
             size: 64,
-            color: isDark ? Colors.white24 : Colors.black26,
+            color: isDark ? const Color(0xFFC8A165).withValues(alpha: 0.4) : const Color(0xFFC8A165).withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           Text(

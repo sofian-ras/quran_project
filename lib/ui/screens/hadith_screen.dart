@@ -241,7 +241,11 @@ class _HadithScreenState extends State<HadithScreen>
             actions: [
               IconButton(
                 tooltip: 'Mes favoris',
-                icon: const Icon(Icons.bookmark_rounded, size: 22),
+                icon: Icon(
+                  _favorites.isNotEmpty ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  size: 22,
+                  color: _gold,
+                ),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const HadithFavoritesScreen()),
                 ),
@@ -969,17 +973,27 @@ class _HadithOfDayCardState extends State<_HadithOfDayCard>
                       const Spacer(),
                       GestureDetector(
                         onTap: widget.onToggleFavorite,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          child: Icon(
-                            isFavorite
-                                ? Icons.bookmark_rounded
-                                : Icons.bookmark_border_rounded,
-                            key: ValueKey(isFavorite),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
                             color: isFavorite
-                                ? gold
-                                : (isDark ? Colors.white38 : Colors.black38),
-                            size: 22,
+                                ? gold.withValues(alpha: 0.18)
+                                : Colors.transparent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              isFavorite
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              key: ValueKey(isFavorite),
+                              color: isFavorite
+                                  ? gold
+                                  : (isDark ? Colors.white30 : Colors.black26),
+                              size: 20,
+                            ),
                           ),
                         ),
                       ),
@@ -1178,14 +1192,22 @@ class _HadithListTile extends StatelessWidget {
                     ),
                     GestureDetector(
                       onTap: onToggleFavorite,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 0, 4, 0),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        margin: const EdgeInsets.fromLTRB(8, 0, 4, 0),
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: isFavorite
+                              ? gold.withValues(alpha: 0.18)
+                              : Colors.transparent,
+                          shape: BoxShape.circle,
+                        ),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
                           child: Icon(
                             isFavorite
-                                ? Icons.bookmark_rounded
-                                : Icons.bookmark_border_rounded,
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
                             key: ValueKey(isFavorite),
                             size: 18,
                             color: isFavorite

@@ -1641,8 +1641,9 @@ class _DuaCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 _ActionIcon(
-                  icon: isFavorite ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                  icon: isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                   color: isFavorite ? _kGreen : muted,
+                  backgroundColor: isFavorite ? _kGreen.withValues(alpha: 0.18) : Colors.transparent,
                   tooltip: isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
                   onTap: onToggleFavorite,
                 ),
@@ -1746,12 +1747,14 @@ class _ActionIcon extends StatelessWidget {
   final Color color;
   final String tooltip;
   final VoidCallback onTap;
+  final Color? backgroundColor;
 
   const _ActionIcon({
     required this.icon,
     required this.color,
     required this.tooltip,
     required this.onTap,
+    this.backgroundColor,
   });
 
   @override
@@ -1761,8 +1764,13 @@ class _ActionIcon extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        child: Padding(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
           padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: backgroundColor ?? Colors.transparent,
+            shape: BoxShape.circle,
+          ),
           child: Icon(icon, size: 20, color: color),
         ),
       ),
@@ -2014,9 +2022,12 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
                 const SizedBox(width: 4),
                 _ActionIcon(
                   icon: _favorites.contains(id)
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_border_rounded,
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
                   color: _favorites.contains(id) ? _kGreen : muted,
+                  backgroundColor: _favorites.contains(id)
+                      ? _kGreen.withValues(alpha: 0.18)
+                      : Colors.transparent,
                   tooltip: _favorites.contains(id)
                       ? 'Retirer des favoris'
                       : 'Ajouter aux favoris',
