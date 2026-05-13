@@ -218,139 +218,163 @@ class _HadithScreenState extends State<HadithScreen>
     }
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: theme.scaffoldBackgroundColor,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            expandedHeight: 260,
-            stretch: true,
-            iconTheme: IconThemeData(
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-            actionsIconTheme: IconThemeData(
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            actions: [
-              IconButton(
-                tooltip: 'Mes favoris',
-                icon: Icon(
-                  _favorites.isNotEmpty ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  size: 22,
-                  color: _gold,
-                ),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const HadithFavoritesScreen()),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Paramètres',
-                icon: const Icon(Icons.settings_rounded, size: 22),
-                onPressed: () => _showSettings(context, isDark),
-              ),
-              const SizedBox(width: 4),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(60),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: _AnimatedHadithSearchBar(
-                  controller: _searchCtrl,
-                  focusNode: _searchFocusNode,
-                  onChanged: _onSearchChanged,
-                  isDark: isDark,
-                ),
-              ),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: true,
-              expandedTitleScale: 1.0,
-              titlePadding: const EdgeInsets.only(bottom: 70),
-              title: Text(
-                'Hadiths',
-                style: TextStyle(
-                  color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 22,
-                ),
-              ),
-              collapseMode: CollapseMode.pin,
-              background: Stack(
-                children: [
-                  // Fond dégradé doré → couleur de fond de l'écran en bas
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: isDark
-                              ? [const Color(0xFF1A1206), theme.scaffoldBackgroundColor, theme.scaffoldBackgroundColor]
-                              : [const Color(0xFFF5EDD8), theme.scaffoldBackgroundColor, theme.scaffoldBackgroundColor],
-                          stops: const [0.0, 0.72, 1.0],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Halo radial doré
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: Alignment.center,
-                          radius: 0.9,
-                          colors: [
-                            _gold.withValues(alpha: isDark ? 0.30 : 0.18),
-                            _gold.withValues(alpha: isDark ? 0.08 : 0.05),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 0.55, 1.0],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Citation centrée dans le flexible space
-                  Positioned(
-                    top: 78,
-                    left: 36,
-                    right: 36,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: _gold,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '« Les actes ne valent que par les intentions. »  — Bukhari & Muslim',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: isDark ? Colors.white54 : Colors.black45,
-                            fontSize: 11.5,
-                            fontStyle: FontStyle.italic,
-                            height: 1.55,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF1A1206), const Color(0xFF261B0C)]
+                : [const Color(0xFFF5EDD8), const Color(0xFFEDE0C4)],
           ),
+        ),
+        child: SafeArea(
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // ── Header décoratif (scroll away) ───────────────────────────
+              SliverAppBar(
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                elevation: 0,
+                expandedHeight: 240,
+                pinned: false,
+                floating: false,
+                stretch: true,
+                automaticallyImplyLeading: false,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Stack(
+                    children: [
+                      // Halo soleil blanc (identique révision)
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: Alignment.center,
+                              radius: 0.88,
+                              colors: [
+                                Colors.white.withValues(alpha: isDark ? 0.30 : 0.55),
+                                Colors.white.withValues(alpha: isDark ? 0.10 : 0.20),
+                                Colors.white.withValues(alpha: isDark ? 0.03 : 0.06),
+                                Colors.transparent,
+                              ],
+                              stops: const [0.0, 0.45, 0.72, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Titre + citation centrés
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Hadiths',
+                              style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                height: 1.1,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Le Messager d\'Allah ﷺ :',
+                              style: TextStyle(
+                                color: isDark ? Colors.white38 : Colors.black38,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _gold,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 36),
+                              child: Text(
+                                '« Les actes ne valent que par les intentions. »  — Bukhari & Muslim',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: isDark ? Colors.white54 : Colors.black45,
+                                  fontSize: 11.5,
+                                  fontStyle: FontStyle.italic,
+                                  height: 1.55,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Bouton retour (haut gauche)
+                      Positioned(
+                        top: 0,
+                        left: 4,
+                        child: IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 20,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      // Favoris + paramètres (haut droite)
+                      Positioned(
+                        top: 0,
+                        right: 4,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Mes favoris',
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const HadithFavoritesScreen()),
+                              ),
+                              icon: Icon(
+                                _favorites.isNotEmpty ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                size: 22,
+                                color: _gold,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Paramètres',
+                              onPressed: () => _showSettings(context, isDark),
+                              icon: Icon(
+                                Icons.settings_rounded,
+                                size: 22,
+                                color: isDark ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ── Barre de recherche ────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: _AnimatedHadithSearchBar(
+                    controller: _searchCtrl,
+                    focusNode: _searchFocusNode,
+                    onChanged: _onSearchChanged,
+                    isDark: isDark,
+                  ),
+                ),
+              ),
 
           SliverToBoxAdapter(
             child: Column(
@@ -467,7 +491,9 @@ class _HadithScreenState extends State<HadithScreen>
                 ),
               ),
             ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
