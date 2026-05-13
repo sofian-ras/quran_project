@@ -137,6 +137,22 @@ const _kThemes = <_DuaTheme>[
   ),
 ];
 
+const _kThemeDescriptions = {
+  'matin':        'Invocations au réveil pour débuter la journée dans la mémoire d\'Allah.',
+  'soir':         'Dhikr du soir et supplications avant de s\'endormir.',
+  'priere':       'Invocations avant, pendant et après la prière canonique.',
+  'anxiete':      'Supplications dans les moments de peine, de peur et d\'épreuve.',
+  'famille':      'Invocations pour le mariage, les enfants et la vie de famille.',
+  'maladie':      'Supplications pour le malade, le mourant et les défunts.',
+  'repas':        'Bénédictions à table, pendant et après le jeûne.',
+  'voyage':       'Invocations du voyageur : départ, route et retour.',
+  'hajj':         'Supplications du pèlerin tout au long du Hajj et de l\'Omra.',
+  'purification': 'Invocations de la toilette, des ablutions et des gestes quotidiens.',
+  'social':       'Supplications avec les autres : salutations, remerciements, conseils.',
+  'meteo':        'Invocations liées à la pluie, au vent, à l\'orage et aux astres.',
+  'dhikr':        'Formules de remembrance d\'Allah et leurs immenses bienfaits.',
+};
+
 // ─────────────────────────────────────────────
 //  ECRAN PRINCIPAL — GRILLE CATÉGORIES
 // ─────────────────────────────────────────────
@@ -329,7 +345,7 @@ class _DuaScreenState extends State<DuaScreen> {
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              'Allah ﷻ dit dans le Coran :',
+                              'Allah ﷻ dit :',
                               style: TextStyle(
                                 color: isDark ? Colors.white38 : Colors.black38,
                                 fontSize: 10,
@@ -446,23 +462,18 @@ class _DuaScreenState extends State<DuaScreen> {
               ),
             ),
 
-            // Grille 2 colonnes des THÈMES
+            // Liste des THÈMES (style hadith)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.85,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                ),
+              sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, i) {
                     final theme = _kThemes[i];
                     final count = _duaCountForTheme(theme);
-                    return _ThemeCard(
+                    return _ThemeListTile(
                       theme: theme,
                       duaCount: count,
+                      isDark: isDark,
                       onTap: () {
                         _searchFocus.unfocus();
                         Navigator.of(context).push(MaterialPageRoute(
@@ -855,107 +866,117 @@ class _DuaOfDayBanner extends StatelessWidget {
 // ─────────────────────────────────────────────
 //  CARTE THÈME (GRILLE)
 // ─────────────────────────────────────────────
-class _ThemeCard extends StatelessWidget {
+//  TUILE THÈME (style liste hadith)
+// ─────────────────────────────────────────────
+class _ThemeListTile extends StatelessWidget {
   final _DuaTheme theme;
   final int duaCount;
+  final bool isDark;
   final VoidCallback onTap;
 
-  const _ThemeCard({
+  const _ThemeListTile({
     required this.theme,
     required this.duaCount,
+    required this.isDark,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final description = _kThemeDescriptions[theme.id];
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Image de fond
-              Image.asset(
-                theme.imageAsset,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                errorBuilder: (_, __, ___) => DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        theme.color,
-                        Color.lerp(theme.color, Colors.black, 0.5)!,
-                      ],
-                    ),
-                  ),
-                  child: const SizedBox.expand(),
-                ),
-              ),
-
-              // Voile sombre bas
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xCC000000)],
-                    stops: [0.6, 1.0],
-                  ),
-                ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Badge nombre de duas
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.black38,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '$duaCount',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+        child: Column(
+          children: [
+            SizedBox(
+              height: 130,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Image à gauche
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 140,
+                      child: Image.asset(
+                        theme.imageAsset,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                theme.color,
+                                Color.lerp(theme.color, Colors.black, 0.4)!,
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-
-                    const Spacer(),
-
-                    // Titre
-                    Text(
-                      theme.titleFr,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        height: 1.3,
-                        shadows: [Shadow(blurRadius: 6, color: Colors.black87)],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(width: 14),
+                  // Texte à droite
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          theme.titleFr,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                            height: 1.3,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '$duaCount invocations',
+                          style: const TextStyle(
+                            color: _kGreen,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (description != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            description,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              height: 1.45,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 12,
+                    color: isDark ? Colors.white24 : Colors.black26,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            Divider(
+              height: 24,
+              thickness: 0.5,
+              color: isDark ? Colors.white12 : Colors.black12,
+            ),
+          ],
         ),
       ),
     );
@@ -1107,25 +1128,34 @@ class __DuaThemeScreenState extends State<_DuaThemeScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? _kDarkBg : _kLightBg;
     final cardBg = isDark ? _kDarkCard : _kLightCard;
     final stroke = isDark ? Colors.white12 : Colors.black12;
     final muted = isDark ? Colors.white54 : Colors.black45;
     final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
 
     return Scaffold(
-      backgroundColor: bg,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: bg,
-            elevation: 0,
-            pinned: true,
-            iconTheme: IconThemeData(
-              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-            ),
-            title: Text(
-              widget.theme.titleFr,
+      backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF0D1A10), _kDarkBg]
+                : [const Color(0xFFDEEBDF), _kLightBg],
+          ),
+        ),
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
+              elevation: 0,
+              pinned: true,
+              iconTheme: IconThemeData(
+                color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+              ),
+              title: Text(
+                widget.theme.titleFr,
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -1217,6 +1247,7 @@ class __DuaThemeScreenState extends State<_DuaThemeScreen> {
               ),
             ),
         ],
+      ),
       ),
     );
   }
@@ -1348,7 +1379,6 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? _kDarkBg : _kLightBg;
     final cardBg = isDark ? _kDarkCard : _kLightCard;
     final stroke = isDark ? Colors.white12 : Colors.black12;
     final muted = isDark ? Colors.white54 : Colors.black45;
@@ -1356,17 +1386,27 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
     final int total = _items.isNotEmpty ? _items.length : widget.duaCount;
 
     return Scaffold(
-      backgroundColor: bg,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: bg,
-            elevation: 0,
-            pinned: true,
-            iconTheme: IconThemeData(
-              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-            ),
-            title: Column(
+      backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF0D1A10), _kDarkBg]
+                : [const Color(0xFFDEEBDF), _kLightBg],
+          ),
+        ),
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
+              elevation: 0,
+              pinned: true,
+              iconTheme: IconThemeData(
+                color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+              ),
+              title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1447,6 +1487,7 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
               ),
             ),
         ],
+        ),
       ),
     );
   }
@@ -1922,7 +1963,6 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? _kDarkBg : _kLightBg;
     final muted = isDark ? Colors.white54 : Colors.black45;
 
     final dua = widget.items[_currentIndex];
@@ -1936,9 +1976,9 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
     final shown = fr.isNotEmpty ? fr : en;
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
       appBar: AppBar(
-        backgroundColor: bg,
+        backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
         elevation: 0,
         iconTheme: IconThemeData(
           color: isDark ? Colors.white : const Color(0xFF1A1A1A),
@@ -1963,19 +2003,30 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
           ],
         ),
       ),
-      body: PageView.builder(
-        controller: _controller,
-        itemCount: widget.items.length,
-        onPageChanged: (index) async {
-          _audioSub?.cancel();
-          await _audioPlayer?.stop();
-          if (mounted) setState(() { _playingId = null; _currentIndex = index; });
-        },
-        itemBuilder: (context, i) => _DuaDetailPage(
-          dua: widget.items[i],
-          index: i,
-          isDark: isDark,
-          muted: muted,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF0D1A10), _kDarkBg]
+                : [const Color(0xFFDEEBDF), _kLightBg],
+          ),
+        ),
+        child: PageView.builder(
+          controller: _controller,
+          itemCount: widget.items.length,
+          onPageChanged: (index) async {
+            _audioSub?.cancel();
+            await _audioPlayer?.stop();
+            if (mounted) setState(() { _playingId = null; _currentIndex = index; });
+          },
+          itemBuilder: (context, i) => _DuaDetailPage(
+            dua: widget.items[i],
+            index: i,
+            isDark: isDark,
+            muted: muted,
+          ),
         ),
       ),
       bottomNavigationBar: Container(

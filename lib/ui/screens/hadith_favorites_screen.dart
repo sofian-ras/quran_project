@@ -35,8 +35,9 @@ class _HadithFavoritesScreenState extends State<HadithFavoritesScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
       appBar: AppBar(
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         foregroundColor: isDark ? Colors.white : Colors.black87,

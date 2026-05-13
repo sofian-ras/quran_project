@@ -138,8 +138,18 @@ class _HadithFullscreenViewerState extends State<HadithFullscreenViewer> {
     final currentHadith = _cache[_currentIndex];
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: Stack(
+      backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF1A1206), const Color(0xFF261B0C)]
+                : [const Color(0xFFF5EDD8), const Color(0xFFEDE0C4)],
+          ),
+        ),
+        child: Stack(
         children: [
           // ── PageView ──────────────────────────────────────────────────
           PageView.builder(
@@ -300,6 +310,7 @@ class _HadithFullscreenViewerState extends State<HadithFullscreenViewer> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -130,12 +130,22 @@ class _HadithDetailScreenState extends State<HadithDetailScreen>
     final h = widget.hadith;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF1A1206), const Color(0xFF261B0C)]
+                : [const Color(0xFFF5EDD8), const Color(0xFFEDE0C4)],
+          ),
+        ),
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
             elevation: 0,
             iconTheme: IconThemeData(
               color: isDark ? Colors.white : Colors.black87,
@@ -438,6 +448,7 @@ class _HadithDetailScreenState extends State<HadithDetailScreen>
             ),
           ),
         ],
+      ),
       ),
     );
   }
