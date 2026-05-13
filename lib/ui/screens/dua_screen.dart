@@ -260,125 +260,141 @@ class _DuaScreenState extends State<DuaScreen> {
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? _kDarkBg : _kLightBg;
     final cardBg = isDark ? _kDarkCard : _kLightCard;
     final stroke = isDark ? Colors.white12 : Colors.black12;
     final muted = isDark ? Colors.white54 : Colors.black45;
     final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
 
     return Scaffold(
-      backgroundColor: bg,
-      body: CustomScrollView(
-        slivers: [
-          // ── App bar + barre de recherche ──
-          SliverAppBar(
-            backgroundColor: bg,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            expandedHeight: 210,
-            pinned: true,
-            floating: false,
-            stretch: true,
-            iconTheme: IconThemeData(
-              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: true,
-              expandedTitleScale: 1.0,
-              titlePadding: const EdgeInsets.only(bottom: 72),
-              title: const Text(
-                'Invocations',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: _kGreen,
-                  fontSize: 18,
-                ),
-              ),
-              collapseMode: CollapseMode.pin,
-              background: Stack(
-                children: [
-                  // Fond dégradé vert
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: isDark
-                              ? [const Color(0xFF0D1A10), _kDarkBg]
-                              : [const Color(0xFFDEEBDF), _kLightBg],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Halo radial
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: Alignment.center,
-                          radius: 0.9,
-                          colors: [
-                            _kGreen.withValues(alpha: isDark ? 0.30 : 0.18),
-                            _kGreen.withValues(alpha: isDark ? 0.08 : 0.05),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 0.55, 1.0],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Verset
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 44),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'ادْعُونِي أَسْتَجِبْ لَكُمْ',
-                            style: TextStyle(
-                              color: _kGreen,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
+      backgroundColor: isDark ? const Color(0xFF0D1A10) : const Color(0xFFDEEBDF),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF0D1A10), _kDarkBg]
+                : [const Color(0xFFDEEBDF), _kLightBg],
+          ),
+        ),
+        child: SafeArea(
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // ── Header décoratif (scroll away) ───────────────────────────
+              SliverAppBar(
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                elevation: 0,
+                expandedHeight: 240,
+                pinned: false,
+                floating: false,
+                stretch: true,
+                automaticallyImplyLeading: false,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Stack(
+                    children: [
+                      // Halo soleil blanc (identique révision)
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: Alignment.center,
+                              radius: 0.88,
+                              colors: [
+                                Colors.white.withValues(alpha: isDark ? 0.30 : 0.55),
+                                Colors.white.withValues(alpha: isDark ? 0.10 : 0.20),
+                                Colors.white.withValues(alpha: isDark ? 0.03 : 0.06),
+                                Colors.transparent,
+                              ],
+                              stops: const [0.0, 0.45, 0.72, 1.0],
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 36),
-                            child: Text(
-                              '« Invoquez-Moi, Je vous répondrai. »  — Ghafir : 60',
-                              textAlign: TextAlign.center,
+                        ),
+                      ),
+                      // Titre + verset centrés
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Invocations',
                               style: TextStyle(
-                                color: isDark ? Colors.white54 : Colors.black45,
-                                fontSize: 11.5,
-                                fontStyle: FontStyle.italic,
-                                height: 1.55,
+                                color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                height: 1.1,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 10),
+                            Text(
+                              'Allah ﷻ dit dans le Coran :',
+                              style: TextStyle(
+                                color: isDark ? Colors.white38 : Colors.black38,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'ادْعُونِي أَسْتَجِبْ لَكُمْ',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _kGreen,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 36),
+                              child: Text(
+                                '« Invoquez-Moi, Je vous répondrai. »  — Ghafir : 60',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: isDark ? Colors.white54 : Colors.black45,
+                                  fontSize: 11.5,
+                                  fontStyle: FontStyle.italic,
+                                  height: 1.55,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      // Bouton retour (haut gauche)
+                      Positioned(
+                        top: 0,
+                        left: 4,
+                        child: IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 20,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(60),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: _AnimatedDuaSearchBar(
-                  controller: _searchCtrl,
-                  focusNode: _searchFocus,
-                  onChanged: _onSearchChanged,
-                  isDark: isDark,
                 ),
               ),
-            ),
-          ),
 
-          // ── Contenu : résultats recherche OU grille catégories ──
+              // ── Barre de recherche ────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: _AnimatedDuaSearchBar(
+                    controller: _searchCtrl,
+                    focusNode: _searchFocus,
+                    onChanged: _onSearchChanged,
+                    isDark: isDark,
+                  ),
+                ),
+              ),
+
+              // ── Contenu : résultats recherche OU grille catégories ──
           if (_query.isNotEmpty)
             _SearchResultsSliver(
               results: _searchResults,
@@ -460,7 +476,9 @@ class _DuaScreenState extends State<DuaScreen> {
               ),
             ),
           ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
