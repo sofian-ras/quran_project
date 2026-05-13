@@ -280,7 +280,7 @@ class _HadithScreenState extends State<HadithScreen>
               collapseMode: CollapseMode.pin,
               background: Stack(
                 children: [
-                  // Fond dégradé doré
+                  // Fond dégradé doré → couleur de fond de l'écran en bas
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -288,8 +288,9 @@ class _HadithScreenState extends State<HadithScreen>
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: isDark
-                              ? [const Color(0xFF1A1206), const Color(0xFF261B0C)]
-                              : [const Color(0xFFF5EDD8), const Color(0xFFEDE0C4)],
+                              ? [const Color(0xFF1A1206), theme.scaffoldBackgroundColor, theme.scaffoldBackgroundColor]
+                              : [const Color(0xFFF5EDD8), theme.scaffoldBackgroundColor, theme.scaffoldBackgroundColor],
+                          stops: const [0.0, 0.72, 1.0],
                         ),
                       ),
                     ),
