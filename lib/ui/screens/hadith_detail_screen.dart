@@ -369,14 +369,17 @@ class _HadithDetailScreenState extends State<HadithDetailScreen>
                     opacity: _fadeTranslation,
                     child: SlideTransition(
                       position: _slideTranslation,
-                      child: Text(
-                        h.translation.isNotEmpty ? h.translation : '—',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          height: 1.8,
-                          fontSize: 15,
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.85)
-                              : const Color(0xFF2D2D2D),
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: HadithSettings.translationFontSizeNotifier,
+                        builder: (context, fontSize, _) => Text(
+                          h.translation.isNotEmpty ? h.translation : '—',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            height: 1.8,
+                            fontSize: fontSize,
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.85)
+                                : const Color(0xFF2D2D2D),
+                          ),
                         ),
                       ),
                     ),

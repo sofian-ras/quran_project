@@ -532,14 +532,17 @@ class _HadithPageState extends State<_HadithPage>
                 const SizedBox(height: 16),
 
                 // Translation
-                Text(
-                  h.translation.isNotEmpty ? h.translation : '—',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    height: 1.8,
-                    fontSize: 15,
-                    color: widget.isDark
-                        ? Colors.white.withValues(alpha: 0.85)
-                        : const Color(0xFF2D2D2D),
+                ValueListenableBuilder<double>(
+                  valueListenable: HadithSettings.translationFontSizeNotifier,
+                  builder: (context, fontSize, _) => Text(
+                    h.translation.isNotEmpty ? h.translation : '—',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      height: 1.8,
+                      fontSize: fontSize,
+                      color: widget.isDark
+                          ? Colors.white.withValues(alpha: 0.85)
+                          : const Color(0xFF2D2D2D),
+                    ),
                   ),
                 ),
 

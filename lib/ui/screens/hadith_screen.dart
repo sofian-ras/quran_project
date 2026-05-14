@@ -170,6 +170,7 @@ class _HadithScreenState extends State<HadithScreen>
   void _showSettings(BuildContext context, bool isDark) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: isDark ? const Color(0xFF1C2333) : const Color(0xFFFAF7F2),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1299,6 +1300,7 @@ class _HadithSettingsSheet extends StatefulWidget {
 
 class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
   double _arabicFontSize = HadithSettings.arabicFontSize;
+  double _translationFontSize = HadithSettings.translationFontSize;
 
   @override
   void initState() {
@@ -1309,6 +1311,11 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
         setState(() => _arabicFontSize = saved);
         HadithSettings.arabicFontSize = saved;
       }
+      final savedTr = p.getDouble('hadith_translation_font_size');
+      if (savedTr != null && mounted) {
+        setState(() => _translationFontSize = savedTr);
+        HadithSettings.translationFontSize = savedTr;
+      }
     });
   }
 
@@ -1316,8 +1323,8 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = widget.isDark;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(context).viewInsets.bottom + 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1399,6 +1406,84 @@ class _HadithSettingsSheetState extends State<_HadithSettingsSheet> {
                 setState(() => _arabicFontSize = v);
                 HadithSettings.arabicFontSize = v;
                 SharedPreferences.getInstance().then((p) => p.setDouble('hadith_arabic_font_size', v));
+              },
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('A', style: theme.textTheme.labelSmall?.copyWith(
+                color: isDark ? Colors.white38 : Colors.black26, fontSize: 12)),
+              Text('A', style: theme.textTheme.labelSmall?.copyWith(
+                color: isDark ? Colors.white38 : Colors.black26, fontSize: 18,
+                fontWeight: FontWeight.bold)),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+          Divider(color: isDark ? Colors.white12 : Colors.black12),
+          const SizedBox(height: 16),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Taille de la traduction',
+                  style: theme.textTheme.labelMedium
+                      ?.copyWith(color: isDark ? Colors.white54 : Colors.black45)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: widget.gold.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_translationFontSize.round()} px',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: widget.gold,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : const Color(0xFFFAF7F2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: widget.gold.withValues(alpha: 0.25)),
+            ),
+            child: Text(
+              'Au nom d\'Allah, le Tout Miséricordieux, le Très Miséricordieux.',
+              style: TextStyle(
+                fontSize: _translationFontSize,
+                height: 1.6,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.85)
+                    : const Color(0xFF2D2D2D),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+            ),
+            child: Slider(
+              value: _translationFontSize,
+              min: 12, max: 22, divisions: 5,
+              activeColor: widget.gold,
+              inactiveColor: widget.gold.withValues(alpha: 0.2),
+              onChanged: (v) {
+                setState(() => _translationFontSize = v);
+                HadithSettings.translationFontSize = v;
+                SharedPreferences.getInstance().then((p) => p.setDouble('hadith_translation_font_size', v));
               },
             ),
           ),
@@ -1829,4 +1914,8 @@ class HadithSettings {
   static final ValueNotifier<double> arabicFontSizeNotifier = ValueNotifier(22);
   static double get arabicFontSize => arabicFontSizeNotifier.value;
   static set arabicFontSize(double v) => arabicFontSizeNotifier.value = v;
+
+  static final ValueNotifier<double> translationFontSizeNotifier = ValueNotifier(15);
+  static double get translationFontSize => translationFontSizeNotifier.value;
+  static set translationFontSize(double v) => translationFontSizeNotifier.value = v;
 }
