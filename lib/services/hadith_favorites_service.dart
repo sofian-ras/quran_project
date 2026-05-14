@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HadithFavoritesService {
@@ -8,6 +9,7 @@ class HadithFavoritesService {
   HadithFavoritesService._();
 
   Set<int>? _cache;
+  final notifier = ValueNotifier<Set<int>>({});
 
   Future<Set<int>> getAll() async {
     if (_cache != null) return _cache!;
@@ -15,13 +17,14 @@ class HadithFavoritesService {
     final raw = prefs.getString(_key);
     if (raw == null) {
       _cache = {};
-      return _cache!;
+    } else {
+      try {
+        _cache = (jsonDecode(raw) as List).cast<int>().toSet();
+      } catch (_) {
+        _cache = {};
+      }
     }
-    try {
-      _cache = (jsonDecode(raw) as List).cast<int>().toSet();
-    } catch (_) {
-      _cache = {};
-    }
+    notifier.value = Set.from(_cache!);
     return _cache!;
   }
 
@@ -41,9 +44,16 @@ class HadithFavoritesService {
     return added;
   }
 
+  Future<void> remove(int id) async {
+    final favs = await getAll();
+    favs.remove(id);
+    await _save(favs);
+  }
+
   Future<void> _save(Set<int> favs) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(favs.toList()));
     _cache = favs;
+    notifier.value = Set.from(favs);
   }
 }

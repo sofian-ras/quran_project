@@ -46,11 +46,21 @@ class _HadithScreenState extends State<HadithScreen>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
+    HadithFavoritesService.instance.notifier.addListener(_onFavoritesChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
+  }
+
+  void _onFavoritesChanged() {
+    if (mounted) {
+      setState(() {
+        _favorites = Set.from(HadithFavoritesService.instance.notifier.value);
+      });
+    }
   }
 
   @override
   void dispose() {
+    HadithFavoritesService.instance.notifier.removeListener(_onFavoritesChanged);
     _gridAnimCtrl.dispose();
     _searchCtrl.dispose();
     _searchFocusNode.dispose();
@@ -705,10 +715,20 @@ class _HadithCategoryScreenState extends State<_HadithCategoryScreen> {
     _favorites = Set.from(widget.favorites);
     _loadPage(0);
     _scrollCtrl.addListener(_onScroll);
+    HadithFavoritesService.instance.notifier.addListener(_onFavoritesChanged);
+  }
+
+  void _onFavoritesChanged() {
+    if (mounted) {
+      setState(() {
+        _favorites = Set.from(HadithFavoritesService.instance.notifier.value);
+      });
+    }
   }
 
   @override
   void dispose() {
+    HadithFavoritesService.instance.notifier.removeListener(_onFavoritesChanged);
     _scrollCtrl.dispose();
     super.dispose();
   }

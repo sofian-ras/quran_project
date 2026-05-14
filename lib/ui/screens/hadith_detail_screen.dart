@@ -90,10 +90,21 @@ class _HadithDetailScreenState extends State<HadithDetailScreen>
 
     _animCtrl.forward();
     _loadFavoriteState();
+    HadithFavoritesService.instance.notifier.addListener(_onFavoritesChanged);
+  }
+
+  void _onFavoritesChanged() {
+    if (mounted) {
+      setState(() {
+        _isFavorite = HadithFavoritesService.instance.notifier.value
+            .contains(widget.hadith.id);
+      });
+    }
   }
 
   @override
   void dispose() {
+    HadithFavoritesService.instance.notifier.removeListener(_onFavoritesChanged);
     _animCtrl.dispose();
     super.dispose();
   }

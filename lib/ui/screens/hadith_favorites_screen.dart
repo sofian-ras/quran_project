@@ -16,6 +16,7 @@ class _HadithFavoritesScreenState extends State<HadithFavoritesScreen> {
 
   List<Hadith> _hadiths = [];
   bool _loading = true;
+  final Map<int, int> _versions = {};
 
   @override
   void initState() {
@@ -29,59 +30,113 @@ class _HadithFavoritesScreenState extends State<HadithFavoritesScreen> {
     if (mounted) setState(() { _hadiths = hadiths; _loading = false; });
   }
 
+  void _removeFavorite(Hadith h, int index) {
+    setState(() => _hadiths.removeAt(index));
+    HadithFavoritesService.instance.remove(h.id);
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Hadith retiré des favoris'),
+        duration: const Duration(seconds: 4),
+        backgroundColor: const Color(0xFF2A2A2A),
+        action: SnackBarAction(
+          label: 'Annuler',
+          textColor: _gold,
+          onPressed: () async {
+            await HadithFavoritesService.instance.toggle(h.id);
+            if (mounted) {
+              setState(() {
+                _versions[h.id] = (_versions[h.id] ?? 0) + 1;
+                _hadiths.insert(index, h);
+              });
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
-      appBar: AppBar(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+      },
+      child: Scaffold(
         backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: isDark ? Colors.white : Colors.black87,
-        iconTheme: IconThemeData(
-          color: isDark ? Colors.white : Colors.black87,
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'Hadiths sauvegardés',
-          style: TextStyle(
+        appBar: AppBar(
+          backgroundColor: isDark ? const Color(0xFF1A1206) : const Color(0xFFF5EDD8),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: isDark ? Colors.white : Colors.black87,
+          iconTheme: IconThemeData(
             color: isDark ? Colors.white : Colors.black87,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            onPressed: () {
+              ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+              Navigator.of(context).pop();
+            },
+          ),
+          title: Text(
+            'Hadiths sauvegardés',
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
           ),
         ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _hadiths.isEmpty
-              ? _EmptyState(isDark: isDark)
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _hadiths.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) {
-                    final h = _hadiths[i];
-                    return _HadithFavoriteCard(
-                      hadith: h,
-                      gold: _gold,
-                      isDark: isDark,
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => HadithDetailScreen(hadith: h),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _hadiths.isEmpty
+                ? _EmptyState(isDark: isDark)
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _hadiths.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final h = _hadiths[i];
+                      return Dismissible(
+                        key: ValueKey('${h.id}_${_versions[h.id] ?? 0}'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        );
-                        _load();
-                      },
-                    );
-                  },
-                ),
+                          child: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Colors.redAccent,
+                            size: 36,
+                          ),
+                        ),
+                        onDismissed: (_) => _removeFavorite(h, i),
+                        child: _HadithFavoriteCard(
+                          hadith: h,
+                          gold: _gold,
+                          isDark: isDark,
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => HadithDetailScreen(hadith: h),
+                              ),
+                            );
+                            _load();
+                          },
+                        ),
+                      );
+                    },
+                  ),
+      ),
     );
   }
 }
