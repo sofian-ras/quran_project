@@ -173,22 +173,21 @@ class _DuaScreenState extends State<DuaScreen> {
   Timer? _debounce;
   final FocusNode _searchFocus = FocusNode();
   final TextEditingController _searchCtrl = TextEditingController();
-  Set<String> _duaFavIds = {};
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
-    _loadDuaFavIds();
+    DuaFavoritesService.instance.notifier.addListener(_onFavoritesChanged);
+    DuaFavoritesService.instance.getAll();
   }
 
-  Future<void> _loadDuaFavIds() async {
-    final ids = await DuaFavoritesService.instance.getAll();
-    if (mounted) setState(() => _duaFavIds = Set.from(ids));
+  void _onFavoritesChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    DuaFavoritesService.instance.notifier.removeListener(_onFavoritesChanged);
     _debounce?.cancel();
     _searchFocus.dispose();
     _searchCtrl.dispose();
@@ -405,16 +404,13 @@ class _DuaScreenState extends State<DuaScreen> {
                         right: 4,
                         child: IconButton(
                           tooltip: 'Mes favoris',
-                          onPressed: () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const DuaFavoritesScreen(),
-                              ),
-                            );
-                            _loadDuaFavIds();
-                          },
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const DuaFavoritesScreen(),
+                            ),
+                          ),
                           icon: Icon(
-                            _duaFavIds.isNotEmpty
+                            DuaFavoritesService.instance.notifier.value.isNotEmpty
                                 ? Icons.favorite_rounded
                                 : Icons.favorite_border_rounded,
                             size: 22,
@@ -1311,33 +1307,24 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
   String? _playingId;
   bool _audioLoading = false;
 
-  Set<String> _favorites = {};
-
   @override
   void initState() {
     super.initState();
     _load();
-    _loadFavorites();
+    DuaFavoritesService.instance.notifier.addListener(_onFavoritesChanged);
   }
 
-  Future<void> _loadFavorites() async {
-    final ids = await DuaFavoritesService.instance.getAll();
-    if (mounted) setState(() => _favorites = Set.from(ids));
+  void _onFavoritesChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _toggleFavorite(String id) async {
-    final isNow = await DuaFavoritesService.instance.toggle(id);
-    if (mounted) setState(() {
-      if (isNow) {
-      _favorites.add(id);
-    } else {
-      _favorites.remove(id);
-    }
-    });
+    await DuaFavoritesService.instance.toggle(id);
   }
 
   @override
   void dispose() {
+    DuaFavoritesService.instance.notifier.removeListener(_onFavoritesChanged);
     _audioSub?.cancel();
     _audioPlayer?.stop();
     _audioPlayer?.dispose();
@@ -1488,7 +1475,6 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
                             ),
                           ),
                         );
-                        await _loadFavorites();
                       },
                       child: _DuaCard(
                         dua: dua,
@@ -1499,7 +1485,7 @@ class _DuaCategoryScreenState extends State<DuaCategoryScreen> {
                         muted: muted,
                         isPlaying: _playingId == id,
                         isAudioLoading: _audioLoading && _playingId == id,
-                        isFavorite: _favorites.contains(id),
+                        isFavorite: DuaFavoritesService.instance.notifier.value.contains(id),
                         onToggleAudio: () {
                           final url = (dua['audio_url'] as String?)?.trim() ?? '';
                           if (url.isNotEmpty) _toggleAudio(id, url);
@@ -1903,18 +1889,21 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
   String? _playingId;
   bool _audioLoading = false;
 
-  Set<String> _favorites = {};
-
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _controller = PageController(initialPage: widget.initialIndex);
-    _loadFavorites();
+    DuaFavoritesService.instance.notifier.addListener(_onFavoritesChanged);
+  }
+
+  void _onFavoritesChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    DuaFavoritesService.instance.notifier.removeListener(_onFavoritesChanged);
     _audioSub?.cancel();
     _audioPlayer?.stop();
     _audioPlayer?.dispose();
@@ -1922,20 +1911,8 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
     super.dispose();
   }
 
-  Future<void> _loadFavorites() async {
-    final ids = await DuaFavoritesService.instance.getAll();
-    if (mounted) setState(() => _favorites = Set.from(ids));
-  }
-
   Future<void> _toggleFavorite(String id) async {
-    final isNow = await DuaFavoritesService.instance.toggle(id);
-    if (mounted) setState(() {
-      if (isNow) {
-      _favorites.add(id);
-    } else {
-      _favorites.remove(id);
-    }
-    });
+    await DuaFavoritesService.instance.toggle(id);
   }
 
   Future<File> _downloadAudio(String duaId, String url) async {
@@ -2114,14 +2091,14 @@ class _DuaDetailScreenState extends State<_DuaDetailScreen> {
                 ),
                 const SizedBox(width: 4),
                 _ActionIcon(
-                  icon: _favorites.contains(id)
+                  icon: DuaFavoritesService.instance.notifier.value.contains(id)
                       ? Icons.favorite_rounded
                       : Icons.favorite_border_rounded,
-                  color: _favorites.contains(id) ? _kGreen : muted,
-                  backgroundColor: _favorites.contains(id)
+                  color: DuaFavoritesService.instance.notifier.value.contains(id) ? _kGreen : muted,
+                  backgroundColor: DuaFavoritesService.instance.notifier.value.contains(id)
                       ? _kGreen.withValues(alpha: 0.18)
                       : Colors.transparent,
-                  tooltip: _favorites.contains(id)
+                  tooltip: DuaFavoritesService.instance.notifier.value.contains(id)
                       ? 'Retirer des favoris'
                       : 'Ajouter aux favoris',
                   onTap: () => _toggleFavorite(id),

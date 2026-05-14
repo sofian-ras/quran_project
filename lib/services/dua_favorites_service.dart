@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DuaFavoritesService {
@@ -5,40 +6,53 @@ class DuaFavoritesService {
   static final DuaFavoritesService instance = DuaFavoritesService._();
   DuaFavoritesService._();
 
-  Set<String>? _cache;
+  final ValueNotifier<Set<String>> notifier = ValueNotifier(const {});
+  Future<void>? _loadFuture;
+
+  Future<void> _ensureLoaded() =>
+      _loadFuture ??= SharedPreferences.getInstance().then((prefs) {
+        notifier.value = (prefs.getStringList(_key) ?? []).toSet();
+      });
 
   Future<Set<String>> getAll() async {
-    if (_cache != null) return _cache!;
-    final prefs = await SharedPreferences.getInstance();
-    _cache = (prefs.getStringList(_key) ?? []).toSet();
-    return _cache!;
+    await _ensureLoaded();
+    return notifier.value;
   }
 
-  Future<bool> isFavorite(String id) async => (await getAll()).contains(id);
+  Future<bool> isFavorite(String id) async {
+    await _ensureLoaded();
+    return notifier.value.contains(id);
+  }
 
   Future<bool> toggle(String id) async {
-    final favs = await getAll();
-    final added = !favs.contains(id);
-    if (added) { favs.add(id); } else { favs.remove(id); }
-    await _save(favs);
-    return added;
+    await _ensureLoaded();
+    final wasPresent = notifier.value.contains(id);
+    final next = Set<String>.from(notifier.value);
+    if (wasPresent) { next.remove(id); } else { next.add(id); }
+    notifier.value = next;
+    _persist(next);
+    return !wasPresent;
   }
 
   Future<void> remove(String id) async {
-    final favs = await getAll();
-    favs.remove(id);
-    await _save(favs);
+    await _ensureLoaded();
+    final next = Set<String>.from(notifier.value);
+    next.remove(id);
+    notifier.value = next;
+    _persist(next);
   }
 
   Future<void> add(String id) async {
-    final favs = await getAll();
-    favs.add(id);
-    await _save(favs);
+    await _ensureLoaded();
+    final next = Set<String>.from(notifier.value);
+    next.add(id);
+    notifier.value = next;
+    _persist(next);
   }
 
-  Future<void> _save(Set<String> favs) async {
-    _cache = favs;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_key, favs.toList());
+  void _persist(Set<String> snapshot) {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setStringList(_key, snapshot.toList());
+    });
   }
 }
