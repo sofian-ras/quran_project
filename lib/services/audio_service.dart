@@ -18,6 +18,7 @@ import 'qul_audio/models/qul_reciter.dart';
 import 'qul_audio/qul_catalog_service.dart';
 import 'qul_audio/qul_audio_resolver.dart';
 import 'mp3quran/timed_surah_player.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PositionData {
   final Duration position;
@@ -37,6 +38,7 @@ class AudioService {
 
   AudioService._() {
     _loadReciterAssets();
+    _loadAyahReciterPref();
     // Player sourate complète
     _player.setLoopMode(loopModeNotifier.value);
 
@@ -283,8 +285,13 @@ class AudioService {
   /// Récitateurs disponibles sur QUL.
   static List<QulReciter> get ayahReciters => QulCatalogService.instance.available;
 
+  static const int _kDefaultAyahReciterQulId = 123; // Mishary Alafasi
+
   final ValueNotifier<QulReciter> currentAyahReciterNotifier =
-      ValueNotifier<QulReciter>(QulCatalogService.instance.available.first);
+      ValueNotifier<QulReciter>(
+        QulCatalogService.instance.findByQulId(_kDefaultAyahReciterQulId) ??
+        QulCatalogService.instance.available.first,
+      );
   final AudioPlayer _ayahPlayer = AudioPlayer();
   final ValueNotifier<bool> isAyahBuffering = ValueNotifier(false);
   final ValueNotifier<String> currentAyahTitleNotifier = ValueNotifier("Aucun verset");
@@ -314,6 +321,17 @@ class AudioService {
 
   void setAyahReciter(QulReciter reciter) {
     currentAyahReciterNotifier.value = reciter;
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.setInt('ayah_reciter_qul_id', reciter.qulId),
+    );
+  }
+
+  Future<void> _loadAyahReciterPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedId = prefs.getInt('ayah_reciter_qul_id');
+    if (savedId == null) return;
+    final reciter = QulCatalogService.instance.findByQulId(savedId);
+    if (reciter != null) currentAyahReciterNotifier.value = reciter;
   }
 
   StreamSubscription<PlayerState>? _ayahSeqSub;

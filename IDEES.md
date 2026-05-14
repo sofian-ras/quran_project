@@ -5,8 +5,6 @@
 - Permettre à l’utilisateur d’ouvrir rapidement l’application sans passer par plusieurs étapes.
 
 ## Ouverture de l’application
-- Créer un **splash screen agréable et dynamique**.
-- Afficher un message accueillant comme **“Salam alaykoum”**.
 - Donner dès le lancement une impression de calme, de beauté et de proximité.
 
 ## Mise en avant sur le Play Store
