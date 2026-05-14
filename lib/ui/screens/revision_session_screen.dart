@@ -82,6 +82,9 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   late final AnimationController _answerSlideCtrl;
   late final Animation<Offset> _answerSlideAnim;
   late final Animation<double> _answerFadeAnim;
+  late final AnimationController _thinkingSlideCtrl;
+  late final Animation<Offset>   _thinkingSlideAnim;
+  late final Animation<double>   _thinkingFadeAnim;
 
   StreamSubscription<PlayerState>? _audioSub;
   Timer? _readyTimer;
@@ -105,6 +108,16 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     ).animate(CurvedAnimation(parent: _answerSlideCtrl, curve: Curves.easeOutCubic));
     _answerFadeAnim = CurvedAnimation(parent: _answerSlideCtrl, curve: Curves.easeOut);
 
+    _thinkingSlideCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _thinkingSlideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.35),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _thinkingSlideCtrl, curve: Curves.easeOutCubic));
+    _thinkingFadeAnim = CurvedAnimation(parent: _thinkingSlideCtrl, curve: Curves.easeOut);
+
     _loadSession();
   }
 
@@ -112,6 +125,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
   void dispose() {
     _pulseCtrl.dispose();
     _answerSlideCtrl.dispose();
+    _thinkingSlideCtrl.dispose();
     _audioSub?.cancel();
     _readyTimer?.cancel();
     AudioService.instance.stopAyah();
@@ -217,6 +231,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     _pulseCtrl.stop();
     _pulseCtrl.value = 0;
     setState(() => _phase = _Phase.thinking);
+    _thinkingSlideCtrl.forward(from: 0);
   }
 
   void _goToAnswer() {
@@ -287,6 +302,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
     }
     _currentIndex++;
     _answerSlideCtrl.reset();
+    _thinkingSlideCtrl.reset();
     setState(() { _phase = _Phase.listening; _readyVisible = false; });
     _enterListening();
   }
@@ -425,7 +441,7 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
                 onStart: _startSession,
               )
             : _SessionContent(
-                key: ValueKey('session_${_currentIndex}_${_phase.name}'),
+                key: ValueKey('session_$_currentIndex'),
                 config: widget.config,
                 question: _questions[_currentIndex],
                 phase: _phase,
@@ -435,6 +451,8 @@ class _RevisionSessionScreenState extends State<RevisionSessionScreen>
                 pulseCtrl: _pulseCtrl,
                 answerSlideAnim: _answerSlideAnim,
                 answerFadeAnim: _answerFadeAnim,
+                thinkingSlideAnim: _thinkingSlideAnim,
+                thinkingFadeAnim: _thinkingFadeAnim,
                 onReady: _goToThinking,
                 onReveal: _goToAnswer,
                 onResult: _recordResult,
@@ -554,6 +572,8 @@ class _SessionContent extends StatelessWidget {
   final AnimationController pulseCtrl;
   final Animation<Offset> answerSlideAnim;
   final Animation<double> answerFadeAnim;
+  final Animation<Offset> thinkingSlideAnim;
+  final Animation<double> thinkingFadeAnim;
   final VoidCallback onReady;
   final VoidCallback onReveal;
   final void Function(bool) onResult;
@@ -570,6 +590,8 @@ class _SessionContent extends StatelessWidget {
     required this.pulseCtrl,
     required this.answerSlideAnim,
     required this.answerFadeAnim,
+    required this.thinkingSlideAnim,
+    required this.thinkingFadeAnim,
     required this.onReady,
     required this.onReveal,
     required this.onResult,
@@ -645,6 +667,8 @@ class _SessionContent extends StatelessWidget {
               pulseCtrl: pulseCtrl,
               answerSlideAnim: answerSlideAnim,
               answerFadeAnim: answerFadeAnim,
+              thinkingSlideAnim: thinkingSlideAnim,
+              thinkingFadeAnim: thinkingFadeAnim,
               onReady: onReady,
               onReveal: onReveal,
               onResult: onResult,
@@ -747,13 +771,15 @@ class _PhaseDot extends StatelessWidget {
 
 // ── Phase body ────────────────────────────────────────────────────────────────
 
-class _PhaseBody extends StatelessWidget {
+class _PhaseBody extends StatefulWidget {
   final _Question question;
   final _Phase phase;
   final bool readyVisible;
   final AnimationController pulseCtrl;
   final Animation<Offset> answerSlideAnim;
   final Animation<double> answerFadeAnim;
+  final Animation<Offset> thinkingSlideAnim;
+  final Animation<double> thinkingFadeAnim;
   final VoidCallback onReady;
   final VoidCallback onReveal;
   final void Function(bool) onResult;
@@ -765,104 +791,64 @@ class _PhaseBody extends StatelessWidget {
     required this.pulseCtrl,
     required this.answerSlideAnim,
     required this.answerFadeAnim,
+    required this.thinkingSlideAnim,
+    required this.thinkingFadeAnim,
     required this.onReady,
     required this.onReveal,
     required this.onResult,
   });
 
   @override
+  State<_PhaseBody> createState() => _PhaseBodyState();
+}
+
+class _PhaseBodyState extends State<_PhaseBody> {
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_PhaseBody old) {
+    super.didUpdateWidget(old);
+    if (old.phase != widget.phase) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollCtrl.hasClients) {
+          _scrollCtrl.animateTo(
+            _scrollCtrl.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final p = RevisionThemeScope.of(context);
-
-    final cardContent = <Widget>[
-      AnimatedContainer(
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOut,
-        child: phase == _Phase.listening
-            ? _GlassVerseCard(
-                verse: question.stimulus,
-                label: 'Verset ${question.stimulus.ayah}',
-                pulseCtrl: pulseCtrl,
-                accentColor: p.accent,
-              )
-            : _CompactVerseCard(verse: question.stimulus),
-      ),
-      const SizedBox(height: 14),
-
-      if (phase == _Phase.thinking) ...[
-        const SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          height: 80,
-          decoration: BoxDecoration(
-            color: p.cardBg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: p.cardBorder),
-          ),
-          child: Center(
-            child: Text(
-              '• • •',
-              style: TextStyle(
-                color: p.accent.withValues(alpha: 0.6),
-                fontSize: 28,
-                letterSpacing: 8,
-              ),
-            ),
-          ),
-        ),
-      ],
-
-      if (phase == _Phase.answer) ...[
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              question.isNext ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-              color: p.iconMuted,
-              size: 16,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              question.isNext ? 'Verset suivant' : 'Verset précédent',
-              style: TextStyle(color: p.textSecondary, fontSize: 12),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        FadeTransition(
-          opacity: answerFadeAnim,
-          child: SlideTransition(
-            position: answerSlideAnim,
-            child: _GlassVerseCard(
-              verse: question.answer,
-              label: 'Verset ${question.answer.ayah}',
-              pulseCtrl: null,
-              accentColor: AppColors.success,
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Center(child: _PlayPauseButton(verse: question.answer)),
-      ],
-      const SizedBox(height: 16),
-    ];
+    final q = widget.question;
+    final phase = widget.phase;
 
     Widget? bottomAction;
     if (phase == _Phase.listening) {
       bottomAction = AnimatedOpacity(
-        opacity: readyVisible ? 1.0 : 0.0,
+        opacity: widget.readyVisible ? 1.0 : 0.0,
         duration: const Duration(milliseconds: 400),
         child: _PrimaryButton(
           label: 'Je suis prêt',
           icon: Icons.arrow_forward_rounded,
-          onPressed: readyVisible ? onReady : null,
+          onPressed: widget.readyVisible ? widget.onReady : null,
         ),
       );
     } else if (phase == _Phase.thinking) {
       bottomAction = _PrimaryButton(
         label: 'Voir la réponse',
         icon: Icons.visibility_rounded,
-        onPressed: onReveal,
+        onPressed: widget.onReveal,
       );
     } else if (phase == _Phase.answer) {
       bottomAction = Row(
@@ -872,7 +858,7 @@ class _PhaseBody extends StatelessWidget {
               label: 'Pas trouvé',
               icon: Icons.close_rounded,
               color: AppColors.error,
-              onPressed: () => onResult(false),
+              onPressed: () => widget.onResult(false),
             ),
           ),
           const SizedBox(width: 12),
@@ -881,7 +867,7 @@ class _PhaseBody extends StatelessWidget {
               label: 'Trouvé !',
               icon: Icons.check_rounded,
               color: AppColors.success,
-              onPressed: () => onResult(true),
+              onPressed: () => widget.onResult(true),
             ),
           ),
         ],
@@ -892,23 +878,114 @@ class _PhaseBody extends StatelessWidget {
       children: [
         Expanded(
           child: SingleChildScrollView(
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.only(bottom: 8),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: cardContent,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Slot 1 — verset stimulus (toujours présent)
+                _GlassVerseCard(
+                  verse: q.stimulus,
+                  label: 'Verset ${q.stimulus.ayah}',
+                  pulseCtrl: phase == _Phase.listening ? widget.pulseCtrl : null,
+                  accentColor: p.accent,
+                ),
+                const SizedBox(height: 12),
+                Center(child: _PlayPauseButton(verse: q.stimulus)),
+                const SizedBox(height: 20),
+
+                // Slot 2 — dots "thinking" (thinking ET answer)
+                if (phase.index >= _Phase.thinking.index)
+                  FadeTransition(
+                    opacity: widget.thinkingFadeAnim,
+                    child: SlideTransition(
+                      position: widget.thinkingSlideAnim,
+                      child: _ThinkingSlot(p: p, isNext: q.isNext),
+                    ),
+                  ),
+
+                // Slot 3 — flèche + carte réponse (answer uniquement)
+                if (phase == _Phase.answer) ...[
+                  const SizedBox(height: 10),
+                  FadeTransition(
+                    opacity: widget.answerFadeAnim,
+                    child: SlideTransition(
+                      position: widget.answerSlideAnim,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                q.isNext
+                                    ? Icons.arrow_downward_rounded
+                                    : Icons.arrow_upward_rounded,
+                                color: p.iconMuted,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                q.isNext ? 'Verset suivant' : 'Verset précédent',
+                                style: TextStyle(color: p.textSecondary, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _GlassVerseCard(
+                            verse: q.answer,
+                            label: 'Verset ${q.answer.ayah}',
+                            pulseCtrl: null,
+                            accentColor: AppColors.success,
+                          ),
+                          const SizedBox(height: 12),
+                          Center(child: _PlayPauseButton(verse: q.answer)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 16),
+              ],
             ),
           ),
         ),
-        // Play button for listening phase — static, centré
-        if (phase == _Phase.listening) ...[
-          const SizedBox(height: 12),
-          Center(child: _PlayPauseButton(verse: question.stimulus)),
-          const SizedBox(height: 12),
-        ],
         if (bottomAction != null) ...[
           bottomAction,
           const SizedBox(height: 20),
         ],
       ],
+    );
+  }
+}
+
+// ── Thinking slot — question ──────────────────────────────────────────────────
+
+class _ThinkingSlot extends StatelessWidget {
+  final RevisionPalette p;
+  final bool isNext;
+  const _ThinkingSlot({required this.p, required this.isNext});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      decoration: BoxDecoration(
+        color: p.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.cardBorder),
+      ),
+      child: Text(
+        isNext ? 'Quel est le verset suivant ?' : 'Quel est le verset précédent ?',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: p.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
