@@ -720,8 +720,8 @@ class _FavoriteButtonState extends State<_FavoriteButton>
             duration: const Duration(milliseconds: 180),
             child: Icon(
               widget.isFavorite
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
               key: ValueKey(widget.isFavorite),
               size: 19,
               color: widget.isFavorite

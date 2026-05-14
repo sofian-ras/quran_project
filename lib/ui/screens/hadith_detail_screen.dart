@@ -198,8 +198,8 @@ class _HadithDetailScreenState extends State<HadithDetailScreen>
                   duration: const Duration(milliseconds: 200),
                   child: Icon(
                     _isFavorite
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded,
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
                     key: ValueKey(_isFavorite),
                     color: _isFavorite ? _gold : null,
                     size: 24,
