@@ -595,41 +595,121 @@ class _AsmaulHusnaScreenState extends State<AsmaulHusnaScreen> {
   }
 
   SliverAppBar _buildSliverAppBar(bool isDark) {
-    final bg = isDark ? const Color(0xFF0C1220) : const Color(0xFFF5F0E6);
     return SliverAppBar(
-      backgroundColor: bg,
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
       elevation: 0,
-      pinned: true,
-      expandedHeight: 148,
+      expandedHeight: 230,
+      pinned: false,
+      floating: false,
+      stretch: true,
+      automaticallyImplyLeading: false,
       flexibleSpace: FlexibleSpaceBar(
-        collapseMode: CollapseMode.pin,
-        background: _AsmaulHusnaHeader(isDark: isDark),
-      ),
-      leading: IconButton(
-        icon: Icon(
-          Icons.arrow_back_ios_new_rounded,
-          size: 18,
-          color: isDark ? Colors.white70 : const Color(0xFF4A3F30),
+        background: Stack(
+          children: [
+            // Halo radial blanc — identique hadith/dua
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 0.88,
+                    colors: [
+                      Colors.white.withValues(alpha: isDark ? 0.30 : 0.55),
+                      Colors.white.withValues(alpha: isDark ? 0.10 : 0.20),
+                      Colors.white.withValues(alpha: isDark ? 0.03 : 0.06),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.45, 0.72, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            // Contenu centré
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Asmaul Husna',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'أسماء الله الحسنى',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'UthmanTahaNaskh',
+                      color: Color(0xFFC8A97E),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 36),
+                    child: Text(
+                      '« Allah possède quatre-vingt-dix-neuf noms. Quiconque les dénombre entrera au Paradis. »  — Bukhari & Muslim',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: isDark ? Colors.white54 : Colors.black45,
+                        fontSize: 11.5,
+                        fontStyle: FontStyle.italic,
+                        height: 1.55,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Bouton retour
+            Positioned(
+              top: 0,
+              left: 4,
+              child: SafeArea(
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 20,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+            // Bouton favoris
+            Positioned(
+              top: 0,
+              right: 4,
+              child: SafeArea(
+                child: IconButton(
+                  icon: Icon(
+                    _showFavoritesOnly
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    size: 22,
+                    color: _showFavoritesOnly
+                        ? const Color(0xFFD4AF37)
+                        : const Color(0xFFC8A97E),
+                  ),
+                  onPressed: () =>
+                      setState(() => _showFavoritesOnly = !_showFavoritesOnly),
+                ),
+              ),
+            ),
+          ],
         ),
-        onPressed: () => Navigator.of(context).pop(),
       ),
-      actions: [
-        IconButton(
-          icon: Icon(
-            _showFavoritesOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-            color: _showFavoritesOnly
-                ? const Color(0xFFD4AF37)
-                : (isDark ? Colors.white54 : const Color(0xFF8B6C35)),
-          ),
-          onPressed: () => setState(() => _showFavoritesOnly = !_showFavoritesOnly),
-        ),
-      ],
     );
   }
 
   Widget _buildSearchAndFilter(bool isDark) {
-    final cardBg = isDark ? const Color(0xFF1C2333) : const Color(0xFFEDE6D9);
     const gold = Color(0xFFC8A97E);
 
     return Padding(
@@ -637,40 +717,62 @@ class _AsmaulHusnaScreenState extends State<AsmaulHusnaScreen> {
       child: Column(
         children: [
           Container(
-            height: 42,
+            height: 44,
             decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: gold.withValues(alpha: 0.45)),
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08),
+                width: 0.8,
+              ),
             ),
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() => _search = v),
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark ? Colors.white : const Color(0xFF4A3F30),
-              ),
-              decoration: InputDecoration(
-                hintText: 'Rechercher par nom ou signification…',
-                hintStyle: TextStyle(
-                  fontSize: 13,
-                  color: isDark ? Colors.white38 : const Color(0xFF6B5A45),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(width: 12),
+                const Icon(Icons.search_rounded, color: gold, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (v) => setState(() => _search = v),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    ),
+                    cursorColor: gold,
+                    decoration: InputDecoration(
+                      hintText: 'Rechercher par nom ou signification…',
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      filled: false,
+                      contentPadding: const EdgeInsets.only(bottom: 2),
+                    ),
+                  ),
                 ),
-                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: gold),
-                suffixIcon: _search.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.clear_rounded,
-                            size: 16,
-                            color: isDark ? Colors.white38 : const Color(0xFF6B5A45)),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          setState(() => _search = '');
-                        },
-                      )
-                    : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
+                if (_search.isNotEmpty)
+                  IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                    onPressed: () {
+                      _searchCtrl.clear();
+                      setState(() => _search = '');
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 44),
+                  )
+                else
+                  const SizedBox(width: 12),
+              ],
             ),
           ),
           const SizedBox(height: 8),
@@ -724,147 +826,6 @@ class _AsmaulHusnaScreenState extends State<AsmaulHusnaScreen> {
       ),
     );
   }
-}
-
-// ═══════════════════════════════════════════════════════
-//  HEADER WIDGET
-// ═══════════════════════════════════════════════════════
-
-class _AsmaulHusnaHeader extends StatelessWidget {
-  final bool isDark;
-  const _AsmaulHusnaHeader({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: isDark
-              ? const [
-                  Color(0xFF1A100A),
-                  Color(0xFF2A1A0E),
-                  Color(0xFF3A2810),
-                  Color(0xFF2A1A0E),
-                  Color(0xFF1A100A),
-                ]
-              : const [
-                  Color(0xFF8B6C35),
-                  Color(0xFFBFA878),
-                  Color(0xFFD4C5A3),
-                  Color(0xFFBFA878),
-                  Color(0xFF8B6C35),
-                ],
-          stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: CustomPaint(painter: _HeaderPatternPainter(isDark: isDark)),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 12),
-                Text(
-                  'أسماء الله الحسنى',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'ScheherazadeNew',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFFE8D5B0) : const Color(0xFFFAF6EE),
-                    shadows: [
-                      Shadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Les plus beaux noms d\'Allah',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    letterSpacing: 0.8,
-                    color: isDark
-                        ? const Color(0xFFE8D5B0).withValues(alpha: 0.7)
-                        : const Color(0xFFFAF6EE).withValues(alpha: 0.85),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderPatternPainter extends CustomPainter {
-  final bool isDark;
-  const _HeaderPatternPainter({required this.isDark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = (isDark ? Colors.white : Colors.white).withValues(alpha: 0.04)
-      ..strokeWidth = 0.6
-      ..style = PaintingStyle.stroke;
-
-    // Diamond grid pattern
-    const spacing = 22.0;
-    for (double x = 0; x <= size.width + spacing; x += spacing) {
-      for (double y = 0; y <= size.height + spacing; y += spacing) {
-        final path = Path();
-        path.moveTo(x, y - 8);
-        path.lineTo(x + 8, y);
-        path.lineTo(x, y + 8);
-        path.lineTo(x - 8, y);
-        path.close();
-        canvas.drawPath(path, paint);
-      }
-    }
-
-    // Corner stars
-    _drawStar(canvas, Offset(size.width - 20, 20), 10, paint);
-    _drawStar(canvas, const Offset(20, 20), 10, paint);
-    _drawStar(canvas, Offset(size.width - 20, size.height - 20), 10, paint);
-    _drawStar(canvas, Offset(20, size.height - 20), 10, paint);
-  }
-
-  void _drawStar(Canvas canvas, Offset center, double r, Paint paint) {
-    final path = Path();
-    for (int i = 0; i < 8; i++) {
-      final angle = i * math.pi / 4;
-      final innerAngle = angle + math.pi / 8;
-      final outerPt = Offset(center.dx + r * math.cos(angle), center.dy + r * math.sin(angle));
-      final innerPt = Offset(
-        center.dx + (r * 0.45) * math.cos(innerAngle),
-        center.dy + (r * 0.45) * math.sin(innerAngle),
-      );
-      if (i == 0) {
-        path.moveTo(outerPt.dx, outerPt.dy);
-      } else {
-        path.lineTo(innerPt.dx, innerPt.dy);
-        path.lineTo(outerPt.dx, outerPt.dy);
-      }
-      path.lineTo(innerPt.dx, innerPt.dy);
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_HeaderPatternPainter old) => old.isDark != isDark;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -969,7 +930,7 @@ class _DailyNameBanner extends StatelessWidget {
                     name.arabic,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'ScheherazadeNew',
+                      fontFamily: 'UthmanTahaNaskh',
                       fontSize: 30,
                       color: isDark ? const Color(0xFFE8D5B0) : const Color(0xFF3A2208),
                     ),
@@ -1074,7 +1035,7 @@ class _NameGridCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontFamily: 'ScheherazadeNew',
+                  fontFamily: 'UthmanTahaNaskh',
                   fontSize: 20,
                   height: 1.3,
                   color: arabicColor,
@@ -1314,7 +1275,7 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
                     name.arabic,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'ScheherazadeNew',
+                      fontFamily: 'UthmanTahaNaskh',
                       fontSize: 40,
                       color: isDark ? const Color(0xFFE8D5B0) : const Color(0xFFFAF6EE),
                       shadows: [
@@ -1643,7 +1604,7 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
                       name.arabic,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontFamily: 'ScheherazadeNew',
+                        fontFamily: 'UthmanTahaNaskh',
                         fontSize: 64,
                         color: Color(0xFFE8D5B0),
                         shadows: [
@@ -1854,7 +1815,7 @@ class _VerseCard extends StatelessWidget {
               textAlign: TextAlign.right,
               textDirection: TextDirection.rtl,
               style: TextStyle(
-                fontFamily: 'ScheherazadeNew',
+                fontFamily: 'UthmanTahaNaskh',
                 fontSize: 18,
                 height: 1.8,
                 color: arabicColor,
