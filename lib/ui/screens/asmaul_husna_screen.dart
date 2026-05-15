@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/quran_text_db.dart';
+import '../../services/quran_ayah_metadata_db.dart';
 
 // ═══════════════════════════════════════════════════════
 //  MODEL
@@ -632,7 +633,7 @@ class _AsmaulHusnaScreenState extends State<AsmaulHusnaScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Asmaul Husna',
+                    'Asma-ul Husna',
                     style: TextStyle(
                       color: isDark ? Colors.white : const Color(0xFF1A1A1A),
                       fontSize: 26,
@@ -1106,7 +1107,7 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
   bool _meditationMode = false;
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
-  final Map<int, List<QVerse?>> _versesCache = {};
+  final Map<int, List<(String? ar, String? fr)>> _versesCache = {};
 
   @override
   void initState() {
@@ -1129,7 +1130,14 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
       return;
     }
     final results = await Future.wait(
-      name.verses.map((v) => QuranTextDb.instance.getVerseByKey(v)),
+      name.verses.map((v) async {
+        final parts = v.split(':');
+        final surah = int.tryParse(parts[0]) ?? 0;
+        final ayah = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+        final ar = await QuranAyahMetadataDb.instance.getVerseText(surah, ayah);
+        final qv = await QuranTextDb.instance.getVerseByKey(v);
+        return (ar, qv?.fr);
+      }),
     );
     if (mounted) setState(() => _versesCache[name.number] = results);
   }
@@ -1225,12 +1233,16 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
                   const Spacer(),
                   IconButton(
                     tooltip: 'Mode méditation',
-                    icon: Icon(
-                      Icons.self_improvement_rounded,
-                      size: 20,
-                      color: isDark
-                          ? const Color(0xFFE8D5B0).withValues(alpha: 0.8)
-                          : const Color(0xFFFAF6EE),
+                    icon: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CustomPaint(
+                        painter: _CrescentPainter(
+                          color: isDark
+                              ? const Color(0xFFE8D5B0).withValues(alpha: 0.8)
+                              : const Color(0xFFFAF6EE),
+                        ),
+                      ),
                     ),
                     onPressed: _toggleMeditation,
                   ),
@@ -1594,6 +1606,22 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Islamic emblem
+                  AnimatedBuilder(
+                    animation: _pulseAnim,
+                    builder: (_, child) => Opacity(
+                      opacity: 0.6 + (_pulseAnim.value - 0.92) * 0.5,
+                      child: child,
+                    ),
+                    child: const SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: CustomPaint(
+                        painter: _CrescentPainter(color: Color(0xFFD4AF37)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   AnimatedBuilder(
                     animation: _pulseAnim,
                     builder: (_, child) => Transform.scale(
@@ -1856,28 +1884,86 @@ class _MeditationPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFD4AF37).withValues(alpha: 0.04)
+      ..color = const Color(0xFFD4AF37).withValues(alpha: 0.055)
       ..strokeWidth = 0.5
-      ..style = PaintingStyle.stroke;
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = true;
 
-    final cx = size.width / 2;
-    final cy = size.height / 2;
+    const spacing = 88.0;
+    const starR = 16.0;
+    final cols = (size.width / spacing).ceil() + 2;
+    final rows = (size.height / spacing).ceil() + 2;
 
-    for (int i = 1; i <= 5; i++) {
-      canvas.drawCircle(Offset(cx, cy), i * 60.0, paint);
+    for (int row = -1; row <= rows; row++) {
+      for (int col = -1; col <= cols; col++) {
+        final offset = (row % 2 == 0) ? 0.0 : spacing / 2;
+        final x = col * spacing + offset;
+        final y = row * spacing;
+        _draw8Star(canvas, paint, Offset(x, y), starR);
+      }
     }
+  }
 
-    // Radial lines
-    for (int i = 0; i < 12; i++) {
-      final angle = i * math.pi / 6;
-      canvas.drawLine(
-        Offset(cx, cy),
-        Offset(cx + 360 * math.cos(angle), cy + 360 * math.sin(angle)),
-        paint,
-      );
+  void _draw8Star(Canvas canvas, Paint paint, Offset center, double r) {
+    final inner = r * 0.42;
+    final path = Path();
+    for (int i = 0; i < 16; i++) {
+      final angle = i * math.pi / 8 - math.pi / 8;
+      final radius = i.isEven ? r : inner;
+      final x = center.dx + radius * math.cos(angle);
+      final y = center.dy + radius * math.sin(angle);
+      if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
     }
+    path.close();
+    canvas.drawPath(path, paint);
   }
 
   @override
   bool shouldRepaint(_MeditationPatternPainter old) => false;
+}
+
+// ═══════════════════════════════════════════════════════
+//  CRESCENT PAINTER  (button icon + overlay emblem)
+// ═══════════════════════════════════════════════════════
+
+class _CrescentPainter extends CustomPainter {
+  final Color color;
+  const _CrescentPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = size.width * 0.44;
+
+    // Crescent: full circle minus offset inner circle
+    final outer = Path()..addOval(Rect.fromCircle(center: Offset(cx, cy), radius: r));
+    final inner = Path()..addOval(Rect.fromCircle(center: Offset(cx + r * 0.36, cy - r * 0.04), radius: r * 0.75));
+    canvas.drawPath(Path.combine(PathOperation.difference, outer, inner), paint);
+
+    // 5-pointed star (upper-right of crescent)
+    _drawStar(canvas, paint, cx + r * 0.88, cy - r * 0.54, r * 0.22, 5);
+  }
+
+  void _drawStar(Canvas canvas, Paint paint, double cx, double cy, double r, int points) {
+    final innerR = r * 0.38;
+    final path = Path();
+    for (int i = 0; i < points * 2; i++) {
+      final angle = i * math.pi / points - math.pi / 2;
+      final radius = i.isEven ? r : innerR;
+      final x = cx + radius * math.cos(angle);
+      final y = cy + radius * math.sin(angle);
+      if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CrescentPainter old) => old.color != color;
 }
