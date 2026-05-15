@@ -4,6 +4,7 @@ import 'dua_screen.dart';
 import 'hadith_screen.dart';
 import 'qibla_screen.dart';
 import 'revision_screen.dart';
+import 'asmaul_husna_screen.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
@@ -537,7 +538,7 @@ Future<void> _checkFirstLaunch() async {
                               _FeatureChipData(label: 'Duʿa', imagePath: 'assets/images/Features/dua.webp'),
                               _FeatureChipData(label: 'Hadith', imagePath: 'assets/images/Features/hadith.webp'),
                               _FeatureChipData(label: 'Qibla', imagePath: 'assets/images/Features/qibla.webp'),
-                              _FeatureChipData(label: 'Adhkar', imagePath: 'assets/images/Features/adhkar.webp'),
+                              _FeatureChipData(label: 'Asmaul Husna', imagePath: 'assets/images/Features/adhkar.webp'),
                               _FeatureChipData(label: 'Révision', imagePath: 'assets/images/Features/bookmarks.webp'),
                             ],
                             badgeCounts: {'Révision': _revisionDueCount},
@@ -548,12 +549,7 @@ Future<void> _checkFirstLaunch() async {
                               if (f.label == 'Hadith')   dest = const HadithScreen();
                               if (f.label == 'Qibla')    dest = const QiblaScreen();
                               if (f.label == 'Révision') dest = const RevisionScreen();
-                              if (f.label == 'Adhkar') {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  const SnackBar(content: Text('Bientôt disponible'), duration: Duration(seconds: 2)),
-                                );
-                                return;
-                              }
+                              if (f.label == 'Asmaul Husna') dest = const AsmaulHusnaScreen();
                               if (dest == null) return;
                               Navigator.of(ctx).push(PageRouteBuilder<void>(
                                 pageBuilder: (_, __, ___) => dest!,
