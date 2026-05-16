@@ -1,9 +1,11 @@
 import 'dart:math' as math;
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/quran_text_db.dart';
 import '../../services/quran_ayah_metadata_db.dart';
+import '../../services/quran_text_db.dart';
+import '../../services/quran_translation_pack_service.dart';
 
 // ═══════════════════════════════════════════════════════
 //  MODEL
@@ -632,38 +634,40 @@ class _AsmaulHusnaScreenState extends State<AsmaulHusnaScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Nom suprême
+                  Text(
+                    'ٱللَّه',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'UthmanicHafs',
+                      fontSize: 72,
+                      height: 1.1,
+                      color: const Color(0xFFC8A97E),
+                      shadows: [
+                        Shadow(
+                          color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.55 : 0.30),
+                          blurRadius: 24,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     'Asma-ul Husna',
                     style: TextStyle(
-                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      height: 1.1,
+                      color: isDark ? Colors.white70 : const Color(0xFF1A1A1A),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'أسماء الله الحسنى',
-                    textAlign: TextAlign.center,
+                  const SizedBox(height: 4),
+                  Text(
+                    'Les 99 plus beaux noms d\'Allah',
                     style: TextStyle(
-                      fontFamily: 'UthmanTahaNaskh',
-                      color: Color(0xFFC8A97E),
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 36),
-                    child: Text(
-                      '« Allah possède quatre-vingt-dix-neuf noms. Quiconque les dénombre entrera au Paradis. »  — Bukhari & Muslim',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: isDark ? Colors.white54 : Colors.black45,
-                        fontSize: 11.5,
-                        fontStyle: FontStyle.italic,
-                        height: 1.55,
-                      ),
+                      color: isDark ? Colors.white38 : Colors.black38,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
                 ],
@@ -931,7 +935,7 @@ class _DailyNameBanner extends StatelessWidget {
                     name.arabic,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'UthmanTahaNaskh',
+                      fontFamily: 'UthmanicHafs',
                       fontSize: 30,
                       color: isDark ? const Color(0xFFE8D5B0) : const Color(0xFF3A2208),
                     ),
@@ -1036,7 +1040,7 @@ class _NameGridCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontFamily: 'UthmanTahaNaskh',
+                  fontFamily: 'UthmanicHafs',
                   fontSize: 20,
                   height: 1.3,
                   color: arabicColor,
@@ -1108,6 +1112,10 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
   final Map<int, List<(String? ar, String? fr)>> _versesCache = {};
+  bool _frPackReady       = false;
+  bool _frPackDownloading = false;
+  double _frPackProgress  = 0.0;
+  CancelToken? _frCancelToken;
 
   @override
   void initState() {
@@ -1121,6 +1129,26 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
     _fetchVerses(widget.names[_currentIndex]);
+    QuranTranslationPackService.isPackReady(AppLang.fr)
+        .then((ready) { if (mounted) setState(() => _frPackReady = ready); });
+  }
+
+  Future<void> _downloadFrPack() async {
+    if (_frPackDownloading) return;
+    _frCancelToken = CancelToken();
+    setState(() { _frPackDownloading = true; _frPackProgress = 0; });
+    try {
+      await QuranTranslationPackService.downloadPack(
+        AppLang.fr,
+        cancelToken: _frCancelToken,
+        onProgress: (p) { if (mounted) setState(() => _frPackProgress = p); },
+      );
+      _versesCache.clear();
+      if (mounted) setState(() { _frPackReady = true; _frPackDownloading = false; });
+      _fetchVerses(widget.names[_currentIndex]);
+    } catch (_) {
+      if (mounted) setState(() => _frPackDownloading = false);
+    }
   }
 
   Future<void> _fetchVerses(AsmaName name) async {
@@ -1136,7 +1164,12 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
         final ayah = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
         final ar = await QuranAyahMetadataDb.instance.getVerseText(surah, ayah);
         final qv = await QuranTextDb.instance.getVerseByKey(v);
-        return (ar, qv?.fr);
+        // Format legacy : le texte FR est dans qv.ar (colonne "text" du DB FR-only)
+        // Format split  : le texte FR est dans qv.fr
+        final fr = (qv?.fr.isNotEmpty == true) ? qv!.fr
+                 : (qv?.ar.isNotEmpty == true)  ? qv!.ar
+                 : null;
+        return (ar, fr);
       }),
     );
     if (mounted) setState(() => _versesCache[name.number] = results);
@@ -1287,7 +1320,7 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
                     name.arabic,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'UthmanTahaNaskh',
+                      fontFamily: 'UthmanicHafs',
                       fontSize: 40,
                       color: isDark ? const Color(0xFFE8D5B0) : const Color(0xFFFAF6EE),
                       shadows: [
@@ -1457,17 +1490,54 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
                     )
                   else
                     Column(
-                      children: List.generate(name.verses.length, (i) {
-                        final verse = _versesCache[name.number]![i];
-                        return Padding(
-                          padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
-                          child: _VerseCard(
-                            ref: name.verses[i],
-                            verse: verse,
-                            isDark: isDark,
-                          ),
-                        );
-                      }),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ...List.generate(name.verses.length, (i) {
+                          final verseData = _versesCache[name.number]![i];
+                          return Padding(
+                            padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
+                            child: _VerseCard(
+                              ref: name.verses[i],
+                              ar: verseData.$1,
+                              fr: verseData.$2,
+                              frPackReady: _frPackReady,
+                              isDark: isDark,
+                            ),
+                          );
+                        }),
+                        if (!_frPackReady) ...[
+                          const SizedBox(height: 12),
+                          if (_frPackDownloading)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                LinearProgressIndicator(
+                                  value: _frPackProgress,
+                                  color: const Color(0xFFC8A97E),
+                                  backgroundColor: const Color(0xFFC8A97E).withValues(alpha: 0.15),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Téléchargement… ${(_frPackProgress * 100).toStringAsFixed(0)} %',
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFFC8A97E)),
+                                ),
+                              ],
+                            )
+                          else
+                            TextButton.icon(
+                              onPressed: _downloadFrPack,
+                              icon: const Icon(Icons.download_rounded, size: 16, color: Color(0xFFC8A97E)),
+                              label: const Text(
+                                'Télécharger la traduction française',
+                                style: TextStyle(fontSize: 12, color: Color(0xFFC8A97E)),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                        ],
+                      ],
                     ),
                 ],
               ),
@@ -1632,7 +1702,7 @@ class _AsmaulHusnaDetailScreenState extends State<_AsmaulHusnaDetailScreen>
                       name.arabic,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontFamily: 'UthmanTahaNaskh',
+                        fontFamily: 'UthmanicHafs',
                         fontSize: 64,
                         color: Color(0xFFE8D5B0),
                         shadows: [
@@ -1786,10 +1856,12 @@ class _NavButton extends StatelessWidget {
 
 class _VerseCard extends StatelessWidget {
   final String ref;
-  final QVerse? verse;
+  final String? ar;
+  final String? fr;
   final bool isDark;
+  final bool frPackReady;
 
-  const _VerseCard({required this.ref, required this.verse, required this.isDark});
+  const _VerseCard({required this.ref, required this.ar, required this.fr, required this.isDark, required this.frPackReady});
 
   @override
   Widget build(BuildContext context) {
@@ -1801,8 +1873,8 @@ class _VerseCard extends StatelessWidget {
     final secColor = isDark ? Colors.white54 : const Color(0xFF6B5A45);
     const gold = Color(0xFFC8A97E);
 
-    final ar = verse?.ar ?? '';
-    final fr = verse?.fr ?? '';
+    final arText = ar ?? '';
+    final frText = fr ?? '';
 
     return Container(
       width: double.infinity,
@@ -1836,29 +1908,31 @@ class _VerseCard extends StatelessWidget {
               ),
             ),
           ),
-          if (ar.isNotEmpty) ...[
+          if (arText.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              ar,
+              arText,
               textAlign: TextAlign.right,
               textDirection: TextDirection.rtl,
               style: TextStyle(
-                fontFamily: 'UthmanTahaNaskh',
+                fontFamily: 'UthmanicHafs',
                 fontSize: 18,
                 height: 1.8,
                 color: arabicColor,
               ),
             ),
-            Divider(color: gold.withValues(alpha: 0.3), height: 16, thickness: 0.6),
-            Text(
-              fr.isNotEmpty ? fr : 'Traduction non disponible',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.6,
-                fontStyle: FontStyle.italic,
-                color: fr.isNotEmpty ? secColor : secColor.withValues(alpha: 0.5),
+            if (frText.isNotEmpty || frPackReady) ...[
+              Divider(color: gold.withValues(alpha: 0.3), height: 16, thickness: 0.6),
+              Text(
+                frText.isNotEmpty ? frText : 'Traduction non disponible',
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.6,
+                  fontStyle: FontStyle.italic,
+                  color: frText.isNotEmpty ? secColor : secColor.withValues(alpha: 0.5),
+                ),
               ),
-            ),
+            ],
           ] else ...[
             const SizedBox(height: 8),
             Text(
