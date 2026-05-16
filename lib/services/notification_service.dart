@@ -24,6 +24,9 @@ const _kDhikrMorningMinute = 'notif_dhikr_morning_minute';
 const _kDhikrEveningHour   = 'notif_dhikr_evening_hour';
 const _kDhikrEveningMinute = 'notif_dhikr_evening_minute';
 const _kStreakEnabled      = 'notif_streak_enabled';
+const _kArabicEnabled      = 'notif_arabic_enabled';
+const _kArabicHour         = 'notif_arabic_hour';
+const _kArabicMinute       = 'notif_arabic_minute';
 
 // ── IDs de notification ───────────────────────────────────────────────────────
 const _kDailyId         = 1;
@@ -31,6 +34,7 @@ const _kVerseId         = 2;
 const _kDhikrMorningId  = 20;
 const _kDhikrEveningId  = 21;
 const _kStreakId        = 30;
+const _kArabicId        = 50;
 const _kFajrId          = 10;
 const _kDhuhrId         = 11;
 const _kAsrId           = 12;
@@ -535,6 +539,63 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kStreakEnabled, value);
     if (!value) await cancelStreakReminder();
+  }
+
+  // ── Rappel apprentissage arabe ────────────────────────────────────────────
+  Future<void> scheduleArabicReminder(TimeOfDay time) async {
+    await init();
+    final canExact = await canScheduleExactNotifications();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kArabicEnabled, true);
+    await prefs.setInt(_kArabicHour, time.hour);
+    await prefs.setInt(_kArabicMinute, time.minute);
+
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, time.hour, time.minute);
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+
+    await _plugin.zonedSchedule(
+      _kArabicId,
+      'تعلم العربية • Leçon du jour 📖',
+      'C\'est l\'heure de ta leçon d\'arabe ! Continue ton streak !',
+      scheduled,
+      NotificationDetails(
+        android: _androidDetails(
+          withSnooze: false,
+          style: const BigTextStyleInformation(
+            'C\'est l\'heure de ta leçon d\'arabe ! Continue ton streak !',
+            summaryText: 'Quran App • Apprentissage arabe',
+          ),
+        ),
+      ),
+      androidScheduleMode: canExact
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexact,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: 'arabic',
+    );
+  }
+
+  Future<void> cancelArabicReminder() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kArabicEnabled, false);
+    await _plugin.cancel(_kArabicId);
+  }
+
+  Future<bool> isArabicReminderEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kArabicEnabled) ?? false;
+  }
+
+  Future<TimeOfDay> getArabicReminderTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final h = prefs.getInt(_kArabicHour) ?? 9;
+    final m = prefs.getInt(_kArabicMinute) ?? 0;
+    return TimeOfDay(hour: h, minute: m);
   }
 
   // ── Notifications de prières ──────────────────────────────────────────────

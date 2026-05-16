@@ -33,6 +33,7 @@ import '../../models/radio_station.dart';
 import '../../services/announcements_service.dart';
 import '../../services/revision_service.dart';
 import 'notifications_screen.dart';
+import 'arabic_home_screen.dart';
 part 'home_screen_widgets.dart';
 
 
@@ -585,10 +586,22 @@ Future<void> _checkFirstLaunch() async {
                             ],
                             onTap: (item) {
                               if (item.title == 'Apprendre l\'arabe') {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Bientôt disponible'),
-                                    duration: Duration(seconds: 2),
+                                Navigator.push(
+                                  context,
+                                  PageRouteBuilder(
+                                    pageBuilder: (_, __, ___) => const ArabicHomeScreen(),
+                                    transitionDuration: const Duration(milliseconds: 380),
+                                    reverseTransitionDuration: const Duration(milliseconds: 280),
+                                    transitionsBuilder: (_, anim, __, child) => SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(1, 0),
+                                        end: Offset.zero,
+                                      ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+                                      child: FadeTransition(
+                                        opacity: CurvedAnimation(parent: anim, curve: Curves.easeIn),
+                                        child: child,
+                                      ),
+                                    ),
                                   ),
                                 );
                                 return;

@@ -23,6 +23,7 @@ void callbackDispatcher() {
         await _reschedulePrayers();
         await _refreshDhikrNotifications();
         await StreakService.checkAndNotify();
+        await _refreshArabicReminder();
       }
       return true;
     } catch (e, st) {
@@ -70,6 +71,14 @@ Future<void> _refreshDhikrNotifications() async {
     morning: TimeOfDay(hour: morningHour, minute: morningMinute),
     evening: TimeOfDay(hour: eveningHour, minute: eveningMinute),
   );
+}
+
+// ── Re-planification rappel arabe ─────────────────────────────────────────────
+Future<void> _refreshArabicReminder() async {
+  final enabled = await NotificationService.instance.isArabicReminderEnabled();
+  if (!enabled) return;
+  final time = await NotificationService.instance.getArabicReminderTime();
+  await NotificationService.instance.scheduleArabicReminder(time);
 }
 
 // ── AlAdhan API ───────────────────────────────────────────────────────────────
