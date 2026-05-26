@@ -49,11 +49,11 @@ dev_dependencies:
 flutter_native_splash:
   color: "#F2ECE5"
   color_dark: "#F2ECE5"
-  image: assets/icon/logo_app_v6.png
+  image: assets/icon/logo_bayan_wap.png
   android_12:
     icon_background_color: "#F2ECE5"
     icon_background_color_dark: "#F2ECE5"
-    image: assets/icon/logo_app_v6.png
+    image: assets/icon/logo_bayan_wap.png
   web: false
   ios: false
 
@@ -61,9 +61,9 @@ flutter_native_splash:
 flutter_icons:
   android: true
   ios: false
-  image_path: "assets/icon/logo_app_v6.png"  # chemin vers logo 512x512
-  adaptive_icon_background: "#1A6B2A"  # fond vert pour adaptive icon Android
-  adaptive_icon_foreground: "assets/icon/logo_app_v6.png"  # même image pour foreground
+  image_path: "assets/icon/logo_bayan_wap.png"
+  adaptive_icon_background: "#1A6B2A"
+  adaptive_icon_foreground: "assets/icon/logo_bayan_wap.png"
 
 
 flutter:
